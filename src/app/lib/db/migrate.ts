@@ -1,9 +1,14 @@
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load environment variables from .env file
+config({ path: resolve(process.cwd(), ".env") });
+
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { env } from "../../lib/env";
 
-console.log(env);
+// console.log(env);
 
 /**
  * This script applies pending migrations to the database
@@ -12,7 +17,7 @@ console.log(env);
 async function runMigration() {
   // Create a Postgres connection pool
   const pool = new Pool({
-    connectionString: env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL,
   });
 
   try {
