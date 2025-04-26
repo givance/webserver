@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "tsx src/app/lib/db/migrate.ts"
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "^0.13.0",
