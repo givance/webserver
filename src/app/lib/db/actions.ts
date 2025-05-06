@@ -7,7 +7,7 @@ import { eq, and, desc } from "drizzle-orm";
  * @param id The user's ID
  * @returns The user or undefined if not found
  */
-export async function getUserById(id: number) {
+export async function getUserById(id: string) {
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
 
   return result[0];
@@ -15,15 +15,17 @@ export async function getUserById(id: number) {
 
 /**
  * Create a new user
- * @param name The user's name
+ * @param id The user's ID (Clerk User ID)
+ * @param name The user's first name
  * @param email The user's email
  * @returns The created user
  */
-export async function createUser(name: string, email: string) {
+export async function createUser(id: string, name: string, email: string) {
   const result = await db
     .insert(users)
     .values({
-      name,
+      id,
+      firstName: name,
       email,
     })
     .returning();
@@ -35,11 +37,11 @@ export async function createUser(name: string, email: string) {
  * Create a new post for a user
  * @param title The post title
  * @param content The post content
- * @param authorId The author's user ID
+ * @param authorId The author's user ID (string)
  * @param published Whether the post should be published
  * @returns The created post
  */
-export async function createPost(title: string, content: string | null, authorId: number, published: boolean = false) {
+export async function createPost(title: string, content: string | null, authorId: string, published: boolean = false) {
   const result = await db
     .insert(posts)
     .values({
@@ -57,11 +59,11 @@ export async function createPost(title: string, content: string | null, authorId
 
 /**
  * Get all posts for a specific user
- * @param userId The user ID
+ * @param userId The user ID (string)
  * @param publishedOnly Whether to only return published posts
  * @returns Array of posts
  */
-export async function getPostsByUserId(userId: number, publishedOnly: boolean = false) {
+export async function getPostsByUserId(userId: string, publishedOnly: boolean = false) {
   const query = db
     .select()
     .from(posts)
