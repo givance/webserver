@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { projects } from "../db/schema";
-import { eq, sql, desc, asc, SQL, AnyColumn } from "drizzle-orm";
+import { eq, sql, desc, asc, SQL, AnyColumn, and } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Project = InferSelectModel<typeof projects>;
@@ -76,6 +76,7 @@ export async function deleteProject(id: number): Promise<void> {
 /**
  * Lists projects with optional filtering and sorting.
  * @param options - Options for filtering (e.g., active status) and pagination.
+ * @param organizationId - The ID of the organization to filter projects by.
  * @returns An array of project objects.
  */
 export async function listProjects(
@@ -85,20 +86,20 @@ export async function listProjects(
     offset?: number;
     orderBy?: keyof Pick<Project, "name" | "createdAt">;
     orderDirection?: "asc" | "desc";
-  } = {}
+  } = {},
+  organizationId: string
 ): Promise<Project[]> {
   try {
     const { active, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
 
     let queryBuilder = db.select().from(projects);
 
-    const conditions: SQL[] = [];
+    const conditions: SQL[] = [eq(projects.organizationId, organizationId)];
     if (active !== undefined) {
       conditions.push(eq(projects.active, active));
     }
-    if (conditions.length > 0) {
-      queryBuilder = queryBuilder.where(sql.join(conditions, sql` AND `)) as typeof queryBuilder;
-    }
+
+    queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
 
     if (orderBy) {
       const columnMap: { [key in typeof orderBy]: AnyColumn } = {

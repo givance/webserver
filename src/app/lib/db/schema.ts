@@ -66,6 +66,9 @@ export const organizationsRelations = relations(organizations, ({ many, one }) =
     references: [users.id],
     relationName: "organizationCreator", // Added relation name for clarity
   }),
+  projects: many(projects),
+  donors: many(donors),
+  staff: many(staff),
 }));
 
 /**
@@ -109,6 +112,9 @@ export const organizationMembershipsRelations = relations(organizationMembership
  */
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   active: boolean("active").default(true).notNull(),
@@ -121,6 +127,9 @@ export const projects = pgTable("projects", {
  */
 export const donors = pgTable("donors", {
   id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   firstName: varchar("first_name", { length: 255 }).notNull(),
   lastName: varchar("last_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -154,6 +163,9 @@ export const donations = pgTable("donations", {
  */
 export const staff = pgTable("staff", {
   id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   firstName: varchar("first_name", { length: 255 }).notNull(),
   lastName: varchar("last_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -232,15 +244,23 @@ export const communicationContent = pgTable("communication_content", {
 });
 
 // Add relations for the new tables
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const projectsRelations = relations(projects, ({ many, one }) => ({
   donations: many(donations),
+  organization: one(organizations, {
+    fields: [projects.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
-export const donorsRelations = relations(donors, ({ many }) => ({
+export const donorsRelations = relations(donors, ({ many, one }) => ({
   donations: many(donations),
   communicationThreads: many(communicationThreadDonors),
   sentMessages: many(communicationContent, { relationName: "fromDonor" }),
   receivedMessages: many(communicationContent, { relationName: "toDonor" }),
+  organization: one(organizations, {
+    fields: [donors.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const donationsRelations = relations(donations, ({ one }) => ({
@@ -254,10 +274,14 @@ export const donationsRelations = relations(donations, ({ one }) => ({
   }),
 }));
 
-export const staffRelations = relations(staff, ({ many }) => ({
+export const staffRelations = relations(staff, ({ many, one }) => ({
   communicationThreads: many(communicationThreadStaff),
   sentMessages: many(communicationContent, { relationName: "fromStaff" }),
   receivedMessages: many(communicationContent, { relationName: "toStaff" }),
+  organization: one(organizations, {
+    fields: [staff.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const communicationThreadsRelations = relations(communicationThreads, ({ many }) => ({

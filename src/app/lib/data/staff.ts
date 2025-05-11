@@ -1,19 +1,24 @@
 import { db } from "../db";
 import { staff } from "../db/schema";
-import { eq, sql, like, or, asc, desc, SQL } from "drizzle-orm";
+import { eq, sql, like, or, asc, desc, SQL, and } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Staff = InferSelectModel<typeof staff>;
 export type NewStaff = InferInsertModel<typeof staff>;
 
 /**
- * Retrieves a staff member by their ID.
+ * Retrieves a staff member by their ID and organization ID.
  * @param id - The ID of the staff member to retrieve.
+ * @param organizationId - The ID of the organization the staff member belongs to.
  * @returns The staff member object if found, otherwise undefined.
  */
-export async function getStaffById(id: number): Promise<Staff | undefined> {
+export async function getStaffById(id: number, organizationId: string): Promise<Staff | undefined> {
   try {
-    const result = await db.select().from(staff).where(eq(staff.id, id)).limit(1);
+    const result = await db
+      .select()
+      .from(staff)
+      .where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)))
+      .limit(1);
     return result[0];
   } catch (error) {
     console.error("Failed to retrieve staff member by ID:", error);
@@ -22,13 +27,18 @@ export async function getStaffById(id: number): Promise<Staff | undefined> {
 }
 
 /**
- * Retrieves a staff member by their email.
+ * Retrieves a staff member by their email and organization ID.
  * @param email - The email of the staff member to retrieve.
+ * @param organizationId - The ID of the organization the staff member belongs to.
  * @returns The staff member object if found, otherwise undefined.
  */
-export async function getStaffByEmail(email: string): Promise<Staff | undefined> {
+export async function getStaffByEmail(email: string, organizationId: string): Promise<Staff | undefined> {
   try {
-    const result = await db.select().from(staff).where(eq(staff.email, email)).limit(1);
+    const result = await db
+      .select()
+      .from(staff)
+      .where(and(eq(staff.email, email), eq(staff.organizationId, organizationId)))
+      .limit(1);
     return result[0];
   } catch (error) {
     console.error("Failed to retrieve staff member by email:", error);
@@ -48,7 +58,7 @@ export async function createStaff(staffData: Omit<NewStaff, "id" | "createdAt" |
   } catch (error) {
     console.error("Failed to create staff member:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Staff member with this email already exists.");
+      throw new Error("Staff member with this email already exists in this organization.");
     }
     throw new Error("Could not create staff member.");
   }
@@ -58,35 +68,38 @@ export async function createStaff(staffData: Omit<NewStaff, "id" | "createdAt" |
  * Updates an existing staff member.
  * @param id - The ID of the staff member to update.
  * @param staffData - Data to update for the staff member.
+ * @param organizationId - The ID of the organization the staff member belongs to.
  * @returns The updated staff member object.
  */
 export async function updateStaff(
   id: number,
-  staffData: Partial<Omit<NewStaff, "id" | "createdAt" | "updatedAt">>
+  staffData: Partial<Omit<NewStaff, "id" | "createdAt" | "updatedAt">>,
+  organizationId: string
 ): Promise<Staff | undefined> {
   try {
     const result = await db
       .update(staff)
       .set({ ...staffData, updatedAt: sql`now()` })
-      .where(eq(staff.id, id))
+      .where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)))
       .returning();
     return result[0];
   } catch (error) {
     console.error("Failed to update staff member:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Cannot update to an email that already exists for another staff member.");
+      throw new Error("Cannot update to an email that already exists for another staff member in this organization.");
     }
     throw new Error("Could not update staff member.");
   }
 }
 
 /**
- * Deletes a staff member by their ID.
+ * Deletes a staff member by their ID and organization ID.
  * @param id - The ID of the staff member to delete.
+ * @param organizationId - The ID of the organization the staff member belongs to.
  */
-export async function deleteStaff(id: number): Promise<void> {
+export async function deleteStaff(id: number, organizationId: string): Promise<void> {
   try {
-    await db.delete(staff).where(eq(staff.id, id));
+    await db.delete(staff).where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)));
   } catch (error) {
     console.error("Failed to delete staff member:", error);
     // Consider implications if staff are linked to communication threads, etc.
@@ -97,6 +110,7 @@ export async function deleteStaff(id: number): Promise<void> {
 /**
  * Lists staff members with optional filtering and sorting.
  * @param options - Options for filtering by real person status, searching, pagination, and sorting.
+ * @param organizationId - The ID of the organization to filter staff by.
  * @returns An array of staff member objects.
  */
 export async function listStaff(
@@ -107,27 +121,30 @@ export async function listStaff(
     offset?: number;
     orderBy?: keyof Pick<Staff, "firstName" | "lastName" | "email" | "createdAt">;
     orderDirection?: "asc" | "desc";
-  } = {}
+  } = {},
+  organizationId: string
 ): Promise<Staff[]> {
   try {
     const { searchTerm, isRealPerson, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
 
-    let whereConditions: SQL | undefined;
+    const conditions: SQL[] = [eq(staff.organizationId, organizationId)];
 
-    // Build search conditions
+    // Add search conditions
     if (searchTerm) {
       const term = `%${searchTerm.toLowerCase()}%`;
-      whereConditions = or(
+      const searchCondition = or(
         like(sql`lower(${staff.firstName})`, term),
         like(sql`lower(${staff.lastName})`, term),
         like(sql`lower(${staff.email})`, term)
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     // Add isRealPerson filter
     if (isRealPerson !== undefined) {
-      const isRealPersonCondition = eq(staff.isRealPerson, isRealPerson);
-      whereConditions = whereConditions ? sql`${whereConditions} and ${isRealPersonCondition}` : isRealPersonCondition;
+      conditions.push(eq(staff.isRealPerson, isRealPerson));
     }
 
     // Build order by clause
@@ -139,7 +156,7 @@ export async function listStaff(
 
     // Execute query
     return await db.query.staff.findMany({
-      where: whereConditions,
+      where: and(...conditions),
       limit,
       offset,
       orderBy: orderByClause,

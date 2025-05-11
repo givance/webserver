@@ -7,13 +7,18 @@ export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
 
 /**
- * Retrieves a donor by their ID.
+ * Retrieves a donor by their ID and organization ID.
  * @param id - The ID of the donor to retrieve.
+ * @param organizationId - The ID of the organization the donor belongs to.
  * @returns The donor object if found, otherwise undefined.
  */
-export async function getDonorById(id: number): Promise<Donor | undefined> {
+export async function getDonorById(id: number, organizationId: string): Promise<Donor | undefined> {
   try {
-    const result = await db.select().from(donors).where(eq(donors.id, id)).limit(1);
+    const result = await db
+      .select()
+      .from(donors)
+      .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)))
+      .limit(1);
     return result[0];
   } catch (error) {
     console.error("Failed to retrieve donor by ID:", error);
@@ -22,13 +27,18 @@ export async function getDonorById(id: number): Promise<Donor | undefined> {
 }
 
 /**
- * Retrieves a donor by their email.
+ * Retrieves a donor by their email and organization ID.
  * @param email - The email of the donor to retrieve.
+ * @param organizationId - The ID of the organization the donor belongs to.
  * @returns The donor object if found, otherwise undefined.
  */
-export async function getDonorByEmail(email: string): Promise<Donor | undefined> {
+export async function getDonorByEmail(email: string, organizationId: string): Promise<Donor | undefined> {
   try {
-    const result = await db.select().from(donors).where(eq(donors.email, email)).limit(1);
+    const result = await db
+      .select()
+      .from(donors)
+      .where(and(eq(donors.email, email), eq(donors.organizationId, organizationId)))
+      .limit(1);
     return result[0];
   } catch (error) {
     console.error("Failed to retrieve donor by email:", error);
@@ -48,7 +58,7 @@ export async function createDonor(donorData: Omit<NewDonor, "id" | "createdAt" |
   } catch (error) {
     console.error("Failed to create donor:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Donor with this email already exists.");
+      throw new Error("Donor with this email already exists in this organization.");
     }
     throw new Error("Could not create donor.");
   }
@@ -58,36 +68,39 @@ export async function createDonor(donorData: Omit<NewDonor, "id" | "createdAt" |
  * Updates an existing donor.
  * @param id - The ID of the donor to update.
  * @param donorData - The data to update for the donor.
+ * @param organizationId - The ID of the organization the donor belongs to.
  * @returns The updated donor object.
  */
 export async function updateDonor(
   id: number,
-  donorData: Partial<Omit<NewDonor, "id" | "createdAt" | "updatedAt">>
+  donorData: Partial<Omit<NewDonor, "id" | "createdAt" | "updatedAt">>,
+  organizationId: string
 ): Promise<Donor | undefined> {
   try {
     const result = await db
       .update(donors)
       .set({ ...donorData, updatedAt: sql`now()` })
-      .where(eq(donors.id, id))
+      .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)))
       .returning();
     return result[0];
   } catch (error) {
     console.error("Failed to update donor:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Cannot update to an email that already exists for another donor.");
+      throw new Error("Cannot update to an email that already exists for another donor in this organization.");
     }
     throw new Error("Could not update donor.");
   }
 }
 
 /**
- * Deletes a donor by their ID.
+ * Deletes a donor by their ID and organization ID.
  * Note: Consider implications for related donations or communications.
  * @param id - The ID of the donor to delete.
+ * @param organizationId - The ID of the organization the donor belongs to.
  */
-export async function deleteDonor(id: number): Promise<void> {
+export async function deleteDonor(id: number, organizationId: string): Promise<void> {
   try {
-    await db.delete(donors).where(eq(donors.id, id));
+    await db.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
   } catch (error) {
     console.error("Failed to delete donor:", error);
     // Check for foreign key constraints if donations exist for this donor
@@ -98,6 +111,7 @@ export async function deleteDonor(id: number): Promise<void> {
 /**
  * Lists donors with optional search, filtering, and sorting.
  * @param options - Options for searching, filtering, pagination, and sorting.
+ * @param organizationId - The ID of the organization to filter donors by.
  * @returns An array of donor objects.
  */
 export async function listDonors(
@@ -108,7 +122,8 @@ export async function listDonors(
     offset?: number;
     orderBy?: keyof Pick<Donor, "firstName" | "lastName" | "email" | "createdAt">;
     orderDirection?: "asc" | "desc";
-  } = {}
+  } = {},
+  organizationId: string
 ): Promise<Donor[]> {
   try {
     const { searchTerm, state, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
@@ -116,11 +131,10 @@ export async function listDonors(
     // Base query
     let query = db.select().from(donors);
 
-    const conditions: SQL[] = [];
+    const conditions: SQL[] = [eq(donors.organizationId, organizationId)];
+
     if (searchTerm) {
       const term = `%${searchTerm.toLowerCase()}%`;
-      // The 'or' function can return SQL | undefined.
-      // We must check its result before pushing to an array of type SQL[].
       const searchCondition = or(
         like(sql`lower(${donors.firstName})`, term),
         like(sql`lower(${donors.lastName})`, term),
@@ -134,15 +148,8 @@ export async function listDonors(
       conditions.push(eq(donors.state, state.toUpperCase()));
     }
 
-    // Apply WHERE conditions if any
-    if (conditions.length > 0) {
-      const whereSql = and(...conditions); // 'and' can also return SQL | undefined
-      // Only apply .where if whereSql is a valid SQL object.
-      // .where(undefined) is a no-op in Drizzle, but an explicit check is cleaner.
-      if (whereSql) {
-        query = query.where(whereSql) as typeof query;
-      }
-    }
+    // Apply WHERE conditions
+    query = query.where(and(...conditions)) as typeof query;
 
     // Apply ORDER BY if specified
     if (orderBy) {
