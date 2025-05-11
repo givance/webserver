@@ -119,6 +119,9 @@ importers:
       '@trpc/server':
         specifier: ^11.1.1
         version: 11.1.1(typescript@5.8.3)
+      '@types/pino':
+        specifier: ^7.0.5
+        version: 7.0.5
       ai:
         specifier: ^4.3.10
         version: 4.3.10(react@19.1.0)(zod@3.24.3)
@@ -1909,6 +1912,10 @@ packages:
 
   '@types/pg@8.11.14':
     resolution: {integrity: sha512-qyD11E5R3u0eJmd1lB0WnWKXJGA7s015nyARWljfz5DcX83TKAIlY+QrmvzQTsbIe+hkiFtkyL2gHC6qwF6Fbg==}
+
+  '@types/pino@7.0.5':
+    resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
+    deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
 
   '@types/react-dom@19.1.2':
     resolution: {integrity: sha512-XGJkWF41Qq305SKWEILa1O8vzhb3aOo3ogBlSmiqNko/WmRb6QIaweuZCXjKygVDXpzXb5wyxKTSOsmkuqj+Qw==}
@@ -5621,6 +5628,10 @@ snapshots:
       '@types/node': 22.15.2
       pg-protocol: 1.9.5
       pg-types: 4.0.2
+
+  '@types/pino@7.0.5':
+    dependencies:
+      pino: 9.6.0
 
   '@types/react-dom@19.1.2(@types/react@19.1.2)':
     dependencies:
