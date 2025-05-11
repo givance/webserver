@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { donors } from "../db/schema";
-import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and } from "drizzle-orm";
+import { donors, staff } from "../db/schema";
+import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Donor = InferSelectModel<typeof donors>;
@@ -109,6 +109,63 @@ export async function deleteDonor(id: number, organizationId: string): Promise<v
 }
 
 /**
+ * Assigns a donor to a staff member.
+ * @param donorId - The ID of the donor to assign.
+ * @param staffId - The ID of the staff member to assign the donor to.
+ * @param organizationId - The ID of the organization both donor and staff belong to.
+ * @returns The updated donor object.
+ */
+export async function assignDonorToStaff(
+  donorId: number,
+  staffId: number,
+  organizationId: string
+): Promise<Donor | undefined> {
+  try {
+    // First verify the staff member exists and belongs to the organization
+    const staffMember = await db
+      .select()
+      .from(staff)
+      .where(and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)))
+      .limit(1);
+
+    if (!staffMember[0]) {
+      throw new Error("Staff member not found in this organization.");
+    }
+
+    // Update the donor's assigned staff
+    const result = await db
+      .update(donors)
+      .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to assign donor to staff:", error);
+    throw new Error("Could not assign donor to staff member.");
+  }
+}
+
+/**
+ * Removes staff assignment from a donor.
+ * @param donorId - The ID of the donor to unassign.
+ * @param organizationId - The ID of the organization the donor belongs to.
+ * @returns The updated donor object.
+ */
+export async function unassignDonorFromStaff(donorId: number, organizationId: string): Promise<Donor | undefined> {
+  try {
+    const result = await db
+      .update(donors)
+      .set({ assignedToStaffId: null, updatedAt: sql`now()` })
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to unassign donor from staff:", error);
+    throw new Error("Could not unassign donor from staff member.");
+  }
+}
+
+/**
  * Lists donors with optional search, filtering, and sorting.
  * @param options - Options for searching, filtering, pagination, and sorting.
  * @param organizationId - The ID of the organization to filter donors by.
@@ -118,6 +175,7 @@ export async function listDonors(
   options: {
     searchTerm?: string; // Search by name or email
     state?: string;
+    assignedToStaffId?: number | null; // Filter by assigned staff member (null for unassigned)
     limit?: number;
     offset?: number;
     orderBy?: keyof Pick<Donor, "firstName" | "lastName" | "email" | "createdAt">;
@@ -126,7 +184,7 @@ export async function listDonors(
   organizationId: string
 ): Promise<Donor[]> {
   try {
-    const { searchTerm, state, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const { searchTerm, state, assignedToStaffId, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
 
     // Base query
     let query = db.select().from(donors);
@@ -146,6 +204,11 @@ export async function listDonors(
     }
     if (state) {
       conditions.push(eq(donors.state, state.toUpperCase()));
+    }
+    if (assignedToStaffId === null) {
+      conditions.push(isNull(donors.assignedToStaffId));
+    } else if (assignedToStaffId !== undefined) {
+      conditions.push(eq(donors.assignedToStaffId, assignedToStaffId));
     }
 
     // Apply WHERE conditions
