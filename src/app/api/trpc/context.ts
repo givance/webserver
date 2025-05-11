@@ -1,5 +1,9 @@
-import { BackendUser, useNullableUser } from "@/app/hooks/use-user";
+import { BackendUser } from "@/app/hooks/use-user";
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
+import { auth } from "@clerk/nextjs/server";
+import { getUserById } from "@/app/lib/data/users";
+import { getOrganizationById } from "@/app/lib/data/organizations";
+import { logger } from "@/app/lib/logger";
 
 interface AuthContext {
   user: BackendUser | null;
@@ -12,9 +16,37 @@ interface RequestContext {
 }
 
 export async function createContext({ req, resHeaders }: FetchCreateContextFnOptions): Promise<RequestContext> {
-  const user = await useNullableUser();
+  const authData = await auth();
+  const { userId, orgId, orgRole } = authData;
+
+  if (!userId || !orgId) {
+    return { auth: { user: null }, req, resHeaders };
+  }
+
+  const user = await getUserById(userId);
+  const organization = await getOrganizationById(orgId);
+
+  if (!user || !organization) {
+    logger.error("could not find user or organization in backend", {
+      function: "createContext",
+      userId,
+      orgId,
+    });
+    return { auth: { user: null }, req, resHeaders };
+  }
+
+  const backendUser: BackendUser = {
+    id: user.id,
+    organizationId: organization.id,
+    externalId: user.id,
+    externalOrgId: organization.id,
+    slug: organization.slug ?? "",
+    role: orgRole ?? "UNDEFINED",
+    isAdmin: () => orgRole === "org:admin",
+  };
+
   return {
-    auth: { user },
+    auth: { user: backendUser },
     req,
     resHeaders,
   };

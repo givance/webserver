@@ -1,15 +1,7 @@
 import { z } from "zod";
-import { router, orgProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import {
-  getProjectById,
-  createProject,
-  updateProject,
-  deleteProject,
-  listProjects,
-  type Project,
-  type NewProject,
-} from "@/app/lib/data/projects";
+import { getProjectById, createProject, updateProject, deleteProject, listProjects } from "@/app/lib/data/projects";
 
 // Input validation schemas
 const projectIdSchema = z.object({
@@ -47,7 +39,7 @@ const listProjectsSchema = z.object({
 });
 
 export const projectsRouter = router({
-  getById: orgProcedure.input(projectIdSchema).query(async ({ input }) => {
+  getById: protectedProcedure.input(projectIdSchema).query(async ({ input }) => {
     const project = await getProjectById(input.id);
     if (!project) {
       throw new TRPCError({
@@ -58,11 +50,11 @@ export const projectsRouter = router({
     return project;
   }),
 
-  create: orgProcedure.input(createProjectSchema).mutation(async ({ input, ctx }) => {
+  create: protectedProcedure.input(createProjectSchema).mutation(async ({ input, ctx }) => {
     try {
       return await createProject({
         ...input,
-        organizationId: ctx.orgId!,
+        organizationId: ctx.auth.user.organizationId,
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
@@ -75,7 +67,7 @@ export const projectsRouter = router({
     }
   }),
 
-  update: orgProcedure.input(updateProjectSchema).mutation(async ({ input }) => {
+  update: protectedProcedure.input(updateProjectSchema).mutation(async ({ input }) => {
     const { id, ...updateData } = input;
     const updated = await updateProject(id, updateData);
     if (!updated) {
@@ -87,7 +79,7 @@ export const projectsRouter = router({
     return updated;
   }),
 
-  delete: orgProcedure.input(projectIdSchema).mutation(async ({ input }) => {
+  delete: protectedProcedure.input(projectIdSchema).mutation(async ({ input }) => {
     try {
       await deleteProject(input.id);
     } catch (error) {
@@ -101,7 +93,7 @@ export const projectsRouter = router({
     }
   }),
 
-  list: orgProcedure.input(listProjectsSchema).query(async ({ input, ctx }) => {
-    return await listProjects(input, ctx.orgId!);
+  list: protectedProcedure.input(listProjectsSchema).query(async ({ input, ctx }) => {
+    return await listProjects(input, ctx.auth.user.organizationId);
   }),
 });

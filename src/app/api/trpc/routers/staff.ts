@@ -1,16 +1,7 @@
 import { z } from "zod";
-import { router, orgProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import {
-  getStaffById,
-  getStaffByEmail,
-  createStaff,
-  updateStaff,
-  deleteStaff,
-  listStaff,
-  type Staff,
-  type NewStaff,
-} from "@/app/lib/data/staff";
+import { getStaffById, getStaffByEmail, createStaff, updateStaff, deleteStaff, listStaff } from "@/app/lib/data/staff";
 
 // Input validation schemas
 const staffIdSchema = z.object({
@@ -46,8 +37,8 @@ const listStaffSchema = z.object({
 });
 
 export const staffRouter = router({
-  getById: orgProcedure.input(staffIdSchema).query(async ({ input, ctx }) => {
-    const staff = await getStaffById(input.id, ctx.orgId!);
+  getById: protectedProcedure.input(staffIdSchema).query(async ({ input, ctx }) => {
+    const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -57,8 +48,8 @@ export const staffRouter = router({
     return staff;
   }),
 
-  getByEmail: orgProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
-    const staff = await getStaffByEmail(input.email, ctx.orgId!);
+  getByEmail: protectedProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
+    const staff = await getStaffByEmail(input.email, ctx.auth.user.organizationId);
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -68,11 +59,11 @@ export const staffRouter = router({
     return staff;
   }),
 
-  create: orgProcedure.input(createStaffSchema).mutation(async ({ input, ctx }) => {
+  create: protectedProcedure.input(createStaffSchema).mutation(async ({ input, ctx }) => {
     try {
       return await createStaff({
         ...input,
-        organizationId: ctx.orgId!,
+        organizationId: ctx.auth.user.organizationId,
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
@@ -85,9 +76,9 @@ export const staffRouter = router({
     }
   }),
 
-  update: orgProcedure.input(updateStaffSchema).mutation(async ({ input, ctx }) => {
+  update: protectedProcedure.input(updateStaffSchema).mutation(async ({ input, ctx }) => {
     const { id, ...updateData } = input;
-    const updated = await updateStaff(id, updateData, ctx.orgId!);
+    const updated = await updateStaff(id, updateData, ctx.auth.user.organizationId);
     if (!updated) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -97,9 +88,9 @@ export const staffRouter = router({
     return updated;
   }),
 
-  delete: orgProcedure.input(staffIdSchema).mutation(async ({ input, ctx }) => {
+  delete: protectedProcedure.input(staffIdSchema).mutation(async ({ input, ctx }) => {
     try {
-      await deleteStaff(input.id, ctx.orgId!);
+      await deleteStaff(input.id, ctx.auth.user.organizationId);
     } catch (error) {
       if (error instanceof Error && error.message.includes("linked to other records")) {
         throw new TRPCError({
@@ -111,7 +102,7 @@ export const staffRouter = router({
     }
   }),
 
-  list: orgProcedure.input(listStaffSchema).query(async ({ input, ctx }) => {
-    return await listStaff(input, ctx.orgId!);
+  list: protectedProcedure.input(listStaffSchema).query(async ({ input, ctx }) => {
+    return await listStaff(input, ctx.auth.user.organizationId);
   }),
 });

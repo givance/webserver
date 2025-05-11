@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import {
   getDonorById,
@@ -8,8 +8,6 @@ import {
   updateDonor,
   deleteDonor,
   listDonors,
-  type Donor,
-  type NewDonor,
 } from "@/app/lib/data/donors";
 
 // Input validation schemas
@@ -61,8 +59,8 @@ const listDonorsSchema = z.object({
 });
 
 export const donorsRouter = router({
-  getById: orgProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
-    const donor = await getDonorById(input.id, ctx.orgId!);
+  getById: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
+    const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -72,8 +70,8 @@ export const donorsRouter = router({
     return donor;
   }),
 
-  getByEmail: orgProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
-    const donor = await getDonorByEmail(input.email, ctx.orgId!);
+  getByEmail: protectedProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
+    const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -83,11 +81,11 @@ export const donorsRouter = router({
     return donor;
   }),
 
-  create: orgProcedure.input(createDonorSchema).mutation(async ({ input, ctx }) => {
+  create: protectedProcedure.input(createDonorSchema).mutation(async ({ input, ctx }) => {
     try {
       return await createDonor({
         ...input,
-        organizationId: ctx.orgId!,
+        organizationId: ctx.auth.user.organizationId,
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
@@ -100,9 +98,9 @@ export const donorsRouter = router({
     }
   }),
 
-  update: orgProcedure.input(updateDonorSchema).mutation(async ({ input, ctx }) => {
+  update: protectedProcedure.input(updateDonorSchema).mutation(async ({ input, ctx }) => {
     const { id, ...updateData } = input;
-    const updated = await updateDonor(id, updateData, ctx.orgId!);
+    const updated = await updateDonor(id, updateData, ctx.auth.user.organizationId);
     if (!updated) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -112,9 +110,9 @@ export const donorsRouter = router({
     return updated;
   }),
 
-  delete: orgProcedure.input(donorIdSchema).mutation(async ({ input, ctx }) => {
+  delete: protectedProcedure.input(donorIdSchema).mutation(async ({ input, ctx }) => {
     try {
-      await deleteDonor(input.id, ctx.orgId!);
+      await deleteDonor(input.id, ctx.auth.user.organizationId);
     } catch (error) {
       if (error instanceof Error && error.message.includes("linked to other records")) {
         throw new TRPCError({
@@ -126,7 +124,7 @@ export const donorsRouter = router({
     }
   }),
 
-  list: orgProcedure.input(listDonorsSchema).query(async ({ input, ctx }) => {
-    return await listDonors(input, ctx.orgId!);
+  list: protectedProcedure.input(listDonorsSchema).query(async ({ input, ctx }) => {
+    return await listDonors(input, ctx.auth.user.organizationId);
   }),
 });

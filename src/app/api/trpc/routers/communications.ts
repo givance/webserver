@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import {
   createCommunicationThread,
@@ -11,9 +11,6 @@ import {
   removeStaffFromThread,
   addDonorToThread,
   removeDonorFromThread,
-  type CommunicationChannel,
-  type CommunicationThreadWithDetails,
-  type MessageWithSenderRecipient,
 } from "@/app/lib/data/communications";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
@@ -66,11 +63,11 @@ const participantSchema = z.object({
 });
 
 export const communicationsRouter = router({
-  createThread: orgProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
+  createThread: protectedProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
     // Verify all staff members belong to organization
     if (input.staffIds) {
       for (const staffId of input.staffIds) {
-        const staff = await getStaffById(staffId, ctx.orgId!);
+        const staff = await getStaffById(staffId, ctx.auth.user.organizationId);
         if (!staff) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -83,7 +80,7 @@ export const communicationsRouter = router({
     // Verify all donors belong to organization
     if (input.donorIds) {
       for (const donorId of input.donorIds) {
-        const donor = await getDonorById(donorId, ctx.orgId!);
+        const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
         if (!donor) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -95,7 +92,7 @@ export const communicationsRouter = router({
 
     try {
       return await createCommunicationThread({ channel: input.channel }, input.staffIds, input.donorIds);
-    } catch (error) {
+    } catch {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Could not create communication thread",
@@ -103,7 +100,7 @@ export const communicationsRouter = router({
     }
   }),
 
-  getThread: orgProcedure
+  getThread: protectedProcedure
     .input(z.object({ ...threadIdSchema.shape, ...threadDetailsSchema.shape }))
     .query(async ({ input, ctx }) => {
       const thread = await getCommunicationThreadById(input.id, {
@@ -121,8 +118,8 @@ export const communicationsRouter = router({
 
       // Verify thread belongs to organization through staff or donors
       const belongsToOrg =
-        (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-        (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+        (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+        (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
       if (!belongsToOrg) {
         throw new TRPCError({
@@ -134,18 +131,18 @@ export const communicationsRouter = router({
       return thread;
     }),
 
-  listThreads: orgProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
+  listThreads: protectedProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
     const threads = await listCommunicationThreads(input);
 
     // Filter threads to only include those belonging to the organization
     return threads.filter(
       (thread) =>
-        (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-        (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false)
+        (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+        (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false)
     );
   }),
 
-  addMessage: orgProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {
+  addMessage: protectedProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {
     // First verify the thread belongs to the organization
     const thread = await getCommunicationThreadById(input.threadId, {
       includeStaff: true,
@@ -160,8 +157,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({
@@ -172,7 +169,7 @@ export const communicationsRouter = router({
 
     // Verify sender and recipient belong to organization
     if (input.fromStaffId) {
-      const staff = await getStaffById(input.fromStaffId, ctx.orgId!);
+      const staff = await getStaffById(input.fromStaffId, ctx.auth.user.organizationId);
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -182,7 +179,7 @@ export const communicationsRouter = router({
     }
 
     if (input.fromDonorId) {
-      const donor = await getDonorById(input.fromDonorId, ctx.orgId!);
+      const donor = await getDonorById(input.fromDonorId, ctx.auth.user.organizationId);
       if (!donor) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -192,7 +189,7 @@ export const communicationsRouter = router({
     }
 
     if (input.toStaffId) {
-      const staff = await getStaffById(input.toStaffId, ctx.orgId!);
+      const staff = await getStaffById(input.toStaffId, ctx.auth.user.organizationId);
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -202,7 +199,7 @@ export const communicationsRouter = router({
     }
 
     if (input.toDonorId) {
-      const donor = await getDonorById(input.toDonorId, ctx.orgId!);
+      const donor = await getDonorById(input.toDonorId, ctx.auth.user.organizationId);
       if (!donor) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -230,7 +227,7 @@ export const communicationsRouter = router({
     }
   }),
 
-  getMessages: orgProcedure.input(getMessagesSchema).query(async ({ input, ctx }) => {
+  getMessages: protectedProcedure.input(getMessagesSchema).query(async ({ input, ctx }) => {
     // First verify the thread belongs to the organization
     const thread = await getCommunicationThreadById(input.threadId, {
       includeStaff: true,
@@ -245,8 +242,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({
@@ -255,12 +252,16 @@ export const communicationsRouter = router({
       });
     }
 
-    return await getMessagesInThread(input.threadId, input);
+    return await getMessagesInThread(input.threadId, {
+      limit: input.limit,
+      offset: input.offset,
+      includeSendersRecipients: input.includeSendersRecipients,
+    });
   }),
 
-  addStaffToThread: orgProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
+  addStaffToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
     // Verify staff member belongs to organization
-    const staff = await getStaffById(input.participantId, ctx.orgId!);
+    const staff = await getStaffById(input.participantId, ctx.auth.user.organizationId);
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -282,8 +283,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({
@@ -295,9 +296,9 @@ export const communicationsRouter = router({
     await addStaffToThread(input.threadId, input.participantId);
   }),
 
-  removeStaffFromThread: orgProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
+  removeStaffFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
     // Verify staff member belongs to organization
-    const staff = await getStaffById(input.participantId, ctx.orgId!);
+    const staff = await getStaffById(input.participantId, ctx.auth.user.organizationId);
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -319,8 +320,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({
@@ -332,9 +333,9 @@ export const communicationsRouter = router({
     await removeStaffFromThread(input.threadId, input.participantId);
   }),
 
-  addDonorToThread: orgProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
+  addDonorToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
     // Verify donor belongs to organization
-    const donor = await getDonorById(input.participantId, ctx.orgId!);
+    const donor = await getDonorById(input.participantId, ctx.auth.user.organizationId);
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -356,8 +357,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({
@@ -369,9 +370,9 @@ export const communicationsRouter = router({
     await addDonorToThread(input.threadId, input.participantId);
   }),
 
-  removeDonorFromThread: orgProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
+  removeDonorFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
     // Verify donor belongs to organization
-    const donor = await getDonorById(input.participantId, ctx.orgId!);
+    const donor = await getDonorById(input.participantId, ctx.auth.user.organizationId);
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -393,8 +394,8 @@ export const communicationsRouter = router({
     }
 
     const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.orgId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.orgId) ?? false);
+      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
+      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
 
     if (!belongsToOrg) {
       throw new TRPCError({

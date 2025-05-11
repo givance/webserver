@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, orgProcedure } from "../trpc";
+import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import {
   getDonationById,
@@ -7,9 +7,6 @@ import {
   updateDonation,
   deleteDonation,
   listDonations,
-  type Donation,
-  type NewDonation,
-  type DonationWithDetails,
 } from "@/app/lib/data/donations";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getProjectById } from "@/app/lib/data/projects";
@@ -54,7 +51,7 @@ const listDonationsSchema = z.object({
 });
 
 export const donationsRouter = router({
-  getById: orgProcedure
+  getById: protectedProcedure
     .input(z.object({ ...donationIdSchema.shape, ...donationDetailsSchema.shape }))
     .query(async ({ input }) => {
       const donation = await getDonationById(input.id, {
@@ -70,9 +67,9 @@ export const donationsRouter = router({
       return donation;
     }),
 
-  create: orgProcedure.input(createDonationSchema).mutation(async ({ input, ctx }) => {
+  create: protectedProcedure.input(createDonationSchema).mutation(async ({ input, ctx }) => {
     // Verify donor belongs to organization
-    const donor = await getDonorById(input.donorId, ctx.orgId!);
+    const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -82,7 +79,7 @@ export const donationsRouter = router({
 
     // Verify project belongs to organization
     const project = await getProjectById(input.projectId);
-    if (!project || project.organizationId !== ctx.orgId) {
+    if (!project || project.organizationId !== ctx.auth.user.organizationId) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: "Project not found in your organization",
@@ -91,18 +88,18 @@ export const donationsRouter = router({
 
     try {
       return await createDonation(input);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Ensure donor and project exist")) {
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("Ensure donor and project exist")) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: error.message,
+          message: e.message,
         });
       }
-      throw error;
+      throw e;
     }
   }),
 
-  update: orgProcedure.input(updateDonationSchema).mutation(async ({ input, ctx }) => {
+  update: protectedProcedure.input(updateDonationSchema).mutation(async ({ input, ctx }) => {
     // First get the existing donation with donor and project details
     const existingDonation = await getDonationById(input.id, {
       includeDonor: true,
@@ -119,8 +116,8 @@ export const donationsRouter = router({
     if (
       !existingDonation.donor ||
       !existingDonation.project ||
-      existingDonation.donor.organizationId !== ctx.orgId ||
-      existingDonation.project.organizationId !== ctx.orgId
+      existingDonation.donor.organizationId !== ctx.auth.user.organizationId ||
+      existingDonation.project.organizationId !== ctx.auth.user.organizationId
     ) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -130,7 +127,7 @@ export const donationsRouter = router({
 
     // If updating donor or project, verify they belong to the organization
     if (input.donorId) {
-      const donor = await getDonorById(input.donorId, ctx.orgId!);
+      const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
       if (!donor) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -141,7 +138,7 @@ export const donationsRouter = router({
 
     if (input.projectId) {
       const project = await getProjectById(input.projectId);
-      if (!project || project.organizationId !== ctx.orgId) {
+      if (!project || project.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "New project not found in your organization",
@@ -160,7 +157,7 @@ export const donationsRouter = router({
     return updated;
   }),
 
-  delete: orgProcedure.input(donationIdSchema).mutation(async ({ input, ctx }) => {
+  delete: protectedProcedure.input(donationIdSchema).mutation(async ({ input, ctx }) => {
     // First get the donation with donor and project details
     const donation = await getDonationById(input.id, {
       includeDonor: true,
@@ -177,8 +174,8 @@ export const donationsRouter = router({
     if (
       !donation.donor ||
       !donation.project ||
-      donation.donor.organizationId !== ctx.orgId ||
-      donation.project.organizationId !== ctx.orgId
+      donation.donor.organizationId !== ctx.auth.user.organizationId ||
+      donation.project.organizationId !== ctx.auth.user.organizationId
     ) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -188,7 +185,7 @@ export const donationsRouter = router({
 
     try {
       await deleteDonation(input.id);
-    } catch (error) {
+    } catch {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Could not delete donation",
@@ -196,13 +193,14 @@ export const donationsRouter = router({
     }
   }),
 
-  list: orgProcedure.input(listDonationsSchema).query(async ({ input, ctx }) => {
+  list: protectedProcedure.input(listDonationsSchema).query(async ({ input, ctx }) => {
     // We'll need to filter the results after fetching to ensure we only return
     // donations that belong to the organization through both donor and project
     const donations = await listDonations(input);
-
     return donations.filter(
-      (donation) => donation.donor?.organizationId === ctx.orgId && donation.project?.organizationId === ctx.orgId
+      (d) =>
+        d.donor?.organizationId === ctx.auth.user.organizationId &&
+        d.project?.organizationId === ctx.auth.user.organizationId
     );
   }),
 });
