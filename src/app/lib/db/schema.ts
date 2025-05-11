@@ -51,6 +51,10 @@ export const organizations = pgTable("organizations", {
   slug: text("slug"),
   imageUrl: text("image_url"),
   createdBy: text("created_by"), // Clerk User ID of the creator
+  websiteUrl: text("website_url"),
+  websiteSummary: text("website_summary"),
+  description: text("description"),
+  writingInstructions: text("writing_instructions"),
   createdAt: timestamp("created_at")
     .default(sql`now()`)
     .notNull(),
@@ -136,6 +140,8 @@ export const donors = pgTable("donors", {
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
   state: varchar("state", { length: 2 }),
+  notes: text("notes"),
+  assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
