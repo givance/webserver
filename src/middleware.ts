@@ -12,15 +12,6 @@ const isPublicRoute = createRouteMatcher([
   // e.g., '/about', '/pricing'
 ]);
 
-// Define routes that are protected and require authentication.
-// If a user is not authenticated, they will be redirected to sign-in.
-// Our custom logic will then check for organization membership.
-const isProtectedRoute = createRouteMatcher([
-  "/", // Example: Home page is protected
-  "/dashboard(.*)", // Example: Dashboard and its sub-pages are protected
-  // Add other routes that require a user to be logged in.
-]);
-
 export default clerkMiddleware(async (auth, req) => {
   // First, check if the route is public.
   if (isPublicRoute(req)) {

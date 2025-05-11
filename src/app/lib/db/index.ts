@@ -1,18 +1,31 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { env } from "../../lib/env";
+import * as schema from "./schema"; // Import all schema objects
+
+// Ensure DATABASE_URL is set.
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
 
 /**
- * Create a Postgres connection pool
+ * PostgreSQL connection pool.
  */
 const pool = new Pool({
-  connectionString: env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
 });
 
 /**
- * Initialize Drizzle ORM with the Postgres connection pool
+ * Drizzle ORM instance, configured with the schema and connection pool.
+ * This 'db' instance will be used for all database interactions throughout the application.
  */
-export const db = drizzle(pool);
+export const db = drizzle(pool, { schema });
+
+// It might be beneficial to also export the schema for direct use if needed.
+export * as allSchema from "./schema";
+
+// Type definitions for convenience, inferring from the schema.
+// Example: export type User = typeof schema.users.$inferSelect;
+// These can be added as needed in the respective data access files or here.
 
 /**
  * Export a function to get a database connection for one-off queries

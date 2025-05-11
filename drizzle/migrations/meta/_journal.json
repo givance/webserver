@@ -8,6 +8,13 @@
       "when": 1746543239390,
       "tag": "0000_closed_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1746998477060,
+      "tag": "0001_icy_roland_deschain",
+      "breakpoints": true
     }
   ]
 }
