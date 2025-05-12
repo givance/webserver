@@ -5,6 +5,7 @@ import { projectsRouter } from "./projects";
 import { staffRouter } from "./staff";
 import { donorsRouter } from "./donors";
 import { communicationsRouter } from "./communications";
+import { organizationsRouter } from "./organizations";
 
 /**
  * Root router for the tRPC API
@@ -17,6 +18,7 @@ export const appRouter = router({
   staff: staffRouter,
   donors: donorsRouter,
   communications: communicationsRouter,
+  organizations: organizationsRouter,
 });
 
 // Export type definition of API

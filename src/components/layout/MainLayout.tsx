@@ -17,6 +17,7 @@ import {
 import { Home, Users, Heart, FolderGit2, Settings2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -110,6 +111,7 @@ export default function MainLayout({
               <TRPCProvider>{children}</TRPCProvider>
             </SidebarInset>
           </SidebarProvider>
+          <Toaster position="top-right" />
         </div>
       </body>
     </html>
