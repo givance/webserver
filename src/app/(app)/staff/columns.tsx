@@ -1,7 +1,20 @@
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Trash2 } from "lucide-react";
 import Link from "next/link";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
+import { useStaff } from "@/app/hooks/use-staff";
 
 export type Staff = {
   id: string | number;
@@ -13,6 +26,45 @@ export type Staff = {
   updatedAt: string;
   organizationId: string;
 };
+
+// DeleteStaffButton component to handle delete with confirmation dialog
+function DeleteStaffButton({ staffId }: { staffId: string | number }) {
+  const [open, setOpen] = useState(false);
+  const { deleteStaff, isDeleting } = useStaff();
+
+  const handleDelete = async () => {
+    await deleteStaff(Number(staffId));
+    setOpen(false);
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the staff member.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export const columns: ColumnDef<Staff>[] = [
   {
@@ -67,6 +119,7 @@ export const columns: ColumnDef<Staff>[] = [
             Communications
           </Button>
         </Link>
+        <DeleteStaffButton staffId={row.original.id} />
       </div>
     ),
   },
