@@ -10,7 +10,9 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "tsx src/app/lib/db/migrate.ts"
+    "db:migrate": "tsx src/app/lib/db/migrate.ts",
+    "trigger:dev": "pnpm dlx trigger.dev@latest dev",
+    "trigger:deploy": "pnpm dlx trigger.dev@latest deploy"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.10",
