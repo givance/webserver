@@ -1,3 +1,5 @@
+"use client";
+
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react";
@@ -134,12 +136,12 @@ export const columns: ColumnDef<Donor>[] = [
     id: "actions",
     cell: ({ row }: { row: Row<Donor> }) => (
       <div className="flex items-center justify-end gap-2">
-        <Link href={`/donors/${row.original.id}/donations`}>
+        <Link href={`/donations?donor=${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Donations
           </Button>
         </Link>
-        <Link href={`/donors/${row.original.id}/communications`}>
+        <Link href={`/communications?donor=${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Communications
           </Button>

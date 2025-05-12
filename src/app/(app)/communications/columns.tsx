@@ -1,7 +1,10 @@
+"use client";
+
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export type Communication = {
   id: string;
@@ -49,7 +52,7 @@ export const columns: ColumnDef<Communication>[] = [
     accessorKey: "staffName",
     header: "Staff Member",
     cell: ({ row }: { row: Row<Communication> }) => (
-      <Link href={`/staff/${row.original.staffId}`} className="font-medium">
+      <Link href={`/communications?staff=${row.original.staffId}`} className="font-medium">
         {row.getValue("staffName")}
       </Link>
     ),
@@ -58,7 +61,7 @@ export const columns: ColumnDef<Communication>[] = [
     accessorKey: "donorName",
     header: "Donor",
     cell: ({ row }: { row: Row<Communication> }) => (
-      <Link href={`/donors/${row.original.donorId}`} className="font-medium">
+      <Link href={`/communications?donor=${row.original.donorId}`} className="font-medium">
         {row.getValue("donorName")}
       </Link>
     ),

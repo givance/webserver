@@ -1,3 +1,5 @@
+"use client";
+
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react";
@@ -40,7 +42,7 @@ export const columns: ColumnDef<Donation>[] = [
     accessorKey: "donorName",
     header: "Donor",
     cell: ({ row }: { row: Row<Donation> }) => (
-      <Link href={`/donors/${row.original.donorId}`} className="font-medium">
+      <Link href={`/donations?donor=${row.original.donorId}`} className="font-medium">
         {row.getValue("donorName")}
       </Link>
     ),
@@ -49,7 +51,7 @@ export const columns: ColumnDef<Donation>[] = [
     accessorKey: "projectName",
     header: "Project",
     cell: ({ row }: { row: Row<Donation> }) => (
-      <Link href={`/projects/${row.original.projectId}`} className="font-medium">
+      <Link href={`/donations?project=${row.original.projectId}`} className="font-medium">
         {row.getValue("projectName")}
       </Link>
     ),

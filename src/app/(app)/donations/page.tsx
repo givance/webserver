@@ -24,6 +24,16 @@ export default async function DonationListPage({ searchParams }: { searchParams:
       includeProject: true,
     });
 
+    // Get donor name for filter display
+    const firstDonation = donationsData.find((d) => params.donor && d.donorId.toString() === params.donor);
+    const donorName = firstDonation?.donor
+      ? `${firstDonation.donor.firstName} ${firstDonation.donor.lastName}`.trim()
+      : undefined;
+
+    // Get project name for filter display
+    const projectDonation = donationsData.find((d) => params.project && d.projectId.toString() === params.project);
+    const projectName = projectDonation?.project?.name;
+
     // Transform DonationWithDetails to Donation format
     const donations: Donation[] = donationsData.map((item): Donation => {
       return {
@@ -56,7 +66,14 @@ export default async function DonationListPage({ searchParams }: { searchParams:
           </Link>
         </div>
 
-        <ClientDonationTable columns={columns} data={donations || []} />
+        <ClientDonationTable
+          columns={columns}
+          data={donations || []}
+          donorFilter={params.donor}
+          donorName={donorName}
+          projectFilter={params.project}
+          projectName={projectName}
+        />
       </div>
     );
   } catch (error) {
