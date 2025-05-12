@@ -99,33 +99,60 @@ export const crawlAndSummarizeWebsiteTask = task({
     const urlsToVisit = new Set<string>([url]);
     let allTextContent = "";
     const maxUrls = 30;
+    const concurrencyLimit = 10; // Number of URLs to process concurrently
 
     // Crawling loop
     while (urlsToVisit.size > 0 && visitedUrls.size < maxUrls) {
-      const currentUrl = urlsToVisit.values().next().value as string;
-      urlsToVisit.delete(currentUrl);
+      const batchSize = Math.min(urlsToVisit.size, concurrencyLimit, maxUrls - visitedUrls.size);
+      const currentBatch = Array.from(urlsToVisit).slice(0, batchSize);
 
-      if (visitedUrls.has(currentUrl)) {
-        continue;
-      }
+      // Remove batch from queue and add to visited (optimistic)
+      currentBatch.forEach((url) => {
+        urlsToVisit.delete(url);
+        visitedUrls.add(url); // Add to visited before processing
+      });
 
-      visitedUrls.add(currentUrl);
-      triggerLogger.info(`Crawling: ${currentUrl} (${visitedUrls.size}/${maxUrls})`);
+      triggerLogger.info(
+        `Processing batch of ${currentBatch.length} URLs. Total visited: ${visitedUrls.size}/${maxUrls}`
+      );
 
-      const html = await fetchHtml(currentUrl);
-
-      if (!html) {
-        continue; // Skip if fetching failed
-      }
-
-      const { text, urls: foundUrls } = extractContentAndLinks(html, currentUrl);
-      allTextContent += text + "\n\n";
-
-      // Add newly found, unvisited URLs to the queue
-      foundUrls.forEach((link) => {
-        if (!visitedUrls.has(link) && visitedUrls.size + urlsToVisit.size < maxUrls) {
-          urlsToVisit.add(link);
+      const promises = currentBatch.map(async (currentUrl) => {
+        if (!currentUrl) return null; // Should not happen with Set, but safety check
+        try {
+          triggerLogger.debug(`Crawling: ${currentUrl}`);
+          const html = await fetchHtml(currentUrl);
+          if (!html) {
+            return null; // Skip if fetching failed
+          }
+          return extractContentAndLinks(html, currentUrl);
+        } catch (error) {
+          triggerLogger.error(
+            `Error processing ${currentUrl}: ${error instanceof Error ? error.message : String(error)}`
+          );
+          return null; // Indicate failure for this URL
         }
+      });
+
+      const results = await Promise.allSettled(promises);
+
+      // Process results of the batch
+      results.forEach((result, index) => {
+        const processedUrl = currentBatch[index];
+        if (result.status === "fulfilled" && result.value) {
+          const { text, urls: foundUrls } = result.value;
+          allTextContent += text + "\n\n";
+
+          // Add newly found, unvisited URLs to the queue
+          foundUrls.forEach((link) => {
+            if (!visitedUrls.has(link) && !urlsToVisit.has(link) && visitedUrls.size + urlsToVisit.size < maxUrls) {
+              urlsToVisit.add(link);
+            }
+          });
+        } else if (result.status === "rejected") {
+          triggerLogger.warn(`Promise rejected for ${processedUrl}: ${result.reason}`);
+          // No need to remove from visitedUrls as we already added it optimistically
+        }
+        // If fulfilled but null, it means fetch failed or extract failed - already logged, just ignore
       });
     }
 
