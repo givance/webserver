@@ -1,20 +1,22 @@
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 
 export type Staff = {
-  id: string;
-  name: string;
+  id: string | number;
+  firstName: string;
+  lastName: string;
   email: string;
-  role: string;
-  status: "active" | "inactive";
+  isRealPerson: boolean;
   createdAt: string;
+  updatedAt: string;
+  organizationId: string;
 };
 
 export const columns: ColumnDef<Staff>[] = [
   {
-    accessorKey: "name",
+    id: "name",
     header: ({ column }: { column: Column<Staff> }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -25,30 +27,28 @@ export const columns: ColumnDef<Staff>[] = [
     },
     cell: ({ row }: { row: Row<Staff> }) => (
       <Link href={`/staff/${row.original.id}`} className="font-medium">
-        {row.getValue("name")}
+        {row.original.firstName} {row.original.lastName}
       </Link>
     ),
+    accessorFn: (row: Staff) => `${row.firstName} ${row.lastName}`,
   },
   {
     accessorKey: "email",
     header: "Email",
   },
   {
-    accessorKey: "role",
-    header: "Role",
-  },
-  {
-    accessorKey: "status",
+    id: "status",
     header: "Status",
     cell: ({ row }: { row: Row<Staff> }) => (
       <div
         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-          row.original.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+          row.original.isRealPerson ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
         }`}
       >
-        {row.getValue("status")}
+        {row.original.isRealPerson ? "Active" : "Inactive"}
       </div>
     ),
+    accessorFn: (row: Staff) => (row.isRealPerson ? "Active" : "Inactive"),
   },
   {
     accessorKey: "createdAt",
@@ -62,14 +62,9 @@ export const columns: ColumnDef<Staff>[] = [
     id: "actions",
     cell: ({ row }: { row: Row<Staff> }) => (
       <div className="flex items-center justify-end gap-2">
-        <Link href={`/staff/${row.original.id}/communications`}>
+        <Link href={`/communications/staff/${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Communications
-          </Button>
-        </Link>
-        <Link href={`/staff/${row.original.id}/edit`}>
-          <Button variant="ghost" size="sm">
-            <MoreHorizontal className="h-4 w-4" />
           </Button>
         </Link>
       </div>

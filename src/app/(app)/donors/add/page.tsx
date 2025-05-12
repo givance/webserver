@@ -43,7 +43,7 @@ export default function AddDonorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -97,9 +97,9 @@ export default function AddDonorPage() {
 
       <div className="bg-white p-6 shadow rounded-lg max-w-2xl">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="isOrganization"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
@@ -116,7 +116,7 @@ export default function AddDonorPage() {
 
             {form.watch("isOrganization") && (
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="organizationName"
                 render={({ field }) => (
                   <FormItem>
@@ -133,7 +133,7 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
@@ -147,7 +147,7 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
@@ -162,7 +162,7 @@ export default function AddDonorPage() {
             </div>
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="email"
               render={({ field }) => (
                 <FormItem>
@@ -177,7 +177,7 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="phoneNumber"
               render={({ field }) => (
                 <FormItem>
@@ -192,7 +192,7 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="address"
               render={({ field }) => (
                 <FormItem>
@@ -207,7 +207,7 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="city"
                 render={({ field }) => (
                   <FormItem>
@@ -221,7 +221,7 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="state"
                 render={({ field }) => (
                   <FormItem>
@@ -237,7 +237,7 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="postalCode"
                 render={({ field }) => (
                   <FormItem>
@@ -251,7 +251,7 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="country"
                 render={({ field }) => (
                   <FormItem>
@@ -266,7 +266,7 @@ export default function AddDonorPage() {
             </div>
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="notes"
               render={({ field }) => (
                 <FormItem>
@@ -284,7 +284,7 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="isAnonymous"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
