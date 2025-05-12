@@ -8,6 +8,80 @@ import { columns, type Communication } from "./columns";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Define a minimal thread type to avoid using 'any'
+interface ThreadItem {
+  id: number;
+  createdAt: string;
+  channel?: string;
+  donors?: Array<{
+    donorId: number;
+    donor?: {
+      id: number;
+      firstName: string;
+      lastName: string;
+    } | null;
+  }>;
+  staff?: Array<{
+    staffId: number;
+    staff?: {
+      id: number;
+      firstName: string;
+      lastName: string;
+    } | null;
+  }>;
+  messages?: Array<{
+    id: number;
+    subject?: string;
+    content?: string;
+    status?: string;
+  }>;
+}
+
+// Transform thread data into the expected Communication format
+function transformThreadsToDisplayFormat(threads: ThreadItem[]): Communication[] {
+  return threads.map((thread) => {
+    // Extract the donor information
+    const donor = thread.donors?.[0]?.donor;
+
+    // Extract the staff information
+    const staff = thread.staff?.[0];
+
+    // Get the latest message if available
+    const latestMessage = thread.messages?.[0];
+
+    // Map channel to appropriate communication type
+    let type: "email" | "phone" | "meeting" | "letter" = "email";
+    if (thread.channel === "phone" || thread.channel === "text") {
+      type = "phone";
+    } else if (thread.channel === "meeting") {
+      type = "meeting";
+    } else if (thread.channel === "letter") {
+      type = "letter";
+    }
+
+    // Map status to appropriate communication status
+    let status: "completed" | "scheduled" | "cancelled" = "completed";
+    if (latestMessage?.status === "scheduled") {
+      status = "scheduled";
+    } else if (latestMessage?.status === "cancelled") {
+      status = "cancelled";
+    }
+
+    return {
+      id: String(thread.id),
+      subject: latestMessage?.subject || "No subject",
+      type,
+      staffId: staff ? String(staff.staffId) : "0",
+      staffName: staff?.staff?.firstName ? `${staff.staff.firstName} ${staff.staff.lastName || ""}` : "Unassigned",
+      donorId: donor ? String(donor.id) : "0",
+      donorName: donor ? `${donor.firstName} ${donor.lastName}` : "Unknown Donor",
+      date: thread.createdAt,
+      status,
+      notes: latestMessage?.content || "",
+    };
+  });
+}
+
 export default function CommunicationListPage() {
   const { listThreads } = useCommunications();
   const {
@@ -27,6 +101,9 @@ export default function CommunicationListPage() {
       </div>
     );
   }
+
+  // Transform the threads data into the expected format for the DataTable
+  const communicationsData = threads ? transformThreadsToDisplayFormat(threads as ThreadItem[]) : [];
 
   return (
     <div className="container mx-auto py-6">
@@ -49,7 +126,7 @@ export default function CommunicationListPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={threads || []}
+          data={communicationsData}
           searchKey="subject"
           searchPlaceholder="Search communications..."
         />
