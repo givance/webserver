@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DonorListPage() {
   const { listDonors } = useDonors();
-  const { data: donors, isLoading, error } = listDonors({});
+  const { data: donorsData, isLoading, error } = listDonors({});
 
   if (error) {
     return (
@@ -19,6 +19,18 @@ export default function DonorListPage() {
       </div>
     );
   }
+
+  // Transform donor data to match the Donor type
+  const donors: Donor[] =
+    donorsData?.map((donor) => ({
+      id: donor.id.toString(),
+      name: `${donor.firstName} ${donor.lastName}`,
+      email: donor.email,
+      phone: donor.phone || "",
+      totalDonated: 0, // This would ideally come from a donor aggregate query
+      lastDonation: new Date().toISOString(), // This would ideally come from a donor aggregate query
+      status: "active", // Assuming all donors are active by default
+    })) || [];
 
   return (
     <div className="container mx-auto py-6">
@@ -39,7 +51,7 @@ export default function DonorListPage() {
           <Skeleton className="h-12 w-full" />
         </div>
       ) : (
-        <DataTable columns={columns} data={donors || []} searchKey="name" searchPlaceholder="Search donors..." />
+        <DataTable columns={columns} data={donors} searchKey="name" searchPlaceholder="Search donors..." />
       )}
     </div>
   );

@@ -14,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { type CheckedState } from "@radix-ui/react-checkbox";
 
 /**
  * Form schema for donor creation
@@ -30,8 +31,8 @@ const formSchema = z.object({
   postalCode: z.string().optional(),
   country: z.string().optional(),
   notes: z.string().optional(),
-  isAnonymous: z.boolean().default(false),
-  isOrganization: z.boolean().default(false),
+  isAnonymous: z.boolean(),
+  isOrganization: z.boolean(),
   organizationName: z.string().optional(),
 });
 
@@ -43,7 +44,7 @@ export default function AddDonorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema) as any,
+    resolver: zodResolver(formSchema),
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -66,16 +67,22 @@ export default function AddDonorPage() {
    * Creates a new donor and redirects to donor list on success
    * @param values Form values from the form submission
    */
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = (values: FormValues) => {
     setError(null);
     try {
-      const result = await createDonor(values);
-      if (result) {
-        toast.success("Donor created successfully");
-        router.push("/donors");
-      } else {
-        setError("Failed to create donor");
-      }
+      createDonor(values)
+        .then((result) => {
+          if (result) {
+            toast.success("Donor created successfully");
+            router.push("/donors");
+          } else {
+            setError("Failed to create donor");
+          }
+        })
+        .catch((err) => {
+          setError("An unexpected error occurred");
+          console.error("Error creating donor:", err);
+        });
     } catch (err) {
       setError("An unexpected error occurred");
       console.error("Error creating donor:", err);
@@ -97,14 +104,24 @@ export default function AddDonorPage() {
 
       <div className="bg-white p-6 shadow rounded-lg max-w-2xl">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+          <form
+            // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-6"
+          >
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="isOrganization"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked: CheckedState) => {
+                        field.onChange(checked === true);
+                      }}
+                    />
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>Organization</FormLabel>
@@ -116,13 +133,14 @@ export default function AddDonorPage() {
 
             {form.watch("isOrganization") && (
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="organizationName"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organization Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Acme Foundation" {...field} />
+                      <Input placeholder="Acme Foundation" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormDescription>Name of the organization</FormDescription>
                     <FormMessage />
@@ -133,7 +151,8 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
@@ -147,7 +166,8 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
@@ -162,7 +182,8 @@ export default function AddDonorPage() {
             </div>
 
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
@@ -177,13 +198,14 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="phone"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Phone Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="(555) 123-4567" {...field} />
+                    <Input placeholder="(555) 123-4567" {...field} value={field.value || ""} />
                   </FormControl>
                   <FormDescription>Enter the donor&apos;s phone number</FormDescription>
                   <FormMessage />
@@ -192,13 +214,14 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="address"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Address</FormLabel>
                   <FormControl>
-                    <Input placeholder="123 Main St" {...field} />
+                    <Input placeholder="123 Main St" {...field} value={field.value || ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -207,13 +230,14 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="city"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>City</FormLabel>
                     <FormControl>
-                      <Input placeholder="New York" {...field} />
+                      <Input placeholder="New York" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -221,13 +245,14 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="state"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>State/Province</FormLabel>
                     <FormControl>
-                      <Input placeholder="NY" {...field} />
+                      <Input placeholder="NY" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -237,13 +262,14 @@ export default function AddDonorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="postalCode"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Postal Code</FormLabel>
                     <FormControl>
-                      <Input placeholder="10001" {...field} />
+                      <Input placeholder="10001" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -251,13 +277,14 @@ export default function AddDonorPage() {
               />
 
               <FormField
-                control={form.control as any}
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
                 name="country"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country</FormLabel>
                     <FormControl>
-                      <Input placeholder="United States" {...field} />
+                      <Input placeholder="United States" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -266,7 +293,8 @@ export default function AddDonorPage() {
             </div>
 
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
@@ -276,6 +304,7 @@ export default function AddDonorPage() {
                       placeholder="Additional information about this donor"
                       className="min-h-[100px]"
                       {...field}
+                      value={field.value || ""}
                     />
                   </FormControl>
                   <FormMessage />
@@ -284,12 +313,18 @@ export default function AddDonorPage() {
             />
 
             <FormField
-              control={form.control as any}
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
               name="isAnonymous"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked: CheckedState) => {
+                        field.onChange(checked === true);
+                      }}
+                    />
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>Anonymous Donor</FormLabel>

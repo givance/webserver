@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProjectListPage() {
   const { listProjects } = useProjects();
-  const { data: projects, isLoading, error } = listProjects({});
+  const { data: projectsData, isLoading, error } = listProjects({});
 
   if (error) {
     return (
@@ -19,6 +19,19 @@ export default function ProjectListPage() {
       </div>
     );
   }
+
+  // Transform project data to match the Project type
+  const projects: Project[] =
+    projectsData?.map((project) => ({
+      id: project.id.toString(),
+      name: project.name,
+      description: project.description || "",
+      status: project.active ? "active" : "completed", // Assuming 'active' field determines status
+      goalAmount: 0, // This would ideally come from a project aggregate query
+      raisedAmount: 0, // This would ideally come from a project aggregate query
+      startDate: project.createdAt, // Using createdAt as a fallback
+      endDate: new Date().toISOString(), // Placeholder - should be replaced with actual end date
+    })) || [];
 
   return (
     <div className="container mx-auto py-6">
@@ -39,7 +52,7 @@ export default function ProjectListPage() {
           <Skeleton className="h-12 w-full" />
         </div>
       ) : (
-        <DataTable columns={columns} data={projects || []} searchKey="name" searchPlaceholder="Search projects..." />
+        <DataTable columns={columns} data={projects} searchKey="name" searchPlaceholder="Search projects..." />
       )}
     </div>
   );

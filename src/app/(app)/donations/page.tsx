@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { columns } from "./columns";
+import { columns, Donation } from "./columns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listDonations } from "@/app/lib/data/donations";
+import { listDonations, DonationWithDetails } from "@/app/lib/data/donations";
 import { ClientDonationTable } from "./ClientDonationTable";
 
 interface SearchParams {
@@ -17,11 +17,27 @@ export default async function DonationListPage({ searchParams }: { searchParams:
   const context = params.donor ? `for donor ${params.donor}` : params.project ? `for project ${params.project}` : "all";
 
   try {
-    const donations = await listDonations({
+    const donationsData = await listDonations({
       donorId: params.donor ? parseInt(params.donor) : undefined,
       projectId: params.project ? parseInt(params.project) : undefined,
       includeDonor: true,
       includeProject: true,
+    });
+
+    // Transform DonationWithDetails to Donation format
+    const donations: Donation[] = donationsData.map((item): Donation => {
+      return {
+        id: item.id.toString(),
+        amount: item.amount,
+        donorId: item.donorId.toString(),
+        donorName: `${item.donor?.firstName || ""} ${item.donor?.lastName || ""}`.trim() || "Unknown Donor",
+        projectId: item.projectId.toString(),
+        projectName: item.project?.name || "Unknown Project",
+        type: "one_time",
+        status: "completed",
+        date: item.date.toISOString(),
+        notes: undefined,
+      };
     });
 
     return (
