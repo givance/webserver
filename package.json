@@ -52,6 +52,7 @@
     "@trpc/react-query": "^11.1.1",
     "@trpc/server": "^11.1.1",
     "@types/pino": "^7.0.5",
+    "@types/react-table": "^7.7.20",
     "ai": "^4.3.10",
     "axios": "^1.9.0",
     "class-variance-authority": "^0.7.1",
