@@ -14,8 +14,9 @@ import {
   SidebarMenuButton,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { Home, BookOpen, Settings2 } from "lucide-react";
+import { Home, Users, Heart, FolderGit2, Settings2 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,22 +61,44 @@ export default function MainLayout({
               <SidebarContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton isActive>
-                      <Home className="w-5 h-5" />
-                      <span>Home</span>
-                    </SidebarMenuButton>
+                    <Link href="/" className="w-full">
+                      <SidebarMenuButton isActive>
+                        <Home className="w-5 h-5" />
+                        <span>Home</span>
+                      </SidebarMenuButton>
+                    </Link>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton>
-                      <BookOpen className="w-5 h-5" />
-                      <span>Resources</span>
-                    </SidebarMenuButton>
+                    <Link href="/staff" className="w-full">
+                      <SidebarMenuButton>
+                        <Users className="w-5 h-5" />
+                        <span>Staff</span>
+                      </SidebarMenuButton>
+                    </Link>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton>
-                      <Settings2 className="w-5 h-5" />
-                      <span>Settings</span>
-                    </SidebarMenuButton>
+                    <Link href="/donors" className="w-full">
+                      <SidebarMenuButton>
+                        <Heart className="w-5 h-5" />
+                        <span>Donors</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <Link href="/projects" className="w-full">
+                      <SidebarMenuButton>
+                        <FolderGit2 className="w-5 h-5" />
+                        <span>Projects</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <Link href="/settings" className="w-full">
+                      <SidebarMenuButton>
+                        <Settings2 className="w-5 h-5" />
+                        <span>Settings</span>
+                      </SidebarMenuButton>
+                    </Link>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarContent>
@@ -83,7 +106,7 @@ export default function MainLayout({
                 <UserProfile />
               </SidebarFooter>
             </Sidebar>
-            <SidebarInset>
+            <SidebarInset className="flex-1 px-6">
               <TRPCProvider>{children}</TRPCProvider>
             </SidebarInset>
           </SidebarProvider>
