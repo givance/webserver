@@ -106,7 +106,7 @@ export default function MainLayout({
                 <UserProfile />
               </SidebarFooter>
             </Sidebar>
-            <SidebarInset className="flex-1 px-6">
+            <SidebarInset className="flex-1 pl-6 pr-24">
               <TRPCProvider>{children}</TRPCProvider>
             </SidebarInset>
           </SidebarProvider>
