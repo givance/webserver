@@ -15,6 +15,7 @@ export const env = createEnv({
     CLERK_WEBHOOK_SECRET: z.string().min(1),
     SMALL_MODEL: z.string().min(1),
     MID_MODEL: z.string().min(1),
+    TRIGGER_SECRET_KEY: z.string().min(1),
   },
   /*
    * Environment variables available on the client (and server).
@@ -40,6 +41,7 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     SMALL_MODEL: process.env.SMALL_MODEL,
     MID_MODEL: process.env.MID_MODEL,
+    TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });

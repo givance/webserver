@@ -7,13 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization, UpdateOrganizationInput } from "@/app/hooks/use-organization";
 import toast from "react-hot-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import ReactMarkdown from "react-markdown";
 
 export default function OrganizationSettingsPage() {
   const { getOrganization, updateOrganization, isUpdating } = useOrganization();
   const { data: organization, isLoading, error } = getOrganization();
   const [formData, setFormData] = useState<UpdateOrganizationInput>({});
+  const [isSummaryEditing, setIsSummaryEditing] = useState(false);
 
   // Update form data when organization data is loaded
   useEffect(() => {
@@ -103,14 +105,34 @@ export default function OrganizationSettingsPage() {
 
                 <div className="grid gap-2">
                   <label htmlFor="websiteSummary">Website Summary</label>
-                  <Textarea
-                    id="websiteSummary"
-                    name="websiteSummary"
-                    value={formData.websiteSummary || ""}
-                    onChange={handleChange}
-                    placeholder="A brief summary of your website"
-                    rows={3}
-                  />
+                  {isSummaryEditing ? (
+                    <Textarea
+                      id="websiteSummary"
+                      name="websiteSummary"
+                      value={formData.websiteSummary || ""}
+                      onChange={handleChange}
+                      placeholder="A brief summary of your website"
+                      rows={3}
+                    />
+                  ) : (
+                    <div className="prose dark:prose-invert p-3 border rounded-md min-h-[78px]">
+                      {formData.websiteSummary ? (
+                        <ReactMarkdown>{formData.websiteSummary}</ReactMarkdown>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No summary provided.</p>
+                      )}
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSummaryEditing(!isSummaryEditing)}
+                    className="mt-2 w-fit"
+                    type="button"
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {isSummaryEditing ? "Done Editing" : "Edit Summary"}
+                  </Button>
                 </div>
 
                 <div className="grid gap-2">
