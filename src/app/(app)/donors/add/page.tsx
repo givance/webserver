@@ -23,7 +23,7 @@ const formSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
   lastName: z.string().min(2, "Last name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  phoneNumber: z.string().optional(),
+  phone: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -48,7 +48,7 @@ export default function AddDonorPage() {
       firstName: "",
       lastName: "",
       email: "",
-      phoneNumber: "",
+      phone: "",
       address: "",
       city: "",
       state: "",
@@ -178,7 +178,7 @@ export default function AddDonorPage() {
 
             <FormField
               control={form.control as any}
-              name="phoneNumber"
+              name="phone"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Phone Number</FormLabel>
