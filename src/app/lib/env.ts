@@ -13,6 +13,8 @@ export const env = createEnv({
     ANTHROPIC_API_KEY: z.string().min(1),
     CLERK_SECRET_KEY: z.string().min(1),
     CLERK_WEBHOOK_SECRET: z.string().min(1),
+    SMALL_MODEL: z.string().min(1),
+    MID_MODEL: z.string().min(1),
   },
   /*
    * Environment variables available on the client (and server).
@@ -36,6 +38,8 @@ export const env = createEnv({
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    SMALL_MODEL: process.env.SMALL_MODEL,
+    MID_MODEL: process.env.MID_MODEL,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });
