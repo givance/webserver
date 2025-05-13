@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { projects } from "../db/schema";
-import { eq, sql, desc, asc, SQL, AnyColumn, and, count } from "drizzle-orm";
+import { eq, sql, desc, asc, SQL, AnyColumn, and, count, like, or } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Project = InferSelectModel<typeof projects>;
@@ -82,6 +82,7 @@ export async function deleteProject(id: number): Promise<void> {
 export async function listProjects(
   options: {
     active?: boolean;
+    searchTerm?: string;
     limit?: number;
     offset?: number;
     orderBy?: keyof Pick<Project, "name" | "createdAt">;
@@ -90,11 +91,32 @@ export async function listProjects(
   organizationId: string
 ): Promise<{ projects: Project[]; totalCount: number }> {
   try {
-    const { active, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const { active, searchTerm, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
 
     const conditions: SQL[] = [eq(projects.organizationId, organizationId)];
     if (active !== undefined) {
       conditions.push(eq(projects.active, active));
+    }
+
+    // Add search conditions
+    if (searchTerm) {
+      const term = `%${searchTerm.toLowerCase()}%`;
+      const potentialSearchConditions: (SQL | undefined)[] = [like(sql`lower(${projects.name})`, term)];
+
+      // Only add description search if description column is valid and searchable
+      // Assuming projects.description is the column object from the schema
+      if (projects.description) {
+        // This checks if the column accessor exists
+        potentialSearchConditions.push(like(sql`lower(${projects.description})`, term));
+      }
+
+      const validSearchConditions = potentialSearchConditions.filter(
+        (condition): condition is SQL => condition !== undefined
+      );
+
+      if (validSearchConditions.length > 0) {
+        conditions.push(or(...validSearchConditions));
+      }
     }
 
     // Query for the total count

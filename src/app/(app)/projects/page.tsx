@@ -1,21 +1,26 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { columns, type Project } from "./columns";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "use-debounce";
 
 const PAGE_SIZE = 10;
 
 export default function ProjectListPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTermInput, setSearchTermInput] = useState("");
+  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+
   const { listProjects } = useProjects();
 
-  // Fetch projects based on current page and page size
+  // Fetch projects based on current page, page size, and debounced search term
   const {
     data: listProjectsResponse,
     isLoading,
@@ -23,7 +28,15 @@ export default function ProjectListPage() {
   } = listProjects({
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
+    searchTerm: debouncedSearchTerm,
   });
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
 
   if (error) {
     return (
@@ -67,6 +80,15 @@ export default function ProjectListPage() {
         </Link>
       </div>
 
+      <div className="mb-4">
+        <Input
+          placeholder="Search projects by name or description..."
+          value={searchTermInput}
+          onChange={(e) => setSearchTermInput(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
       {isLoading && !listProjectsResponse ? ( // Show skeleton only on initial load
         <div className="space-y-4">
           <Skeleton className="h-12 w-full" />
@@ -77,9 +99,7 @@ export default function ProjectListPage() {
         <DataTable
           columns={columns}
           data={projects}
-          searchKey="name"
           searchPlaceholder="Search projects..."
-          // Pagination props
           totalItems={totalCount}
           pageSize={PAGE_SIZE}
           pageCount={pageCount}

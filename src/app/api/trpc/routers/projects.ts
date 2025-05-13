@@ -36,6 +36,7 @@ const listProjectsSchema = z.object({
   offset: z.number().min(0).optional(),
   orderBy: z.enum(["name", "createdAt"]).optional(),
   orderDirection: z.enum(["asc", "desc"]).optional(),
+  searchTerm: z.string().optional(),
 });
 
 // Define the output schema for the list procedure to include totalCount

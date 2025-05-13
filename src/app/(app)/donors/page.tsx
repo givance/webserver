@@ -1,18 +1,23 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { columns, type Donor } from "./columns";
 import { useDonors } from "@/app/hooks/use-donors";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "use-debounce";
 
 const PAGE_SIZE = 10;
 
 export default function DonorListPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTermInput, setSearchTermInput] = useState("");
+  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+
   const { listDonors } = useDonors();
 
   const {
@@ -22,7 +27,14 @@ export default function DonorListPage() {
   } = listDonors({
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
+    searchTerm: debouncedSearchTerm,
   });
+
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
 
   if (error) {
     return (
@@ -66,6 +78,15 @@ export default function DonorListPage() {
         </Link>
       </div>
 
+      <div className="mb-4">
+        <Input
+          placeholder="Search donors by name, email..."
+          value={searchTermInput}
+          onChange={(e) => setSearchTermInput(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
       {isLoading && !listDonorsResponse ? (
         <div className="space-y-4">
           <Skeleton className="h-12 w-full" />
@@ -76,9 +97,7 @@ export default function DonorListPage() {
         <DataTable
           columns={columns}
           data={donors}
-          searchKey="name"
           searchPlaceholder="Search donors..."
-          // Pagination props
           totalItems={totalCount}
           pageSize={PAGE_SIZE}
           pageCount={pageCount}

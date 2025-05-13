@@ -1,18 +1,23 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { columns, type Staff } from "./columns";
 import { useStaff } from "@/app/hooks/use-staff";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "use-debounce";
 
 const PAGE_SIZE = 10;
 
 export default function StaffListPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTermInput, setSearchTermInput] = useState("");
+  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+
   const { listStaff } = useStaff();
 
   const {
@@ -22,7 +27,14 @@ export default function StaffListPage() {
   } = listStaff({
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
+    searchTerm: debouncedSearchTerm,
   });
+
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
 
   if (error) {
     return (
@@ -65,6 +77,15 @@ export default function StaffListPage() {
         </Link>
       </div>
 
+      <div className="mb-4">
+        <Input
+          placeholder="Search staff by name, email..."
+          value={searchTermInput}
+          onChange={(e) => setSearchTermInput(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
       {isLoading && !listStaffResponse ? (
         <div className="space-y-4">
           <Skeleton className="h-12 w-full" />
@@ -75,7 +96,6 @@ export default function StaffListPage() {
         <DataTable
           columns={columns}
           data={staffMembers}
-          searchKey="name"
           searchPlaceholder="Search staff..."
           totalItems={totalCount}
           pageSize={PAGE_SIZE}
