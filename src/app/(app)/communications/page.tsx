@@ -8,7 +8,7 @@ import { columns, type Communication } from "./columns";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, Suspense } from "react";
 
 // Define a minimal thread type to avoid using 'any'
 interface ThreadItem {
@@ -84,7 +84,7 @@ function transformThreadsToDisplayFormat(threads: ThreadItem[]): Communication[]
   });
 }
 
-export default function CommunicationListPage() {
+function CommunicationListContent() {
   const searchParams = useSearchParams();
   const donorFilter = searchParams.get("donor") || undefined;
   const staffFilter = searchParams.get("staff") || undefined;
@@ -100,19 +100,9 @@ export default function CommunicationListPage() {
     includeLatestMessage: true,
   });
 
-  if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading communications: {error.message}</div>
-      </div>
-    );
-  }
-
-  // Transform the threads data into the expected format for the DataTable
-  const communicationsData = threads ? transformThreadsToDisplayFormat(threads as ThreadItem[]) : [];
-
-  // Filter communications based on the URL params
-  const filteredCommunications = useMemo(() => {
+  // Transform and filter communications based on the URL params
+  const { filteredCommunications, communicationsData } = useMemo(() => {
+    const communicationsData = threads ? transformThreadsToDisplayFormat(threads as ThreadItem[]) : [];
     let filtered = [...communicationsData];
 
     if (donorFilter) {
@@ -123,8 +113,16 @@ export default function CommunicationListPage() {
       filtered = filtered.filter((comm) => comm.staffId === staffFilter);
     }
 
-    return filtered;
-  }, [communicationsData, donorFilter, staffFilter]);
+    return { filteredCommunications: filtered, communicationsData };
+  }, [threads, donorFilter, staffFilter]);
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-red-500">Error loading communications: {error.message}</div>
+      </div>
+    );
+  }
 
   // Find the donor name for display
   const donorName = donorFilter
@@ -194,5 +192,23 @@ export default function CommunicationListPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function CommunicationListPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto py-6">
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
+      }
+    >
+      <CommunicationListContent />
+    </Suspense>
   );
 }

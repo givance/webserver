@@ -21,7 +21,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Manage your organization's name, description, website, and other metadata
+                Manage your organization&apos;s name, description, website, and other metadata
               </CardDescription>
             </CardContent>
           </Card>

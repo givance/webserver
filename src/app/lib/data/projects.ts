@@ -101,22 +101,8 @@ export async function listProjects(
     // Add search conditions
     if (searchTerm) {
       const term = `%${searchTerm.toLowerCase()}%`;
-      const potentialSearchConditions: (SQL | undefined)[] = [like(sql`lower(${projects.name})`, term)];
-
-      // Only add description search if description column is valid and searchable
-      // Assuming projects.description is the column object from the schema
-      if (projects.description) {
-        // This checks if the column accessor exists
-        potentialSearchConditions.push(like(sql`lower(${projects.description})`, term));
-      }
-
-      const validSearchConditions = potentialSearchConditions.filter(
-        (condition): condition is SQL => condition !== undefined
-      );
-
-      if (validSearchConditions.length > 0) {
-        conditions.push(or(...validSearchConditions));
-      }
+      const searchCondition = sql`(lower(${projects.name}) like ${term} or lower(coalesce(${projects.description}, '')) like ${term})`;
+      conditions.push(searchCondition);
     }
 
     // Query for the total count

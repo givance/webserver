@@ -36,14 +36,7 @@ export default function DonorListPage() {
     }
   }, [debouncedSearchTerm]);
 
-  if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading donors: {error.message}</div>
-      </div>
-    );
-  }
-
+  // Use useMemo to avoid re-calculating on every render unless dependencies change
   const { donors, totalCount } = useMemo(() => {
     // The API now returns { donors: [], totalCount: number }
     // The actual donor items are in listDonorsResponse.donors
@@ -59,6 +52,14 @@ export default function DonorListPage() {
       })) || [];
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };
   }, [listDonorsResponse]);
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-red-500">Error loading donors: {error.message}</div>
+      </div>
+    );
+  }
 
   const pageCount = Math.ceil(totalCount / PAGE_SIZE);
 

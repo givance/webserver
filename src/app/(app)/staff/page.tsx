@@ -36,14 +36,6 @@ export default function StaffListPage() {
     }
   }, [debouncedSearchTerm]);
 
-  if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading staff: {error.message}</div>
-      </div>
-    );
-  }
-
   const { staffMembers, totalCount } = useMemo(() => {
     const items: Staff[] =
       listStaffResponse?.staff?.map((apiStaff) => ({
@@ -58,6 +50,14 @@ export default function StaffListPage() {
       })) || [];
     return { staffMembers: items, totalCount: listStaffResponse?.totalCount || 0 };
   }, [listStaffResponse]);
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-red-500">Error loading staff: {error.message}</div>
+      </div>
+    );
+  }
 
   const pageCount = Math.ceil(totalCount / PAGE_SIZE);
 

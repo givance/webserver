@@ -38,14 +38,6 @@ export default function ProjectListPage() {
     }
   }, [debouncedSearchTerm]);
 
-  if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading projects: {error.message}</div>
-      </div>
-    );
-  }
-
   // Use useMemo to avoid re-calculating on every render unless dependencies change
   const { projects, totalCount } = useMemo(() => {
     const projectItems: Project[] =
@@ -61,6 +53,14 @@ export default function ProjectListPage() {
       })) || [];
     return { projects: projectItems, totalCount: listProjectsResponse?.totalCount || 0 };
   }, [listProjectsResponse]);
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-red-500">Error loading projects: {error.message}</div>
+      </div>
+    );
+  }
 
   const pageCount = Math.ceil(totalCount / PAGE_SIZE);
 
