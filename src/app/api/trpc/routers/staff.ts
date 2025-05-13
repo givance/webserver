@@ -36,6 +36,12 @@ const listStaffSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+// Define the output schema for the list procedure to include totalCount
+const listStaffOutputSchema = z.object({
+  staff: z.array(z.any()), // Define a more specific staff schema if available
+  totalCount: z.number(),
+});
+
 export const staffRouter = router({
   getById: protectedProcedure.input(staffIdSchema).query(async ({ input, ctx }) => {
     const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
@@ -102,7 +108,12 @@ export const staffRouter = router({
     }
   }),
 
-  list: protectedProcedure.input(listStaffSchema).query(async ({ input, ctx }) => {
-    return await listStaff(input, ctx.auth.user.organizationId);
-  }),
+  list: protectedProcedure
+    .input(listStaffSchema)
+    .output(listStaffOutputSchema) // Set the output schema for type safety
+    .query(async ({ input, ctx }) => {
+      // listStaff now returns an object: { staff: Staff[], totalCount: number }
+      const result = await listStaff(input, ctx.auth.user.organizationId);
+      return result; // This will be validated against listStaffOutputSchema
+    }),
 });

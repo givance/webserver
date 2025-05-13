@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -8,9 +9,21 @@ import { columns, type Project } from "./columns";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const PAGE_SIZE = 10;
+
 export default function ProjectListPage() {
+  const [currentPage, setCurrentPage] = useState(1);
   const { listProjects } = useProjects();
-  const { data: projectsData, isLoading, error } = listProjects({});
+
+  // Fetch projects based on current page and page size
+  const {
+    data: listProjectsResponse,
+    isLoading,
+    error,
+  } = listProjects({
+    limit: PAGE_SIZE,
+    offset: (currentPage - 1) * PAGE_SIZE,
+  });
 
   if (error) {
     return (
@@ -20,18 +33,27 @@ export default function ProjectListPage() {
     );
   }
 
-  // Transform project data to match the Project type
-  const projects: Project[] =
-    projectsData?.map((project) => ({
-      id: project.id.toString(),
-      name: project.name,
-      description: project.description || "",
-      status: project.active ? "active" : "completed", // Assuming 'active' field determines status
-      goalAmount: 0, // This would ideally come from a project aggregate query
-      raisedAmount: 0, // This would ideally come from a project aggregate query
-      startDate: project.createdAt, // Using createdAt as a fallback
-      endDate: new Date().toISOString(), // Placeholder - should be replaced with actual end date
-    })) || [];
+  // Use useMemo to avoid re-calculating on every render unless dependencies change
+  const { projects, totalCount } = useMemo(() => {
+    const projectItems: Project[] =
+      listProjectsResponse?.projects?.map((apiProject) => ({
+        id: apiProject.id.toString(),
+        name: apiProject.name,
+        description: apiProject.description || "",
+        status: apiProject.active ? "active" : "completed",
+        goalAmount: 0, // Placeholder - ensure this is handled if real data is available
+        raisedAmount: 0, // Placeholder - ensure this is handled if real data is available
+        startDate: apiProject.createdAt ? new Date(apiProject.createdAt).toISOString() : new Date().toISOString(),
+        endDate: new Date().toISOString(), // Placeholder - should be replaced with actual end date if available
+      })) || [];
+    return { projects: projectItems, totalCount: listProjectsResponse?.totalCount || 0 };
+  }, [listProjectsResponse]);
+
+  const pageCount = Math.ceil(totalCount / PAGE_SIZE);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -45,14 +67,25 @@ export default function ProjectListPage() {
         </Link>
       </div>
 
-      {isLoading ? (
+      {isLoading && !listProjectsResponse ? ( // Show skeleton only on initial load
         <div className="space-y-4">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
         </div>
       ) : (
-        <DataTable columns={columns} data={projects} searchKey="name" searchPlaceholder="Search projects..." />
+        <DataTable
+          columns={columns}
+          data={projects}
+          searchKey="name"
+          searchPlaceholder="Search projects..."
+          // Pagination props
+          totalItems={totalCount}
+          pageSize={PAGE_SIZE}
+          pageCount={pageCount}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+        />
       )}
     </div>
   );

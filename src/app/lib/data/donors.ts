@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { donors, staff } from "../db/schema";
-import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull } from "drizzle-orm";
+import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Donor = InferSelectModel<typeof donors>;
@@ -169,7 +169,7 @@ export async function unassignDonorFromStaff(donorId: number, organizationId: st
  * Lists donors with optional search, filtering, and sorting.
  * @param options - Options for searching, filtering, pagination, and sorting.
  * @param organizationId - The ID of the organization to filter donors by.
- * @returns An array of donor objects.
+ * @returns An object containing an array of donor objects and the total count.
  */
 export async function listDonors(
   options: {
@@ -182,12 +182,9 @@ export async function listDonors(
     orderDirection?: "asc" | "desc";
   } = {},
   organizationId: string
-): Promise<Donor[]> {
+): Promise<{ donors: Donor[]; totalCount: number }> {
   try {
     const { searchTerm, state, assignedToStaffId, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
-
-    // Base query
-    let query = db.select().from(donors);
 
     const conditions: SQL[] = [eq(donors.organizationId, organizationId)];
 
@@ -211,8 +208,17 @@ export async function listDonors(
       conditions.push(eq(donors.assignedToStaffId, assignedToStaffId));
     }
 
-    // Apply WHERE conditions
-    query = query.where(and(...conditions)) as typeof query;
+    // Query for the total count
+    const countQuery = db
+      .select({ value: count() })
+      .from(donors)
+      .where(and(...conditions));
+
+    // Query for the paginated data
+    let dataQueryBuilder = db
+      .select()
+      .from(donors)
+      .where(and(...conditions));
 
     // Apply ORDER BY if specified
     if (orderBy) {
@@ -225,12 +231,15 @@ export async function listDonors(
       const selectedColumn = columnMap[orderBy];
       if (selectedColumn) {
         const directionFunction = orderDirection === "asc" ? asc : desc;
-        query = query.orderBy(directionFunction(selectedColumn)) as typeof query;
+        dataQueryBuilder = dataQueryBuilder.orderBy(directionFunction(selectedColumn)) as typeof dataQueryBuilder;
       }
     }
 
-    // Apply LIMIT and OFFSET and execute
-    return await query.limit(limit).offset(offset);
+    const [totalResult, donorData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+
+    const totalCount = totalResult[0]?.value || 0;
+
+    return { donors: donorData, totalCount };
   } catch (error) {
     console.error("Failed to list donors:", error);
     throw new Error("Could not list donors.");

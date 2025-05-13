@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { projects } from "../db/schema";
-import { eq, sql, desc, asc, SQL, AnyColumn, and } from "drizzle-orm";
+import { eq, sql, desc, asc, SQL, AnyColumn, and, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Project = InferSelectModel<typeof projects>;
@@ -77,7 +77,7 @@ export async function deleteProject(id: number): Promise<void> {
  * Lists projects with optional filtering and sorting.
  * @param options - Options for filtering (e.g., active status) and pagination.
  * @param organizationId - The ID of the organization to filter projects by.
- * @returns An array of project objects.
+ * @returns An object containing an array of project objects and the total count.
  */
 export async function listProjects(
   options: {
@@ -88,18 +88,26 @@ export async function listProjects(
     orderDirection?: "asc" | "desc";
   } = {},
   organizationId: string
-): Promise<Project[]> {
+): Promise<{ projects: Project[]; totalCount: number }> {
   try {
     const { active, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
-
-    let queryBuilder = db.select().from(projects);
 
     const conditions: SQL[] = [eq(projects.organizationId, organizationId)];
     if (active !== undefined) {
       conditions.push(eq(projects.active, active));
     }
 
-    queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
+    // Query for the total count
+    const countQuery = db
+      .select({ value: count() })
+      .from(projects)
+      .where(and(...conditions));
+
+    // Query for the paginated data
+    let dataQueryBuilder = db
+      .select()
+      .from(projects)
+      .where(and(...conditions));
 
     if (orderBy) {
       const columnMap: { [key in typeof orderBy]: AnyColumn } = {
@@ -109,11 +117,15 @@ export async function listProjects(
       const selectedColumn = columnMap[orderBy];
       if (selectedColumn) {
         const direction = orderDirection === "asc" ? asc : desc;
-        queryBuilder = queryBuilder.orderBy(direction(selectedColumn)) as typeof queryBuilder;
+        dataQueryBuilder = dataQueryBuilder.orderBy(direction(selectedColumn)) as typeof dataQueryBuilder;
       }
     }
 
-    return await queryBuilder.limit(limit).offset(offset);
+    const [totalResult, projectData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+
+    const totalCount = totalResult[0]?.value || 0;
+
+    return { projects: projectData, totalCount };
   } catch (error) {
     console.error("Failed to list projects:", error);
     throw new Error("Could not list projects.");

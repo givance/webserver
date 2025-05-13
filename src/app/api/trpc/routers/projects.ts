@@ -38,6 +38,12 @@ const listProjectsSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+// Define the output schema for the list procedure to include totalCount
+const listProjectsOutputSchema = z.object({
+  projects: z.array(z.any()), // Define a more specific project schema if available
+  totalCount: z.number(),
+});
+
 export const projectsRouter = router({
   getById: protectedProcedure.input(projectIdSchema).query(async ({ input }) => {
     const project = await getProjectById(input.id);
@@ -93,7 +99,13 @@ export const projectsRouter = router({
     }
   }),
 
-  list: protectedProcedure.input(listProjectsSchema).query(async ({ input, ctx }) => {
-    return await listProjects(input, ctx.auth.user.organizationId);
-  }),
+  list: protectedProcedure
+    .input(listProjectsSchema)
+    // Explicitly type the output of the query based on the new schema
+    .output(listProjectsOutputSchema)
+    .query(async ({ input, ctx }) => {
+      // The listProjects function now returns an object with projects and totalCount
+      const result = await listProjects(input, ctx.auth.user.organizationId);
+      return result; // This matches the listProjectsOutputSchema
+    }),
 });

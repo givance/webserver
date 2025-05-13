@@ -58,6 +58,12 @@ const listDonorsSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+// Define the output schema for the list procedure to include totalCount
+const listDonorsOutputSchema = z.object({
+  donors: z.array(z.any()), // Define a more specific donor schema if available (e.g., from prisma types or a zod schema)
+  totalCount: z.number(),
+});
+
 export const donorsRouter = router({
   getById: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
     const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
@@ -124,7 +130,12 @@ export const donorsRouter = router({
     }
   }),
 
-  list: protectedProcedure.input(listDonorsSchema).query(async ({ input, ctx }) => {
-    return await listDonors(input, ctx.auth.user.organizationId);
-  }),
+  list: protectedProcedure
+    .input(listDonorsSchema)
+    .output(listDonorsOutputSchema) // Set the output schema for type safety
+    .query(async ({ input, ctx }) => {
+      // listDonors now returns an object: { donors: Donor[], totalCount: number }
+      const result = await listDonors(input, ctx.auth.user.organizationId);
+      return result; // This will be validated against listDonorsOutputSchema
+    }),
 });

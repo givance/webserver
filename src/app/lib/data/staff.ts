@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { staff } from "../db/schema";
-import { eq, sql, like, or, asc, desc, SQL, and } from "drizzle-orm";
+import { eq, sql, like, or, asc, desc, SQL, and, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Staff = InferSelectModel<typeof staff>;
@@ -111,7 +111,7 @@ export async function deleteStaff(id: number, organizationId: string): Promise<v
  * Lists staff members with optional filtering and sorting.
  * @param options - Options for filtering by real person status, searching, pagination, and sorting.
  * @param organizationId - The ID of the organization to filter staff by.
- * @returns An array of staff member objects.
+ * @returns An object containing an array of staff member objects and the total count.
  */
 export async function listStaff(
   options: {
@@ -123,7 +123,7 @@ export async function listStaff(
     orderDirection?: "asc" | "desc";
   } = {},
   organizationId: string
-): Promise<Staff[]> {
+): Promise<{ staff: Staff[]; totalCount: number }> {
   try {
     const { searchTerm, isRealPerson, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
 
@@ -147,20 +147,32 @@ export async function listStaff(
       conditions.push(eq(staff.isRealPerson, isRealPerson));
     }
 
+    // Query for the total count
+    const countQuery = db
+      .select({ value: count() })
+      .from(staff)
+      .where(and(...conditions));
+
+    // Query for the paginated data
+    let dataQueryBuilder = db
+      .select()
+      .from(staff)
+      .where(and(...conditions));
+
     // Build order by clause
-    let orderByClause;
     if (orderBy) {
       const column = staff[orderBy];
-      orderByClause = orderDirection === "asc" ? asc(column) : desc(column);
+      if (column) {
+        const direction = orderDirection === "asc" ? asc : desc;
+        dataQueryBuilder = dataQueryBuilder.orderBy(direction(column)) as typeof dataQueryBuilder;
+      }
     }
 
-    // Execute query
-    return await db.query.staff.findMany({
-      where: and(...conditions),
-      limit,
-      offset,
-      orderBy: orderByClause,
-    });
+    const [totalResult, staffData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+
+    const totalCount = totalResult[0]?.value || 0;
+
+    return { staff: staffData, totalCount };
   } catch (error) {
     console.error("Failed to list staff:", error);
     throw new Error("Could not list staff.");
