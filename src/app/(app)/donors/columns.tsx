@@ -136,12 +136,12 @@ export const columns: ColumnDef<Donor>[] = [
     id: "actions",
     cell: ({ row }: { row: Row<Donor> }) => (
       <div className="flex items-center justify-end gap-2">
-        <Link href={`/donations?donor=${row.original.id}`}>
+        <Link href={`/donations?donorId=${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Donations
           </Button>
         </Link>
-        <Link href={`/communications?donor=${row.original.id}`}>
+        <Link href={`/communications?donorId=${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Communications
           </Button>

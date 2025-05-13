@@ -70,7 +70,7 @@ export function ClientDonationTable({
                 <tr key={item.id}>
                   <td className="px-4 py-2">
                     {!donorFilter ? (
-                      <Link href={`/donations?donor=${item.donorId}`} className="text-blue-600 hover:underline">
+                      <Link href={`/donations?donorId=${item.donorId}`} className="text-blue-600 hover:underline">
                         {item.donorName}
                       </Link>
                     ) : (
