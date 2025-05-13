@@ -6,7 +6,13 @@ import { ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 
-export const columns: ColumnDef<CommunicationThreadWithDetails>[] = [
+interface CommunicationsColumnsProps {
+  onViewThread: (thread: CommunicationThreadWithDetails) => void;
+}
+
+export const createColumns = ({
+  onViewThread,
+}: CommunicationsColumnsProps): ColumnDef<CommunicationThreadWithDetails>[] => [
   {
     accessorKey: "createdAt",
     header: ({ column }) => {
@@ -93,11 +99,9 @@ export const columns: ColumnDef<CommunicationThreadWithDetails>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex items-center gap-2">
-          <Link href={`/communications/${row.original.id}`}>
-            <Button variant="ghost" size="sm">
-              View
-            </Button>
-          </Link>
+          <Button variant="ghost" size="sm" onClick={() => onViewThread(row.original)}>
+            View
+          </Button>
           <Link href={`/communications/${row.original.id}/edit`}>
             <Button variant="ghost" size="sm">
               Edit

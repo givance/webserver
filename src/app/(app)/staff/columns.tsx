@@ -114,7 +114,7 @@ export const columns: ColumnDef<Staff>[] = [
     id: "actions",
     cell: ({ row }: { row: Row<Staff> }) => (
       <div className="flex items-center justify-end gap-2">
-        <Link href={`/communications/staff/${row.original.id}`}>
+        <Link href={`/communications?staffId=${row.original.id}`}>
           <Button variant="ghost" size="sm">
             Communications
           </Button>

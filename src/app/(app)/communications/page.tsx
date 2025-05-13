@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { columns } from "./columns";
+import { createColumns } from "./columns";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CommunicationChannel } from "@/app/lib/data/communications";
+import { CommunicationChannel, CommunicationThreadWithDetails } from "@/app/lib/data/communications";
+import { CommunicationDialog } from "./CommunicationDialog";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -32,6 +33,9 @@ export default function CommunicationsPage() {
   const channel = searchParams.get("channel") ? (searchParams.get("channel") as CommunicationChannel) : undefined;
 
   const { listCommunicationThreads } = useCommunications();
+
+  const [selectedThread, setSelectedThread] = useState<CommunicationThreadWithDetails | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   // Fetch threads based on current page, page size, and filters
   const {
@@ -61,6 +65,13 @@ export default function CommunicationsPage() {
     };
   }, [listThreadsResponse]);
 
+  const handleViewThread = (thread: CommunicationThreadWithDetails) => {
+    setSelectedThread(thread);
+    setDialogOpen(true);
+  };
+
+  const columns = React.useMemo(() => createColumns({ onViewThread: handleViewThread }), []);
+
   if (error) {
     return (
       <div className="container mx-auto py-6">
@@ -77,7 +88,7 @@ export default function CommunicationsPage() {
 
   // Clear filters
   const clearFilters = () => {
-    router.push("/communications");
+    router.push("/app/communications");
   };
 
   return (
@@ -86,7 +97,7 @@ export default function CommunicationsPage() {
       <div className="container mx-auto py-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Communications</h1>
-          <Link href="/communications/new">
+          <Link href="/app/communications/new">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
               New Thread
@@ -156,6 +167,8 @@ export default function CommunicationsPage() {
             onPageChange={handlePageChange}
           />
         )}
+
+        <CommunicationDialog thread={selectedThread} open={dialogOpen} onOpenChange={setDialogOpen} />
       </div>
     </>
   );
