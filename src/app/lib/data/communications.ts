@@ -5,6 +5,8 @@ import {
   communicationThreadDonors,
   communicationContent,
   communicationChannelEnum,
+  staff,
+  donors,
 } from "../db/schema";
 import { eq, sql, desc, and, SQL } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
@@ -17,11 +19,15 @@ export type NewCommunicationThread = InferInsertModel<typeof communicationThread
 export type CommunicationChannel = (typeof communicationChannelEnum.enumValues)[number];
 
 // Types for CommunicationThreadStaff (Join table)
-export type CommunicationThreadStaffMember = InferSelectModel<typeof communicationThreadStaff>;
+export type CommunicationThreadStaffMember = InferSelectModel<typeof communicationThreadStaff> & {
+  staff?: Staff;
+};
 export type NewCommunicationThreadStaffMember = InferInsertModel<typeof communicationThreadStaff>;
 
 // Types for CommunicationThreadDonors (Join table)
-export type CommunicationThreadDonorParticipant = InferSelectModel<typeof communicationThreadDonors>;
+export type CommunicationThreadDonorParticipant = InferSelectModel<typeof communicationThreadDonors> & {
+  donor?: Donor;
+};
 export type NewCommunicationThreadDonorParticipant = InferInsertModel<typeof communicationThreadDonors>;
 
 // Types for CommunicationContent
@@ -38,16 +44,16 @@ export type FullCommunicationThreadDonor = CommunicationThreadDonorParticipant &
 };
 
 export type CommunicationThreadWithDetails = CommunicationThread & {
-  staff?: FullCommunicationThreadStaff[];
-  donors?: FullCommunicationThreadDonor[];
+  staff?: CommunicationThreadStaffMember[];
+  donors?: CommunicationThreadDonorParticipant[];
   content?: CommunicationMessage[];
 };
 
 export type MessageWithSenderRecipient = CommunicationMessage & {
-  fromStaff?: Omit<Staff, "communicationThreads" | "sentMessages" | "receivedMessages"> | null;
-  fromDonor?: Omit<Donor, "communicationThreads" | "sentMessages" | "receivedMessages"> | null;
-  toStaff?: Omit<Staff, "communicationThreads" | "sentMessages" | "receivedMessages"> | null;
-  toDonor?: Omit<Donor, "communicationThreads" | "sentMessages" | "receivedMessages"> | null;
+  fromStaff?: Staff | null;
+  fromDonor?: Donor | null;
+  toStaff?: Staff | null;
+  toDonor?: Donor | null;
 };
 
 // --- CommunicationThread Functions ---
@@ -120,17 +126,24 @@ export async function getCommunicationThreadById(
 /**
  * Lists communication threads, with filtering options.
  */
-export async function listCommunicationThreads(
-  options: {
-    channel?: CommunicationChannel;
-    limit?: number;
-    offset?: number;
-    includeStaff?: boolean;
-    includeDonors?: boolean;
-    includeLatestMessage?: boolean;
-  } = {}
-): Promise<CommunicationThreadWithDetails[]> {
-  const { channel, limit = 10, offset = 0, includeStaff, includeDonors, includeLatestMessage } = options;
+export async function listCommunicationThreads(options: {
+  channel?: CommunicationChannel;
+  limit?: number;
+  offset?: number;
+  includeStaff?: boolean;
+  includeDonors?: boolean;
+  includeLatestMessage?: boolean;
+  organizationId: string;
+}): Promise<CommunicationThreadWithDetails[]> {
+  const {
+    channel,
+    limit = 10,
+    offset = 0,
+    includeStaff,
+    includeDonors,
+    includeLatestMessage,
+    organizationId,
+  } = options;
 
   const whereConditions: SQL[] = [];
   if (channel) {
@@ -138,11 +151,24 @@ export async function listCommunicationThreads(
   }
 
   try {
+    // Get all threads with their participants
     const results = await db.query.communicationThreads.findMany({
       where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
-        staff: includeStaff ? { with: { staff: true } } : undefined,
-        donors: includeDonors ? { with: { donor: true } } : undefined,
+        staff: includeStaff
+          ? {
+              with: {
+                staff: true,
+              },
+            }
+          : undefined,
+        donors: includeDonors
+          ? {
+              with: {
+                donor: true,
+              },
+            }
+          : undefined,
         content: includeLatestMessage ? { limit: 1, orderBy: [desc(communicationContent.datetime)] } : undefined,
       },
       limit: limit,
@@ -150,7 +176,24 @@ export async function listCommunicationThreads(
       orderBy: [desc(communicationThreads.updatedAt)],
     });
 
-    return results as CommunicationThreadWithDetails[];
+    // Filter threads to only include those with participants from the organization
+    const filteredThreads = results.filter((thread) => {
+      const hasStaffFromOrg =
+        thread.staff?.some((s) => {
+          const staffMember = s as CommunicationThreadStaffMember;
+          return staffMember.staff?.organizationId === organizationId;
+        }) ?? false;
+
+      const hasDonorsFromOrg =
+        thread.donors?.some((d) => {
+          const donorMember = d as CommunicationThreadDonorParticipant;
+          return donorMember.donor?.organizationId === organizationId;
+        }) ?? false;
+
+      return hasStaffFromOrg || hasDonorsFromOrg;
+    });
+
+    return filteredThreads as CommunicationThreadWithDetails[];
   } catch (error) {
     console.error("Failed to list communication threads:", error);
     throw new Error("Could not list communication threads.");

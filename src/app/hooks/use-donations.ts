@@ -1,13 +1,32 @@
 "use client";
 
-import { trpc } from "../lib/trpc/client";
+import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
+import type { DonationWithDetails } from "@/app/lib/data/donations";
 
 type DonationOutput = inferProcedureOutput<AppRouter["donations"]["getById"]>;
 type ListDonationsInput = inferProcedureInput<AppRouter["donations"]["list"]>;
 type CreateDonationInput = inferProcedureInput<AppRouter["donations"]["create"]>;
 type UpdateDonationInput = inferProcedureInput<AppRouter["donations"]["update"]>;
+
+interface ListDonationsOptions {
+  donorId?: number;
+  projectId?: number;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+  offset?: number;
+  orderBy?: "date" | "amount" | "createdAt";
+  orderDirection?: "asc" | "desc";
+  includeDonor?: boolean;
+  includeProject?: boolean;
+}
+
+interface ListDonationsResponse {
+  donations: DonationWithDetails[];
+  totalCount: number;
+}
 
 /**
  * Hook for managing donations through the tRPC API
@@ -17,7 +36,6 @@ export function useDonations() {
   const utils = trpc.useUtils();
 
   // Query hooks
-  const listDonations = trpc.donations.list.useQuery;
   const getDonationById = trpc.donations.getById.useQuery;
 
   // Mutation hooks
@@ -82,10 +100,18 @@ export function useDonations() {
     }
   };
 
+  const listDonations = (options: ListDonationsOptions) => {
+    return trpc.donations.list.useQuery(options) as unknown as {
+      data?: ListDonationsResponse;
+      isLoading: boolean;
+      error: Error | null;
+    };
+  };
+
   return {
     // Query functions
-    listDonations,
     getDonationById,
+    listDonations,
 
     // Mutation functions
     createDonation,

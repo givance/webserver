@@ -197,10 +197,15 @@ export const donationsRouter = router({
     // We'll need to filter the results after fetching to ensure we only return
     // donations that belong to the organization through both donor and project
     const donations = await listDonations(input);
-    return donations.filter(
-      (d) =>
-        d.donor?.organizationId === ctx.auth.user.organizationId &&
-        d.project?.organizationId === ctx.auth.user.organizationId
+    const filteredDonations = donations.filter(
+      (donation) =>
+        donation.donor?.organizationId === ctx.auth.user.organizationId &&
+        donation.project?.organizationId === ctx.auth.user.organizationId
     );
+
+    return {
+      donations: filteredDonations,
+      totalCount: filteredDonations.length,
+    };
   }),
 });

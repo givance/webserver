@@ -290,6 +290,28 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
   }),
 }));
 
+export const communicationThreadStaffRelations = relations(communicationThreadStaff, ({ one }) => ({
+  thread: one(communicationThreads, {
+    fields: [communicationThreadStaff.threadId],
+    references: [communicationThreads.id],
+  }),
+  staff: one(staff, {
+    fields: [communicationThreadStaff.staffId],
+    references: [staff.id],
+  }),
+}));
+
+export const communicationThreadDonorsRelations = relations(communicationThreadDonors, ({ one }) => ({
+  thread: one(communicationThreads, {
+    fields: [communicationThreadDonors.threadId],
+    references: [communicationThreads.id],
+  }),
+  donor: one(donors, {
+    fields: [communicationThreadDonors.donorId],
+    references: [donors.id],
+  }),
+}));
+
 export const communicationThreadsRelations = relations(communicationThreads, ({ many }) => ({
   staff: many(communicationThreadStaff),
   donors: many(communicationThreadDonors),

@@ -1,92 +1,151 @@
+"use client";
+
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { columns, Donation } from "./columns";
+import { DataTable } from "@/components/ui/data-table/DataTable";
+import { columns } from "./columns";
+import { useDonations } from "@/app/hooks/use-donations";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listDonations, DonationWithDetails } from "@/app/lib/data/donations";
-import { ClientDonationTable } from "./ClientDonationTable";
+import { useDebounce } from "use-debounce";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSearchParams, useRouter } from "next/navigation";
 
-interface SearchParams {
-  donor?: string;
-  project?: string;
-}
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
-export default async function DonationListPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
+export default function DonationsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const context = params.donor ? `for donor ${params.donor}` : params.project ? `for project ${params.project}` : "all";
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
+  const [searchTermInput, setSearchTermInput] = useState("");
+  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
 
-  try {
-    const donationsData = await listDonations({
-      donorId: params.donor ? parseInt(params.donor) : undefined,
-      projectId: params.project ? parseInt(params.project) : undefined,
-      includeDonor: true,
-      includeProject: true,
-    });
+  // Get filter values from URL params
+  const donorId = searchParams.get("donorId") ? Number(searchParams.get("donorId")) : undefined;
+  const projectId = searchParams.get("projectId") ? Number(searchParams.get("projectId")) : undefined;
 
-    // Get donor name for filter display
-    const firstDonation = donationsData.find((d) => params.donor && d.donorId.toString() === params.donor);
-    const donorName = firstDonation?.donor
-      ? `${firstDonation.donor.firstName} ${firstDonation.donor.lastName}`.trim()
-      : undefined;
+  const { listDonations } = useDonations();
 
-    // Get project name for filter display
-    const projectDonation = donationsData.find((d) => params.project && d.projectId.toString() === params.project);
-    const projectName = projectDonation?.project?.name;
+  // Fetch donations based on current page, page size, and filters
+  const {
+    data: listDonationsResponse,
+    isLoading,
+    error,
+  } = listDonations({
+    limit: pageSize,
+    offset: (currentPage - 1) * pageSize,
+    donorId,
+    projectId,
+    includeDonor: true,
+    includeProject: true,
+  });
 
-    // Transform DonationWithDetails to Donation format
-    const donations: Donation[] = donationsData.map((item): Donation => {
-      return {
-        id: item.id.toString(),
-        amount: item.amount,
-        donorId: item.donorId.toString(),
-        donorName: `${item.donor?.firstName || ""} ${item.donor?.lastName || ""}`.trim() || "Unknown Donor",
-        projectId: item.projectId.toString(),
-        projectName: item.project?.name || "Unknown Project",
-        type: "one_time",
-        status: "completed",
-        date: item.date.toISOString(),
-        notes: undefined,
-      };
-    });
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [donorId, projectId]);
 
+  const { donations, totalCount } = React.useMemo(() => {
+    return {
+      donations: listDonationsResponse?.donations || [],
+      totalCount: listDonationsResponse?.totalCount || 0,
+    };
+  }, [listDonationsResponse]);
+
+  if (error) {
     return (
-      <>
-        <title>Donation Management</title>
-        <div className="container mx-auto py-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Donations {context}</h1>
-            <Link
-              href={`/donations/add${
-                params.donor ? `?donor=${params.donor}` : params.project ? `?project=${params.project}` : ""
-              }`}
-            >
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Donation
-              </Button>
-            </Link>
-          </div>
-
-          <ClientDonationTable
-            columns={columns}
-            data={donations || []}
-            donorFilter={params.donor}
-            donorName={donorName}
-            projectFilter={params.project}
-            projectName={projectName}
-          />
-        </div>
-      </>
-    );
-  } catch (error) {
-    return (
-      <>
-        <title>Donation Management - Error</title>
-        <div className="container mx-auto py-6">
-          <div className="text-red-500">Error loading donations: {(error as Error).message}</div>
-        </div>
-      </>
+      <div className="container mx-auto py-6">
+        <div className="text-red-500">Error loading donations: {error.message}</div>
+      </div>
     );
   }
+
+  const pageCount = Math.ceil(totalCount / pageSize);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Clear filters
+  const clearFilters = () => {
+    router.push("/donations");
+  };
+
+  return (
+    <>
+      <title>Donations</title>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Donations</h1>
+          <Link href="/donations/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Donation
+            </Button>
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          {/* Show active filters */}
+          {(donorId || projectId) && (
+            <div className="flex items-center gap-2 w-full mb-4">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {donorId && (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Donor: {donations[0]?.donor?.firstName} {donations[0]?.donor?.lastName} ×
+                </Button>
+              )}
+              {projectId && (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Project: {donations[0]?.project?.name} ×
+                </Button>
+              )}
+            </div>
+          )}
+
+          <Select
+            value={pageSize.toString()}
+            onValueChange={(value) => {
+              setPageSize(Number(value) as typeof pageSize);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select page size" />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size} items per page
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isLoading && !listDonationsResponse ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={donations}
+            totalItems={totalCount}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+          />
+        )}
+      </div>
+    </>
+  );
 }

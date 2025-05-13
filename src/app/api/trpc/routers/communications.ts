@@ -34,6 +34,8 @@ const threadDetailsSchema = z.object({
 
 const listThreadsSchema = z.object({
   channel: z.enum(["email", "phone", "text"]).optional(),
+  staffId: z.number().optional(),
+  donorId: z.number().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   includeStaff: z.boolean().optional(),
@@ -132,14 +134,30 @@ export const communicationsRouter = router({
     }),
 
   listThreads: protectedProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
-    const threads = await listCommunicationThreads(input);
+    const threads = await listCommunicationThreads({
+      ...input,
+      organizationId: ctx.auth.user.organizationId,
+    });
 
-    // Filter threads to only include those belonging to the organization
-    return threads.filter(
-      (thread) =>
-        (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-        (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false)
-    );
+    // Filter threads to only include those matching the staff/donor filters
+    const filteredThreads = threads.filter((thread) => {
+      // Apply staff filter
+      if (input.staffId && !thread.staff?.some((s) => s.staffId === input.staffId)) {
+        return false;
+      }
+
+      // Apply donor filter
+      if (input.donorId && !thread.donors?.some((d) => d.donorId === input.donorId)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return {
+      threads: filteredThreads,
+      totalCount: filteredThreads.length,
+    };
   }),
 
   addMessage: protectedProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {

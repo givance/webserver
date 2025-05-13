@@ -1,185 +1,145 @@
 "use client";
 
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { columns, type Communication } from "./columns";
+import { columns } from "./columns";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSearchParams } from "next/navigation";
-import { useMemo, Suspense } from "react";
+import { useDebounce } from "use-debounce";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSearchParams, useRouter } from "next/navigation";
+import { CommunicationChannel } from "@/app/lib/data/communications";
 
-// Define a minimal thread type to avoid using 'any'
-interface ThreadItem {
-  id: number;
-  createdAt: string;
-  channel?: string;
-  donors?: Array<{
-    donorId: number;
-    donor?: {
-      id: number;
-      firstName: string;
-      lastName: string;
-    } | null;
-  }>;
-  staff?: Array<{
-    staffId: number;
-    staff?: {
-      id: number;
-      firstName: string;
-      lastName: string;
-    } | null;
-  }>;
-  messages?: Array<{
-    id: number;
-    subject?: string;
-    content?: string;
-    status?: string;
-  }>;
-}
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
-// Transform thread data into the expected Communication format
-function transformThreadsToDisplayFormat(threads: ThreadItem[]): Communication[] {
-  return threads.map((thread) => {
-    // Extract the donor information
-    const donor = thread.donors?.[0]?.donor;
-
-    // Extract the staff information
-    const staff = thread.staff?.[0];
-
-    // Get the latest message if available
-    const latestMessage = thread.messages?.[0];
-
-    // Map channel to appropriate communication type
-    let type: "email" | "phone" | "meeting" | "letter" = "email";
-    if (thread.channel === "phone" || thread.channel === "text") {
-      type = "phone";
-    } else if (thread.channel === "meeting") {
-      type = "meeting";
-    } else if (thread.channel === "letter") {
-      type = "letter";
-    }
-
-    // Map status to appropriate communication status
-    let status: "completed" | "scheduled" | "cancelled" = "completed";
-    if (latestMessage?.status === "scheduled") {
-      status = "scheduled";
-    } else if (latestMessage?.status === "cancelled") {
-      status = "cancelled";
-    }
-
-    return {
-      id: String(thread.id),
-      subject: latestMessage?.subject || "No subject",
-      type,
-      staffId: staff ? String(staff.staffId) : "0",
-      staffName: staff?.staff?.firstName ? `${staff.staff.firstName} ${staff.staff.lastName || ""}` : "Unassigned",
-      donorId: donor ? String(donor.id) : "0",
-      donorName: donor ? `${donor.firstName} ${donor.lastName}` : "Unknown Donor",
-      date: thread.createdAt,
-      status,
-      notes: latestMessage?.content || "",
-    };
-  });
-}
-
-function CommunicationListContent() {
+export default function CommunicationsPage() {
   const searchParams = useSearchParams();
-  const donorFilter = searchParams.get("donor") || undefined;
-  const staffFilter = searchParams.get("staff") || undefined;
+  const router = useRouter();
 
-  const { listThreads } = useCommunications();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
+  const [searchTermInput, setSearchTermInput] = useState("");
+  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+
+  // Get filter values from URL params
+  const staffId = searchParams.get("staffId") ? Number(searchParams.get("staffId")) : undefined;
+  const donorId = searchParams.get("donorId") ? Number(searchParams.get("donorId")) : undefined;
+  const channel = searchParams.get("channel") ? (searchParams.get("channel") as CommunicationChannel) : undefined;
+
+  const { listCommunicationThreads } = useCommunications();
+
+  // Fetch threads based on current page, page size, and filters
   const {
-    data: threads,
+    data: listThreadsResponse,
     isLoading,
     error,
-  } = listThreads({
+  } = listCommunicationThreads({
+    limit: pageSize,
+    offset: (currentPage - 1) * pageSize,
+    staffId,
+    donorId,
+    channel,
     includeStaff: true,
     includeDonors: true,
     includeLatestMessage: true,
   });
 
-  // Transform and filter communications based on the URL params
-  const { filteredCommunications, communicationsData } = useMemo(() => {
-    const communicationsData = threads ? transformThreadsToDisplayFormat(threads as ThreadItem[]) : [];
-    let filtered = [...communicationsData];
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [staffId, donorId, channel]);
 
-    if (donorFilter) {
-      filtered = filtered.filter((comm) => comm.donorId === donorFilter);
-    }
-
-    if (staffFilter) {
-      filtered = filtered.filter((comm) => comm.staffId === staffFilter);
-    }
-
-    return { filteredCommunications: filtered, communicationsData };
-  }, [threads, donorFilter, staffFilter]);
+  const { threads, totalCount } = React.useMemo(() => {
+    return {
+      threads: listThreadsResponse?.threads || [],
+      totalCount: listThreadsResponse?.totalCount || 0,
+    };
+  }, [listThreadsResponse]);
 
   if (error) {
     return (
       <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading communications: {error.message}</div>
+        <div className="text-red-500">Error loading communication threads: {error.message}</div>
       </div>
     );
   }
 
-  // Find the donor name for display
-  const donorName = donorFilter
-    ? communicationsData.find((comm) => comm.donorId === donorFilter)?.donorName
-    : undefined;
+  const pageCount = Math.ceil(totalCount / pageSize);
 
-  // Find the staff name for display
-  const staffName = staffFilter
-    ? communicationsData.find((comm) => comm.staffId === staffFilter)?.staffName
-    : undefined;
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
-  // Set page title based on filters
-  let pageTitle = "Communication Management";
-  if (donorFilter && donorName) {
-    pageTitle = `Communications with ${donorName}`;
-  } else if (staffFilter && staffName) {
-    pageTitle = `Communications by ${staffName}`;
-  }
+  // Clear filters
+  const clearFilters = () => {
+    router.push("/communications");
+  };
 
   return (
     <>
-      <title>Communication Management</title>
+      <title>Communications</title>
       <div className="container mx-auto py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">{pageTitle}</h1>
-          <Link href={`/communications/add${donorFilter ? `?donor=${donorFilter}` : ""}`}>
+          <h1 className="text-2xl font-bold">Communications</h1>
+          <Link href="/communications/new">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Add Communication
+              New Thread
             </Button>
           </Link>
         </div>
 
-        {/* Active filters display */}
-        {(donorFilter || staffFilter) && (
-          <div className="flex items-center gap-2 text-sm mb-4">
-            <span className="font-medium">Active filters:</span>
-            {donorFilter && (
-              <div className="flex items-center gap-1 bg-blue-50 text-blue-800 px-2 py-1 rounded-md">
-                <span>Donor: {donorName || donorFilter}</span>
-                <Link href="/communications" className="hover:text-blue-600">
-                  <X className="h-4 w-4" />
-                </Link>
-              </div>
-            )}
-            {staffFilter && (
-              <div className="flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-1 rounded-md">
-                <span>Staff: {staffName || staffFilter}</span>
-                <Link href="/communications" className="hover:text-purple-600">
-                  <X className="h-4 w-4" />
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          {/* Show active filters */}
+          {(staffId || donorId || channel) && (
+            <div className="flex items-center gap-2 w-full mb-4">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {staffId && (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Staff: {threads[0]?.staff?.find((s) => s.staffId === staffId)?.staff?.firstName}{" "}
+                  {threads[0]?.staff?.find((s) => s.staffId === staffId)?.staff?.lastName} ×
+                </Button>
+              )}
+              {donorId && (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Donor: {threads[0]?.donors?.find((d) => d.donorId === donorId)?.donor?.firstName}{" "}
+                  {threads[0]?.donors?.find((d) => d.donorId === donorId)?.donor?.lastName} ×
+                </Button>
+              )}
+              {channel && (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Channel: {channel} ×
+                </Button>
+              )}
+            </div>
+          )}
 
-        {isLoading ? (
+          <Select
+            value={pageSize.toString()}
+            onValueChange={(value) => {
+              setPageSize(Number(value) as typeof pageSize);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select page size" />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size} items per page
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isLoading && !listThreadsResponse ? (
           <div className="space-y-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
@@ -188,30 +148,15 @@ function CommunicationListContent() {
         ) : (
           <DataTable
             columns={columns}
-            data={filteredCommunications}
-            searchKey="subject"
-            searchPlaceholder="Search communications..."
+            data={threads}
+            totalItems={totalCount}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
           />
         )}
       </div>
     </>
-  );
-}
-
-export default function CommunicationListPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="container mx-auto py-6">
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        </div>
-      }
-    >
-      <CommunicationListContent />
-    </Suspense>
   );
 }

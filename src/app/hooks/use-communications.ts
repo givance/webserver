@@ -1,14 +1,31 @@
 "use client";
 
-import { trpc } from "../lib/trpc/client";
+import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
+import type { CommunicationThreadWithDetails, CommunicationChannel } from "@/app/lib/data/communications";
 
 type ThreadOutput = inferProcedureOutput<AppRouter["communications"]["getThread"]>;
 type ListThreadsInput = inferProcedureInput<AppRouter["communications"]["listThreads"]>;
 type CreateThreadInput = inferProcedureInput<AppRouter["communications"]["createThread"]>;
 type AddMessageInput = inferProcedureInput<AppRouter["communications"]["addMessage"]>;
 type GetMessagesInput = inferProcedureInput<AppRouter["communications"]["getMessages"]>;
+
+interface ListThreadsOptions {
+  channel?: CommunicationChannel;
+  staffId?: number;
+  donorId?: number;
+  limit?: number;
+  offset?: number;
+  includeStaff?: boolean;
+  includeDonors?: boolean;
+  includeLatestMessage?: boolean;
+}
+
+interface ListThreadsResponse {
+  threads: CommunicationThreadWithDetails[];
+  totalCount: number;
+}
 
 /**
  * Hook for managing communication threads through the tRPC API
@@ -35,6 +52,14 @@ export function useCommunications() {
       utils.communications.getThread.invalidate({ id: variables.threadId });
     },
   });
+
+  const listCommunicationThreads = (options: ListThreadsOptions) => {
+    return trpc.communications.listThreads.useQuery(options) as unknown as {
+      data?: ListThreadsResponse;
+      isLoading: boolean;
+      error: Error | null;
+    };
+  };
 
   /**
    * Create a new communication thread
@@ -81,5 +106,7 @@ export function useCommunications() {
     // Mutation results
     createThreadResult: createThreadMutation.data,
     addMessageResult: addMessageMutation.data,
+
+    listCommunicationThreads,
   };
 }
