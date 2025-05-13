@@ -2,40 +2,33 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { createColumns } from "./columns";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDebounce } from "use-debounce";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { CommunicationChannel, CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 import { CommunicationDialog } from "./CommunicationDialog";
+import { CommunicationFilters } from "./CommunicationFilters";
 
 const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 export default function CommunicationsPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
-  const [searchTermInput, setSearchTermInput] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
-
-  // Get filter values from URL params
-  const staffId = searchParams.get("staffId") ? Number(searchParams.get("staffId")) : undefined;
-  const donorId = searchParams.get("donorId") ? Number(searchParams.get("donorId")) : undefined;
-  const channel = searchParams.get("channel") ? (searchParams.get("channel") as CommunicationChannel) : undefined;
-
-  const { listCommunicationThreads } = useCommunications();
-
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedThread, setSelectedThread] = useState<CommunicationThreadWithDetails | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Get filter values from URL params
+  const staffId = searchParams.get("staffId");
+  const donorId = searchParams.get("donorId");
+  const channel = searchParams.get("channel");
+
+  const { listCommunicationThreads } = useCommunications();
 
   // Fetch threads based on current page, page size, and filters
   const {
@@ -45,9 +38,9 @@ export default function CommunicationsPage() {
   } = listCommunicationThreads({
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
-    staffId,
-    donorId,
-    channel,
+    staffId: staffId && staffId !== "all" ? Number(staffId) : undefined,
+    donorId: donorId && donorId !== "all" ? Number(donorId) : undefined,
+    channel: channel && channel !== "all" ? (channel as CommunicationChannel) : undefined,
     includeStaff: true,
     includeDonors: true,
     includeLatestMessage: true,
@@ -86,11 +79,6 @@ export default function CommunicationsPage() {
     setCurrentPage(page);
   };
 
-  // Clear filters
-  const clearFilters = () => {
-    router.push("/app/communications");
-  };
-
   return (
     <>
       <title>Communications</title>
@@ -105,50 +93,13 @@ export default function CommunicationsPage() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-4 mb-4 flex-wrap">
-          {/* Show active filters */}
-          {(staffId || donorId || channel) && (
-            <div className="flex items-center gap-2 w-full mb-4">
-              <span className="text-sm text-muted-foreground">Active filters:</span>
-              {staffId && (
-                <Button variant="secondary" size="sm" onClick={clearFilters}>
-                  Staff: {threads[0]?.staff?.find((s) => s.staffId === staffId)?.staff?.firstName}{" "}
-                  {threads[0]?.staff?.find((s) => s.staffId === staffId)?.staff?.lastName} ×
-                </Button>
-              )}
-              {donorId && (
-                <Button variant="secondary" size="sm" onClick={clearFilters}>
-                  Donor: {threads[0]?.donors?.find((d) => d.donorId === donorId)?.donor?.firstName}{" "}
-                  {threads[0]?.donors?.find((d) => d.donorId === donorId)?.donor?.lastName} ×
-                </Button>
-              )}
-              {channel && (
-                <Button variant="secondary" size="sm" onClick={clearFilters}>
-                  Channel: {channel} ×
-                </Button>
-              )}
-            </div>
-          )}
-
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(value) => {
-              setPageSize(Number(value) as typeof pageSize);
-              setCurrentPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select page size" />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size.toString()}>
-                  {size} items per page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <CommunicationFilters
+          pageSize={pageSize}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
 
         {isLoading && !listThreadsResponse ? (
           <div className="space-y-4">
