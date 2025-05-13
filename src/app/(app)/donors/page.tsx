@@ -68,44 +68,47 @@ export default function DonorListPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Donor Management</h1>
-        <Link href="/donors/add">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Donor
-          </Button>
-        </Link>
-      </div>
-
-      <div className="mb-4">
-        <Input
-          placeholder="Search donors by name, email..."
-          value={searchTermInput}
-          onChange={(e) => setSearchTermInput(e.target.value)}
-          className="max-w-sm"
-        />
-      </div>
-
-      {isLoading && !listDonorsResponse ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+    <>
+      <title>Donor Management</title>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Donor Management</h1>
+          <Link href="/donors/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Donor
+            </Button>
+          </Link>
         </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={donors}
-          searchPlaceholder="Search donors..."
-          totalItems={totalCount}
-          pageSize={PAGE_SIZE}
-          pageCount={pageCount}
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-        />
-      )}
-    </div>
+
+        <div className="mb-4">
+          <Input
+            placeholder="Search donors by name, email..."
+            value={searchTermInput}
+            onChange={(e) => setSearchTermInput(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+
+        {isLoading && !listDonorsResponse ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={donors}
+            searchPlaceholder="Search donors..."
+            totalItems={totalCount}
+            pageSize={PAGE_SIZE}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+          />
+        )}
+      </div>
+    </>
   );
 }

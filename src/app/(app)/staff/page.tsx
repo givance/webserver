@@ -66,44 +66,47 @@ export default function StaffListPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Staff Management</h1>
-        <Link href="/staff/add">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Staff
-          </Button>
-        </Link>
-      </div>
-
-      <div className="mb-4">
-        <Input
-          placeholder="Search staff by name, email..."
-          value={searchTermInput}
-          onChange={(e) => setSearchTermInput(e.target.value)}
-          className="max-w-sm"
-        />
-      </div>
-
-      {isLoading && !listStaffResponse ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+    <>
+      <title>Staff Management</title>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Staff Management</h1>
+          <Link href="/staff/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Staff
+            </Button>
+          </Link>
         </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={staffMembers}
-          searchPlaceholder="Search staff..."
-          totalItems={totalCount}
-          pageSize={PAGE_SIZE}
-          pageCount={pageCount}
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-        />
-      )}
-    </div>
+
+        <div className="mb-4">
+          <Input
+            placeholder="Search staff by name, email..."
+            value={searchTermInput}
+            onChange={(e) => setSearchTermInput(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+
+        {isLoading && !listStaffResponse ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={staffMembers}
+            searchPlaceholder="Search staff..."
+            totalItems={totalCount}
+            pageSize={PAGE_SIZE}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+          />
+        )}
+      </div>
+    </>
   );
 }

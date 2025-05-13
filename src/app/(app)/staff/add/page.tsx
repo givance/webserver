@@ -76,36 +76,70 @@ export default function AddStaffPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center mb-6">
-        <Link href="/staff" className="mr-4">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-bold">Add New Staff Member</h1>
-      </div>
+    <>
+      <title>Add New Staff Member</title>
+      <div className="container mx-auto py-6">
+        <div className="flex items-center mb-6">
+          <Link href="/staff" className="mr-4">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold">Add New Staff Member</h1>
+        </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-4 rounded">{error}</div>}
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-4 rounded">{error}</div>}
 
-      <div className="bg-white p-6 shadow rounded-lg max-w-2xl">
-        <Form {...form}>
-          <form
-            // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-6"
-          >
-            <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-6 shadow rounded-lg max-w-2xl">
+          <Form {...form}>
+            <form
+              // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                  control={form.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                  control={form.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 // @ts-ignore - Known type mismatch with react-hook-form's Control type
                 control={form.control}
-                name="firstName"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="John" {...field} />
+                      <Input type="email" placeholder="john.doe@example.com" {...field} />
                     </FormControl>
+                    <FormDescription>Enter the staff member&apos;s email address</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -114,97 +148,66 @@ export default function AddStaffPage() {
               <FormField
                 // @ts-ignore - Known type mismatch with react-hook-form's Control type
                 control={form.control}
-                name="lastName"
+                name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Name</FormLabel>
+                    <FormLabel>Job Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Doe" {...field} />
+                      <Input placeholder="Marketing Manager" {...field} value={field.value || ""} />
                     </FormControl>
+                    <FormDescription>Enter the staff member&apos;s job title</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            <FormField
-              // @ts-ignore - Known type mismatch with react-hook-form's Control type
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="john.doe@example.com" {...field} />
-                  </FormControl>
-                  <FormDescription>Enter the staff member&apos;s email address</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Marketing" {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormDescription>Enter the staff member&apos;s department</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              // @ts-ignore - Known type mismatch with react-hook-form's Control type
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Job Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Marketing Manager" {...field} value={field.value || ""} />
-                  </FormControl>
-                  <FormDescription>Enter the staff member&apos;s job title</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
+                name="isRealPerson"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={(checked: CheckedState) => {
+                          field.onChange(checked === true);
+                        }}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Real Person</FormLabel>
+                      <FormDescription>Is this a real person or a system account?</FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              // @ts-ignore - Known type mismatch with react-hook-form's Control type
-              control={form.control}
-              name="department"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Department</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Marketing" {...field} value={field.value || ""} />
-                  </FormControl>
-                  <FormDescription>Enter the staff member&apos;s department</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              // @ts-ignore - Known type mismatch with react-hook-form's Control type
-              control={form.control}
-              name="isRealPerson"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked: CheckedState) => {
-                        field.onChange(checked === true);
-                      }}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Real Person</FormLabel>
-                    <FormDescription>Is this a real person or a system account?</FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isCreating}>
-                {isCreating ? "Creating..." : "Create Staff Member"}
-              </Button>
-            </div>
-          </form>
-        </Form>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating ? "Creating..." : "Create Staff Member"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

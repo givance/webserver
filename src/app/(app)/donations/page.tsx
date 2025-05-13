@@ -51,36 +51,42 @@ export default async function DonationListPage({ searchParams }: { searchParams:
     });
 
     return (
-      <div className="container mx-auto py-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Donations {context}</h1>
-          <Link
-            href={`/donations/add${
-              params.donor ? `?donor=${params.donor}` : params.project ? `?project=${params.project}` : ""
-            }`}
-          >
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Donation
-            </Button>
-          </Link>
-        </div>
+      <>
+        <title>Donation Management</title>
+        <div className="container mx-auto py-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Donations {context}</h1>
+            <Link
+              href={`/donations/add${
+                params.donor ? `?donor=${params.donor}` : params.project ? `?project=${params.project}` : ""
+              }`}
+            >
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Donation
+              </Button>
+            </Link>
+          </div>
 
-        <ClientDonationTable
-          columns={columns}
-          data={donations || []}
-          donorFilter={params.donor}
-          donorName={donorName}
-          projectFilter={params.project}
-          projectName={projectName}
-        />
-      </div>
+          <ClientDonationTable
+            columns={columns}
+            data={donations || []}
+            donorFilter={params.donor}
+            donorName={donorName}
+            projectFilter={params.project}
+            projectName={projectName}
+          />
+        </div>
+      </>
     );
   } catch (error) {
     return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading donations: {(error as Error).message}</div>
-      </div>
+      <>
+        <title>Donation Management - Error</title>
+        <div className="container mx-auto py-6">
+          <div className="text-red-500">Error loading donations: {(error as Error).message}</div>
+        </div>
+      </>
     );
   }
 }

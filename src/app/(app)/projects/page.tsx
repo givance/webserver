@@ -69,44 +69,47 @@ export default function ProjectListPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Project Management</h1>
-        <Link href="/projects/add">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Project
-          </Button>
-        </Link>
-      </div>
-
-      <div className="mb-4">
-        <Input
-          placeholder="Search projects by name or description..."
-          value={searchTermInput}
-          onChange={(e) => setSearchTermInput(e.target.value)}
-          className="max-w-sm"
-        />
-      </div>
-
-      {isLoading && !listProjectsResponse ? ( // Show skeleton only on initial load
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+    <>
+      <title>Project Management</title>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Project Management</h1>
+          <Link href="/projects/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Project
+            </Button>
+          </Link>
         </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={projects}
-          searchPlaceholder="Search projects..."
-          totalItems={totalCount}
-          pageSize={PAGE_SIZE}
-          pageCount={pageCount}
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-        />
-      )}
-    </div>
+
+        <div className="mb-4">
+          <Input
+            placeholder="Search projects by name or description..."
+            value={searchTermInput}
+            onChange={(e) => setSearchTermInput(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+
+        {isLoading && !listProjectsResponse ? ( // Show skeleton only on initial load
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={projects}
+            searchPlaceholder="Search projects..."
+            totalItems={totalCount}
+            pageSize={PAGE_SIZE}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+          />
+        )}
+      </div>
+    </>
   );
 }

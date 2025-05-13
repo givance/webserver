@@ -143,55 +143,58 @@ function CommunicationListContent() {
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{pageTitle}</h1>
-        <Link href={`/communications/add${donorFilter ? `?donor=${donorFilter}` : ""}`}>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Communication
-          </Button>
-        </Link>
+    <>
+      <title>Communication Management</title>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">{pageTitle}</h1>
+          <Link href={`/communications/add${donorFilter ? `?donor=${donorFilter}` : ""}`}>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Communication
+            </Button>
+          </Link>
+        </div>
+
+        {/* Active filters display */}
+        {(donorFilter || staffFilter) && (
+          <div className="flex items-center gap-2 text-sm mb-4">
+            <span className="font-medium">Active filters:</span>
+            {donorFilter && (
+              <div className="flex items-center gap-1 bg-blue-50 text-blue-800 px-2 py-1 rounded-md">
+                <span>Donor: {donorName || donorFilter}</span>
+                <Link href="/communications" className="hover:text-blue-600">
+                  <X className="h-4 w-4" />
+                </Link>
+              </div>
+            )}
+            {staffFilter && (
+              <div className="flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-1 rounded-md">
+                <span>Staff: {staffName || staffFilter}</span>
+                <Link href="/communications" className="hover:text-purple-600">
+                  <X className="h-4 w-4" />
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filteredCommunications}
+            searchKey="subject"
+            searchPlaceholder="Search communications..."
+          />
+        )}
       </div>
-
-      {/* Active filters display */}
-      {(donorFilter || staffFilter) && (
-        <div className="flex items-center gap-2 text-sm mb-4">
-          <span className="font-medium">Active filters:</span>
-          {donorFilter && (
-            <div className="flex items-center gap-1 bg-blue-50 text-blue-800 px-2 py-1 rounded-md">
-              <span>Donor: {donorName || donorFilter}</span>
-              <Link href="/communications" className="hover:text-blue-600">
-                <X className="h-4 w-4" />
-              </Link>
-            </div>
-          )}
-          {staffFilter && (
-            <div className="flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-1 rounded-md">
-              <span>Staff: {staffName || staffFilter}</span>
-              <Link href="/communications" className="hover:text-purple-600">
-                <X className="h-4 w-4" />
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={filteredCommunications}
-          searchKey="subject"
-          searchPlaceholder="Search communications..."
-        />
-      )}
-    </div>
+    </>
   );
 }
 

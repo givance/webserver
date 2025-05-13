@@ -74,111 +74,114 @@ export default function OrganizationSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">Organization Settings</h1>
+    <>
+      <title>Organization Settings</title>
+      <div className="container mx-auto py-6 max-w-4xl">
+        <h1 className="text-2xl font-bold mb-6">Organization Settings</h1>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Website & Description</CardTitle>
-              <CardDescription>Information about your organization</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <label htmlFor="websiteUrl">Website URL</label>
-                  <Input
-                    id="websiteUrl"
-                    name="websiteUrl"
-                    value={formData.websiteUrl || ""}
-                    onChange={handleChange}
-                    placeholder="https://example.org"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="websiteSummary">Website Summary</label>
-                  {isSummaryEditing ? (
-                    <Textarea
-                      id="websiteSummary"
-                      name="websiteSummary"
-                      value={formData.websiteSummary || ""}
-                      onChange={handleChange}
-                      placeholder="A brief summary of your website"
-                      rows={3}
-                    />
-                  ) : (
-                    <div className="prose dark:prose-invert p-3 border rounded-md min-h-[78px]">
-                      {formData.websiteSummary ? (
-                        <ReactMarkdown>{formData.websiteSummary}</ReactMarkdown>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No summary provided.</p>
-                      )}
-                    </div>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsSummaryEditing(!isSummaryEditing)}
-                    className="mt-2 w-fit"
-                    type="button"
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    {isSummaryEditing ? "Done Editing" : "Edit Summary"}
-                  </Button>
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="description">Organization Description</label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    value={formData.description || ""}
-                    onChange={handleChange}
-                    placeholder="Describe your organization"
-                    rows={4}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="writingInstructions">Writing Instructions</label>
-                  <Textarea
-                    id="writingInstructions"
-                    name="writingInstructions"
-                    value={formData.writingInstructions || ""}
-                    onChange={handleChange}
-                    placeholder="Instructions for writing content for your organization"
-                    rows={4}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    These instructions will guide AI-assisted content creation for your organization
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isUpdating}>
-              {isUpdating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-24 w-full" />
           </div>
-        </form>
-      )}
-    </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Website & Description</CardTitle>
+                <CardDescription>Information about your organization</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <label htmlFor="websiteUrl">Website URL</label>
+                    <Input
+                      id="websiteUrl"
+                      name="websiteUrl"
+                      value={formData.websiteUrl || ""}
+                      onChange={handleChange}
+                      placeholder="https://example.org"
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label htmlFor="websiteSummary">Website Summary</label>
+                    {isSummaryEditing ? (
+                      <Textarea
+                        id="websiteSummary"
+                        name="websiteSummary"
+                        value={formData.websiteSummary || ""}
+                        onChange={handleChange}
+                        placeholder="A brief summary of your website"
+                        rows={3}
+                      />
+                    ) : (
+                      <div className="prose dark:prose-invert p-3 border rounded-md min-h-[78px]">
+                        {formData.websiteSummary ? (
+                          <ReactMarkdown>{formData.websiteSummary}</ReactMarkdown>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No summary provided.</p>
+                        )}
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsSummaryEditing(!isSummaryEditing)}
+                      className="mt-2 w-fit"
+                      type="button"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      {isSummaryEditing ? "Done Editing" : "Edit Summary"}
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label htmlFor="description">Organization Description</label>
+                    <Textarea
+                      id="description"
+                      name="description"
+                      value={formData.description || ""}
+                      onChange={handleChange}
+                      placeholder="Describe your organization"
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label htmlFor="writingInstructions">Writing Instructions</label>
+                    <Textarea
+                      id="writingInstructions"
+                      name="writingInstructions"
+                      value={formData.writingInstructions || ""}
+                      onChange={handleChange}
+                      placeholder="Instructions for writing content for your organization"
+                      rows={4}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      These instructions will guide AI-assisted content creation for your organization
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </>
   );
 }
