@@ -10,11 +10,14 @@ import { columns, type Project } from "./columns";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 export default function ProjectListPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
   const [searchTermInput, setSearchTermInput] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
 
@@ -26,8 +29,8 @@ export default function ProjectListPage() {
     isLoading,
     error,
   } = listProjects({
-    limit: PAGE_SIZE,
-    offset: (currentPage - 1) * PAGE_SIZE,
+    limit: pageSize,
+    offset: (currentPage - 1) * pageSize,
     searchTerm: debouncedSearchTerm,
   });
 
@@ -62,7 +65,7 @@ export default function ProjectListPage() {
     );
   }
 
-  const pageCount = Math.ceil(totalCount / PAGE_SIZE);
+  const pageCount = Math.ceil(totalCount / pageSize);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -82,13 +85,31 @@ export default function ProjectListPage() {
           </Link>
         </div>
 
-        <div className="mb-4">
+        <div className="flex items-center gap-4 mb-4">
           <Input
             placeholder="Search projects by name or description..."
             value={searchTermInput}
             onChange={(e) => setSearchTermInput(e.target.value)}
             className="max-w-sm"
           />
+          <Select
+            value={pageSize.toString()}
+            onValueChange={(value) => {
+              setPageSize(Number(value) as typeof pageSize);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select page size" />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size} items per page
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {isLoading && !listProjectsResponse ? ( // Show skeleton only on initial load
@@ -103,7 +124,7 @@ export default function ProjectListPage() {
             data={projects}
             searchPlaceholder="Search projects..."
             totalItems={totalCount}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             pageCount={pageCount}
             currentPage={currentPage}
             onPageChange={handlePageChange}
