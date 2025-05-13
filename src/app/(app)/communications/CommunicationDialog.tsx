@@ -1,6 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useCommunications } from "@/app/hooks/use-communications";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CommunicationDialogProps {
   thread: CommunicationThreadWithDetails | null;
@@ -10,6 +12,19 @@ interface CommunicationDialogProps {
 
 export function CommunicationDialog({ thread, open, onOpenChange }: CommunicationDialogProps) {
   if (!thread) return null;
+
+  const { getThread } = useCommunications();
+  const { data: threadWithMessages, isLoading } = getThread(
+    {
+      id: thread.id,
+      includeStaff: true,
+      includeDonors: true,
+      includeMessages: true,
+    },
+    {
+      enabled: open, // Only fetch when dialog is open
+    }
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,7 +50,7 @@ export function CommunicationDialog({ thread, open, onOpenChange }: Communicatio
           <div>
             <div className="font-semibold mb-1">Staff</div>
             <div className="space-y-1">
-              {thread.staff?.map(
+              {threadWithMessages?.staff?.map(
                 (staffMember) =>
                   staffMember.staff && (
                     <div key={staffMember.staffId}>
@@ -50,7 +65,7 @@ export function CommunicationDialog({ thread, open, onOpenChange }: Communicatio
           <div>
             <div className="font-semibold mb-1">Donors</div>
             <div className="space-y-1">
-              {thread.donors?.map(
+              {threadWithMessages?.donors?.map(
                 (donor) =>
                   donor.donor && (
                     <div key={donor.donorId}>
@@ -65,14 +80,22 @@ export function CommunicationDialog({ thread, open, onOpenChange }: Communicatio
           <div>
             <div className="font-semibold mb-2">Messages</div>
             <ScrollArea className="h-[300px] rounded-md border p-4">
-              <div className="space-y-4">
-                {thread.content?.map((message, index) => (
-                  <div key={index} className="space-y-1">
-                    <div className="text-sm text-muted-foreground">{new Date(message.createdAt).toLocaleString()}</div>
-                    <div className="text-sm">{message.content}</div>
-                  </div>
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {threadWithMessages?.content?.map((message, index) => (
+                    <div key={index} className="space-y-1">
+                      <div className="text-sm text-muted-foreground">{new Date(message.datetime).toLocaleString()}</div>
+                      <div className="text-sm">{message.content}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
           </div>
         </div>
