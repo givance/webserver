@@ -50,7 +50,12 @@ async function fetchHtml(url: string): Promise<string | null> {
 function extractContentAndLinks(html: string, baseUrl: string): { text: string; urls: Set<string> } {
   try {
     const $ = cheerio.load(html);
-    const bodyText = $("body").text(); // Get text content from body
+
+    // Remove script and style elements
+    $("script, style").remove();
+
+    // Extract text content from the modified body
+    const bodyText = $("body").text();
     const text = bodyText.replace(/\s\s+/g, " ").trim();
 
     const urls = new Set<string>();
