@@ -20,6 +20,7 @@ import { generateText } from "ai";
 import { env } from "@/app/lib/env";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
+import { generateDonorEmails } from "@/app/lib/utils/email-generator";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -458,64 +459,28 @@ export const communicationsRouter = router({
     const organization = await getOrganizationById(ctx.auth.user.organizationId);
 
     try {
-      const emails = await Promise.all(
-        donors.map(async (donor) => {
-          // retrieve donor history
-          const communicationHistory = await getDonorCommunicationHistory(donor.id, {
-            organizationId: ctx.auth.user.organizationId,
-          });
-
-          console.log(communicationHistory);
-
-          const prompt = `You are an AI assistant helping to write personalized emails to donors.
-
-Organization: ${organizationName}
-${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}
-
-Organization context:
-${organization?.websiteSummary}
-
-Donor Information:
-- Name: ${donor.firstName} ${donor.lastName}
-- Email: ${donor.email}
-
-${
-  communicationHistory.length
-    ? `\nPast Communications:\n${communicationHistory
-        .map((h) => h.content?.map((c) => c.content).join("\n"))
-        .join("\n")}`
-    : ""
-}
-
-User Instruction: ${instruction}
-
-Write a personalized email to this donor. The email should:
-1. Be warm and professional
-2. Reference any relevant past communications if available
-3. Follow the organization's writing instructions if provided
-4. Address the donor by their first name
-5. Include a clear call to action
-6. End with an appropriate signature
-
-Email:`;
-
-          logger.info(prompt);
-
-          const { text: emailContent } = await generateText({
-            model: openai(env.MID_MODEL),
-            prompt,
-          });
-
-          return {
-            donorId: donor.id,
-            content: emailContent.trim(),
-          };
-        })
+      // Get communication histories for all donors
+      const communicationHistories = Object.fromEntries(
+        await Promise.all(
+          donors.map(async (donor) => [
+            donor.id,
+            await getDonorCommunicationHistory(donor.id, {
+              organizationId: ctx.auth.user.organizationId,
+            }),
+          ])
+        )
       );
 
-      return emails;
+      return await generateDonorEmails(
+        donors,
+        instruction,
+        organizationName,
+        organization,
+        organizationWritingInstructions,
+        communicationHistories
+      );
     } catch (error) {
-      console.error("Failed to generate emails:", error);
+      logger.error("Failed to generate emails:", error);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to generate emails",

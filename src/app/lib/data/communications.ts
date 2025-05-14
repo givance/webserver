@@ -56,6 +56,12 @@ export type MessageWithSenderRecipient = CommunicationMessage & {
   toDonor?: Donor | null;
 };
 
+export interface CommunicationHistory {
+  content?: {
+    content: string;
+  }[];
+}
+
 // --- CommunicationThread Functions ---
 
 /**
