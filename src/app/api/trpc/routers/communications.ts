@@ -17,6 +17,7 @@ import { getStaffById } from "@/app/lib/data/staff";
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { env } from "@/app/lib/env";
+import { getOrganizationById } from "@/app/lib/data/organizations";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -450,8 +451,9 @@ export const communicationsRouter = router({
     await removeDonorFromThread(input.threadId, input.participantId);
   }),
 
-  generateEmails: protectedProcedure.input(generateEmailsSchema).mutation(async ({ input }) => {
+  generateEmails: protectedProcedure.input(generateEmailsSchema).mutation(async ({ input, ctx }) => {
     const { instruction, donors, organizationName, organizationWritingInstructions } = input;
+    const organization = await getOrganizationById(ctx.auth.user.organizationId);
 
     try {
       const emails = await Promise.all(
@@ -460,6 +462,9 @@ export const communicationsRouter = router({
 
 Organization: ${organizationName}
 ${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}
+
+Organization context:
+${organization?.websiteSummary}
 
 Donor Information:
 - Name: ${donor.firstName} ${donor.lastName}
