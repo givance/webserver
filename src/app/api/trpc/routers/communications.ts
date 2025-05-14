@@ -475,7 +475,7 @@ export const communicationsRouter = router({
         donors,
         instruction,
         organizationName,
-        organization,
+        organization || null,
         organizationWritingInstructions,
         communicationHistories
       );

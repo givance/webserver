@@ -2,8 +2,21 @@ import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import type { Organization } from "@prisma/client";
 import { CommunicationHistory } from "@/app/lib/data/communications";
+
+interface Organization {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  slug: string | null;
+  imageUrl: string | null;
+  createdBy: string | null;
+  websiteUrl: string | null;
+  websiteSummary: string | null;
+  writingInstructions: string | null;
+  updatedAt: Date;
+}
 
 interface DonorInfo {
   id: number;

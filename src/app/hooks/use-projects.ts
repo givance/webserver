@@ -16,7 +16,14 @@ export type Project = {
   updatedAt: string;
 };
 
-export type CreateProjectInput = Pick<Project, "name" | "description" | "active" | "goal" | "tags" | "organizationId">;
+export type CreateProjectInput = {
+  name: string;
+  description?: string;
+  active: boolean;
+  goal?: number;
+  tags?: string[];
+  organizationId: string;
+};
 export type UpdateProjectInput = Partial<CreateProjectInput> & { id: number };
 
 /**

@@ -14,9 +14,9 @@ import { TagInput } from "@/components/ui/tag-input";
 export const projectFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  active: z.boolean().default(true),
+  active: z.boolean(),
   goal: z.number().min(0).optional(),
-  tags: z.array(z.string()).default([]),
+  tags: z.array(z.string()),
 });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;

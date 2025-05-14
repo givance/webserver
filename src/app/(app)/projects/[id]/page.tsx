@@ -112,7 +112,17 @@ export default function ProjectDetailsPage() {
         </CardHeader>
         <CardContent>
           {isEditing ? (
-            <ProjectForm defaultValues={project} onSubmit={handleUpdate} submitLabel="Update Project" />
+            <ProjectForm
+              defaultValues={{
+                name: project.name,
+                description: project.description || undefined,
+                active: project.active,
+                goal: project.goal || undefined,
+                tags: project.tags || [],
+              }}
+              onSubmit={handleUpdate}
+              submitLabel="Update Project"
+            />
           ) : (
             <div className="space-y-4">
               <div>
