@@ -11,6 +11,7 @@ import {
   removeStaffFromThread,
   addDonorToThread,
   removeDonorFromThread,
+  getDonorCommunicationHistory,
 } from "@/app/lib/data/communications";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
@@ -18,6 +19,7 @@ import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { env } from "@/app/lib/env";
 import { getOrganizationById } from "@/app/lib/data/organizations";
+import { logger } from "@/app/lib/logger";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -458,6 +460,13 @@ export const communicationsRouter = router({
     try {
       const emails = await Promise.all(
         donors.map(async (donor) => {
+          // retrieve donor history
+          const communicationHistory = await getDonorCommunicationHistory(donor.id, {
+            organizationId: ctx.auth.user.organizationId,
+          });
+
+          console.log(communicationHistory);
+
           const prompt = `You are an AI assistant helping to write personalized emails to donors.
 
 Organization: ${organizationName}
@@ -469,10 +478,11 @@ ${organization?.websiteSummary}
 Donor Information:
 - Name: ${donor.firstName} ${donor.lastName}
 - Email: ${donor.email}
+
 ${
-  donor.history?.length
-    ? `\nPast Communications:\n${donor.history
-        .map((h) => `- ${new Date(h.datetime).toLocaleDateString()}: ${h.content}`)
+  communicationHistory.length
+    ? `\nPast Communications:\n${communicationHistory
+        .map((h) => h.content?.map((c) => c.content).join("\n"))
         .join("\n")}`
     : ""
 }
@@ -488,6 +498,8 @@ Write a personalized email to this donor. The email should:
 6. End with an appropriate signature
 
 Email:`;
+
+          logger.info(prompt);
 
           const { text: emailContent } = await generateText({
             model: openai(env.MID_MODEL),

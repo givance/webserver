@@ -309,3 +309,91 @@ export async function removeDonorFromThread(threadId: number, donorId: number): 
     throw new Error("Could not remove donor from thread.");
   }
 }
+
+/**
+ * Retrieves all communication threads and messages associated with a specific donor.
+ * @param donorId - The ID of the donor
+ * @param options - Options for filtering and including related data
+ *   - limit: Maximum number of threads to return (default: 25)
+ *   - offset: Number of threads to skip (default: 0)
+ *   - includeStaff: Whether to include staff participant details
+ *   - messagesPerThread: Maximum number of messages to include per thread (default: 10)
+ *   - organizationId: The organization ID to filter threads by
+ * @returns Array of communication threads with messages and participant details
+ */
+export async function getDonorCommunicationHistory(
+  donorId: number,
+  options: {
+    limit?: number;
+    offset?: number;
+    includeStaff?: boolean;
+    messagesPerThread?: number;
+    organizationId: string;
+  }
+): Promise<CommunicationThreadWithDetails[]> {
+  const { limit = 25, offset = 0, includeStaff = true, messagesPerThread = 10, organizationId } = options;
+
+  try {
+    // Find all threads where the donor is a participant
+    const threads = await db.query.communicationThreads.findMany({
+      where: (threads, { exists, and, eq }) =>
+        exists(
+          db
+            .select()
+            .from(communicationThreadDonors)
+            .where(
+              and(eq(communicationThreadDonors.threadId, threads.id), eq(communicationThreadDonors.donorId, donorId))
+            )
+        ),
+      with: {
+        staff: includeStaff
+          ? {
+              with: {
+                staff: true,
+              },
+            }
+          : undefined,
+        donors: {
+          with: {
+            donor: true,
+          },
+        },
+        content: {
+          limit: messagesPerThread,
+          orderBy: [desc(communicationContent.datetime)],
+          with: {
+            fromStaff: true,
+            fromDonor: true,
+            toStaff: true,
+            toDonor: true,
+          },
+        },
+      },
+      limit,
+      offset,
+      orderBy: [desc(communicationThreads.updatedAt)],
+    });
+
+    // Filter threads to only include those from the specified organization
+    const filteredThreads = threads.filter((thread) => {
+      const hasStaffFromOrg =
+        thread.staff?.some((s) => {
+          const staffMember = s as CommunicationThreadStaffMember;
+          return staffMember.staff?.organizationId === organizationId;
+        }) ?? false;
+
+      const hasDonorsFromOrg =
+        thread.donors?.some((d) => {
+          const donorMember = d as CommunicationThreadDonorParticipant;
+          return donorMember.donor?.organizationId === organizationId;
+        }) ?? false;
+
+      return hasStaffFromOrg || hasDonorsFromOrg;
+    });
+
+    return filteredThreads as CommunicationThreadWithDetails[];
+  } catch (error) {
+    console.error(`Failed to retrieve communication history for donor ${donorId}:`, error);
+    throw new Error("Could not retrieve donor communication history.");
+  }
+}
