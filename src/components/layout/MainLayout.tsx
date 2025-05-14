@@ -14,10 +14,13 @@ import {
   SidebarMenuButton,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { Home, Users, Heart, FolderGit2, Settings2 } from "lucide-react";
+import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Toaster } from "react-hot-toast";
+import { useState } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { CommunicateSteps } from "@/components/communicate/steps/CommunicateSteps";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,6 +31,19 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+function CommunicateMenuItem() {
+  return (
+    <SidebarMenuItem>
+      <Link href="/communicate" className="w-full">
+        <SidebarMenuButton>
+          <MessageSquare className="w-5 h-5" />
+          <span>Communicate</span>
+        </SidebarMenuButton>
+      </Link>
+    </SidebarMenuItem>
+  );
+}
 
 function UserProfile() {
   const { user } = useUser();
@@ -93,6 +109,7 @@ export default function MainLayout({
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
+                  <CommunicateMenuItem />
                   <SidebarMenuItem>
                     <Link href="/settings" className="w-full">
                       <SidebarMenuButton>

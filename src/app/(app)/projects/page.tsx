@@ -11,6 +11,7 @@ import { useProjects } from "@/app/hooks/use-projects";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CommunicateButton } from "@/components/communicate/CommunicateButton";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -76,7 +77,10 @@ export default function ProjectListPage() {
       <title>Project Management</title>
       <div className="container mx-auto py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Project Management</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">Project Management</h1>
+            <CommunicateButton />
+          </div>
           <Link href="/projects/add">
             <Button>
               <Plus className="w-4 h-4 mr-2" />

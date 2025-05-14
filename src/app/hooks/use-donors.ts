@@ -1,6 +1,6 @@
 "use client";
 
-import { trpc } from "../lib/trpc/client";
+import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
 
@@ -17,8 +17,27 @@ export function useDonors() {
   const utils = trpc.useUtils();
 
   // Query hooks
-  const listDonors = trpc.donors.list.useQuery;
-  const getDonorById = trpc.donors.getById.useQuery;
+  const listDonors = (params: { searchTerm?: string; limit?: number; offset?: number }) => {
+    return trpc.donors.list.useQuery(params, {
+      // Don't refetch automatically
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    });
+  };
+
+  // Get donor query hook
+  const getDonorQuery = (id: number) =>
+    trpc.donors.getById.useQuery(
+      { id },
+      {
+        // Don't refetch automatically
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        enabled: !!id, // Only run the query if we have an ID
+      }
+    );
 
   // Mutation hooks
   const createMutation = trpc.donors.create.useMutation({
@@ -84,8 +103,8 @@ export function useDonors() {
 
   return {
     // Query functions
+    getDonorQuery,
     listDonors,
-    getDonorById,
 
     // Mutation functions
     createDonor,

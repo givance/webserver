@@ -1,0 +1,183 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useDonors } from "@/app/hooks/use-donors";
+import { useOrganization } from "@/app/hooks/use-organization";
+
+interface GenerateEmailsStepProps {
+  selectedDonors: number[];
+  instruction: string;
+  generatedEmails: Array<{ donorId: number; content: string }>;
+  onEmailsGenerated: (emails: Array<{ donorId: number; content: string }>) => void;
+  onBack: () => void;
+  onNext: () => void;
+}
+
+export function GenerateEmailsStep({
+  selectedDonors,
+  instruction,
+  generatedEmails,
+  onEmailsGenerated,
+  onBack,
+  onNext,
+}: GenerateEmailsStepProps) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [sampleEmails, setSampleEmails] = useState<Array<{ donorId: number; content: string }>>([]);
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState<number | null>(null);
+
+  const { getDonorQuery } = useDonors();
+  const { getOrganization } = useOrganization();
+
+  // Pre-fetch donor data for all selected donors
+  const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
+  const orgQuery = getOrganization();
+
+  // Simulate AI email generation
+  const generateSampleEmails = async () => {
+    setIsGenerating(true);
+    try {
+      // In a real implementation, this would call your OpenAI endpoint
+      // For now, we'll simulate the response
+      const samples = selectedDonors.slice(0, 5).map((donorId, index) => {
+        const donor = donorQueries[index].data;
+        const org = orgQuery.data;
+
+        // This is a placeholder. In reality, you would send this context to OpenAI
+        const emailContent = `Dear ${donor?.firstName},\n\nThank you for your continued support of ${org?.name}. [AI generated content would go here based on the instruction: ${instruction}]\n\nBest regards,\n${org?.name} Team`;
+
+        return {
+          donorId,
+          content: emailContent,
+        };
+      });
+
+      setSampleEmails(samples);
+      setSelectedSampleIndex(0);
+    } catch (error) {
+      console.error("Error generating emails:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRefineEmail = async () => {
+    if (selectedSampleIndex === null) return;
+
+    setIsGenerating(true);
+    try {
+      // In a real implementation, this would call your OpenAI endpoint with the refinement prompt
+      const refinedContent = `[This would be the AI-refined content based on prompt: ${aiPrompt}]`;
+
+      const updatedSamples = [...sampleEmails];
+      updatedSamples[selectedSampleIndex] = {
+        ...updatedSamples[selectedSampleIndex],
+        content: refinedContent,
+      };
+
+      setSampleEmails(updatedSamples);
+      setAiPrompt("");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleNext = async () => {
+    setIsGenerating(true);
+    try {
+      // In a real implementation, this would generate emails for all donors
+      // using the preferred sample as a template
+      const allEmails = selectedDonors.map((donorId, index) => {
+        const donor = donorQueries[index].data;
+        const org = orgQuery.data;
+
+        // This is a placeholder. In reality, you would use the selected sample
+        // as a template and generate personalized versions for each donor
+        const emailContent = `Dear ${donor?.firstName},\n\nThank you for your support of ${org?.name}. [AI generated content would go here]\n\nBest regards,\n${org?.name} Team`;
+
+        return {
+          donorId,
+          content: emailContent,
+        };
+      });
+
+      onEmailsGenerated(allEmails);
+      onNext();
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <h3 className="text-lg font-medium">Generate and Refine Emails</h3>
+        <p className="text-sm text-muted-foreground">
+          First, we&apos;ll generate 5 sample emails. You can then refine them using AI until you&apos;re satisfied with
+          the result.
+        </p>
+      </div>
+
+      {sampleEmails.length === 0 ? (
+        <Button onClick={generateSampleEmails} disabled={isGenerating}>
+          {isGenerating ? "Generating..." : "Generate Sample Emails"}
+        </Button>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <h4 className="text-sm font-medium mb-2">Sample Emails</h4>
+            <ScrollArea className="h-[400px]">
+              <div className="space-y-2">
+                {sampleEmails.map((sample, index) => (
+                  <Card
+                    key={sample.donorId}
+                    className={`cursor-pointer ${selectedSampleIndex === index ? "border-primary" : ""}`}
+                    onClick={() => setSelectedSampleIndex(index)}
+                  >
+                    <CardHeader className="p-4">
+                      <CardTitle className="text-sm">Sample {index + 1}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      <pre className="whitespace-pre-wrap text-sm">{sample.content}</pre>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Refine Selected Email</h4>
+            <div className="space-y-2">
+              <Input
+                placeholder="Enter instructions to refine the selected email..."
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+              />
+              <Button
+                onClick={handleRefineEmail}
+                disabled={isGenerating || !aiPrompt.trim() || selectedSampleIndex === null}
+              >
+                {isGenerating ? "Refining..." : "Refine with AI"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center pt-4">
+        <Button variant="outline" onClick={onBack}>
+          Back
+        </Button>
+        <Button onClick={handleNext} disabled={isGenerating || sampleEmails.length === 0}>
+          Generate All Emails
+        </Button>
+      </div>
+    </div>
+  );
+}

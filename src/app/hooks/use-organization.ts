@@ -1,3 +1,5 @@
+"use client";
+
 import { trpc } from "@/app/lib/trpc/client";
 import { type InferSelectModel } from "drizzle-orm";
 import { organizations } from "@/app/lib/db/schema";
@@ -22,7 +24,14 @@ export function useOrganization() {
   const utils = trpc.useUtils();
 
   // Query hooks
-  const getOrganization = trpc.organizations.getCurrent.useQuery;
+  const getOrganization = () => {
+    return trpc.organizations.getCurrent.useQuery(undefined, {
+      // Don't refetch automatically
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    });
+  };
 
   // Mutation hooks
   const updateMutation = trpc.organizations.updateCurrent.useMutation({
@@ -31,26 +40,12 @@ export function useOrganization() {
     },
   });
 
-  /**
-   * Update the current organization
-   * @param input The organization data to update
-   * @returns The updated organization or null if update failed
-   */
-  const updateOrganization = async (input: UpdateOrganizationInput) => {
-    try {
-      return await updateMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to update organization:", error);
-      return null;
-    }
-  };
-
   return {
     // Query functions
     getOrganization,
 
     // Mutation functions
-    updateOrganization,
+    updateOrganization: updateMutation.mutateAsync,
 
     // Loading states
     isUpdating: updateMutation.isPending,
