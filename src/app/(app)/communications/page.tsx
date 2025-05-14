@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import { CommunicationFilters } from "./CommunicationFilters";
 
 const DEFAULT_PAGE_SIZE = 20;
 
-export default function CommunicationsPage() {
+function CommunicationsContent() {
   const searchParams = useSearchParams();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -122,5 +122,13 @@ export default function CommunicationsPage() {
         <CommunicationDialog thread={selectedThread} open={dialogOpen} onOpenChange={setDialogOpen} />
       </div>
     </>
+  );
+}
+
+export default function CommunicationsPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto py-6">Loading...</div>}>
+      <CommunicationsContent />
+    </Suspense>
   );
 }

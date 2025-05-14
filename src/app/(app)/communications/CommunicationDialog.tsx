@@ -11,9 +11,10 @@ interface CommunicationDialogProps {
 }
 
 export function CommunicationDialog({ thread, open, onOpenChange }: CommunicationDialogProps) {
+  const { getThread } = useCommunications();
+
   if (!thread) return null;
 
-  const { getThread } = useCommunications();
   const { data: threadWithMessages, isLoading } = getThread(
     {
       id: thread.id,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
@@ -16,7 +16,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
-export default function DonationsPage() {
+function DonationsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -147,5 +147,13 @@ export default function DonationsPage() {
         )}
       </div>
     </>
+  );
+}
+
+export default function DonationsPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto py-6">Loading...</div>}>
+      <DonationsContent />
+    </Suspense>
   );
 }

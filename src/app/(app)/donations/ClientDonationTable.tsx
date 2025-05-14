@@ -1,12 +1,24 @@
 "use client";
 
-import { Donation } from "./columns";
+import { DonationWithDetails } from "@/app/lib/data/donations";
 import Link from "next/link";
 import { X } from "lucide-react";
 
+// Interface for the table row data
+interface DonationTableRow {
+  id: number;
+  donorId: number;
+  donorName: string;
+  amount: number;
+  projectId: number;
+  projectName: string;
+  date: string;
+  status: string;
+}
+
 interface ClientDonationTableProps {
   columns: unknown[];
-  data: Donation[];
+  data: DonationTableRow[];
   donorFilter?: string;
   donorName?: string;
   projectFilter?: string;
