@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MessageSquare } from "lucide-react";
-import { CommunicateFlow } from "./CommunicateFlow";
+import { CommunicateSteps } from "@/app/(app)/communicate/components/CommunicateSteps";
 import { useState } from "react";
 
 export function CommunicateButton() {
@@ -21,7 +21,7 @@ export function CommunicateButton() {
         <DialogHeader>
           <DialogTitle>Communicate with Donors</DialogTitle>
         </DialogHeader>
-        <CommunicateFlow onClose={() => setOpen(false)} />
+        <CommunicateSteps onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { CommunicateSteps } from "@/components/communicate/steps/CommunicateSteps";
+import { CommunicateSteps } from "@/app/(app)/communicate/components/CommunicateSteps";
 import { useRouter } from "next/navigation";
 
 export default function CommunicatePage() {
