@@ -11,20 +11,16 @@ const projectIdSchema = z.object({
 const createProjectSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
   active: z.boolean().default(true),
   goal: z.number().optional(),
-  organizationId: z.string(),
   tags: z.array(z.string()).optional(),
+  organizationId: z.string(),
 });
 
 const updateProjectSchema = z.object({
   id: z.number(),
   name: z.string().optional(),
   description: z.string().optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
   active: z.boolean().optional(),
   goal: z.number().optional(),
   tags: z.array(z.string()).optional(),

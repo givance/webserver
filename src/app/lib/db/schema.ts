@@ -122,6 +122,8 @@ export const projects = pgTable("projects", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   active: boolean("active").default(true).notNull(),
+  goal: integer("goal"), // Amount in cents
+  tags: text("tags").array(), // Array of tags
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

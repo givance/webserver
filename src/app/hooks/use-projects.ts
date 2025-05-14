@@ -4,10 +4,20 @@ import { trpc } from "../lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
 
-type ProjectOutput = inferProcedureOutput<AppRouter["projects"]["getById"]>;
-type ListProjectsInput = inferProcedureInput<AppRouter["projects"]["list"]>;
-type CreateProjectInput = inferProcedureInput<AppRouter["projects"]["create"]>;
-type UpdateProjectInput = inferProcedureInput<AppRouter["projects"]["update"]>;
+export type Project = {
+  id: number;
+  name: string;
+  description: string | undefined;
+  active: boolean;
+  goal: number | undefined;
+  tags: string[] | undefined;
+  organizationId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateProjectInput = Pick<Project, "name" | "description" | "active" | "goal" | "tags" | "organizationId">;
+export type UpdateProjectInput = Partial<CreateProjectInput> & { id: number };
 
 /**
  * Hook for managing projects through the tRPC API
