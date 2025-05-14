@@ -196,16 +196,17 @@ export const donationsRouter = router({
   list: protectedProcedure.input(listDonationsSchema).query(async ({ input, ctx }) => {
     // We'll need to filter the results after fetching to ensure we only return
     // donations that belong to the organization through both donor and project
-    const donations = await listDonations(input);
-    const filteredDonations = donations.filter(
-      (donation) =>
-        donation.donor?.organizationId === ctx.auth.user.organizationId &&
-        donation.project?.organizationId === ctx.auth.user.organizationId
-    );
+    const { donations, totalCount } = await listDonations(input);
+
+    const filteredDonations = donations.filter((donation) => {
+      const donorOrgMatch = donation.donor?.organizationId === ctx.auth.user.organizationId;
+      const projectOrgMatch = donation.project?.organizationId === ctx.auth.user.organizationId;
+      return donorOrgMatch && projectOrgMatch;
+    });
 
     return {
       donations: filteredDonations,
-      totalCount: filteredDonations.length,
+      totalCount: totalCount, // This will be used for pagination
     };
   }),
 });

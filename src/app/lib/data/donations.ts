@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { donations } from "../db/schema";
-import { eq, sql, and, SQL } from "drizzle-orm";
+import { eq, sql, and, SQL, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import type { Donor } from "./donors";
 import type { Project } from "./projects";
@@ -98,7 +98,7 @@ export async function deleteDonation(id: number): Promise<void> {
 /**
  * Lists donations with optional filtering and sorting.
  * @param options - Options for filtering by donor, project, date range, and pagination/sorting.
- * @returns An array of donation objects, optionally with donor and project details.
+ * @returns An object containing the paginated donations array and total count.
  */
 export async function listDonations(
   options: {
@@ -113,7 +113,7 @@ export async function listDonations(
     includeDonor?: boolean;
     includeProject?: boolean;
   } = {}
-): Promise<DonationWithDetails[]> {
+): Promise<{ donations: DonationWithDetails[]; totalCount: number }> {
   try {
     const {
       donorId,
@@ -142,6 +142,15 @@ export async function listDonations(
       conditions.push(sql`${donations.date} <= ${endDate}`);
     }
 
+    // First get the total count
+    const countResult = await db
+      .select({ value: count() })
+      .from(donations)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    const totalCount = countResult[0]?.value || 0;
+
+    // Then get the paginated data
     const query = db.query.donations.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
       with: {
@@ -166,7 +175,12 @@ export async function listDonations(
         : undefined,
     });
 
-    return (await query) as DonationWithDetails[];
+    const donationsData = await query;
+
+    return {
+      donations: donationsData as DonationWithDetails[],
+      totalCount,
+    };
   } catch (error) {
     console.error("Failed to list donations:", error);
     throw new Error("Could not list donations.");

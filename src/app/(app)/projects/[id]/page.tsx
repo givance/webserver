@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ProjectForm } from "../_components/project-form";
+import { ProjectDonations } from "../_components/project-donations";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -155,6 +156,8 @@ export default function ProjectDetailsPage() {
           )}
         </CardContent>
       </Card>
+
+      {!isEditing && <ProjectDonations projectId={projectId} />}
     </div>
   );
 }
