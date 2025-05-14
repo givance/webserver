@@ -14,6 +14,9 @@ import {
 } from "@/app/lib/data/communications";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+import { env } from "@/app/lib/env";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -62,6 +65,28 @@ const getMessagesSchema = z.object({
 const participantSchema = z.object({
   threadId: z.number(),
   participantId: z.number(),
+});
+
+const generateEmailsSchema = z.object({
+  instruction: z.string(),
+  donors: z.array(
+    z.object({
+      id: z.number(),
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+      history: z
+        .array(
+          z.object({
+            content: z.string(),
+            datetime: z.string(),
+          })
+        )
+        .optional(),
+    })
+  ),
+  organizationName: z.string(),
+  organizationWritingInstructions: z.string().optional(),
 });
 
 export const communicationsRouter = router({
@@ -423,5 +448,61 @@ export const communicationsRouter = router({
     }
 
     await removeDonorFromThread(input.threadId, input.participantId);
+  }),
+
+  generateEmails: protectedProcedure.input(generateEmailsSchema).mutation(async ({ input }) => {
+    const { instruction, donors, organizationName, organizationWritingInstructions } = input;
+
+    try {
+      const emails = await Promise.all(
+        donors.map(async (donor) => {
+          const prompt = `You are an AI assistant helping to write personalized emails to donors.
+
+Organization: ${organizationName}
+${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}
+
+Donor Information:
+- Name: ${donor.firstName} ${donor.lastName}
+- Email: ${donor.email}
+${
+  donor.history?.length
+    ? `\nPast Communications:\n${donor.history
+        .map((h) => `- ${new Date(h.datetime).toLocaleDateString()}: ${h.content}`)
+        .join("\n")}`
+    : ""
+}
+
+User Instruction: ${instruction}
+
+Write a personalized email to this donor. The email should:
+1. Be warm and professional
+2. Reference any relevant past communications if available
+3. Follow the organization's writing instructions if provided
+4. Address the donor by their first name
+5. Include a clear call to action
+6. End with an appropriate signature
+
+Email:`;
+
+          const { text: emailContent } = await generateText({
+            model: openai(env.MID_MODEL),
+            prompt,
+          });
+
+          return {
+            donorId: donor.id,
+            content: emailContent.trim(),
+          };
+        })
+      );
+
+      return emails;
+    } catch (error) {
+      console.error("Failed to generate emails:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to generate emails",
+      });
+    }
   }),
 });

@@ -49,6 +49,7 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
             onInstructionChange={setInstruction}
             onBack={handleBack}
             onNext={handleNext}
+            selectedDonors={selectedDonors}
           />
         );
       case 2:
