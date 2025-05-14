@@ -97,8 +97,8 @@ export function ComposeMessageStep({
       <div className="text-sm text-muted-foreground">
         Available placeholders:
         <ul className="list-disc list-inside mt-1">
-          <li>[Donor Name] - will be replaced with the donor's name</li>
-          <li>[Organization Name] - will be replaced with your organization's name</li>
+          <li>[Donor Name] - will be replaced with the donor&apos;s name</li>
+          <li>[Organization Name] - will be replaced with your organization&apos;s name</li>
         </ul>
       </div>
 

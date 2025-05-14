@@ -20,7 +20,7 @@ import Link from "next/link";
 import { Toaster } from "react-hot-toast";
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { CommunicateSteps } from "@/components/communicate/steps/CommunicateSteps";
+import { CommunicateSteps } from "@/app/(app)/communicate/components/CommunicateSteps";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
