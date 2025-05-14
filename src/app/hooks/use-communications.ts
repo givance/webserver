@@ -10,6 +10,7 @@ type ListThreadsInput = inferProcedureInput<AppRouter["communications"]["listThr
 type CreateThreadInput = inferProcedureInput<AppRouter["communications"]["createThread"]>;
 type AddMessageInput = inferProcedureInput<AppRouter["communications"]["addMessage"]>;
 type GetMessagesInput = inferProcedureInput<AppRouter["communications"]["getMessages"]>;
+type GenerateEmailsInput = inferProcedureInput<AppRouter["communications"]["generateEmails"]>;
 
 interface ListThreadsOptions {
   channel?: CommunicationChannel;
@@ -53,6 +54,8 @@ export function useCommunications() {
     },
   });
 
+  const generateEmailsMutation = trpc.communications.generateEmails.useMutation();
+
   const listCommunicationThreads = (options: ListThreadsOptions) => {
     return trpc.communications.listThreads.useQuery(options) as unknown as {
       data?: ListThreadsResponse;
@@ -89,6 +92,20 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Generate personalized emails for donors based on instructions
+   * @param input The input data containing instructions and donor information
+   * @returns Array of generated emails or null if generation failed
+   */
+  const generateEmails = async (input: GenerateEmailsInput) => {
+    try {
+      return await generateEmailsMutation.mutateAsync(input);
+    } catch (error) {
+      console.error("Failed to generate emails:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
@@ -98,14 +115,17 @@ export function useCommunications() {
     // Mutation functions
     createThread,
     addMessage,
+    generateEmails,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
     isAddingMessage: addMessageMutation.isPending,
+    isGeneratingEmails: generateEmailsMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,
     addMessageResult: addMessageMutation.data,
+    generateEmailsResult: generateEmailsMutation.data,
 
     listCommunicationThreads,
   };

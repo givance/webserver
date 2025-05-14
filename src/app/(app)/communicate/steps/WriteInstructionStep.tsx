@@ -8,7 +8,6 @@ import { useOrganization } from "@/app/hooks/use-organization";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { trpc } from "@/app/lib/trpc/client";
 import { toast } from "sonner";
 
 interface WriteInstructionStepProps {
@@ -35,8 +34,7 @@ export function WriteInstructionStep({
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
-  const { getThread, listCommunicationThreads } = useCommunications();
-  const generateEmailsMutation = trpc.communications.generateEmails.useMutation();
+  const { getThread, listCommunicationThreads, generateEmails, isGeneratingEmails } = useCommunications();
 
   // Pre-fetch donor data for all selected donors
   const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
@@ -96,23 +94,27 @@ export function WriteInstructionStep({
       const org = orgQuery.data;
       if (!org) throw new Error("Organization data not found");
 
-      // Generate emails using the API
-      const emails = await generateEmailsMutation.mutateAsync({
+      // Generate emails using the hook
+      const emails = await generateEmails({
         instruction,
         donors: donorData,
         organizationName: org.name,
         organizationWritingInstructions: org.writingInstructions ?? undefined,
       });
 
-      setGeneratedEmails(emails);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.",
-        },
-      ]);
+      if (emails) {
+        setGeneratedEmails(emails);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.",
+          },
+        ]);
+      } else {
+        throw new Error("Failed to generate emails");
+      }
     } catch (error) {
       console.error("Error generating emails:", error);
       toast.error("Failed to generate emails. Please try again.");
