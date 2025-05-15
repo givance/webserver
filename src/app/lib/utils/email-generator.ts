@@ -18,11 +18,24 @@ interface Organization {
   updatedAt: Date;
 }
 
+interface DonationInfo {
+  amount: number;
+  date: Date;
+  project: {
+    id: number;
+    name: string;
+    description: string | null;
+    goal: number | null;
+    status: string;
+  } | null;
+}
+
 interface DonorInfo {
   id: number;
   firstName: string;
   lastName: string;
   email: string;
+  donationHistory?: DonationInfo[];
 }
 
 interface GenerateEmailOptions {
@@ -32,6 +45,7 @@ interface GenerateEmailOptions {
   organization: Organization | null;
   organizationWritingInstructions?: string;
   communicationHistory: CommunicationHistory[];
+  donationHistory?: DonationInfo[];
 }
 
 interface GeneratedEmail {
@@ -46,8 +60,31 @@ interface GeneratedEmail {
  * @returns Promise containing the generated email content
  */
 export async function generateDonorEmail(options: GenerateEmailOptions): Promise<GeneratedEmail> {
-  const { donor, instruction, organizationName, organization, organizationWritingInstructions, communicationHistory } =
-    options;
+  const {
+    donor,
+    instruction,
+    organizationName,
+    organization,
+    organizationWritingInstructions,
+    communicationHistory,
+    donationHistory,
+  } = options;
+
+  const formatDonationHistory = (donations: DonationInfo[] = []) => {
+    if (donations.length === 0) return "No previous donations.";
+
+    const sortedDonations = [...donations].sort((a, b) => b.date.getTime() - a.date.getTime());
+    const recentDonations = sortedDonations.slice(0, 30);
+
+    return recentDonations
+      .map((d) => {
+        const date = d.date.toLocaleDateString();
+        const amount = (d.amount / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+        const project = d.project ? ` to ${d.project.name}` : "";
+        return `- ${date}: ${amount}${project}`;
+      })
+      .join("\n");
+  };
 
   const prompt = `You are an expert in donor communications, helping to write personalized emails.
 
@@ -60,6 +97,9 @@ ${organization?.websiteSummary || ""}
 Donor Information:
 - Name: ${donor.firstName} ${donor.lastName}
 - Email: ${donor.email}
+
+Donation History:
+${formatDonationHistory(donationHistory)}
 
 ${
   communicationHistory.length
@@ -82,6 +122,7 @@ Guidelines for the email:
 8. Reference past communications if relevant
 9. Write at a 4th-6th grade reading level
 10. Use contractions to maintain a conversational tone
+11. If relevant, reference their donation history and the projects they've supported
 
 Structure the email with:
 1. Personal greeting using first name
@@ -93,10 +134,13 @@ Structure the email with:
 
 Email:`;
 
+  console.log(prompt);
+
   logger.info("Generating email for donor", {
     donorId: donor.id,
     donorName: `${donor.firstName} ${donor.lastName}`,
     instruction,
+    donationHistoryCount: donationHistory?.length || 0,
   });
 
   try {
@@ -127,6 +171,7 @@ Email:`;
  * @param organization - Organization details
  * @param organizationWritingInstructions - Optional writing guidelines
  * @param communicationHistories - Map of donor IDs to their communication histories
+ * @param donationHistories - Map of donor IDs to their donation histories
  * @returns Promise containing array of generated emails
  */
 export async function generateDonorEmails(
@@ -135,7 +180,8 @@ export async function generateDonorEmails(
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
-  communicationHistories: Record<number, CommunicationHistory[]> = {}
+  communicationHistories: Record<number, CommunicationHistory[]> = {},
+  donationHistories: Record<number, DonationInfo[]> = {}
 ): Promise<GeneratedEmail[]> {
   return Promise.all(
     donors.map((donor) =>
@@ -146,6 +192,7 @@ export async function generateDonorEmails(
         organization,
         organizationWritingInstructions,
         communicationHistory: communicationHistories[donor.id] || [],
+        donationHistory: donationHistories[donor.id] || [],
       })
     )
   );

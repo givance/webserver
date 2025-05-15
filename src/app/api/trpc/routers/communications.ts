@@ -21,6 +21,7 @@ import { env } from "@/app/lib/env";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
 import { generateDonorEmails } from "@/app/lib/utils/email-generator";
+import { listDonations } from "@/app/lib/data/donations";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -471,13 +472,44 @@ export const communicationsRouter = router({
         )
       );
 
+      // Get donation histories for all donors
+      const donationHistories = Object.fromEntries(
+        await Promise.all(
+          donors.map(async (donor) => [
+            donor.id,
+            (
+              await listDonations({
+                donorId: donor.id,
+                includeProject: true,
+                orderBy: "date",
+                orderDirection: "desc",
+                limit: 30,
+              })
+            ).donations.map((d) => ({
+              amount: d.amount,
+              date: d.date,
+              project: d.project
+                ? {
+                    id: d.project.id,
+                    name: d.project.name,
+                    description: d.project.description,
+                    goal: d.project.goal,
+                    status: d.project.active ? "active" : "inactive",
+                  }
+                : null,
+            })),
+          ])
+        )
+      );
+
       return await generateDonorEmails(
         donors,
         instruction,
         organizationName,
         organization || null,
         organizationWritingInstructions,
-        communicationHistories
+        communicationHistories,
+        donationHistories
       );
     } catch (error) {
       logger.error("Failed to generate emails:", error);
