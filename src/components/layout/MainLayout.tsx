@@ -14,13 +14,12 @@ import {
   SidebarMenuButton,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare } from "lucide-react";
+import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare, Search, Bell } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Toaster } from "react-hot-toast";
-import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { CommunicateSteps } from "@/app/(app)/communicate/components/CommunicateSteps";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,12 +48,34 @@ function UserProfile() {
   const { user } = useUser();
 
   return (
-    <div className="flex flex-col items-center gap-2 pb-4">
+    <div className="flex items-center gap-3 px-4 py-3 border-t">
       <UserButton afterSignOutUrl="/" />
-      <span className="text-sm text-gray-700">
-        {user?.firstName} {user?.lastName}
-      </span>
+      <div className="flex flex-col">
+        <span className="text-sm font-medium">
+          {user?.firstName} {user?.lastName}
+        </span>
+        <span className="text-xs text-gray-500">{user?.emailAddresses[0]?.emailAddress}</span>
+      </div>
     </div>
+  );
+}
+
+function Header() {
+  return (
+    <header className="flex items-center justify-between px-6 py-4 border-b bg-white">
+      <div className="flex items-center gap-4 flex-1">
+        <div className="relative w-96">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input placeholder="Search or type a command (⌘ + G)" className="pl-10 bg-gray-50 border-0" />
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <button className="p-2 hover:bg-gray-100 rounded-lg">
+          <Bell className="w-5 h-5 text-gray-600" />
+        </button>
+        <UserButton afterSignOutUrl="/" />
+      </div>
+    </header>
   );
 }
 
@@ -65,68 +86,73 @@ export default function MainLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="min-h-screen w-full">
+      <body className={cn(geistSans.variable, geistMono.variable, "antialiased bg-gray-50")}>
+        <div className="min-h-screen w-full flex">
           <SidebarProvider>
-            <Sidebar className="w-48">
+            <Sidebar className="w-64 border-r bg-white">
               <SidebarHeader>
-                <div className="flex flex-row items-center py-6 gap-2">
-                  <Image src="/givance.png" alt="Givance Logo" width={40} height={40} className="" />
-                  <span className="font-bold text-lg tracking-wide">Givance</span>
+                <div className="flex items-center px-6 py-5 gap-3">
+                  <Image src="/givance.png" alt="Givance Logo" width={32} height={32} className="" />
+                  <span className="font-semibold text-xl">Givance</span>
                 </div>
               </SidebarHeader>
               <SidebarContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <Link href="/" className="w-full">
-                      <SidebarMenuButton isActive>
-                        <Home className="w-5 h-5" />
-                        <span>Home</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <Link href="/staff" className="w-full">
-                      <SidebarMenuButton>
-                        <Users className="w-5 h-5" />
-                        <span>Staff</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <Link href="/donors" className="w-full">
-                      <SidebarMenuButton>
-                        <Heart className="w-5 h-5" />
-                        <span>Donors</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <Link href="/projects" className="w-full">
-                      <SidebarMenuButton>
-                        <FolderGit2 className="w-5 h-5" />
-                        <span>Projects</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                  <CommunicateMenuItem />
-                  <SidebarMenuItem>
-                    <Link href="/settings" className="w-full">
-                      <SidebarMenuButton>
-                        <Settings2 className="w-5 h-5" />
-                        <span>Settings</span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                </SidebarMenu>
+                <div className="px-3">
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <Link href="/" className="w-full">
+                        <SidebarMenuButton isActive>
+                          <Home className="w-5 h-5" />
+                          <span>Home</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <Link href="/staff" className="w-full">
+                        <SidebarMenuButton>
+                          <Users className="w-5 h-5" />
+                          <span>Staff</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <Link href="/donors" className="w-full">
+                        <SidebarMenuButton>
+                          <Heart className="w-5 h-5" />
+                          <span>Donors</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <Link href="/projects" className="w-full">
+                        <SidebarMenuButton>
+                          <FolderGit2 className="w-5 h-5" />
+                          <span>Projects</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                    <CommunicateMenuItem />
+                    <SidebarMenuItem>
+                      <Link href="/settings" className="w-full">
+                        <SidebarMenuButton>
+                          <Settings2 className="w-5 h-5" />
+                          <span>Settings</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </div>
               </SidebarContent>
               <SidebarFooter>
                 <UserProfile />
               </SidebarFooter>
             </Sidebar>
-            <SidebarInset className="flex-1 pl-6 pr-24">
-              <TRPCProvider>{children}</TRPCProvider>
-            </SidebarInset>
+            <div className="flex-1 flex flex-col">
+              <Header />
+              <main className="flex-1 p-6">
+                <TRPCProvider>{children}</TRPCProvider>
+              </main>
+            </div>
           </SidebarProvider>
           <Toaster position="top-right" />
         </div>
