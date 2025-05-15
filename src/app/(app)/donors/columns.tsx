@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
+import { formatCurrency } from "@/app/lib/utils/format";
 
 export type Donor = {
   id: string;
@@ -103,12 +104,8 @@ export const columns: ColumnDef<Donor>[] = [
       );
     },
     cell: ({ row }: { row: Row<Donor> }) => {
-      const amount = parseFloat(row.getValue("totalDonated"));
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-      return <div className="text-right font-medium">{formatted}</div>;
+      const amount = row.getValue("totalDonated") as number;
+      return <div>{formatCurrency(amount)}</div>;
     },
   },
   {

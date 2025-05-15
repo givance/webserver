@@ -39,6 +39,32 @@ export function useDonors() {
       }
     );
 
+  // Get donor donation stats
+  const getDonorStats = (donorId: number) =>
+    trpc.donations.getDonorStats.useQuery(
+      { donorId },
+      {
+        // Don't refetch automatically
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        enabled: !!donorId, // Only run the query if we have an ID
+      }
+    );
+
+  // Get multiple donor donation stats
+  const getMultipleDonorStats = (donorIds: number[]) =>
+    trpc.donations.getMultipleDonorStats.useQuery(
+      { donorIds },
+      {
+        // Don't refetch automatically
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        enabled: donorIds.length > 0, // Only run the query if we have IDs
+      }
+    );
+
   // Mutation hooks
   const createMutation = trpc.donors.create.useMutation({
     onSuccess: () => {
@@ -105,6 +131,8 @@ export function useDonors() {
     // Query functions
     getDonorQuery,
     listDonors,
+    getDonorStats,
+    getMultipleDonorStats,
 
     // Mutation functions
     createDonor,

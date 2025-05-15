@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { donations } from "../db/schema";
+import { donations, donors } from "../db/schema";
 import { eq, sql, and, SQL, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import type { Donor } from "./donors";
@@ -184,5 +184,120 @@ export async function listDonations(
   } catch (error) {
     console.error("Failed to list donations:", error);
     throw new Error("Could not list donations.");
+  }
+}
+
+/**
+ * Gets donation statistics for multiple donors
+ * @param donorIds - Array of donor IDs
+ * @param organizationId - The organization ID to filter by
+ * @returns Object mapping donor IDs to their donation stats
+ */
+export async function getMultipleDonorDonationStats(
+  donorIds: number[],
+  organizationId: string
+): Promise<{ [donorId: number]: { totalDonated: number; lastDonationDate: Date | null } }> {
+  try {
+    if (donorIds.length === 0) {
+      return {};
+    }
+
+    // Get total amounts for all donors
+    const totalResults = await db
+      .select({
+        donorId: donations.donorId,
+        total: sql<number>`sum(${donations.amount})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      )
+      .groupBy(donations.donorId);
+
+    // Get most recent donation dates for all donors
+    const lastDonationResults = await db
+      .select({
+        donorId: donations.donorId,
+        lastDate: sql<Date>`max(${donations.date})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      )
+      .groupBy(donations.donorId);
+
+    // Combine the results
+    const stats: { [donorId: number]: { totalDonated: number; lastDonationDate: Date | null } } = {};
+
+    // Initialize stats for all requested donors
+    donorIds.forEach((id) => {
+      stats[id] = { totalDonated: 0, lastDonationDate: null };
+    });
+
+    // Add total amounts
+    totalResults.forEach((result) => {
+      if (stats[result.donorId]) {
+        stats[result.donorId].totalDonated = result.total || 0;
+      }
+    });
+
+    // Add last donation dates
+    lastDonationResults.forEach((result) => {
+      if (stats[result.donorId]) {
+        stats[result.donorId].lastDonationDate = result.lastDate;
+      }
+    });
+
+    return stats;
+  } catch (error) {
+    console.error("Failed to get multiple donor donation stats:", error);
+    throw new Error("Could not retrieve donor donation statistics.");
+  }
+}
+
+/**
+ * Gets donation statistics for a donor
+ * @param donorId - The ID of the donor
+ * @param organizationId - The organization ID to filter by
+ * @returns Object containing total amount donated and date of last donation
+ */
+export async function getDonorDonationStats(
+  donorId: number,
+  organizationId: string
+): Promise<{ totalDonated: number; lastDonationDate: Date | null }> {
+  try {
+    // Get total amount donated
+    const totalResult = await db
+      .select({
+        total: sql<number>`sum(${donations.amount})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)));
+
+    // Get most recent donation date
+    const lastDonationResult = await db
+      .select({
+        lastDate: sql<Date>`max(${donations.date})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)));
+
+    return {
+      totalDonated: totalResult[0]?.total || 0,
+      lastDonationDate: lastDonationResult[0]?.lastDate || null,
+    };
+  } catch (error) {
+    console.error("Failed to get donor donation stats:", error);
+    throw new Error("Could not retrieve donor donation statistics.");
   }
 }

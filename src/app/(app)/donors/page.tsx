@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { columns, type Donor } from "./columns";
+import { columns } from "./columns";
 import { useDonors } from "@/app/hooks/use-donors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Donor } from "./columns";
+import { formatCurrency } from "@/app/lib/utils/format";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -21,7 +23,7 @@ export default function DonorListPage() {
   const [searchTermInput, setSearchTermInput] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
 
-  const { listDonors } = useDonors();
+  const { listDonors, getMultipleDonorStats } = useDonors();
 
   const {
     data: listDonorsResponse,
@@ -33,28 +35,31 @@ export default function DonorListPage() {
     searchTerm: debouncedSearchTerm,
   });
 
-  useEffect(() => {
-    if (debouncedSearchTerm) {
-      setCurrentPage(1);
-    }
-  }, [debouncedSearchTerm]);
+  // Get donation stats for all donors in the current page
+  const donorIds = useMemo(() => listDonorsResponse?.donors?.map((d) => d.id) || [], [listDonorsResponse]);
+  const { data: donorStats } = getMultipleDonorStats(donorIds);
 
   // Use useMemo to avoid re-calculating on every render unless dependencies change
   const { donors, totalCount } = useMemo(() => {
     // The API now returns { donors: [], totalCount: number }
     // The actual donor items are in listDonorsResponse.donors
     const donorItems: Donor[] =
-      listDonorsResponse?.donors?.map((apiDonor) => ({
-        id: apiDonor.id.toString(),
-        name: `${apiDonor.firstName} ${apiDonor.lastName}`,
-        email: apiDonor.email,
-        phone: apiDonor.phone || "",
-        totalDonated: 0, // Placeholder - This would ideally come from an aggregate query
-        lastDonation: apiDonor.createdAt ? new Date(apiDonor.createdAt).toISOString() : new Date().toISOString(), // Using createdAt as a fallback, ensure it's a string
-        status: "active", // Placeholder - Assuming all donors are active by default or map from apiDonor if available
-      })) || [];
+      listDonorsResponse?.donors?.map((apiDonor) => {
+        const stats = donorStats?.[apiDonor.id];
+        const totalDonated = stats?.totalDonated || 0;
+
+        return {
+          id: apiDonor.id.toString(),
+          name: `${apiDonor.firstName} ${apiDonor.lastName}`,
+          email: apiDonor.email,
+          phone: apiDonor.phone || "",
+          totalDonated, // Keep as number for the Donor type
+          lastDonation: stats?.lastDonationDate ? new Date(stats.lastDonationDate).toISOString() : apiDonor.createdAt,
+          status: "active", // Placeholder - Assuming all donors are active by default or map from apiDonor if available
+        };
+      }) || [];
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };
-  }, [listDonorsResponse]);
+  }, [listDonorsResponse, donorStats]);
 
   if (error) {
     return (
@@ -71,65 +76,62 @@ export default function DonorListPage() {
   };
 
   return (
-    <>
-      <title>Donor Management</title>
-      <div className="container mx-auto py-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Donor Management</h1>
-          <Link href="/donors/add">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Donor
-            </Button>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-4 mb-4">
-          <Input
-            placeholder="Search donors by name, email..."
-            value={searchTermInput}
-            onChange={(e) => setSearchTermInput(e.target.value)}
-            className="max-w-sm"
-          />
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(value) => {
-              setPageSize(Number(value) as typeof pageSize);
-              setCurrentPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select page size" />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size.toString()}>
-                  {size} items per page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isLoading && !listDonorsResponse ? (
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={donors}
-            searchPlaceholder="Search donors..."
-            totalItems={totalCount}
-            pageSize={pageSize}
-            pageCount={pageCount}
-            currentPage={currentPage}
-            onPageChange={handlePageChange}
-          />
-        )}
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Donor Management</h1>
+        <Link href="/donors/add">
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Donor
+          </Button>
+        </Link>
       </div>
-    </>
+
+      <div className="flex items-center gap-4 mb-4">
+        <Input
+          placeholder="Search donors by name, email..."
+          value={searchTermInput}
+          onChange={(e) => setSearchTermInput(e.target.value)}
+          className="max-w-sm"
+        />
+        <Select
+          value={pageSize.toString()}
+          onValueChange={(value) => {
+            setPageSize(Number(value) as typeof pageSize);
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select page size" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <SelectItem key={size} value={size.toString()}>
+                {size} items per page
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading && !listDonorsResponse ? (
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={donors}
+          searchPlaceholder="Search donors..."
+          totalItems={totalCount}
+          pageSize={pageSize}
+          pageCount={pageCount}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+        />
+      )}
+    </div>
   );
 }

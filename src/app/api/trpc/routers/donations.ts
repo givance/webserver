@@ -7,6 +7,8 @@ import {
   updateDonation,
   deleteDonation,
   listDonations,
+  getDonorDonationStats,
+  getMultipleDonorDonationStats,
 } from "@/app/lib/data/donations";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getProjectById } from "@/app/lib/data/projects";
@@ -209,4 +211,36 @@ export const donationsRouter = router({
       totalCount: totalCount, // This will be used for pagination
     };
   }),
+
+  getDonorStats: protectedProcedure.input(z.object({ donorId: z.number() })).query(async ({ input, ctx }) => {
+    // First verify the donor belongs to the organization
+    const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
+    if (!donor) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Donor not found in your organization",
+      });
+    }
+
+    return getDonorDonationStats(input.donorId, ctx.auth.user.organizationId);
+  }),
+
+  getMultipleDonorStats: protectedProcedure
+    .input(z.object({ donorIds: z.array(z.number()) }))
+    .query(async ({ input, ctx }) => {
+      // Verify all donors belong to the organization
+      const donorPromises = input.donorIds.map((id) => getDonorById(id, ctx.auth.user.organizationId));
+      const donors = await Promise.all(donorPromises);
+
+      // Check if any donors were not found
+      const missingDonors = donors.some((donor) => !donor);
+      if (missingDonors) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more donors not found in your organization",
+        });
+      }
+
+      return getMultipleDonorDonationStats(input.donorIds, ctx.auth.user.organizationId);
+    }),
 });
