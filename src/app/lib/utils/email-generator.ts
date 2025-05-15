@@ -116,13 +116,14 @@ Guidelines for the email:
 2. Write conversationally, as one person to another
 3. Focus on donor impact, not organizational needs
 4. Use only factual information - never fabricate stories or statistics
-5. Use active voice and a warm, personal tone
+5. Use active voice and a warm, personal tone, use the same tone as the past email communications if there are any
 6. Keep paragraphs to 1-3 sentences maximum
 7. Include one clear call to action
 8. Reference past communications if relevant
 9. Write at a 4th-6th grade reading level
 10. Use contractions to maintain a conversational tone
-11. If relevant, reference their donation history and the projects they've supported
+11. If relevant, reference their donation history and the projects they've supported. But only if the past donation history is relevant to the user instruction.
+
 
 Structure the email with:
 1. Personal greeting using first name
