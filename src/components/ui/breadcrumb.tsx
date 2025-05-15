@@ -1,10 +1,39 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-function Breadcrumb({ ...props }: React.ComponentProps<"nav">) {
+interface BreadcrumbProps extends React.ComponentProps<"nav"> {
+  showDynamicPath?: boolean;
+}
+
+function BreadcrumbRoot({ showDynamicPath = true, ...props }: BreadcrumbProps) {
+  const pathname = usePathname();
+
+  if (showDynamicPath) {
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-600">
+        <Link href="/" className="hover:text-gray-900">
+          Home
+        </Link>
+        {segments.map((segment, index) => (
+          <span key={segment} className="flex items-center gap-2">
+            <ChevronRight className="w-4 h-4" />
+            <Link href={`/${segments.slice(0, index + 1).join("/")}`} className="capitalize hover:text-gray-900">
+              {segment}
+            </Link>
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />;
 }
 
@@ -86,7 +115,7 @@ function BreadcrumbEllipsis({ className, ...props }: React.ComponentProps<"span"
 }
 
 export {
-  Breadcrumb,
+  BreadcrumbRoot as Breadcrumb,
   BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,

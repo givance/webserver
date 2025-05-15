@@ -113,7 +113,7 @@ User Instruction: ${instruction}
 
 Guidelines for the email:
 1. Keep it under 200 words
-2. Write conversationally, as one person to another
+2. Write conversationally, as one person to another, be friendly and genuine
 3. Focus on donor impact, not organizational needs
 4. Use only factual information - never fabricate stories or statistics
 5. Use active voice and a warm, personal tone, use the same tone as the past email communications if there are any
