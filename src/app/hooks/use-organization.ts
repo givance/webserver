@@ -43,6 +43,14 @@ export function useOrganization() {
     },
   });
 
+  const moveFromUserMutation = trpc.organizations.moveMemoryFromUser.useMutation({
+    onSuccess: () => {
+      // Invalidate both user and organization queries
+      utils.organizations.getCurrent.invalidate();
+      utils.users.getCurrent.invalidate();
+    },
+  });
+
   const { data: organization } = getOrganization();
 
   const addMemoryItem = useCallback(
@@ -91,12 +99,26 @@ export function useOrganization() {
     [organization?.memory, updateMutation]
   );
 
+  const moveMemoryFromUser = useCallback(
+    async (memoryIndex: number) => {
+      try {
+        await moveFromUserMutation.mutateAsync({ memoryIndex });
+        toast.success("Memory moved to organization successfully");
+      } catch (error) {
+        console.error("Failed to move memory:", error);
+        toast.error("Failed to move memory to organization. Please try again.");
+      }
+    },
+    [moveFromUserMutation]
+  );
+
   return {
     // Query functions
     getOrganization,
 
     // Mutation functions
     updateOrganization: updateMutation.mutateAsync,
+    moveMemoryFromUser,
 
     // Memory operations
     addMemoryItem,
@@ -104,7 +126,7 @@ export function useOrganization() {
     deleteMemoryItem,
 
     // Loading states
-    isUpdating: updateMutation.isPending,
+    isUpdating: updateMutation.isPending || moveFromUserMutation.isPending,
 
     // Mutation results
     updateResult: updateMutation.data,

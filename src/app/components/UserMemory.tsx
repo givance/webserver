@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserMemoryProps {
@@ -12,9 +12,18 @@ interface UserMemoryProps {
   onAddMemory: (memory: string) => Promise<void>;
   onUpdateMemory: (index: number, newMemory: string) => Promise<void>;
   onDeleteMemory: (index: number) => Promise<void>;
+  onMoveToOrganization?: (index: number) => Promise<void>;
+  showMoveToOrg?: boolean;
 }
 
-export function UserMemory({ initialMemory = [], onAddMemory, onUpdateMemory, onDeleteMemory }: UserMemoryProps) {
+export function UserMemory({
+  initialMemory = [],
+  onAddMemory,
+  onUpdateMemory,
+  onDeleteMemory,
+  onMoveToOrganization,
+  showMoveToOrg = false,
+}: UserMemoryProps) {
   const [newMemory, setNewMemory] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -48,6 +57,15 @@ export function UserMemory({ initialMemory = [], onAddMemory, onUpdateMemory, on
       toast.success("Memory deleted successfully");
     } catch (error) {
       toast.error("Failed to delete memory. Please try again.");
+    }
+  };
+
+  const handleMoveToOrganization = async (index: number) => {
+    if (!onMoveToOrganization) return;
+    try {
+      await onMoveToOrganization(index);
+    } catch (error) {
+      toast.error("Failed to move memory to organization. Please try again.");
     }
   };
 
@@ -101,6 +119,16 @@ export function UserMemory({ initialMemory = [], onAddMemory, onUpdateMemory, on
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    {showMoveToOrg && onMoveToOrganization && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleMoveToOrganization(index)}
+                        title="Move to Organization Memory"
+                      >
+                        <Building2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteMemory(index)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>

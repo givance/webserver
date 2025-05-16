@@ -5,6 +5,7 @@ import { getOrganizationById, updateOrganization } from "@/app/lib/data/organiza
 import { tasks } from "@trigger.dev/sdk/v3"; // Import tasks for triggering
 import type { crawlAndSummarizeWebsiteTask } from "@/trigger/jobs/crawlAndSummarizeWebsite"; // Type-only import for the task
 import pino from "pino"; // Import logger
+import { getUserById, updateUserMemory } from "@/app/lib/data/users";
 
 const logger = pino(); // Initialize logger
 
@@ -105,4 +106,65 @@ export const organizationsRouter = router({
       });
     }
   }),
+
+  /**
+   * Move a memory item from user memory to organization memory
+   */
+  moveMemoryFromUser: protectedProcedure
+    .input(
+      z.object({
+        memoryIndex: z.number(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Get current user and their memory
+        const user = await getUserById(ctx.auth.user.id);
+        if (!user || !user.memory) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found or has no memory items",
+          });
+        }
+
+        // Get the memory item to move
+        const memoryItem = user.memory[input.memoryIndex];
+        if (!memoryItem) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Memory item not found",
+          });
+        }
+
+        // Get current organization and its memory
+        const organization = await getOrganizationById(ctx.auth.user.organizationId);
+        if (!organization) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Organization not found",
+          });
+        }
+
+        // Add memory item to organization memory
+        const currentOrgMemory = organization.memory || [];
+        const updatedOrgMemory = [...currentOrgMemory, memoryItem];
+        await updateOrganization(ctx.auth.user.organizationId, { memory: updatedOrgMemory });
+
+        // Remove memory item from user memory
+        const updatedUserMemory = user.memory.filter((_, index) => index !== input.memoryIndex);
+        await updateUserMemory(user.id, updatedUserMemory);
+
+        return { success: true };
+      } catch (error) {
+        logger.error(
+          `Failed to move memory from user to organization: ${error instanceof Error ? error.message : String(error)}`
+        );
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to move memory to organization",
+          cause: error,
+        });
+      }
+    }),
 });

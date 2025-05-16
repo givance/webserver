@@ -6,11 +6,13 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
+import { useOrganization } from "@/app/hooks/use-organization";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SettingsPage() {
   const { user } = useUser();
   const { memory, addMemoryItem, updateMemoryItem, deleteMemoryItem, isLoading } = useMemory();
+  const { moveMemoryFromUser } = useOrganization();
 
   return (
     <>
@@ -45,7 +47,8 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <CardDescription className="mb-4">
-                Manage your personal memory items. These can be used to store important information or notes.
+                Manage your personal memory items. These can be used to store important information or notes. You can
+                also move items to your organization&apos;s memory for team-wide access.
               </CardDescription>
               {isLoading ? (
                 <div className="space-y-2">
@@ -59,6 +62,8 @@ export default function SettingsPage() {
                   onAddMemory={addMemoryItem}
                   onUpdateMemory={updateMemoryItem}
                   onDeleteMemory={deleteMemoryItem}
+                  onMoveToOrganization={moveMemoryFromUser}
+                  showMoveToOrg={true}
                 />
               )}
             </CardContent>
