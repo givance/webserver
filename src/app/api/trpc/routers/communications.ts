@@ -22,6 +22,10 @@ import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
 import { generateDonorEmails } from "@/app/lib/utils/email-generator";
 import { listDonations } from "@/app/lib/data/donations";
+import type { GeneratedEmail } from "@/app/lib/utils/email-generator";
+import { db } from "@/app/lib/db";
+import { organizations } from "@/app/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -72,27 +76,24 @@ const participantSchema = z.object({
   participantId: z.number(),
 });
 
-const generateEmailsSchema = z.object({
-  instruction: z.string(),
-  donors: z.array(
-    z.object({
-      id: z.number(),
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string(),
-      history: z
-        .array(
-          z.object({
-            content: z.string(),
-            datetime: z.string(),
-          })
-        )
-        .optional(),
-    })
-  ),
-  organizationName: z.string(),
-  organizationWritingInstructions: z.string().optional(),
-});
+// Define input types
+interface DonorInput {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  history: Array<{
+    content: string;
+    datetime: string;
+  }>;
+}
+
+interface GenerateEmailsInput {
+  instruction: string;
+  donors: DonorInput[];
+  organizationName: string;
+  organizationWritingInstructions?: string;
+}
 
 export const communicationsRouter = router({
   createThread: protectedProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
@@ -455,68 +456,77 @@ export const communicationsRouter = router({
     await removeDonorFromThread(input.threadId, input.participantId);
   }),
 
-  generateEmails: protectedProcedure.input(generateEmailsSchema).mutation(async ({ input, ctx }) => {
-    const { instruction, donors, organizationName, organizationWritingInstructions } = input;
-    const organization = await getOrganizationById(ctx.auth.user.organizationId);
-
-    try {
-      // Get communication histories for all donors
-      const communicationHistories = Object.fromEntries(
-        await Promise.all(
-          donors.map(async (donor) => [
-            donor.id,
-            await getDonorCommunicationHistory(donor.id, {
-              organizationId: ctx.auth.user.organizationId,
-            }),
-          ])
-        )
-      );
-
-      // Get donation histories for all donors
-      const donationHistories = Object.fromEntries(
-        await Promise.all(
-          donors.map(async (donor) => [
-            donor.id,
-            (
-              await listDonations({
-                donorId: donor.id,
-                includeProject: true,
-                orderBy: "date",
-                orderDirection: "desc",
-                limit: 30,
+  generateEmails: protectedProcedure
+    .input(
+      z.object({
+        instruction: z.string(),
+        donors: z.array(
+          z.object({
+            id: z.number(),
+            firstName: z.string(),
+            lastName: z.string(),
+            email: z.string(),
+            history: z.array(
+              z.object({
+                content: z.string(),
+                datetime: z.string(),
               })
-            ).donations.map((d) => ({
-              amount: d.amount,
-              date: d.date,
-              project: d.project
-                ? {
-                    id: d.project.id,
-                    name: d.project.name,
-                    description: d.project.description,
-                    goal: d.project.goal,
-                    status: d.project.active ? "active" : "inactive",
-                  }
-                : null,
-            })),
-          ])
-        )
-      );
+            ),
+          })
+        ),
+        organizationName: z.string(),
+        organizationWritingInstructions: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
+      const { instruction, donors, organizationName, organizationWritingInstructions } = input;
 
-      return await generateDonorEmails(
-        donors,
-        instruction,
-        organizationName,
-        organization || null,
-        organizationWritingInstructions,
-        communicationHistories,
-        donationHistories
-      );
-    } catch (error) {
-      logger.error("Failed to generate emails:", error);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to generate emails",
+      // Get organization data using Drizzle
+      const [organization] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.name, organizationName))
+        .limit(1);
+
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      // Convert organization to the new format
+      const emailGeneratorOrg = {
+        ...organization,
+        rawWebsiteSummary: organization.websiteSummary,
+      };
+
+      // Convert communication history to the expected format
+      const communicationHistories: Record<number, Array<{ content: Array<{ content: string }>; datetime: Date }>> = {};
+      donors.forEach((donor: DonorInput) => {
+        communicationHistories[donor.id] = donor.history.map((h) => ({
+          content: [{ content: h.content }],
+          datetime: new Date(h.datetime),
+        }));
       });
-    }
-  }),
+
+      try {
+        const emails = await generateDonorEmails(
+          donors,
+          instruction,
+          organizationName,
+          emailGeneratorOrg,
+          organizationWritingInstructions,
+          communicationHistories
+        );
+
+        return emails as GeneratedEmail[];
+      } catch (error) {
+        console.error("Error generating emails:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate emails",
+        });
+      }
+    }),
 });
