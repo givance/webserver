@@ -14,6 +14,7 @@ const updateOrganizationSchema = z.object({
   websiteSummary: z.string().optional(),
   description: z.string().optional(),
   writingInstructions: z.string().optional(),
+  memory: z.array(z.string()).optional(), // Array of strings for memory
 });
 
 export const organizationsRouter = router({

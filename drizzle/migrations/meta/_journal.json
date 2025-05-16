@@ -43,6 +43,41 @@
       "when": 1747433613234,
       "tag": "0005_ancient_dracula",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1747435540342,
+      "tag": "0006_bumpy_mongoose",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1747435648434,
+      "tag": "0007_yellow_the_hunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1747435671356,
+      "tag": "0008_crazy_karen_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1747435695138,
+      "tag": "0009_wandering_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1747435769041,
+      "tag": "0010_conscious_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

@@ -5,16 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useOrganization, UpdateOrganizationInput } from "@/app/hooks/use-organization";
+import { useOrganization } from "@/app/hooks/use-organization";
 import toast from "react-hot-toast";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Brain } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
+import { UserMemory } from "@/app/components/UserMemory";
+
+// Define a type for form data that excludes memory
+type FormData = {
+  websiteUrl?: string;
+  websiteSummary?: string;
+  description?: string;
+  writingInstructions?: string;
+};
 
 export default function OrganizationSettingsPage() {
-  const { getOrganization, updateOrganization, isUpdating } = useOrganization();
+  const { getOrganization, updateOrganization, isUpdating, addMemoryItem, updateMemoryItem, deleteMemoryItem } =
+    useOrganization();
   const { data: organization, isLoading, error } = getOrganization();
-  const [formData, setFormData] = useState<UpdateOrganizationInput>({});
+  const [formData, setFormData] = useState<FormData>({});
   const [isSummaryEditing, setIsSummaryEditing] = useState(false);
 
   // Update form data when organization data is loaded
@@ -38,9 +48,9 @@ export default function OrganizationSettingsPage() {
     e.preventDefault();
 
     // Only include fields that have been changed
-    const changedData: UpdateOrganizationInput = {};
+    const changedData: FormData = {};
     Object.entries(formData).forEach(([key, value]) => {
-      const k = key as keyof UpdateOrganizationInput;
+      const k = key as keyof FormData;
       const orgValue = organization?.[k as keyof typeof organization];
 
       // Only include if value is different from original
@@ -86,100 +96,131 @@ export default function OrganizationSettingsPage() {
             <Skeleton className="h-24 w-full" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Website & Description</CardTitle>
-                <CardDescription>Information about your organization</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <label htmlFor="websiteUrl">Website URL</label>
-                    <Input
-                      id="websiteUrl"
-                      name="websiteUrl"
-                      value={formData.websiteUrl || ""}
-                      onChange={handleChange}
-                      placeholder="https://example.org"
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <label htmlFor="websiteSummary">Website Summary</label>
-                    {isSummaryEditing ? (
-                      <Textarea
-                        id="websiteSummary"
-                        name="websiteSummary"
-                        value={formData.websiteSummary || ""}
+          <div className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Website & Description</CardTitle>
+                  <CardDescription>Information about your organization</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <label htmlFor="websiteUrl">Website URL</label>
+                      <Input
+                        id="websiteUrl"
+                        name="websiteUrl"
+                        value={formData.websiteUrl || ""}
                         onChange={handleChange}
-                        placeholder="A brief summary of your website"
-                        rows={3}
+                        placeholder="https://example.org"
                       />
-                    ) : (
-                      <div className="prose dark:prose-invert p-3 border rounded-md min-h-[78px]">
-                        {formData.websiteSummary ? (
-                          <ReactMarkdown>{formData.websiteSummary}</ReactMarkdown>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No summary provided.</p>
-                        )}
-                      </div>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsSummaryEditing(!isSummaryEditing)}
-                      className="mt-2 w-fit"
-                      type="button"
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      {isSummaryEditing ? "Done Editing" : "Edit Summary"}
-                    </Button>
-                  </div>
+                    </div>
 
-                  <div className="grid gap-2">
-                    <label htmlFor="description">Organization Description</label>
-                    <Textarea
-                      id="description"
-                      name="description"
-                      value={formData.description || ""}
-                      onChange={handleChange}
-                      placeholder="Describe your organization"
-                      rows={4}
-                    />
-                  </div>
+                    <div className="grid gap-2">
+                      <label htmlFor="websiteSummary">Website Summary</label>
+                      {isSummaryEditing ? (
+                        <Textarea
+                          id="websiteSummary"
+                          name="websiteSummary"
+                          value={formData.websiteSummary || ""}
+                          onChange={handleChange}
+                          placeholder="A brief summary of your website"
+                          rows={3}
+                        />
+                      ) : (
+                        <div className="prose dark:prose-invert p-3 border rounded-md min-h-[78px]">
+                          {formData.websiteSummary ? (
+                            <ReactMarkdown>{formData.websiteSummary}</ReactMarkdown>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No summary provided.</p>
+                          )}
+                        </div>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsSummaryEditing(!isSummaryEditing)}
+                        className="mt-2 w-fit"
+                        type="button"
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {isSummaryEditing ? "Done Editing" : "Edit Summary"}
+                      </Button>
+                    </div>
 
-                  <div className="grid gap-2">
-                    <label htmlFor="writingInstructions">Writing Instructions</label>
-                    <Textarea
-                      id="writingInstructions"
-                      name="writingInstructions"
-                      value={formData.writingInstructions || ""}
-                      onChange={handleChange}
-                      placeholder="Instructions for writing content for your organization"
-                      rows={4}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      These instructions will guide AI-assisted content creation for your organization
-                    </p>
+                    <div className="grid gap-2">
+                      <label htmlFor="description">Organization Description</label>
+                      <Textarea
+                        id="description"
+                        name="description"
+                        value={formData.description || ""}
+                        onChange={handleChange}
+                        placeholder="Describe your organization"
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <label htmlFor="writingInstructions">Writing Instructions</label>
+                      <Textarea
+                        id="writingInstructions"
+                        name="writingInstructions"
+                        value={formData.writingInstructions || ""}
+                        onChange={handleChange}
+                        placeholder="Instructions for writing content for your organization"
+                        rows={4}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        These instructions will guide AI-assisted content creation for your organization
+                      </p>
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isUpdating}>
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </form>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center pb-2">
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-5 w-5" />
+                  <CardTitle>Organization Memory</CardTitle>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="mb-4">
+                  Manage your organization&apos;s memory items. These can be used to store important information or
+                  notes that all members can access.
+                </CardDescription>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : (
+                  <UserMemory
+                    initialMemory={organization?.memory || []}
+                    onAddMemory={addMemoryItem}
+                    onUpdateMemory={updateMemoryItem}
+                    onDeleteMemory={deleteMemoryItem}
+                  />
+                )}
               </CardContent>
             </Card>
-
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </div>
-          </form>
+          </div>
         )}
       </div>
     </>

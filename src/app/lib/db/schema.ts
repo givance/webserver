@@ -56,6 +56,9 @@ export const organizations = pgTable("organizations", {
   websiteSummary: text("website_summary"),
   description: text("description"),
   writingInstructions: text("writing_instructions"),
+  memory: text("memory")
+    .array()
+    .default(sql`'{}'::text[]`), // Array of strings for organization memory, default empty array
   createdAt: timestamp("created_at")
     .default(sql`now()`)
     .notNull(),

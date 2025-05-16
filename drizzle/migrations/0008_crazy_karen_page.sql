@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ALTER COLUMN "memory" SET DEFAULT array[]::text[];
