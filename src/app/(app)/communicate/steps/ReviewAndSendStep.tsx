@@ -5,9 +5,17 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDonors } from "@/app/hooks/use-donors";
+import { EmailDisplay } from "../components/EmailDisplay";
+import { EmailPiece } from "@/app/lib/utils/email-generator/types";
+
+interface GeneratedEmail {
+  donorId: number;
+  subject: string;
+  structuredContent: EmailPiece[];
+}
 
 interface ReviewAndSendStepProps {
-  generatedEmails: Array<{ donorId: number; content: string }>;
+  generatedEmails: GeneratedEmail[];
   onBack: () => void;
   onFinish: () => void;
 }
@@ -43,17 +51,17 @@ export function ReviewAndSendStep({ generatedEmails, onBack, onFinish }: ReviewA
         <div className="space-y-4">
           {generatedEmails.map((email) => {
             const { data: donor } = getDonorQuery(email.donorId);
+            if (!donor) return null;
+
             return (
-              <Card key={email.donorId}>
-                <CardHeader className="p-4">
-                  <CardTitle className="text-sm">
-                    Email for {donor?.firstName} {donor?.lastName}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <pre className="whitespace-pre-wrap text-sm">{email.content}</pre>
-                </CardContent>
-              </Card>
+              <EmailDisplay
+                key={email.donorId}
+                donorName={`${donor.firstName} ${donor.lastName}`}
+                donorEmail={donor.email}
+                subject={email.subject}
+                content={email.structuredContent}
+                referenceContexts={{}} // You might want to pass actual reference contexts here
+              />
             );
           })}
         </div>

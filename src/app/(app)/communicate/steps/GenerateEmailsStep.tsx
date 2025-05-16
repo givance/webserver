@@ -8,12 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
+import { EmailDisplay } from "../components/EmailDisplay";
+import { EmailPiece } from "@/app/lib/utils/email-generator/types";
+
+interface GeneratedEmail {
+  donorId: number;
+  subject: string;
+  structuredContent: EmailPiece[];
+}
 
 interface GenerateEmailsStepProps {
   selectedDonors: number[];
   instruction: string;
-  generatedEmails: Array<{ donorId: number; content: string }>;
-  onEmailsGenerated: (emails: Array<{ donorId: number; content: string }>) => void;
+  generatedEmails: GeneratedEmail[];
+  onEmailsGenerated: (emails: GeneratedEmail[]) => void;
   onBack: () => void;
   onNext: () => void;
 }
@@ -28,7 +36,7 @@ export function GenerateEmailsStep({
 }: GenerateEmailsStepProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [sampleEmails, setSampleEmails] = useState<Array<{ donorId: number; content: string }>>([]);
+  const [sampleEmails, setSampleEmails] = useState<GeneratedEmail[]>([]);
   const [selectedSampleIndex, setSelectedSampleIndex] = useState<number | null>(null);
 
   const { getDonorQuery } = useDonors();
@@ -49,11 +57,31 @@ export function GenerateEmailsStep({
         const org = orgQuery.data;
 
         // This is a placeholder. In reality, you would send this context to OpenAI
-        const emailContent = `Dear ${donor?.firstName},\n\nThank you for your continued support of ${org?.name}. [AI generated content would go here based on the instruction: ${instruction}]\n\nBest regards,\n${org?.name} Team`;
-
         return {
           donorId,
-          content: emailContent,
+          subject: `Thank you for supporting ${org?.name}`,
+          structuredContent: [
+            {
+              piece: `Dear ${donor?.firstName},`,
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: `Thank you for your continued support of ${org?.name}. [AI generated content would go here based on the instruction: ${instruction}]`,
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: "Best regards,",
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: `${org?.name} Team`,
+              references: [],
+              addNewlineAfter: false,
+            },
+          ],
         };
       });
 
@@ -72,13 +100,21 @@ export function GenerateEmailsStep({
     setIsGenerating(true);
     try {
       // In a real implementation, this would call your OpenAI endpoint with the refinement prompt
-      const refinedContent = `[This would be the AI-refined content based on prompt: ${aiPrompt}]`;
+      const refinedEmail = {
+        ...sampleEmails[selectedSampleIndex],
+        structuredContent: [
+          ...sampleEmails[selectedSampleIndex].structuredContent.slice(0, -2),
+          {
+            piece: `[This would be the AI-refined content based on prompt: ${aiPrompt}]`,
+            references: [],
+            addNewlineAfter: true,
+          },
+          ...sampleEmails[selectedSampleIndex].structuredContent.slice(-2),
+        ],
+      };
 
       const updatedSamples = [...sampleEmails];
-      updatedSamples[selectedSampleIndex] = {
-        ...updatedSamples[selectedSampleIndex],
-        content: refinedContent,
-      };
+      updatedSamples[selectedSampleIndex] = refinedEmail;
 
       setSampleEmails(updatedSamples);
       setAiPrompt("");
@@ -96,13 +132,31 @@ export function GenerateEmailsStep({
         const donor = donorQueries[index].data;
         const org = orgQuery.data;
 
-        // This is a placeholder. In reality, you would use the selected sample
-        // as a template and generate personalized versions for each donor
-        const emailContent = `Dear ${donor?.firstName},\n\nThank you for your support of ${org?.name}. [AI generated content would go here]\n\nBest regards,\n${org?.name} Team`;
-
         return {
           donorId,
-          content: emailContent,
+          subject: `Thank you for supporting ${org?.name}`,
+          structuredContent: [
+            {
+              piece: `Dear ${donor?.firstName},`,
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: `Thank you for your support of ${org?.name}. [AI generated content would go here]`,
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: "Best regards,",
+              references: [],
+              addNewlineAfter: true,
+            },
+            {
+              piece: `${org?.name} Team`,
+              references: [],
+              addNewlineAfter: false,
+            },
+          ],
         };
       });
 
@@ -133,20 +187,28 @@ export function GenerateEmailsStep({
             <h4 className="text-sm font-medium mb-2">Sample Emails</h4>
             <ScrollArea className="h-[400px]">
               <div className="space-y-2">
-                {sampleEmails.map((sample, index) => (
-                  <Card
-                    key={sample.donorId}
-                    className={`cursor-pointer ${selectedSampleIndex === index ? "border-primary" : ""}`}
-                    onClick={() => setSelectedSampleIndex(index)}
-                  >
-                    <CardHeader className="p-4">
-                      <CardTitle className="text-sm">Sample {index + 1}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                      <pre className="whitespace-pre-wrap text-sm">{sample.content}</pre>
-                    </CardContent>
-                  </Card>
-                ))}
+                {sampleEmails.map((email, index) => {
+                  const donor = donorQueries[index].data;
+                  if (!donor) return null;
+
+                  return (
+                    <div
+                      key={email.donorId}
+                      className={`cursor-pointer ${
+                        selectedSampleIndex === index ? "ring-2 ring-primary rounded-lg" : ""
+                      }`}
+                      onClick={() => setSelectedSampleIndex(index)}
+                    >
+                      <EmailDisplay
+                        donorName={`${donor.firstName} ${donor.lastName}`}
+                        donorEmail={donor.email}
+                        subject={email.subject}
+                        content={email.structuredContent}
+                        referenceContexts={{}}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </div>

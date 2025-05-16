@@ -12,6 +12,7 @@ import {
   RawCommunicationThread, // Make sure this matches the structure of items in CommunicationHistory[]
 } from "./types";
 import { buildEmailPrompt } from "./prompt-builder";
+import { DonationWithDetails } from "../../data/donations";
 
 /**
  * Generates a personalized email for a donor using AI, with structured content and references.
@@ -67,33 +68,42 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
     let structuredContent: EmailPiece[];
     try {
       // The AI is expected to return a string that is a valid JSON array.
-      structuredContent = JSON.parse(aiResponse.trim());
+      interface AIResponse {
+        subject: string;
+        content: EmailPiece[];
+      }
+      const parsedResponse = JSON.parse(aiResponse.trim()) as AIResponse;
       // Basic validation
       if (
-        !Array.isArray(structuredContent) ||
-        !structuredContent.every((item) => typeof item.piece === "string" && Array.isArray(item.references))
+        !parsedResponse ||
+        typeof parsedResponse !== "object" ||
+        !parsedResponse.subject ||
+        !Array.isArray(parsedResponse.content) ||
+        !parsedResponse.content.every(
+          (item: EmailPiece) =>
+            typeof item.piece === "string" &&
+            Array.isArray(item.references) &&
+            typeof item.addNewlineAfter === "boolean"
+        )
       ) {
-        throw new Error("AI response is not in the expected JSON format of EmailPiece[].");
+        throw new Error("AI response is not in the expected JSON format with subject and structured content.");
       }
+
+      return {
+        donorId: donor.id,
+        subject: parsedResponse.subject,
+        structuredContent: parsedResponse.content,
+      };
     } catch (parseError) {
       logger.error("Failed to parse AI response as JSON", {
         donorId: donor.id,
         aiResponse: aiResponse, // Log the raw response for debugging
         error: parseError instanceof Error ? parseError.message : "Unknown parsing error",
       });
-      // Fallback or re-throw: For now, re-throw to indicate failure.
-      // Optionally, could attempt to wrap the entire aiResponse as a single piece.
-      // structuredContent = [{ piece: aiResponse.trim(), references: [] }];
-      // logger.warn("Falling back to treating entire AI response as a single piece of content.", { donorId: donor.id });
       throw new Error(
         `AI did not return valid JSON. Parse error: ${parseError instanceof Error ? parseError.message : parseError}`
       );
     }
-
-    return {
-      donorId: donor.id,
-      structuredContent,
-    };
   } catch (error) {
     logger.error("Failed to generate email", {
       donorId: donor.id,
@@ -127,7 +137,7 @@ export async function generateDonorEmails(
   organizationWritingInstructions?: string,
   // Assuming communicationHistories provides RawCommunicationThread[] for each donor
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
-  donationHistories: Record<number, DonationInfo[]> = {}
+  donationHistories: Record<number, DonationWithDetails[]> = {}
 ): Promise<GeneratedEmail[]> {
   // Update the logger message to use the new formatting
   logger.info(
@@ -138,6 +148,9 @@ export async function generateDonorEmails(
     // The generateDonorEmail expects GenerateEmailOptions,
     // where communicationHistory is RawCommunicationHistory[] (which we treat as RawCommunicationThread[]).
     const donorCommHistory = communicationHistories[donor.id] || [];
+
+    console.log("Donor communication history:", donorCommHistory);
+    console.log("Donor donation history:", donationHistories[donor.id]);
 
     return generateDonorEmail({
       donor,

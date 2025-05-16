@@ -5,6 +5,7 @@ import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 import { GenerateEmailsStep } from "../steps/GenerateEmailsStep";
 import { ReviewAndSendStep } from "../steps/ReviewAndSendStep";
+import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { StepIndicator } from "@/components/ui/step-indicator";
 
 const STEPS = ["Select Donors", "Write Instructions", "Generate Emails", "Review & Send"] as const;
@@ -17,7 +18,7 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
   const [instruction, setInstruction] = useState("");
-  const [generatedEmails, setGeneratedEmails] = useState<Array<{ donorId: number; content: string }>>([]);
+  const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {

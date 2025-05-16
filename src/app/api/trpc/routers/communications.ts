@@ -21,11 +21,12 @@ import { env } from "@/app/lib/env";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
 import { generateDonorEmails } from "@/app/lib/utils/email-generator";
-import { listDonations } from "@/app/lib/data/donations";
+import { DonationWithDetails, getDonationById, listDonations } from "@/app/lib/data/donations";
 import type { GeneratedEmail } from "@/app/lib/utils/email-generator";
 import { db } from "@/app/lib/db";
-import { organizations } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { organizations, donations, projects } from "@/app/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { DonationInfo, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -82,10 +83,6 @@ interface DonorInput {
   firstName: string;
   lastName: string;
   email: string;
-  history: Array<{
-    content: string;
-    datetime: string;
-  }>;
 }
 
 interface GenerateEmailsInput {
@@ -472,6 +469,22 @@ export const communicationsRouter = router({
                 datetime: z.string(),
               })
             ),
+            donationHistory: z.array(
+              z.object({
+                id: z.string(),
+                amount: z.number(),
+                date: z.union([z.date(), z.string()]).transform((d) => (d instanceof Date ? d : new Date(d))),
+                project: z
+                  .object({
+                    id: z.number(),
+                    name: z.string(),
+                    description: z.string().nullable(),
+                    goal: z.number().nullable(),
+                    status: z.string(),
+                  })
+                  .nullable(),
+              })
+            ),
           })
         ),
         organizationName: z.string(),
@@ -501,28 +514,53 @@ export const communicationsRouter = router({
         rawWebsiteSummary: organization.websiteSummary,
       };
 
-      // Convert communication history to the expected format
-      const communicationHistories: Record<number, Array<{ content: Array<{ content: string }>; datetime: Date }>> = {};
-      donors.forEach((donor: DonorInput) => {
-        communicationHistories[donor.id] = donor.history.map((h) => ({
-          content: [{ content: h.content }],
-          datetime: new Date(h.datetime),
-        }));
+      // Fetch all histories concurrently for better performance
+      const historiesPromises = donors.map(async (donor) => {
+        const [communicationHistory, donationHistory] = await Promise.all([
+          getDonorCommunicationHistory(donor.id, ctx.auth.user.organizationId),
+          listDonations({ donorId: donor.id }),
+        ]);
+
+        return {
+          donorId: donor.id,
+          communicationHistory,
+          donationHistory: donationHistory.donations,
+        };
+      });
+
+      // Wait for all histories to be fetched
+      const histories = await Promise.all(historiesPromises);
+
+      // Convert to the required format
+      const communicationHistories: Record<number, RawCommunicationThread[]> = {};
+      const donationHistories: Record<number, DonationWithDetails[]> = {};
+
+      histories.forEach(({ donorId, communicationHistory, donationHistory }) => {
+        communicationHistories[donorId] = communicationHistory;
+        donationHistories[donorId] = donationHistory;
       });
 
       try {
+        logger.info(
+          `Generating emails for ${donors.length} donors with histories: ${JSON.stringify({
+            communicationHistoriesCount: Object.values(communicationHistories).flat().length,
+            donationHistoriesCount: Object.values(donationHistories).flat().length,
+          })}`
+        );
+
         const emails = await generateDonorEmails(
           donors,
           instruction,
           organizationName,
           emailGeneratorOrg,
           organizationWritingInstructions,
-          communicationHistories
+          communicationHistories,
+          donationHistories
         );
 
         return emails as GeneratedEmail[];
       } catch (error) {
-        console.error("Error generating emails:", error);
+        logger.error("Error generating emails:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to generate emails",

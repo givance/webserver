@@ -1,4 +1,5 @@
 import { CommunicationHistory as RawCommunicationHistory } from "@/app/lib/data/communications";
+import { DonationWithDetails } from "../../data/donations";
 
 export interface Organization {
   id: string;
@@ -49,16 +50,18 @@ export interface GenerateEmailOptions {
   organization: Organization | null;
   organizationWritingInstructions?: string;
   communicationHistory: RawCommunicationHistory[]; // Will be processed
-  donationHistory?: DonationInfo[]; // Will be processed
+  donationHistory?: DonationWithDetails[]; // Will be processed
 }
 
 export interface EmailPiece {
   piece: string;
   references: string[]; // List of IDs like "donation-01", "comm-01-02", "summary-paragraph-03"
+  addNewlineAfter: boolean; // Whether to add a newline after this piece
 }
 
 export interface GeneratedEmail {
   donorId: number;
+  subject: string; // The email subject line
   structuredContent: EmailPiece[];
 }
 

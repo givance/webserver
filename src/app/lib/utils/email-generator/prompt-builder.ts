@@ -4,6 +4,7 @@ import {
   formatCommunicationHistoryWithIds,
   formatWebsiteSummaryWithIds,
 } from "./context-formatters";
+import { DonationWithDetails } from "../../data/donations";
 
 /**
  * Builds the prompt for the AI to generate a personalized donor email.
@@ -24,8 +25,9 @@ export function buildEmailPrompt(
   organization: Organization | null,
   organizationWritingInstructions?: string,
   communicationHistoryInput: RawCommunicationThread[] = [],
-  donationHistoryInput: DonorInfo["donationHistory"] = []
+  donationHistoryInput: DonationWithDetails[] = []
 ): string {
+  console.log("donationHistoryInput", donationHistoryInput);
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
@@ -33,16 +35,33 @@ export function buildEmailPrompt(
   // Constructing the detailed prompt with instructions for JSON output
   return `You are an expert in donor communications, helping to write personalized emails.
 Your task is to generate an email based on the provided context and instructions.
-The output MUST be a valid JSON array of objects, where each object has a "piece" key (a string segment of the email, like a sentence or paragraph) and a "references" key (an array of context IDs, e.g., ["donation-01", "summary-paragraph-02"], that informed that piece). If a piece does not directly reference any specific context, the "references" array should be empty.
+The output MUST be a valid JSON object with two fields:
+1. "subject": A string containing a compelling subject line for the email
+2. "content": An array of objects, where each object has:
+   - "piece": A string segment of the email (like a sentence or paragraph)
+   - "references": An array of context IDs that informed that piece (e.g., ["donation-01", "summary-paragraph-02"])
+   - "addNewlineAfter": A boolean indicating if a newline should be added after this piece
 
 Example of the required JSON output format:
-[
-  { "piece": "Dear ${donor.firstName},", "references": [] },
-  { "piece": "Thank you for your continued support, especially your generous gift referenced by [donation-01].", "references": ["donation-01"] },
-  { "piece": "Your contribution has helped us achieve goals outlined in [summary-paragraph-03].", "references": ["summary-paragraph-03"] },
-  { "piece": "We would love for you to consider supporting our new initiative mentioned in our recent communication [comm-02-01].", "references": ["comm-02-01"] },
-  { "piece": "Please let us know if you have any questions.", "references": [] }
-]
+{
+  "subject": "Your Impact on Families in Need",
+  "content": [
+    { "piece": "Dear John,", "references": [], "addNewlineAfter": true },
+    { "piece": "Thank you for your continued support, especially your generous gift referenced by [donation-01].", "references": ["donation-01"], "addNewlineAfter": true },
+    { "piece": "Your contribution has helped us achieve goals outlined in [summary-paragraph-03].", "references": ["summary-paragraph-03"], "addNewlineAfter": false },
+    { "piece": "We would love for you to consider supporting our new initiative mentioned in our recent communication [comm-02-01].", "references": ["comm-02-01"], "addNewlineAfter": true },
+    { "piece": "Please let us know if you have any questions.", "references": [], "addNewlineAfter": true },
+    { "piece": "Best regards,", "references": [], "addNewlineAfter": true },
+    { "piece": "Sarah", "references": [], "addNewlineAfter": false }
+  ]
+}
+
+Guidelines for the subject line:
+1. Keep it under 50 characters
+2. Make it compelling and specific to the email's content
+3. Avoid spam trigger words like "free", "urgent", etc.
+4. If referencing a specific project or impact, use that in the subject
+5. Make it personal when appropriate
 
 Organization: ${organizationName}
 ${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}

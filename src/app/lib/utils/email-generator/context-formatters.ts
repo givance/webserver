@@ -1,3 +1,4 @@
+import { DonationWithDetails } from "../../data/donations";
 import { DonationInfo, FormattedCommunicationMessage, Organization, RawCommunicationThread } from "./types";
 
 /**
@@ -7,9 +8,9 @@ import { DonationInfo, FormattedCommunicationMessage, Organization, RawCommunica
  * @param donations - Array of donation information.
  * @returns An object containing the formatted string for the prompt and the list of donations with assigned IDs.
  */
-export function formatDonationHistoryWithIds(donations: DonationInfo[] = []): {
+export function formatDonationHistoryWithIds(donations: DonationWithDetails[] = []): {
   promptString: string;
-  donationsWithIds: DonationInfo[];
+  donationsWithIds: DonationWithDetails[];
 } {
   if (donations.length === 0) {
     return { promptString: "No previous donations.", donationsWithIds: [] };
@@ -19,7 +20,7 @@ export function formatDonationHistoryWithIds(donations: DonationInfo[] = []): {
 
   const donationsWithIds = sortedDonations.map((donation, index) => ({
     ...donation,
-    id: `donation-${index + 1}`,
+    displayId: `donation-${index + 1}`,
   }));
 
   const recentDonationsForPrompt = donationsWithIds.slice(0, 30);
@@ -32,7 +33,7 @@ export function formatDonationHistoryWithIds(donations: DonationInfo[] = []): {
         currency: "USD",
       });
       const project = d.project ? ` to ${d.project.name}` : "";
-      return `- [${d.id}] ${date}: ${amount}${project}`;
+      return `- [${d.displayId}] ${date}: ${amount}${project}`;
     })
     .join("\n");
 

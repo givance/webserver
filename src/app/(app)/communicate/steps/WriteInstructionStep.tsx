@@ -9,6 +9,8 @@ import { useCommunications } from "@/app/hooks/use-communications";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
+import { useDonations } from "@/app/hooks/use-donations";
+import { DonationInfo } from "@/app/lib/utils/email-generator/types";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -20,10 +22,19 @@ interface WriteInstructionStepProps {
 
 interface GeneratedEmail {
   donorId: number;
+  subject: string;
   structuredContent: Array<{
     piece: string;
     references: string[];
+    addNewlineAfter: boolean;
   }>;
+}
+
+interface ThreadMessage {
+  id: number;
+  content: string;
+  datetime: Date;
+  threadId: number;
 }
 
 interface CommunicationHistoryItem {
@@ -50,11 +61,13 @@ export function WriteInstructionStep({
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
   const [communicationHistory, setCommunicationHistory] = useState<Record<number, CommunicationHistoryItem[]>>({});
+  const [donationHistory, setDonationHistory] = useState<Record<number, DonationInfo[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
   const { getThread, listCommunicationThreads, generateEmails, isGeneratingEmails } = useCommunications();
+  const { listDonations } = useDonations();
 
   // Pre-fetch donor data for all selected donors
   const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
@@ -66,7 +79,7 @@ export function WriteInstructionStep({
       const history: Record<number, CommunicationHistoryItem[]> = {};
 
       for (const donorId of selectedDonors) {
-        const { data: threads } = listCommunicationThreads({
+        const { data: threads } = await listCommunicationThreads({
           donorId,
           includeDonors: true,
           includeLatestMessage: true,
@@ -74,13 +87,24 @@ export function WriteInstructionStep({
         });
 
         if (threads?.threads) {
-          history[donorId] = threads.threads.flatMap(
-            (thread) =>
-              thread.content?.map((msg) => ({
-                content: msg.content,
-                datetime: msg.datetime.toISOString(),
-              })) || []
-          );
+          const messages: CommunicationHistoryItem[] = [];
+          for (const thread of threads.threads) {
+            const { data: threadData } = await getThread({
+              id: thread.id,
+              includeMessages: true,
+            });
+
+            // Get messages from the thread content
+            if (threadData?.content) {
+              messages.push(
+                ...threadData.content.map((msg) => ({
+                  content: msg.content,
+                  datetime: new Date(msg.datetime).toISOString(),
+                }))
+              );
+            }
+          }
+          history[donorId] = messages;
         }
       }
 
@@ -88,12 +112,49 @@ export function WriteInstructionStep({
     };
 
     fetchCommunicationHistory();
-  }, [selectedDonors, listCommunicationThreads]);
+  }, [selectedDonors, listCommunicationThreads, getThread]);
+
+  // Fetch donation history for each donor
+  useEffect(() => {
+    const fetchDonationHistory = async () => {
+      const history: Record<number, DonationInfo[]> = {};
+
+      for (const donorId of selectedDonors) {
+        const { data: donations } = await listDonations({
+          donorId,
+          includeProject: true,
+          limit: 30,
+        });
+
+        if (donations?.donations) {
+          history[donorId] = donations.donations.map((d) => ({
+            id: String(d.id),
+            amount: d.amount,
+            date: d.date instanceof Date ? d.date : new Date(d.date || d.createdAt),
+            project: d.project
+              ? {
+                  id: d.project.id,
+                  name: d.project.name,
+                  description: d.project.description || null,
+                  goal: d.project.goal || null,
+                  status: d.project.active ? "active" : "inactive",
+                }
+              : null,
+          }));
+        }
+      }
+
+      setDonationHistory(history);
+    };
+
+    fetchDonationHistory();
+  }, [selectedDonors, listDonations]);
 
   // Function to build reference contexts from email content
   const buildReferenceContexts = (
     email: GeneratedEmail,
     donorHistory: CommunicationHistoryItem[],
+    donorDonations: DonationInfo[],
     websiteSummary: string | null
   ): Record<string, string> => {
     const contexts: Record<string, string> = {};
@@ -118,8 +179,20 @@ export function WriteInstructionStep({
         if (paragraphs[paragraphIndex]) {
           contexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
         }
+      } else if (ref.startsWith("donation-")) {
+        // Find the corresponding donation
+        const donationIndex = parseInt(ref.split("-")[1]) - 1;
+        const donation = donorDonations[donationIndex];
+        if (donation) {
+          const amount = (donation.amount / 100).toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+          });
+          const date = new Date(donation.date).toLocaleDateString();
+          const project = donation.project ? ` to ${donation.project.name}` : "";
+          contexts[ref] = `Donation on ${date}: ${amount}${project}`;
+        }
       }
-      // Add handling for donation references if needed
     });
 
     return contexts;
@@ -143,6 +216,7 @@ export function WriteInstructionStep({
           lastName: donor.lastName,
           email: donor.email,
           history: communicationHistory[donorId] || [],
+          donationHistory: donationHistory[donorId] || [],
         };
       });
 
@@ -166,6 +240,7 @@ export function WriteInstructionStep({
           newReferenceContexts[email.donorId] = buildReferenceContexts(
             email,
             communicationHistory[email.donorId] || [],
+            donationHistory[email.donorId] || [],
             org.websiteSummary
           );
         });
@@ -213,6 +288,7 @@ export function WriteInstructionStep({
                   key={email.donorId}
                   donorName={`${donor.firstName} ${donor.lastName}`}
                   donorEmail={donor.email}
+                  subject={email.subject}
                   content={email.structuredContent}
                   referenceContexts={referenceContexts[email.donorId] || {}}
                 />
