@@ -5,6 +5,7 @@ import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 import { GenerateEmailsStep } from "../steps/GenerateEmailsStep";
 import { ReviewAndSendStep } from "../steps/ReviewAndSendStep";
+import { StepIndicator } from "@/components/ui/step-indicator";
 
 const STEPS = ["Select Donors", "Write Instructions", "Generate Emails", "Review & Send"] as const;
 
@@ -72,12 +73,10 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
-          {STEPS[currentStep]} ({currentStep + 1}/{STEPS.length})
-        </h1>
+      <div className="mb-8">
+        <StepIndicator steps={STEPS} currentStep={currentStep} className="mb-6" />
+        <h1 className="text-2xl font-bold">{STEPS[currentStep]}</h1>
       </div>
-
       <div className="flex-1">{renderStep()}</div>
     </div>
   );
