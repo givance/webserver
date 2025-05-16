@@ -38,9 +38,9 @@ Your task is to generate an email based on the provided context and instructions
 The output MUST be a valid JSON object with two fields:
 1. "subject": A string containing a compelling subject line for the email
 2. "content": An array of objects, where each object has:
-   - "piece": A string segment of the email (like a sentence or paragraph). IMPORTANT: Do NOT include reference IDs in the text.
+   - "piece": A string segment of the email (like a sentence or paragraph), this doesn't have to be a paragraph all the time, it could be just a sentence. IMPORTANT: Do NOT include reference IDs in the text.
    - "references": An array of context IDs that informed that piece (e.g., ["donation-01", "summary-paragraph-02"])
-   - "addNewlineAfter": A boolean indicating if a newline should be added after this piece
+   - "addNewlineAfter": A boolean indicating if a newline should be added after this piece. This field is used to control line breaks and paragramphs in the email. Do not blindly add newlines.
 
 Example of the required JSON output format:
 {
