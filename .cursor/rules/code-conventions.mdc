@@ -1,0 +1,43 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Code Conventions and Best Practices
+
+## TypeScript Conventions
+
+### Type Definitions
+- Use interfaces for complex object types
+- Prefer explicit typing, never use `any`
+- Use nullable types with `| null` when appropriate
+- Document complex interfaces with JSDoc comments
+
+### Function Documentation
+- All public functions must have JSDoc comments
+- Functions longer than 40 lines require detailed documentation
+- Document parameters using `@param` tags
+- Document return types using `@returns` tags
+
+### Error Handling
+- Use try-catch blocks for async operations
+- Extract error messages properly from Error objects
+- Log errors with appropriate context
+
+## Project Setup
+- Use `pnpm` as the package manager
+- Use Node.js version 22.4.0 (`nvm use 22.4.0`)
+
+## Logging
+- Format log messages inline instead of using object notation
+- Example: ❌ `logger.info("message", {data})`
+- Example: ✅ `logger.info(\`message with ${formattedData}\`)`
+- Include relevant context in log messages (IDs, counts, etc.)
+
+## Environment and Configuration
+- Use environment variables through the `env` module
+- Keep sensitive information like API keys in environment variables
+- Reference environment variables through strongly typed interfaces
+
+## Build
+- When I ask you to fix build errors, make sure you run `nvm use 22.4.0 && pnpm build`, fix errors, iterate, until the build passes.
