@@ -14,8 +14,7 @@ interface UserMemoryProps {
   onDeleteMemory: (index: number) => Promise<void>;
 }
 
-export function UserMemory({ initialMemory, onAddMemory, onUpdateMemory, onDeleteMemory }: UserMemoryProps) {
-  const [memory, setMemory] = useState<string[]>(initialMemory);
+export function UserMemory({ initialMemory = [], onAddMemory, onUpdateMemory, onDeleteMemory }: UserMemoryProps) {
   const [newMemory, setNewMemory] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -24,7 +23,6 @@ export function UserMemory({ initialMemory, onAddMemory, onUpdateMemory, onDelet
     if (!newMemory.trim()) return;
     try {
       await onAddMemory(newMemory);
-      setMemory([...memory, newMemory]);
       setNewMemory("");
       toast.success("Memory added successfully");
     } catch (error) {
@@ -36,9 +34,6 @@ export function UserMemory({ initialMemory, onAddMemory, onUpdateMemory, onDelet
     if (!editValue.trim()) return;
     try {
       await onUpdateMemory(index, editValue);
-      const newMemoryArray = [...memory];
-      newMemoryArray[index] = editValue;
-      setMemory(newMemoryArray);
       setEditingIndex(null);
       setEditValue("");
       toast.success("Memory updated successfully");
@@ -50,8 +45,6 @@ export function UserMemory({ initialMemory, onAddMemory, onUpdateMemory, onDelet
   const handleDeleteMemory = async (index: number) => {
     try {
       await onDeleteMemory(index);
-      const newMemoryArray = memory.filter((_, i) => i !== index);
-      setMemory(newMemoryArray);
       toast.success("Memory deleted successfully");
     } catch (error) {
       toast.error("Failed to delete memory. Please try again.");
@@ -80,7 +73,7 @@ export function UserMemory({ initialMemory, onAddMemory, onUpdateMemory, onDelet
 
           {/* Memory list */}
           <div className="space-y-2">
-            {memory.map((item, index) => (
+            {initialMemory.map((item, index) => (
               <div key={index} className="flex items-center gap-2 group">
                 {editingIndex === index ? (
                   <>

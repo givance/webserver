@@ -6,10 +6,11 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SettingsPage() {
   const { user } = useUser();
-  const { memory, addMemoryItem, updateMemoryItem, deleteMemoryItem } = useMemory();
+  const { memory, addMemoryItem, updateMemoryItem, deleteMemoryItem, isLoading } = useMemory();
 
   return (
     <>
@@ -46,12 +47,20 @@ export default function SettingsPage() {
               <CardDescription className="mb-4">
                 Manage your personal memory items. These can be used to store important information or notes.
               </CardDescription>
-              <UserMemory
-                initialMemory={memory}
-                onAddMemory={addMemoryItem}
-                onUpdateMemory={updateMemoryItem}
-                onDeleteMemory={deleteMemoryItem}
-              />
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <UserMemory
+                  initialMemory={memory}
+                  onAddMemory={addMemoryItem}
+                  onUpdateMemory={updateMemoryItem}
+                  onDeleteMemory={deleteMemoryItem}
+                />
+              )}
             </CardContent>
           </Card>
         </div>
