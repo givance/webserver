@@ -9,13 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { EmailDisplay } from "../components/EmailDisplay";
-import { EmailPiece } from "@/app/lib/utils/email-generator/types";
-
-interface GeneratedEmail {
-  donorId: number;
-  subject: string;
-  structuredContent: EmailPiece[];
-}
+import { EmailPiece, GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 
 interface GenerateEmailsStepProps {
   selectedDonors: number[];
@@ -50,13 +44,10 @@ export function GenerateEmailsStep({
   const generateSampleEmails = async () => {
     setIsGenerating(true);
     try {
-      // In a real implementation, this would call your OpenAI endpoint
-      // For now, we'll simulate the response
-      const samples = selectedDonors.slice(0, 5).map((donorId, index) => {
+      const samples = selectedDonors.slice(0, 3).map((donorId, index) => {
         const donor = donorQueries[index].data;
         const org = orgQuery.data;
 
-        // This is a placeholder. In reality, you would send this context to OpenAI
         return {
           donorId,
           subject: `Thank you for supporting ${org?.name}`,
@@ -67,7 +58,7 @@ export function GenerateEmailsStep({
               addNewlineAfter: true,
             },
             {
-              piece: `Thank you for your continued support of ${org?.name}. [AI generated content would go here based on the instruction: ${instruction}]`,
+              piece: `Thank you for your support of ${org?.name}. [Sample AI generated content would go here]`,
               references: [],
               addNewlineAfter: true,
             },
@@ -82,6 +73,7 @@ export function GenerateEmailsStep({
               addNewlineAfter: false,
             },
           ],
+          referenceContexts: {}, // Add empty referenceContexts for sample emails
         };
       });
 
@@ -157,6 +149,7 @@ export function GenerateEmailsStep({
               addNewlineAfter: false,
             },
           ],
+          referenceContexts: {}, // Add empty referenceContexts as this is a placeholder implementation
         };
       });
 
