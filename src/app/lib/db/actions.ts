@@ -98,3 +98,95 @@ export async function updatePost(
 
   return result[0];
 }
+
+/**
+ * Update a user's memory
+ * @param userId The user's ID
+ * @param memory Array of memory strings
+ * @returns The updated user
+ */
+export async function updateUserMemory(userId: string, memory: string[]) {
+  const result = await db
+    .update(users)
+    .set({
+      memory,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return result[0];
+}
+
+/**
+ * Add a single memory to a user's memory array
+ * @param userId The user's ID
+ * @param memoryItem The memory string to add
+ * @returns The updated user
+ */
+export async function addUserMemory(userId: string, memoryItem: string) {
+  const user = await getUserById(userId);
+  const currentMemory = user?.memory || [];
+
+  const result = await db
+    .update(users)
+    .set({
+      memory: [...currentMemory, memoryItem],
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return result[0];
+}
+
+/**
+ * Remove a memory from a user's memory array
+ * @param userId The user's ID
+ * @param index The index of the memory to remove
+ * @returns The updated user
+ */
+export async function removeUserMemory(userId: string, index: number) {
+  const user = await getUserById(userId);
+  if (!user?.memory) return user;
+
+  const newMemory = [...user.memory];
+  newMemory.splice(index, 1);
+
+  const result = await db
+    .update(users)
+    .set({
+      memory: newMemory,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return result[0];
+}
+
+/**
+ * Update a specific memory in a user's memory array
+ * @param userId The user's ID
+ * @param index The index of the memory to update
+ * @param newMemoryItem The new memory string
+ * @returns The updated user
+ */
+export async function updateUserMemoryItem(userId: string, index: number, newMemoryItem: string) {
+  const user = await getUserById(userId);
+  if (!user?.memory) return user;
+
+  const newMemory = [...user.memory];
+  newMemory[index] = newMemoryItem;
+
+  const result = await db
+    .update(users)
+    .set({
+      memory: newMemory,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return result[0];
+}

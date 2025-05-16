@@ -16,7 +16,7 @@ import {
 import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare, Search, Bell } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb";
@@ -153,7 +153,7 @@ export default function MainLayout({
               </main>
             </div>
           </SidebarProvider>
-          <Toaster position="top-right" />
+          <Toaster />
         </div>
       </body>
     </html>

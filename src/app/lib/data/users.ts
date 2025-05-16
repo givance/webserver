@@ -12,14 +12,8 @@ export type NewUser = InferInsertModel<typeof users>;
  * @returns The user object if found, otherwise undefined.
  */
 export async function getUserById(id: string): Promise<User | undefined> {
-  try {
-    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return result[0];
-  } catch (error) {
-    console.error("Failed to retrieve user by ID:", error);
-    // Consider re-throwing the error or returning a more specific error object
-    throw new Error("Could not retrieve user.");
-  }
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
 }
 
 /**
@@ -93,6 +87,17 @@ export async function listUsers(limit: number = 10, offset: number = 0): Promise
     console.error("Failed to list users:", error);
     throw new Error("Could not list users.");
   }
+}
+
+/**
+ * Update a user's memory array
+ * @param id The user's ID
+ * @param memory The new memory array
+ * @returns The updated user or undefined if not found
+ */
+export async function updateUserMemory(id: string, memory: string[]): Promise<User | undefined> {
+  const result = await db.update(users).set({ memory }).where(eq(users.id, id)).returning();
+  return result[0];
 }
 
 // Potentially add a function to delete a user if necessary,

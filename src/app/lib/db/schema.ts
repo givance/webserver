@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(), // Kept from original, ensure it matches Clerk's primary email
   profileImageUrl: text("profile_image_url"), // From Clerk
   // name: varchar("name", { length: 255 }).notNull(), // Original 'name' field, can be removed if using firstName/lastName
+  memory: text("memory").array(), // Array of strings for user memory
   createdAt: timestamp("created_at")
     .default(sql`now()`)
     .notNull(), // Uses default(sql`now()`) for consistency

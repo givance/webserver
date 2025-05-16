@@ -1,11 +1,12 @@
 import { router } from "../trpc";
 import { exampleRouter } from "./example";
-import { donationsRouter } from "./donations";
+import { organizationsRouter } from "./organizations";
+import { donorsRouter } from "./donors";
 import { projectsRouter } from "./projects";
 import { staffRouter } from "./staff";
-import { donorsRouter } from "./donors";
+import { donationsRouter } from "./donations";
 import { communicationsRouter } from "./communications";
-import { organizationsRouter } from "./organizations";
+import { usersRouter } from "./users";
 
 /**
  * Root router for the tRPC API
@@ -13,12 +14,13 @@ import { organizationsRouter } from "./organizations";
  */
 export const appRouter = router({
   example: exampleRouter,
-  donations: donationsRouter,
+  organizations: organizationsRouter,
+  donors: donorsRouter,
   projects: projectsRouter,
   staff: staffRouter,
-  donors: donorsRouter,
+  donations: donationsRouter,
   communications: communicationsRouter,
-  organizations: organizationsRouter,
+  users: usersRouter,
 });
 
 // Export type definition of API

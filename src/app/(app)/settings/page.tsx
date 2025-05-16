@@ -1,10 +1,16 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, ChevronRight } from "lucide-react";
+import { Building2, ChevronRight, Brain } from "lucide-react";
 import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
+import { UserMemory } from "@/app/components/UserMemory";
+import { useMemory } from "@/app/hooks/use-memory";
 
 export default function SettingsPage() {
+  const { user } = useUser();
+  const { memory, addMemoryItem, updateMemoryItem, deleteMemoryItem } = useMemory();
+
   return (
     <>
       <title>Settings</title>
@@ -29,7 +35,25 @@ export default function SettingsPage() {
             </Card>
           </Link>
 
-          {/* Additional settings sections can be added here */}
+          <Card>
+            <CardHeader className="flex flex-row items-center pb-2">
+              <div className="flex items-center space-x-2">
+                <Brain className="h-5 w-5" />
+                <CardTitle>Memory Management</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="mb-4">
+                Manage your personal memory items. These can be used to store important information or notes.
+              </CardDescription>
+              <UserMemory
+                initialMemory={memory}
+                onAddMemory={addMemoryItem}
+                onUpdateMemory={updateMemoryItem}
+                onDeleteMemory={deleteMemoryItem}
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </>
