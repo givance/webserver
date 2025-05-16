@@ -1,19 +1,17 @@
-import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+import { DonationWithDetails } from "../../data/donations";
+import { buildEmailPrompt } from "./prompt-builder";
 import {
   DonorInfo,
-  DonationInfo,
+  EmailPiece,
   GenerateEmailOptions,
   GeneratedEmail,
   Organization,
-  EmailPiece,
   RawCommunicationThread,
 } from "./types";
-import { buildEmailPrompt } from "./prompt-builder";
-import { DonationWithDetails } from "../../data/donations";
-import { formatDonationHistoryWithIds } from "./context-formatters";
 
 /**
  * Generates a personalized email for a donor using AI, with structured content and references.
@@ -72,7 +70,6 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
       prompt,
     });
 
-    let structuredContent: EmailPiece[];
     try {
       interface AIResponse {
         subject: string;
@@ -175,15 +172,12 @@ export async function generateDonorEmails(
     `Starting batch generation of emails. Number of donors: ${donors.length}. Instruction: "${instruction}".`
   );
 
-  const emailPromises = donors.map((donor) => {
+  const emailPromises = donors.map(async (donor) => {
     // The generateDonorEmail expects GenerateEmailOptions,
     // where communicationHistory is RawCommunicationHistory[] (which we treat as RawCommunicationThread[]).
     const donorCommHistory = communicationHistories[donor.id] || [];
 
-    console.log("Donor communication history:", donorCommHistory);
-    console.log("Donor donation history:", donationHistories[donor.id]);
-
-    return generateDonorEmail({
+    return await generateDonorEmail({
       donor,
       instruction,
       organizationName,
