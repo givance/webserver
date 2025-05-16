@@ -11,6 +11,8 @@ import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
 import { useDonations } from "@/app/hooks/use-donations";
 import type { DonationWithDetails } from "@/app/lib/data/donations";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -139,6 +141,9 @@ export function WriteInstructionStep({
     if (!instruction.trim()) return;
 
     setIsGenerating(true);
+    // Clear existing emails and contexts when generating new ones
+    setGeneratedEmails([]);
+    setReferenceContexts({});
     setChatMessages((prev) => [...prev, { role: "user", content: instruction }]);
 
     try {
@@ -221,70 +226,136 @@ export function WriteInstructionStep({
 
   return (
     <div className="grid grid-cols-2 gap-4 h-[600px]">
-      {/* Left side: Generated Emails */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Generated Emails</h3>
-        <ScrollArea className="h-[500px]">
-          <div className="space-y-4">
-            {generatedEmails.map((email) => {
-              const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
-              if (!donor) return null;
+      {/* Left side: Generated Emails with Vertical Tabs */}
+      <div className="border rounded-lg">
+        <h3 className="text-lg font-medium p-4 border-b">Generated Emails</h3>
+        {generatedEmails.length > 0 ? (
+          <Tabs
+            defaultValue={generatedEmails[0]?.donorId?.toString()}
+            orientation="vertical"
+            className="h-[calc(500px-1rem)]"
+          >
+            <div className="grid grid-cols-[240px_1fr] h-full">
+              <div className="border-r bg-muted/30">
+                <TabsList className="flex flex-col h-full w-full space-y-1 bg-transparent p-2">
+                  {generatedEmails.map((email) => {
+                    const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
+                    if (!donor) return null;
 
-              return (
-                <EmailDisplay
-                  key={email.donorId}
-                  donorName={`${donor.firstName} ${donor.lastName}`}
-                  donorEmail={donor.email}
-                  subject={email.subject}
-                  content={email.structuredContent}
-                  referenceContexts={referenceContexts[email.donorId] || {}}
-                />
-              );
-            })}
+                    return (
+                      <TabsTrigger
+                        key={email.donorId}
+                        value={email.donorId.toString()}
+                        className={cn(
+                          "w-full h-[80px] p-4 rounded-lg",
+                          "flex flex-col items-start justify-center gap-1",
+                          "text-left",
+                          "transition-all duration-200",
+                          "data-[state=active]:bg-black data-[state=active]:text-white",
+                          "data-[state=inactive]:bg-background hover:bg-muted"
+                        )}
+                      >
+                        <span className="font-medium">
+                          {donor.firstName} {donor.lastName}
+                        </span>
+                        <span className="text-sm text-muted-foreground data-[state=active]:text-white/70">
+                          {donor.email}
+                        </span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </div>
+
+              <div className="p-4">
+                {generatedEmails.map((email) => {
+                  const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
+                  if (!donor) return null;
+
+                  return (
+                    <TabsContent key={email.donorId} value={email.donorId.toString()} className="mt-0 h-full">
+                      <ScrollArea className="h-[calc(500px-2rem)]">
+                        <EmailDisplay
+                          donorName={`${donor.firstName} ${donor.lastName}`}
+                          donorEmail={donor.email}
+                          subject={email.subject}
+                          content={email.structuredContent}
+                          referenceContexts={referenceContexts[email.donorId] || {}}
+                        />
+                      </ScrollArea>
+                    </TabsContent>
+                  );
+                })}
+              </div>
+            </div>
+          </Tabs>
+        ) : (
+          <div className="flex items-center justify-center h-[500px] text-muted-foreground">
+            No emails generated yet
           </div>
-        </ScrollArea>
+        )}
       </div>
 
       {/* Right side: Chat Interface */}
-      <div className="flex flex-col h-full">
-        <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
+      <div className="flex flex-col h-full border rounded-lg">
+        <h3 className="text-lg font-medium p-4 border-b">Chat Interface</h3>
 
-        {/* Chat Messages */}
-        <ScrollArea className="flex-1 mb-4">
-          <div className="space-y-4">
-            {chatMessages.map((message, index) => (
-              <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    message.role === "user" ? "bg-primary text-primary-foreground ml-4" : "bg-muted mr-4"
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="flex flex-col h-[calc(100%-64px)]">
+          {/* Chat Messages */}
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
+              {/* System message in gray box */}
+              <div className="bg-[#18181B] text-white rounded-lg p-4 space-y-4">
+                <p>Write the donors a fundraising email, to raise money for the widow and orphan program.</p>
+                <p>If their past donation averages over $1K, ask them if they have time to talk on the phone.</p>
+                <p>
+                  If their past donation averages below $1K, ask them to donate their past average donation * 1.1,
+                  online, at [https://donor.me](https://donor.me/).
+                </p>
+                <p>Use Yeshivish English in your communications.</p>
+              </div>
+
+              {chatMessages.map((message, index) => (
+                <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={cn(
+                      "max-w-[80%] rounded-lg p-3",
+                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted/50"
+                    )}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+
+          {/* Input Area */}
+          <div className="p-4 border-t bg-background">
+            <div className="space-y-4">
+              <Textarea
+                value={instruction}
+                onChange={(e) => onInstructionChange(e.target.value)}
+                placeholder="Enter your instructions for email generation..."
+                className="min-h-[100px] resize-none"
+              />
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={onBack}>
+                  Back
+                </Button>
+                <div className="space-x-2">
+                  <Button
+                    onClick={handleSubmitInstruction}
+                    disabled={isGenerating || !instruction.trim()}
+                    variant="default"
+                  >
+                    {isGenerating ? "Generating..." : "Generate Emails"}
+                  </Button>
+                  <Button onClick={onNext} disabled={generatedEmails.length === 0} variant="default">
+                    Next
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-
-        {/* Input Area */}
-        <div className="space-y-4">
-          <Textarea
-            value={instruction}
-            onChange={(e) => onInstructionChange(e.target.value)}
-            placeholder="Enter your instructions for email generation..."
-            className="min-h-[100px]"
-          />
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={onBack}>
-              Back
-            </Button>
-            <div className="space-x-2">
-              <Button onClick={handleSubmitInstruction} disabled={isGenerating || !instruction.trim()}>
-                {isGenerating ? "Generating..." : "Generate Emails"}
-              </Button>
-              <Button onClick={onNext} disabled={generatedEmails.length === 0}>
-                Next
-              </Button>
             </div>
           </div>
         </div>
