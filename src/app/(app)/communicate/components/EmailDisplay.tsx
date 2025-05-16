@@ -37,14 +37,18 @@ function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayP
         </TooltipTrigger>
         <TooltipContent className="max-w-sm">
           <div className="space-y-2">
-            {references.map((ref) => (
-              <div key={ref} className="text-sm">
-                <div className="font-medium">{ref}</div>
-                <div className="text-muted-foreground whitespace-pre-wrap">
-                  {referenceContexts[ref] || "Context not available"}
+            {references.map((ref) => {
+              const context = referenceContexts[ref];
+              if (!context) {
+                console.warn(`No context found for reference: ${ref}`);
+                return null;
+              }
+              return (
+                <div key={ref} className="text-sm">
+                  <div className="text-muted-foreground whitespace-pre-wrap">{context}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </TooltipContent>
       </Tooltip>

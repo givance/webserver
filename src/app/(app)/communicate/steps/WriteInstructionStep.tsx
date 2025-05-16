@@ -28,6 +28,7 @@ interface GeneratedEmail {
     references: string[];
     addNewlineAfter: boolean;
   }>;
+  referenceContexts: Record<string, string>;
 }
 
 interface ThreadMessage {
@@ -35,11 +36,6 @@ interface ThreadMessage {
   content: string;
   datetime: Date;
   threadId: number;
-}
-
-interface CommunicationHistoryItem {
-  content: string;
-  datetime: string;
 }
 
 interface ReferenceContext {
@@ -60,7 +56,9 @@ export function WriteInstructionStep({
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
-  const [communicationHistory, setCommunicationHistory] = useState<Record<number, CommunicationHistoryItem[]>>({});
+  const [communicationHistory, setCommunicationHistory] = useState<
+    Record<number, { content: string; datetime: string }[]>
+  >({});
   const [donationHistory, setDonationHistory] = useState<Record<number, DonationWithDetails[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
 
@@ -76,7 +74,7 @@ export function WriteInstructionStep({
   // Fetch communication history for each donor
   useEffect(() => {
     const fetchCommunicationHistory = async () => {
-      const history: Record<number, CommunicationHistoryItem[]> = {};
+      const history: Record<number, { content: string; datetime: string }[]> = {};
 
       for (const donorId of selectedDonors) {
         const { data: threads } = await listCommunicationThreads({
@@ -87,7 +85,7 @@ export function WriteInstructionStep({
         });
 
         if (threads?.threads) {
-          const messages: CommunicationHistoryItem[] = [];
+          const messages: { content: string; datetime: string }[] = [];
           for (const thread of threads.threads) {
             const { data: threadData } = await getThread({
               id: thread.id,
@@ -136,57 +134,6 @@ export function WriteInstructionStep({
 
     fetchDonationHistory();
   }, [selectedDonors, listDonations]);
-
-  // Function to build reference contexts from email content
-  const buildReferenceContexts = (
-    email: GeneratedEmail,
-    donorHistory: CommunicationHistoryItem[],
-    donorDonations: DonationWithDetails[],
-    websiteSummary: string | null
-  ): Record<string, string> => {
-    const contexts: Record<string, string> = {};
-
-    // Sort donations by date (most recent first) to match the AI's reference order
-    const sortedDonations = [...donorDonations].sort((a, b) => b.date.getTime() - a.date.getTime());
-
-    // Collect all unique references
-    const allRefs = new Set(email.structuredContent.flatMap((piece) => piece.references));
-
-    allRefs.forEach((ref) => {
-      if (ref.startsWith("comm-")) {
-        // Find the corresponding communication in history
-        const [_, threadIndex, messageIndex] = ref.split("-").map(Number);
-        const historyItem = donorHistory[threadIndex - 1];
-        if (historyItem) {
-          contexts[ref] = `Previous message (${new Date(historyItem.datetime).toLocaleDateString()}): ${
-            historyItem.content
-          }`;
-        }
-      } else if (ref.startsWith("summary-paragraph-")) {
-        // Find the corresponding paragraph in website summary
-        const paragraphIndex = parseInt(ref.split("-")[2]) - 1;
-        const paragraphs = websiteSummary?.split(/\n\s*\n/) || [];
-        if (paragraphs[paragraphIndex]) {
-          contexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
-        }
-      } else if (ref.startsWith("donation-")) {
-        // Find the corresponding donation
-        const donationIndex = parseInt(ref.split("-")[1]) - 1;
-        const donation = sortedDonations[donationIndex];
-        if (donation) {
-          const amount = (donation.amount / 100).toLocaleString("en-US", {
-            style: "currency",
-            currency: "USD",
-          });
-          const date = new Date(donation.date).toLocaleDateString();
-          const project = donation.project ? ` to ${donation.project.name}` : "";
-          contexts[ref] = `Donation on ${date}: ${amount}${project}`;
-        }
-      }
-    });
-
-    return contexts;
-  };
 
   const handleSubmitInstruction = async () => {
     if (!instruction.trim()) return;
@@ -239,18 +186,12 @@ export function WriteInstructionStep({
 
       if (emails) {
         setGeneratedEmails(emails);
-
-        // Build reference contexts for each email
-        const newReferenceContexts: Record<number, Record<string, string>> = {};
-        (emails as GeneratedEmail[]).forEach((email: GeneratedEmail) => {
-          newReferenceContexts[email.donorId] = buildReferenceContexts(
-            email,
-            communicationHistory[email.donorId] || [],
-            donationHistory[email.donorId] || [],
-            org.websiteSummary
-          );
-        });
-        setReferenceContexts(newReferenceContexts);
+        setReferenceContexts(
+          emails.reduce((acc, email) => {
+            acc[email.donorId] = email.referenceContexts;
+            return acc;
+          }, {} as Record<number, Record<string, string>>)
+        );
 
         setChatMessages((prev) => [
           ...prev,

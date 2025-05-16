@@ -9,10 +9,11 @@ import {
   GeneratedEmail,
   Organization,
   EmailPiece,
-  RawCommunicationThread, // Make sure this matches the structure of items in CommunicationHistory[]
+  RawCommunicationThread,
 } from "./types";
 import { buildEmailPrompt } from "./prompt-builder";
 import { DonationWithDetails } from "../../data/donations";
+import { formatDonationHistoryWithIds } from "./context-formatters";
 
 /**
  * Generates a personalized email for a donor using AI, with structured content and references.
@@ -27,21 +28,33 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
     organizationName,
     organization,
     organizationWritingInstructions,
-    communicationHistory, // This is RawCommunicationHistory[] which should be RawCommunicationThread[]
-    donationHistory,
+    communicationHistory,
+    donationHistory = [],
   } = options;
 
-  // The type for communicationHistory in GenerateEmailOptions is RawCommunicationHistory[],
-  // which I've aliased from the imported CommunicationHistory.
-  // Assuming items in this array match RawCommunicationThread structure.
-  // If not, a mapping step might be needed here.
+  // Sort donations and prepare reference contexts
+  const sortedDonations = [...donationHistory].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const donationContexts: Record<string, string> = {};
+
+  // Pre-build donation contexts
+  sortedDonations.forEach((donation, index) => {
+    const refId = `donation-${index + 1}`;
+    const amount = (donation.amount / 100).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    });
+    const date = new Date(donation.date).toLocaleDateString();
+    const project = donation.project ? ` to ${donation.project.name}` : "";
+    donationContexts[refId] = `Donation on ${date}: ${amount}${project}`;
+  });
+
   const prompt = buildEmailPrompt(
     donor,
     instruction,
     organizationName,
     organization,
     organizationWritingInstructions,
-    communicationHistory as RawCommunicationThread[], // Cast if necessary, ensure compatibility
+    communicationHistory as RawCommunicationThread[],
     donationHistory
   );
 
@@ -52,28 +65,21 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
       donationHistory?.length || 0
     }. Communication history count: ${communicationHistory?.length || 0}.`
   );
-  console.log("Prompt being sent to AI:\n", prompt); // For debugging
 
   try {
     const { text: aiResponse } = await generateText({
-      model: openai(env.MID_MODEL), // Ensure MID_MODEL is appropriate for JSON generation
+      model: openai(env.MID_MODEL),
       prompt,
-      // Some models/APIs might have a specific parameter for JSON mode, e.g., response_format: { type: "json_object" }
-      // The 'ai' SDK might handle this based on model capabilities or require specific prompt engineering.
-      // For now, we rely on the prompt instructing JSON output.
     });
-
-    console.log("AI response:\n", aiResponse); // For debugging
 
     let structuredContent: EmailPiece[];
     try {
-      // The AI is expected to return a string that is a valid JSON array.
       interface AIResponse {
         subject: string;
         content: EmailPiece[];
       }
       const parsedResponse = JSON.parse(aiResponse.trim()) as AIResponse;
-      // Basic validation
+
       if (
         !parsedResponse ||
         typeof parsedResponse !== "object" ||
@@ -89,15 +95,41 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
         throw new Error("AI response is not in the expected JSON format with subject and structured content.");
       }
 
+      // Build reference contexts
+      const referenceContexts: Record<string, string> = {
+        ...donationContexts, // Include pre-built donation contexts
+      };
+
+      // Add communication and summary contexts
+      parsedResponse.content.forEach((piece) => {
+        piece.references.forEach((ref) => {
+          if (ref.startsWith("comm-")) {
+            const [_, threadIndex, messageIndex] = ref.split("-").map(Number);
+            const thread = communicationHistory[threadIndex - 1];
+            if (thread?.content?.[messageIndex - 1]) {
+              const message = thread.content[messageIndex - 1];
+              referenceContexts[ref] = `Previous message: ${message.content}`;
+            }
+          } else if (ref.startsWith("summary-paragraph-")) {
+            const paragraphIndex = parseInt(ref.split("-")[2]) - 1;
+            const paragraphs = organization?.websiteSummary?.split(/\n\s*\n/) || [];
+            if (paragraphs[paragraphIndex]) {
+              referenceContexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
+            }
+          }
+        });
+      });
+
       return {
         donorId: donor.id,
         subject: parsedResponse.subject,
         structuredContent: parsedResponse.content,
+        referenceContexts,
       };
     } catch (parseError) {
       logger.error("Failed to parse AI response as JSON", {
         donorId: donor.id,
-        aiResponse: aiResponse, // Log the raw response for debugging
+        aiResponse: aiResponse,
         error: parseError instanceof Error ? parseError.message : "Unknown parsing error",
       });
       throw new Error(
@@ -109,9 +141,8 @@ export async function generateDonorEmail(options: GenerateEmailOptions): Promise
       donorId: donor.id,
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    // Ensure the error is re-thrown so callers can handle it
     if (error instanceof Error && error.message.startsWith("AI did not return valid JSON")) {
-      throw error; // rethrow parsing error
+      throw error;
     }
     throw new Error(`Email generation failed for donor ${donor.id}: ${error instanceof Error ? error.message : error}`);
   }

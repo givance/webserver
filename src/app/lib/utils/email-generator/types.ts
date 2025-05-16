@@ -63,6 +63,7 @@ export interface GeneratedEmail {
   donorId: number;
   subject: string; // The email subject line
   structuredContent: EmailPiece[];
+  referenceContexts: Record<string, string>; // Map of reference IDs to their context
 }
 
 // Re-exporting RawCommunicationHistory if its definition is needed by consumers of these types.
