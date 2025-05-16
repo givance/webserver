@@ -38,7 +38,7 @@ Your task is to generate an email based on the provided context and instructions
 The output MUST be a valid JSON object with two fields:
 1. "subject": A string containing a compelling subject line for the email
 2. "content": An array of objects, where each object has:
-   - "piece": A string segment of the email (like a sentence or paragraph)
+   - "piece": A string segment of the email (like a sentence or paragraph). IMPORTANT: Do NOT include reference IDs in the text.
    - "references": An array of context IDs that informed that piece (e.g., ["donation-01", "summary-paragraph-02"])
    - "addNewlineAfter": A boolean indicating if a newline should be added after this piece
 
@@ -47,14 +47,16 @@ Example of the required JSON output format:
   "subject": "Your Impact on Families in Need",
   "content": [
     { "piece": "Dear John,", "references": [], "addNewlineAfter": true },
-    { "piece": "Thank you for your continued support, especially your generous gift referenced by [donation-01].", "references": ["donation-01"], "addNewlineAfter": true },
-    { "piece": "Your contribution has helped us achieve goals outlined in [summary-paragraph-03].", "references": ["summary-paragraph-03"], "addNewlineAfter": false },
-    { "piece": "We would love for you to consider supporting our new initiative mentioned in our recent communication [comm-02-01].", "references": ["comm-02-01"], "addNewlineAfter": true },
+    { "piece": "Thank you for your continued support, especially your generous gift last month.", "references": ["donation-01"], "addNewlineAfter": true },
+    { "piece": "Your contribution has helped us achieve our community outreach goals.", "references": ["summary-paragraph-03"], "addNewlineAfter": false },
+    { "piece": "We would love for you to consider supporting our new youth initiative.", "references": ["comm-02-01"], "addNewlineAfter": true },
     { "piece": "Please let us know if you have any questions.", "references": [], "addNewlineAfter": true },
     { "piece": "Best regards,", "references": [], "addNewlineAfter": true },
     { "piece": "Sarah", "references": [], "addNewlineAfter": false }
   ]
 }
+
+IMPORTANT: Never include reference IDs (like [donation-01] or [comm-02-01]) in the "piece" text. The references array is used to track which context informed each piece, but the IDs should not appear in the actual email text.
 
 Guidelines for the subject line:
 1. Keep it under 50 characters

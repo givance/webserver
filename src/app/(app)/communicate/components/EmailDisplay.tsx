@@ -16,17 +16,36 @@ interface EmailDisplayProps {
   referenceContexts: Record<string, string>; // Map of reference IDs to their context
 }
 
-function ReferenceTooltip({ referenceId, context }: { referenceId: string; context: string }) {
+interface ReferencesDisplayProps {
+  references: string[];
+  referenceContexts: Record<string, string>;
+}
+
+function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayProps) {
+  if (references.length === 0) return null;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="secondary" className="ml-2 cursor-help">
-            {referenceId}
+          <Badge
+            variant="secondary"
+            className="cursor-help text-[10px] h-[16px] px-1 py-0 ml-0.5 relative -top-[1px] inline-flex items-center"
+          >
+            {references.length}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent>
-          <p className="max-w-xs whitespace-pre-wrap text-sm">{context}</p>
+        <TooltipContent className="max-w-sm">
+          <div className="space-y-2">
+            {references.map((ref) => (
+              <div key={ref} className="text-sm">
+                <div className="font-medium">{ref}</div>
+                <div className="text-muted-foreground whitespace-pre-wrap">
+                  {referenceContexts[ref] || "Context not available"}
+                </div>
+              </div>
+            ))}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -45,19 +64,9 @@ export function EmailDisplay({ donorName, donorEmail, subject, content, referenc
       <CardContent>
         <div className="space-y-2 text-sm font-sans">
           {content.map((piece, index) => (
-            <div key={index} className="flex flex-wrap items-start gap-1">
-              <div className={`flex flex-wrap gap-1 ${piece.addNewlineAfter ? "mb-4" : ""}`}>
-                <p className="whitespace-pre-wrap">{piece.piece}</p>
-                <div className="flex flex-wrap gap-1">
-                  {piece.references.map((ref) => (
-                    <ReferenceTooltip
-                      key={ref}
-                      referenceId={ref}
-                      context={referenceContexts[ref] || "Context not available"}
-                    />
-                  ))}
-                </div>
-              </div>
+            <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+              <span className="whitespace-pre-wrap">{piece.piece}</span>
+              <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts} />
             </div>
           ))}
         </div>

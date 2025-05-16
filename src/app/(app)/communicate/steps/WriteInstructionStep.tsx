@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
 import { useDonations } from "@/app/hooks/use-donations";
-import { DonationInfo } from "@/app/lib/utils/email-generator/types";
+import type { DonationWithDetails } from "@/app/lib/data/donations";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -61,7 +61,7 @@ export function WriteInstructionStep({
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
   const [communicationHistory, setCommunicationHistory] = useState<Record<number, CommunicationHistoryItem[]>>({});
-  const [donationHistory, setDonationHistory] = useState<Record<number, DonationInfo[]>>({});
+  const [donationHistory, setDonationHistory] = useState<Record<number, DonationWithDetails[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
 
   const { getDonorQuery } = useDonors();
@@ -117,7 +117,7 @@ export function WriteInstructionStep({
   // Fetch donation history for each donor
   useEffect(() => {
     const fetchDonationHistory = async () => {
-      const history: Record<number, DonationInfo[]> = {};
+      const history: Record<number, DonationWithDetails[]> = {};
 
       for (const donorId of selectedDonors) {
         const { data: donations } = await listDonations({
@@ -127,20 +127,7 @@ export function WriteInstructionStep({
         });
 
         if (donations?.donations) {
-          history[donorId] = donations.donations.map((d) => ({
-            id: String(d.id),
-            amount: d.amount,
-            date: d.date instanceof Date ? d.date : new Date(d.date || d.createdAt),
-            project: d.project
-              ? {
-                  id: d.project.id,
-                  name: d.project.name,
-                  description: d.project.description || null,
-                  goal: d.project.goal || null,
-                  status: d.project.active ? "active" : "inactive",
-                }
-              : null,
-          }));
+          history[donorId] = donations.donations;
         }
       }
 
@@ -154,10 +141,13 @@ export function WriteInstructionStep({
   const buildReferenceContexts = (
     email: GeneratedEmail,
     donorHistory: CommunicationHistoryItem[],
-    donorDonations: DonationInfo[],
+    donorDonations: DonationWithDetails[],
     websiteSummary: string | null
   ): Record<string, string> => {
     const contexts: Record<string, string> = {};
+
+    // Sort donations by date (most recent first) to match the AI's reference order
+    const sortedDonations = [...donorDonations].sort((a, b) => b.date.getTime() - a.date.getTime());
 
     // Collect all unique references
     const allRefs = new Set(email.structuredContent.flatMap((piece) => piece.references));
@@ -182,7 +172,7 @@ export function WriteInstructionStep({
       } else if (ref.startsWith("donation-")) {
         // Find the corresponding donation
         const donationIndex = parseInt(ref.split("-")[1]) - 1;
-        const donation = donorDonations[donationIndex];
+        const donation = sortedDonations[donationIndex];
         if (donation) {
           const amount = (donation.amount / 100).toLocaleString("en-US", {
             style: "currency",
@@ -210,13 +200,29 @@ export function WriteInstructionStep({
         const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
         if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
+        // Transform donation history to match expected format
+        const transformedDonationHistory = (donationHistory[donorId] || []).map((d, index) => ({
+          id: `donation-${index + 1}`,
+          amount: d.amount,
+          date: d.date,
+          project: d.project
+            ? {
+                id: d.project.id,
+                name: d.project.name,
+                description: d.project.description || null,
+                goal: d.project.goal || null,
+                status: d.project.active ? "active" : "inactive",
+              }
+            : null,
+        }));
+
         return {
           id: donor.id,
           firstName: donor.firstName,
           lastName: donor.lastName,
           email: donor.email,
           history: communicationHistory[donorId] || [],
-          donationHistory: donationHistory[donorId] || [],
+          donationHistory: transformedDonationHistory,
         };
       });
 
