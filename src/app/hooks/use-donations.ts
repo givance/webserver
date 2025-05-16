@@ -37,6 +37,7 @@ export function useDonations() {
 
   // Query hooks
   const getDonationById = trpc.donations.getById.useQuery;
+  const list = trpc.donations.list.useQuery;
 
   // Mutation hooks
   const createMutation = trpc.donations.create.useMutation({
@@ -100,18 +101,10 @@ export function useDonations() {
     }
   };
 
-  const listDonations = (options: ListDonationsOptions) => {
-    return trpc.donations.list.useQuery(options) as unknown as {
-      data?: ListDonationsResponse;
-      isLoading: boolean;
-      error: Error | null;
-    };
-  };
-
   return {
     // Query functions
     getDonationById,
-    listDonations,
+    list,
 
     // Mutation functions
     createDonation,

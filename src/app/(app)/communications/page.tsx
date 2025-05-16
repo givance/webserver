@@ -28,14 +28,14 @@ function CommunicationsContent() {
   const donorId = searchParams.get("donorId");
   const channel = searchParams.get("channel");
 
-  const { listCommunicationThreads } = useCommunications();
+  const { listThreads } = useCommunications();
 
   // Fetch threads based on current page, page size, and filters
   const {
     data: listThreadsResponse,
     isLoading,
     error,
-  } = listCommunicationThreads({
+  } = listThreads({
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
     staffId: staffId && staffId !== "all" ? Number(staffId) : undefined,
@@ -53,7 +53,39 @@ function CommunicationsContent() {
 
   const { threads, totalCount } = React.useMemo(() => {
     return {
-      threads: listThreadsResponse?.threads || [],
+      threads: listThreadsResponse?.threads
+        ? listThreadsResponse.threads.map((thread) => ({
+            ...thread,
+            createdAt: new Date(thread.createdAt),
+            updatedAt: new Date(thread.updatedAt),
+            donors: thread.donors?.map((donor) => ({
+              ...donor,
+              donor: donor.donor
+                ? {
+                    ...donor.donor,
+                    createdAt: new Date(donor.donor.createdAt),
+                    updatedAt: new Date(donor.donor.updatedAt),
+                  }
+                : undefined,
+            })),
+            staff: thread.staff?.map((staff) => ({
+              ...staff,
+              staff: staff.staff
+                ? {
+                    ...staff.staff,
+                    createdAt: new Date(staff.staff.createdAt),
+                    updatedAt: new Date(staff.staff.updatedAt),
+                  }
+                : undefined,
+            })),
+            content: thread.content?.map((msg) => ({
+              ...msg,
+              datetime: new Date(msg.datetime),
+              createdAt: new Date(msg.createdAt),
+              updatedAt: new Date(msg.updatedAt),
+            })),
+          }))
+        : [],
       totalCount: listThreadsResponse?.totalCount || 0,
     };
   }, [listThreadsResponse]);

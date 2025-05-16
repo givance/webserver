@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -66,45 +66,65 @@ export function WriteInstructionStep({
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
-  const { getThread, listCommunicationThreads, generateEmails, isGeneratingEmails } = useCommunications();
-  const { listDonations } = useDonations();
+  const { getThread, listThreads, generateEmails, isGeneratingEmails } = useCommunications();
+  const { list: listDonations } = useDonations();
 
   // Pre-fetch donor data for all selected donors
   const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
   const orgQuery = getOrganization();
 
-  // Fetch communication history for each donor
+  // Query threads for all selected donors
+  const threadsQuery = listThreads(
+    {
+      donorId: selectedDonors[0], // We'll handle multiple donors in the effect
+      includeDonors: true,
+      includeLatestMessage: true,
+      limit: selectedDonors.length * 10, // Increase limit to accommodate all donors
+    },
+    {
+      enabled: selectedDonors.length > 0,
+    }
+  );
+
+  // Query donations for all selected donors
+  const donationsQuery = listDonations(
+    {
+      donorId: selectedDonors[0], // We'll handle multiple donors in the effect
+      includeProject: true,
+      limit: selectedDonors.length * 30, // Increase limit to accommodate all donors
+    },
+    {
+      enabled: selectedDonors.length > 0,
+    }
+  );
+
+  // Process thread data when queries complete
   useEffect(() => {
     const fetchCommunicationHistory = async () => {
       const history: Record<number, { content: string; datetime: string }[]> = {};
 
-      for (const donorId of selectedDonors) {
-        const { data: threads } = await listCommunicationThreads({
-          donorId,
-          includeDonors: true,
-          includeLatestMessage: true,
-          limit: 10, // Get last 10 threads
-        });
+      if (threadsQuery.data?.threads) {
+        for (const thread of threadsQuery.data.threads) {
+          const donorId = thread.donors?.[0]?.donorId;
+          if (!donorId) continue;
 
-        if (threads?.threads) {
-          const messages: { content: string; datetime: string }[] = [];
-          for (const thread of threads.threads) {
-            const { data: threadData } = await getThread({
-              id: thread.id,
-              includeMessages: true,
-            });
-
-            // Get messages from the thread content
-            if (threadData?.content) {
-              messages.push(
-                ...threadData.content.map((msg) => ({
-                  content: msg.content,
-                  datetime: new Date(msg.datetime).toISOString(),
-                }))
-              );
-            }
+          if (!history[donorId]) {
+            history[donorId] = [];
           }
-          history[donorId] = messages;
+
+          const threadData = await getThread({
+            id: thread.id,
+            includeMessages: true,
+          });
+
+          if (threadData.data?.content) {
+            history[donorId].push(
+              ...threadData.data.content.map((msg) => ({
+                content: msg.content,
+                datetime: new Date(msg.datetime).toISOString(),
+              }))
+            );
+          }
         }
       }
 
@@ -112,22 +132,40 @@ export function WriteInstructionStep({
     };
 
     fetchCommunicationHistory();
-  }, [selectedDonors, listCommunicationThreads, getThread]);
+  }, [selectedDonors, threadsQuery.data, getThread]);
 
-  // Fetch donation history for each donor
+  // Process donation data when queries complete
   useEffect(() => {
     const fetchDonationHistory = async () => {
       const history: Record<number, DonationWithDetails[]> = {};
 
-      for (const donorId of selectedDonors) {
-        const { data: donations } = await listDonations({
-          donorId,
-          includeProject: true,
-          limit: 30,
-        });
+      if (donationsQuery.data?.donations) {
+        for (const donation of donationsQuery.data.donations) {
+          const donorId = donation.donorId;
+          if (!history[donorId]) {
+            history[donorId] = [];
+          }
 
-        if (donations?.donations) {
-          history[donorId] = donations.donations;
+          history[donorId].push({
+            ...donation,
+            date: new Date(donation.date),
+            createdAt: new Date(donation.createdAt),
+            updatedAt: new Date(donation.updatedAt),
+            donor: donation.donor
+              ? {
+                  ...donation.donor,
+                  createdAt: new Date(donation.donor.createdAt),
+                  updatedAt: new Date(donation.donor.updatedAt),
+                }
+              : undefined,
+            project: donation.project
+              ? {
+                  ...donation.project,
+                  createdAt: new Date(donation.project.createdAt),
+                  updatedAt: new Date(donation.project.updatedAt),
+                }
+              : undefined,
+          });
         }
       }
 
@@ -135,7 +173,7 @@ export function WriteInstructionStep({
     };
 
     fetchDonationHistory();
-  }, [selectedDonors, listDonations]);
+  }, [selectedDonors, donationsQuery.data]);
 
   const handleSubmitInstruction = async () => {
     if (!instruction.trim()) return;
@@ -250,9 +288,7 @@ export function WriteInstructionStep({
                           "w-full h-[80px] p-4 rounded-lg",
                           "flex flex-col items-start justify-center gap-1",
                           "text-left",
-                          "transition-all duration-200",
-                          "data-[state=active]:bg-black data-[state=active]:text-white",
-                          "data-[state=inactive]:bg-background hover:bg-muted"
+                          "transition-all duration-200"
                         )}
                       >
                         <span className="font-medium">

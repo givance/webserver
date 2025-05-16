@@ -29,7 +29,7 @@ function DonationsContent() {
   const donorId = searchParams.get("donorId") ? Number(searchParams.get("donorId")) : undefined;
   const projectId = searchParams.get("projectId") ? Number(searchParams.get("projectId")) : undefined;
 
-  const { listDonations } = useDonations();
+  const { list: listDonations } = useDonations();
 
   // Fetch donations based on current page, page size, and filters
   const {
@@ -52,7 +52,28 @@ function DonationsContent() {
 
   const { donations, totalCount } = React.useMemo(() => {
     return {
-      donations: listDonationsResponse?.donations || [],
+      donations: listDonationsResponse?.donations
+        ? listDonationsResponse.donations.map((donation) => ({
+            ...donation,
+            date: new Date(donation.date),
+            createdAt: new Date(donation.createdAt),
+            updatedAt: new Date(donation.updatedAt),
+            donor: donation.donor
+              ? {
+                  ...donation.donor,
+                  createdAt: new Date(donation.donor.createdAt),
+                  updatedAt: new Date(donation.donor.updatedAt),
+                }
+              : undefined,
+            project: donation.project
+              ? {
+                  ...donation.project,
+                  createdAt: new Date(donation.project.createdAt),
+                  updatedAt: new Date(donation.project.updatedAt),
+                }
+              : undefined,
+          }))
+        : [],
       totalCount: listDonationsResponse?.totalCount || 0,
     };
   }, [listDonationsResponse]);

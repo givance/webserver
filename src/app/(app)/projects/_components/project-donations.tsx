@@ -35,7 +35,7 @@ export function ProjectDonations({ projectId }: ProjectDonationsProps) {
   const [searchTermInput, setSearchTermInput] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
 
-  const { listDonations } = useDonations();
+  const { list: listDonations } = useDonations();
   const {
     data: listDonationsResponse,
     isLoading,

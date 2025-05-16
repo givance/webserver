@@ -56,14 +56,6 @@ export function useCommunications() {
 
   const generateEmailsMutation = trpc.communications.generateEmails.useMutation();
 
-  const listCommunicationThreads = (options: ListThreadsOptions) => {
-    return trpc.communications.listThreads.useQuery(options) as unknown as {
-      data?: ListThreadsResponse;
-      isLoading: boolean;
-      error: Error | null;
-    };
-  };
-
   /**
    * Create a new communication thread
    * @param input The thread data to create
@@ -126,7 +118,5 @@ export function useCommunications() {
     createThreadResult: createThreadMutation.data,
     addMessageResult: addMessageMutation.data,
     generateEmailsResult: generateEmailsMutation.data,
-
-    listCommunicationThreads,
   };
 }
