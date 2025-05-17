@@ -32,12 +32,24 @@ export class EmailGenerationService implements EmailGeneratorTool {
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
     donationHistories: Record<number, DonationWithDetails[]> = {}
   ): Promise<GeneratedEmail[]> {
-    logger.info(
-      `Starting batch generation of emails. Number of donors: ${donors.length}. Refined instruction: "${refinedInstruction}".`
-    );
+    logger.info("Starting batch email generation:", {
+      donorCount: donors.length,
+      refinedInstruction,
+      organizationName,
+      hasOrganization: !!organization,
+      hasWritingInstructions: !!organizationWritingInstructions,
+      communicationHistoriesCount: Object.keys(communicationHistories).length,
+      donationHistoriesCount: Object.keys(donationHistories).length,
+    });
 
     const emailPromises = donors.map(async (donor) => {
       const donorCommHistory = communicationHistories[donor.id] || [];
+      logger.info(`Processing donor ${donor.id}:`, {
+        firstName: donor.firstName,
+        lastName: donor.lastName,
+        commHistoryCount: donorCommHistory.length,
+        donationHistoryCount: donationHistories[donor.id]?.length || 0,
+      });
 
       return await this.generateDonorEmail({
         donor,
@@ -48,9 +60,11 @@ export class EmailGenerationService implements EmailGeneratorTool {
         communicationHistory: donorCommHistory,
         donationHistory: donationHistories[donor.id] || [],
       }).catch((error) => {
-        logger.error(`Failed to generate email for donor ${donor.id} in batch`, {
+        logger.error(`Failed to generate email for donor ${donor.id}`, {
           donorId: donor.id,
           error: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+          type: error instanceof Error ? error.constructor.name : typeof error,
         });
         throw error;
       });
@@ -58,11 +72,16 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
     try {
       const results = await Promise.all(emailPromises);
-      logger.info(`Successfully generated batch of ${results.length} emails.`);
+      logger.info("Successfully generated all emails:", {
+        totalEmails: results.length,
+        donorIds: results.map((r) => r.donorId),
+      });
       return results;
     } catch (batchError) {
-      logger.error("Error during batch email generation.", {
+      logger.error("Error during batch email generation:", {
         error: batchError instanceof Error ? batchError.message : "Unknown batch error",
+        stack: batchError instanceof Error ? batchError.stack : undefined,
+        type: batchError instanceof Error ? batchError.constructor.name : typeof batchError,
       });
       throw batchError;
     }
@@ -81,6 +100,15 @@ export class EmailGenerationService implements EmailGeneratorTool {
       communicationHistory,
       donationHistory = [],
     } = options;
+
+    logger.info(`Starting email generation for donor ${donor.id}:`, {
+      instruction,
+      organizationName,
+      hasOrganization: !!organization,
+      hasWritingInstructions: !!organizationWritingInstructions,
+      communicationHistoryCount: communicationHistory?.length || 0,
+      donationHistoryCount: donationHistory.length,
+    });
 
     // Sort donations and prepare reference contexts
     const sortedDonations = [...donationHistory].sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -108,26 +136,43 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationHistory
     );
 
-    logger.info(
-      `Generating email for donor ${donor.id} (${donor.firstName} ${
-        donor.lastName
-      }) with refined instruction: "${instruction}". Donation history count: ${
-        donationHistory?.length || 0
-      }. Communication history count: ${communicationHistory?.length || 0}.`
-    );
+    logger.info(`Built email prompt for donor ${donor.id}:`, {
+      promptLength: prompt.length,
+      donationContextsCount: Object.keys(donationContexts).length,
+      model: env.MID_MODEL,
+    });
 
     try {
+      logger.info(`Sending prompt to OpenAI for donor ${donor.id}`);
       const { text: aiResponse } = await generateText({
         model: openai(env.MID_MODEL),
         prompt,
+      }).catch((error) => {
+        logger.error(`OpenAI API call failed for donor ${donor.id}:`, {
+          error: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+          type: error instanceof Error ? error.constructor.name : typeof error,
+        });
+        throw error;
+      });
+
+      logger.info(`Received OpenAI response for donor ${donor.id}:`, {
+        responseLength: aiResponse?.length || 0,
+        firstFewChars: aiResponse?.substring(0, 100) + "...",
       });
 
       try {
+        const trimmedResponse = aiResponse.trim();
+        logger.info(`Parsing JSON response for donor ${donor.id}:`, {
+          trimmedLength: trimmedResponse.length,
+          firstFewChars: trimmedResponse.substring(0, 50) + "...",
+        });
+
         interface AIResponse {
           subject: string;
           content: EmailPiece[];
         }
-        const parsedResponse = JSON.parse(aiResponse.trim()) as AIResponse;
+        const parsedResponse = JSON.parse(trimmedResponse) as AIResponse;
 
         if (
           !parsedResponse ||
@@ -141,6 +186,14 @@ export class EmailGenerationService implements EmailGeneratorTool {
               typeof item.addNewlineAfter === "boolean"
           )
         ) {
+          logger.error(`Invalid response structure for donor ${donor.id}:`, {
+            hasResponse: !!parsedResponse,
+            isObject: typeof parsedResponse === "object",
+            hasSubject: !!parsedResponse?.subject,
+            hasContent: Array.isArray(parsedResponse?.content),
+            contentLength: parsedResponse?.content?.length,
+            response: parsedResponse,
+          });
           throw new Error("AI response is not in the expected JSON format with subject and structured content.");
         }
 
@@ -169,6 +222,12 @@ export class EmailGenerationService implements EmailGeneratorTool {
           });
         });
 
+        logger.info(`Successfully generated email for donor ${donor.id}:`, {
+          subjectLength: parsedResponse.subject.length,
+          contentPieces: parsedResponse.content.length,
+          referenceContextsCount: Object.keys(referenceContexts).length,
+        });
+
         return {
           donorId: donor.id,
           subject: parsedResponse.subject,
@@ -176,26 +235,22 @@ export class EmailGenerationService implements EmailGeneratorTool {
           referenceContexts,
         };
       } catch (parseError) {
-        logger.error("Failed to parse AI response as JSON", {
-          donorId: donor.id,
-          aiResponse: aiResponse,
+        logger.error(`Failed to parse AI response for donor ${donor.id}:`, {
           error: parseError instanceof Error ? parseError.message : "Unknown parsing error",
+          stack: parseError instanceof Error ? parseError.stack : undefined,
+          aiResponse,
         });
         throw new Error(
-          `AI did not return valid JSON. Parse error: ${parseError instanceof Error ? parseError.message : parseError}`
+          `Failed to parse email generation response: ${parseError instanceof Error ? parseError.message : parseError}`
         );
       }
     } catch (error) {
-      logger.error("Failed to generate email", {
-        donorId: donor.id,
+      logger.error(`Failed to generate email for donor ${donor.id}:`, {
         error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+        type: error instanceof Error ? error.constructor.name : typeof error,
       });
-      if (error instanceof Error && error.message.startsWith("AI did not return valid JSON")) {
-        throw error;
-      }
-      throw new Error(
-        `Email generation failed for donor ${donor.id}: ${error instanceof Error ? error.message : error}`
-      );
+      throw error;
     }
   }
 }

@@ -21,6 +21,13 @@ export class InstructionRefinementAgent {
   async refineInstruction(input: InstructionRefinementInput): Promise<InstructionRefinementResult> {
     const { userInstruction, previousInstruction, userFeedback } = input;
 
+    logger.info("Starting instruction refinement with:", {
+      userInstruction,
+      previousInstruction: previousInstruction || "none",
+      userFeedback: userFeedback || "none",
+      modelName: env.MID_MODEL,
+    });
+
     const prompt = `You are an AI assistant helping to refine instructions for email generation. 
 Your task is to analyze the user's instruction and feedback (if any) to create a clear, specific instruction 
 that will help generate better personalized emails.
@@ -40,33 +47,58 @@ Respond in JSON format:
 }`;
 
     try {
-      logger.info(
-        `Refining instruction with input: "${userInstruction}". Previous instruction: ${
-          previousInstruction || "none"
-        }. Feedback: ${userFeedback || "none"}`
-      );
+      logger.info("Sending prompt to OpenAI:", {
+        promptLength: prompt.length,
+        model: env.MID_MODEL,
+      });
 
       const { text: aiResponse } = await generateText({
         model: openai(env.MID_MODEL),
         prompt,
+      }).catch((error) => {
+        logger.error("OpenAI API call failed:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          errorObject: error,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        console.log(error);
+        throw error;
+      });
+
+      logger.info("Received response from OpenAI:", {
+        responseLength: aiResponse?.length || 0,
+        response: aiResponse?.substring(0, 100) + "...", // Log first 100 chars
       });
 
       try {
-        const parsedResponse = JSON.parse(aiResponse.trim()) as InstructionRefinementResult;
+        const trimmedResponse = aiResponse.trim();
+        logger.info("Attempting to parse JSON response:", {
+          trimmedLength: trimmedResponse.length,
+          firstFewChars: trimmedResponse.substring(0, 50) + "...",
+        });
+
+        const parsedResponse = JSON.parse(trimmedResponse) as InstructionRefinementResult;
 
         if (!parsedResponse?.refinedInstruction || !parsedResponse?.reasoning) {
+          logger.error("Invalid response structure:", {
+            hasRefinedInstruction: !!parsedResponse?.refinedInstruction,
+            hasReasoning: !!parsedResponse?.reasoning,
+            parsedResponse,
+          });
           throw new Error("AI response missing required fields");
         }
 
-        logger.info(
-          `Successfully refined instruction. Original: "${userInstruction}". Refined: "${parsedResponse.refinedInstruction}"`
-        );
+        logger.info("Successfully parsed and validated response:", {
+          refinedInstructionLength: parsedResponse.refinedInstruction.length,
+          reasoningLength: parsedResponse.reasoning.length,
+        });
 
         return parsedResponse;
       } catch (parseError) {
         logger.error("Failed to parse AI response for instruction refinement", {
           aiResponse,
           error: parseError instanceof Error ? parseError.message : "Unknown parsing error",
+          stack: parseError instanceof Error ? parseError.stack : undefined,
         });
         throw new Error(
           `Failed to parse instruction refinement response: ${
@@ -77,6 +109,8 @@ Respond in JSON format:
     } catch (error) {
       logger.error("Failed to refine instruction", {
         error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+        type: error instanceof Error ? error.constructor.name : typeof error,
       });
       throw new Error(`Instruction refinement failed: ${error instanceof Error ? error.message : error}`);
     }
