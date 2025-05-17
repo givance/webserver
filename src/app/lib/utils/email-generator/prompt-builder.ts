@@ -27,7 +27,6 @@ export function buildEmailPrompt(
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = []
 ): string {
-  console.log("donationHistoryInput", donationHistoryInput);
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
