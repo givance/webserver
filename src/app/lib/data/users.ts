@@ -100,6 +100,11 @@ export async function updateUserMemory(id: string, memory: string[]): Promise<Us
   return result[0];
 }
 
+export async function getUserMemories(id: string): Promise<string[]> {
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0].memory || [];
+}
+
 // Potentially add a function to delete a user if necessary,
 // though this might also be primarily handled by Clerk.
 // export async function deleteUser(id: string): Promise<void> {

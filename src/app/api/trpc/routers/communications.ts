@@ -18,7 +18,7 @@ import { getStaffById } from "@/app/lib/data/staff";
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { env } from "@/app/lib/env";
-import { getOrganizationById } from "@/app/lib/data/organizations";
+import { getOrganizationById, getOrganizationMemories } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { DonationWithDetails, getDonationById, listDonations } from "@/app/lib/data/donations";
@@ -27,6 +27,7 @@ import { db } from "@/app/lib/db";
 import { organizations, donations, projects } from "@/app/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { DonationInfo, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { getUserMemories } from "@/app/lib/data/users";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -550,6 +551,9 @@ export const communicationsRouter = router({
           })}`
         );
 
+        const userMemories = await getUserMemories(ctx.auth.user.id);
+        const organizationMemories = await getOrganizationMemories(ctx.auth.user.organizationId);
+
         const result = await generateSmartDonorEmails(
           donors,
           instruction,
@@ -559,7 +563,9 @@ export const communicationsRouter = router({
           previousInstruction,
           undefined,
           communicationHistories,
-          donationHistories
+          donationHistories,
+          userMemories,
+          organizationMemories
         );
 
         logger.info(`Instruction refined: ${result.refinedInstruction}. Reasoning: ${result.reasoning}`);

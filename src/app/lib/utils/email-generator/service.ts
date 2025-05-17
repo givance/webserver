@@ -30,7 +30,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
     organization: Organization | null,
     organizationWritingInstructions?: string,
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
-    donationHistories: Record<number, DonationWithDetails[]> = {}
+    donationHistories: Record<number, DonationWithDetails[]> = {},
+    personalMemories: string[] = [],
+    organizationalMemories: string[] = []
   ): Promise<GeneratedEmail[]> {
     logger.info("Starting batch email generation:", {
       donorCount: donors.length,
@@ -59,6 +61,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
         organizationWritingInstructions,
         communicationHistory: donorCommHistory,
         donationHistory: donationHistories[donor.id] || [],
+        personalMemories,
+        organizationalMemories,
       }).catch((error) => {
         logger.error(`Failed to generate email for donor ${donor.id}`, {
           donorId: donor.id,
@@ -99,6 +103,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationWritingInstructions,
       communicationHistory,
       donationHistory = [],
+      personalMemories,
+      organizationalMemories,
     } = options;
 
     logger.info(`Starting email generation for donor ${donor.id}:`, {
@@ -133,8 +139,12 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organization,
       organizationWritingInstructions,
       communicationHistory as RawCommunicationThread[],
-      donationHistory
+      donationHistory,
+      personalMemories,
+      organizationalMemories
     );
+
+    console.log(prompt);
 
     logger.info(`Built email prompt for donor ${donor.id}:`, {
       promptLength: prompt.length,

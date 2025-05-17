@@ -25,7 +25,9 @@ export function buildEmailPrompt(
   organization: Organization | null,
   organizationWritingInstructions?: string,
   communicationHistoryInput: RawCommunicationThread[] = [],
-  donationHistoryInput: DonationWithDetails[] = []
+  donationHistoryInput: DonationWithDetails[] = [],
+  personalMemories: string[] = [],
+  organizationalMemories: string[] = []
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
@@ -63,6 +65,12 @@ Guidelines for the subject line:
 3. Avoid spam trigger words like "free", "urgent", etc.
 4. If referencing a specific project or impact, use that in the subject
 5. Make it personal when appropriate
+
+Instructions from Personal Memories: 
+${personalMemories.join("\n")}
+
+Instructions from Organization Memories: 
+${organizationalMemories.join("\n")}
 
 Organization: ${organizationName}
 ${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}

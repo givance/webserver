@@ -51,6 +51,8 @@ export interface GenerateEmailOptions {
   organizationWritingInstructions?: string;
   communicationHistory: RawCommunicationHistory[]; // Will be processed
   donationHistory?: DonationWithDetails[]; // Will be processed
+  personalMemories?: string[];
+  organizationalMemories?: string[];
 }
 
 export interface EmailPiece {

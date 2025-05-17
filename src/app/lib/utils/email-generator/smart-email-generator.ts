@@ -2,6 +2,8 @@ import { DonationWithDetails } from "../../data/donations";
 import { EmailGenerationService } from "./service";
 import { InstructionRefinementAgent } from "./instruction-agent";
 import { DonorInfo, Organization, RawCommunicationThread } from "./types";
+import { getOrganizationMemories } from "../../data/organizations";
+import { getUserMemories } from "../../data/users";
 
 /**
  * Generates personalized donor emails using a two-agent system:
@@ -28,7 +30,9 @@ export async function generateSmartDonorEmails(
   previousInstruction?: string,
   userFeedback?: string,
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
-  donationHistories: Record<number, DonationWithDetails[]> = {}
+  donationHistories: Record<number, DonationWithDetails[]> = {},
+  userMemories: string[] = [],
+  organizationMemories: string[] = []
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -55,7 +59,6 @@ export async function generateSmartDonorEmails(
     previousInstruction,
     userFeedback,
   });
-
   // Then, use the refined instruction to generate emails using the second agent
   const emails = await emailGenerator.generateEmails(
     donors,
@@ -64,7 +67,9 @@ export async function generateSmartDonorEmails(
     organization,
     organizationWritingInstructions,
     communicationHistories,
-    donationHistories
+    donationHistories,
+    userMemories,
+    organizationMemories
   );
 
   // Return both the refinement information and the generated emails

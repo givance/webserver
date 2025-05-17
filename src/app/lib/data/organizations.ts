@@ -215,3 +215,8 @@ export async function getUserOrganizations(userId: string): Promise<UserOrganiza
     throw new Error("Could not retrieve user organizations.");
   }
 }
+
+export async function getOrganizationMemories(id: string): Promise<string[]> {
+  const result = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
+  return result[0].memory || [];
+}
