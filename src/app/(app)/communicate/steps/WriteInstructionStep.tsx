@@ -13,6 +13,7 @@ import { useDonations } from "@/app/hooks/use-donations";
 import type { DonationWithDetails } from "@/app/lib/data/donations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { SuggestedMemories } from "../components/SuggestedMemories";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -51,6 +52,7 @@ interface ReferenceContext {
 interface GenerateEmailsResponse {
   emails: GeneratedEmail[];
   refinedInstruction: string;
+  suggestedMemories?: string[];
 }
 
 export function WriteInstructionStep({
@@ -69,6 +71,7 @@ export function WriteInstructionStep({
   const [donationHistory, setDonationHistory] = useState<Record<number, DonationWithDetails[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
   const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
+  const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
@@ -185,9 +188,10 @@ export function WriteInstructionStep({
     if (!instruction.trim()) return;
 
     setIsGenerating(true);
-    // Clear existing emails and contexts when generating new ones
+    // Clear existing emails, contexts, and memories when generating new ones
     setGeneratedEmails([]);
     setReferenceContexts({});
+    setSuggestedMemories([]);
     setChatMessages((prev) => [...prev, { role: "user", content: instruction }]);
 
     try {
@@ -238,6 +242,7 @@ export function WriteInstructionStep({
         const typedResult = result as GenerateEmailsResponse;
         setGeneratedEmails(typedResult.emails);
         setPreviousInstruction(typedResult.refinedInstruction);
+        setSuggestedMemories(typedResult.suggestedMemories || []);
         setReferenceContexts(
           typedResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
             acc[email.donorId] = email.referenceContexts;
@@ -361,15 +366,27 @@ export function WriteInstructionStep({
               </div>
 
               {chatMessages.map((message, index) => (
-                <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={index}
+                  className={cn("flex flex-col space-y-2", {
+                    "items-end": message.role === "user",
+                  })}
+                >
                   <div
-                    className={cn(
-                      "max-w-[80%] rounded-lg p-3",
-                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted/50"
-                    )}
+                    className={cn("rounded-lg px-3 py-2 max-w-[80%]", {
+                      "bg-primary text-primary-foreground": message.role === "user",
+                      "bg-muted": message.role === "assistant",
+                    })}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm">{message.content}</p>
                   </div>
+                  {message.role === "assistant" &&
+                    suggestedMemories.length > 0 &&
+                    index === chatMessages.length - 1 && (
+                      <div className="w-full mt-4">
+                        <SuggestedMemories memories={suggestedMemories} />
+                      </div>
+                    )}
                 </div>
               ))}
             </div>

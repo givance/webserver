@@ -105,6 +105,28 @@ export async function getUserMemories(id: string): Promise<string[]> {
   return result[0].memory || [];
 }
 
+/**
+ * Add a memory to the user's dismissed memories array
+ * @param id The user's ID
+ * @param memory The memory to dismiss
+ * @returns The updated user or undefined if not found
+ */
+export async function addDismissedMemory(id: string, memory: string): Promise<User | undefined> {
+  const user = await getUserById(id);
+  const currentDismissedMemories = user?.dismissedMemories || [];
+
+  const result = await db
+    .update(users)
+    .set({
+      dismissedMemories: [...currentDismissedMemories, memory],
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, id))
+    .returning();
+
+  return result[0];
+}
+
 // Potentially add a function to delete a user if necessary,
 // though this might also be primarily handled by Clerk.
 // export async function deleteUser(id: string): Promise<void> {

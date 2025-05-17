@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "dismissed_memories" text[];

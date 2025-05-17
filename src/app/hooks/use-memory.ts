@@ -41,6 +41,29 @@ export function useMemory() {
     },
   });
 
+  const { mutateAsync: dismissMemory } = trpc.users.dismissMemory.useMutation({
+    onMutate: async ({ memory }) => {
+      await queryClient.cancelQueries({ queryKey: ["users", "getCurrent"] });
+      const previousUser = queryClient.getQueryData(["users", "getCurrent"]);
+      queryClient.setQueryData(["users", "getCurrent"], (old: any) => ({
+        ...old,
+        dismissedMemories: [...(old?.dismissedMemories || []), memory],
+      }));
+      return { previousUser };
+    },
+    onSuccess: () => {
+      utils.users.getCurrent.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["users", "getCurrent"] });
+    },
+    onError: (err, newMemory, context) => {
+      queryClient.setQueryData(["users", "getCurrent"], context?.previousUser);
+      toast.error("Failed to dismiss memory. Please try again.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["users", "getCurrent"] });
+    },
+  });
+
   const addMemoryItem = useCallback(
     async (memoryItem: string) => {
       try {
@@ -87,11 +110,24 @@ export function useMemory() {
     [user?.memory, updateMemory]
   );
 
+  const dismissMemoryItem = useCallback(
+    async (memoryItem: string) => {
+      try {
+        await dismissMemory({ memory: memoryItem });
+      } catch (error) {
+        console.error("Failed to dismiss memory:", error);
+        throw error;
+      }
+    },
+    [dismissMemory]
+  );
+
   return {
     memory: user?.memory || [],
     addMemoryItem,
     updateMemoryItem,
     deleteMemoryItem,
+    dismissMemoryItem,
     isLoading,
   };
 }
