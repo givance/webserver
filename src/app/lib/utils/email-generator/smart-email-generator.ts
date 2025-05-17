@@ -46,6 +46,7 @@ export async function generateSmartDonorEmails(
     }>;
     referenceContexts: Record<string, string>;
   }>;
+  suggestedMemories?: string[];
 }> {
   // Create the email generation service
   const emailGenerator = new EmailGenerationService();
@@ -59,6 +60,7 @@ export async function generateSmartDonorEmails(
     previousInstruction,
     userFeedback,
   });
+
   // Then, use the refined instruction to generate emails using the second agent
   const emails = await emailGenerator.generateEmails(
     donors,
@@ -77,5 +79,6 @@ export async function generateSmartDonorEmails(
     refinedInstruction: refinementResult.refinedInstruction,
     reasoning: refinementResult.reasoning,
     emails,
+    suggestedMemories: refinementResult.suggestedMemories,
   };
 }

@@ -16,7 +16,7 @@ export class InstructionRefinementAgent {
    * Processes user input and feedback to generate refined instructions for email generation.
    *
    * @param input - Contains user instruction, previous instruction (if any), and feedback (if any)
-   * @returns Refined instruction and reasoning for the refinement
+   * @returns Refined instruction, reasoning, and suggested new memories
    */
   async refineInstruction(input: InstructionRefinementInput): Promise<InstructionRefinementResult> {
     const { userInstruction, previousInstruction, userFeedback } = input;
@@ -40,11 +40,13 @@ Your refined instruction should be a combination of both the previous and curren
     : ""
 }
 ${userFeedback ? `User feedback on previous result: "${userFeedback}"` : ""}
+
 Current user instruction: "${userInstruction}"
 
 Based on this information, please provide:
 1. A refined, specific instruction that combines and builds upon both the previous instruction (if any) and the current instruction
 2. A brief explanation of how you combined and enhanced both instructions
+3. Any potential new memories that could be useful for future email generation based on this user instruction and / or feedback.
 
 Your refined instruction MUST:
 - Maintain all requirements from the previous instruction (if any)
@@ -53,10 +55,16 @@ Your refined instruction MUST:
 - Be clear and specific about how to handle different cases
 - Not lose any important details from either instruction
 
+For potential memories:
+- Identify key preferences, patterns, or requirements from the instruction that could be useful for future emails
+- Focus on reusable information that could help with personalization or maintaining consistency
+- Do not decide if they should be personal or organizational - just suggest the memories
+
 Respond in JSON format:
 {
   "refinedInstruction": "your refined instruction here",
-  "reasoning": "your explanation here"
+  "reasoning": "your explanation here",
+  "suggestedMemories": ["memory1", "memory2", ...]
 }`;
 
     try {
@@ -104,6 +112,7 @@ Respond in JSON format:
         logger.info("Successfully parsed and validated response:", {
           refinedInstructionLength: parsedResponse.refinedInstruction.length,
           reasoningLength: parsedResponse.reasoning.length,
+          suggestedMemoriesCount: parsedResponse.suggestedMemories?.length || 0,
         });
 
         return parsedResponse;

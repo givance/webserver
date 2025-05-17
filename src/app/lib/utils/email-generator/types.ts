@@ -97,6 +97,7 @@ export interface InstructionRefinementInput {
 export interface InstructionRefinementResult {
   refinedInstruction: string;
   reasoning: string;
+  suggestedMemories?: string[];
 }
 
 export interface EmailGeneratorTool {

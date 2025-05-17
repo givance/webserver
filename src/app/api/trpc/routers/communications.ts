@@ -27,7 +27,8 @@ import { db } from "@/app/lib/db";
 import { organizations, donations, projects } from "@/app/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { DonationInfo, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
-import { getUserMemories } from "@/app/lib/data/users";
+import { getUserMemories, updateUserMemory } from "@/app/lib/data/users";
+import { updateOrganization } from "@/app/lib/data/organizations";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -573,6 +574,7 @@ export const communicationsRouter = router({
         return {
           emails: result.emails,
           refinedInstruction: result.refinedInstruction,
+          suggestedMemories: result.suggestedMemories,
         };
       } catch (error) {
         logger.error("Error generating emails:", error);
