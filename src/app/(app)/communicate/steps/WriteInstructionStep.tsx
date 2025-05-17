@@ -48,6 +48,11 @@ interface ReferenceContext {
   };
 }
 
+interface GenerateEmailsResponse {
+  emails: GeneratedEmail[];
+  refinedInstruction: string;
+}
+
 export function WriteInstructionStep({
   instruction,
   onInstructionChange,
@@ -63,6 +68,7 @@ export function WriteInstructionStep({
   >({});
   const [donationHistory, setDonationHistory] = useState<Record<number, DonationWithDetails[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
+  const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
@@ -220,20 +226,23 @@ export function WriteInstructionStep({
       if (!org) throw new Error("Organization data not found");
 
       // Generate emails using the hook
-      const emails = await generateEmails({
+      const result = await generateEmails({
         instruction,
         donors: donorData,
         organizationName: org.name,
         organizationWritingInstructions: org.writingInstructions ?? undefined,
+        previousInstruction,
       });
 
-      if (emails) {
-        setGeneratedEmails(emails);
+      if (result) {
+        const typedResult = result as GenerateEmailsResponse;
+        setGeneratedEmails(typedResult.emails);
+        setPreviousInstruction(typedResult.refinedInstruction);
         setReferenceContexts(
-          emails.reduce((acc, email) => {
+          typedResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
             acc[email.donorId] = email.referenceContexts;
             return acc;
-          }, {} as Record<number, Record<string, string>>)
+          }, {})
         );
 
         setChatMessages((prev) => [

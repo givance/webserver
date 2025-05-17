@@ -90,6 +90,7 @@ interface GenerateEmailsInput {
   donors: DonorInput[];
   organizationName: string;
   organizationWritingInstructions?: string;
+  previousInstruction?: string;
 }
 
 export const communicationsRouter = router({
@@ -489,10 +490,11 @@ export const communicationsRouter = router({
         ),
         organizationName: z.string(),
         organizationWritingInstructions: z.string().optional(),
+        previousInstruction: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
-      const { instruction, donors, organizationName, organizationWritingInstructions } = input;
+      const { instruction, donors, organizationName, organizationWritingInstructions, previousInstruction } = input;
 
       // Get organization data using Drizzle
       const [organization] = await db
@@ -554,7 +556,7 @@ export const communicationsRouter = router({
           organizationName,
           emailGeneratorOrg,
           organizationWritingInstructions,
-          undefined,
+          previousInstruction,
           undefined,
           communicationHistories,
           donationHistories
@@ -562,7 +564,10 @@ export const communicationsRouter = router({
 
         logger.info(`Instruction refined: ${result.refinedInstruction}. Reasoning: ${result.reasoning}`);
 
-        return result.emails;
+        return {
+          emails: result.emails,
+          refinedInstruction: result.refinedInstruction,
+        };
       } catch (error) {
         logger.error("Error generating emails:", error);
         throw new TRPCError({

@@ -32,13 +32,26 @@ export class InstructionRefinementAgent {
 Your task is to analyze the user's instruction and feedback (if any) to create a clear, specific instruction 
 that will help generate better personalized emails.
 
-${previousInstruction ? `Previous instruction: "${previousInstruction}"` : ""}
+${
+  previousInstruction
+    ? `Previous instruction: "${previousInstruction}"
+IMPORTANT: You MUST incorporate and build upon the previous instruction. Do not discard its requirements.
+Your refined instruction should be a combination of both the previous and current instructions.`
+    : ""
+}
 ${userFeedback ? `User feedback on previous result: "${userFeedback}"` : ""}
 Current user instruction: "${userInstruction}"
 
 Based on this information, please provide:
-1. A refined, specific instruction that will help generate better emails
-2. A brief explanation of your refinements
+1. A refined, specific instruction that combines and builds upon both the previous instruction (if any) and the current instruction
+2. A brief explanation of how you combined and enhanced both instructions
+
+Your refined instruction MUST:
+- Maintain all requirements from the previous instruction (if any)
+- Add new requirements from the current instruction
+- Resolve any conflicts between the two in a sensible way
+- Be clear and specific about how to handle different cases
+- Not lose any important details from either instruction
 
 Respond in JSON format:
 {
