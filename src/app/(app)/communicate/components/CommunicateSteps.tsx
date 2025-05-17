@@ -73,12 +73,11 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-8">
-        <StepIndicator steps={STEPS} currentStep={currentStep} className="mb-6" />
-        <h1 className="text-2xl font-bold">{STEPS[currentStep]}</h1>
+    <div className="flex h-full">
+      <div className="w-48 border-r bg-muted/30 py-4 px-2">
+        <StepIndicator steps={STEPS} currentStep={currentStep} orientation="vertical" className="mb-6" />
       </div>
-      <div className="flex-1">{renderStep()}</div>
+      <div className="flex-1 p-4 overflow-hidden">{renderStep()}</div>
     </div>
   );
 }

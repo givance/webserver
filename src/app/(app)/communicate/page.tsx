@@ -9,14 +9,12 @@ export default function CommunicatePage() {
   return (
     <>
       <title>Communicate with Donors</title>
-      <div className="container mx-auto py-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="h-[calc(100vh-64px)] flex flex-col">
+        <div className="flex items-center px-6 h-14 border-b">
           <h1 className="text-2xl font-bold">Communicate with Donors</h1>
         </div>
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-6">
-            <CommunicateSteps onClose={() => router.back()} />
-          </div>
+        <div className="flex-1 overflow-hidden">
+          <CommunicateSteps onClose={() => router.back()} />
         </div>
       </div>
     </>

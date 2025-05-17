@@ -277,19 +277,15 @@ export function WriteInstructionStep({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4 h-[600px]">
+    <div className="grid grid-cols-2 gap-4 h-full">
       {/* Left side: Generated Emails with Vertical Tabs */}
-      <div className="border rounded-lg">
-        <h3 className="text-lg font-medium p-4 border-b">Generated Emails</h3>
+      <div className="flex flex-col h-full">
+        <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
         {generatedEmails.length > 0 ? (
-          <Tabs
-            defaultValue={generatedEmails[0]?.donorId?.toString()}
-            orientation="vertical"
-            className="h-[calc(500px-1rem)]"
-          >
-            <div className="grid grid-cols-[240px_1fr] h-full">
-              <div className="border-r bg-muted/30">
-                <TabsList className="flex flex-col h-full w-full space-y-1 bg-transparent p-2">
+          <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
+            <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
+              <div className="bg-muted/30 overflow-y-auto">
+                <TabsList className="flex flex-col w-full space-y-1 p-2">
                   {generatedEmails.map((email) => {
                     const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
                     if (!donor) return null;
@@ -302,13 +298,14 @@ export function WriteInstructionStep({
                           "w-full h-[80px] p-4 rounded-lg",
                           "flex flex-col items-start justify-center gap-1",
                           "text-left",
-                          "transition-all duration-200"
+                          "transition-all duration-200",
+                          "mr-2"
                         )}
                       >
-                        <span className="font-medium">
+                        <span className="font-medium truncate w-full">
                           {donor.firstName} {donor.lastName}
                         </span>
-                        <span className="text-sm text-muted-foreground data-[state=active]:text-white/70">
+                        <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
                           {donor.email}
                         </span>
                       </TabsTrigger>
@@ -317,14 +314,18 @@ export function WriteInstructionStep({
                 </TabsList>
               </div>
 
-              <div className="p-4">
+              <div className="flex flex-col">
                 {generatedEmails.map((email) => {
                   const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
                   if (!donor) return null;
 
                   return (
-                    <TabsContent key={email.donorId} value={email.donorId.toString()} className="mt-0 h-full">
-                      <ScrollArea className="h-[calc(500px-2rem)]">
+                    <TabsContent
+                      key={email.donorId}
+                      value={email.donorId.toString()}
+                      className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
+                    >
+                      <ScrollArea className="flex-1 p-4">
                         <EmailDisplay
                           donorName={`${donor.firstName} ${donor.lastName}`}
                           donorEmail={donor.email}
@@ -340,17 +341,16 @@ export function WriteInstructionStep({
             </div>
           </Tabs>
         ) : (
-          <div className="flex items-center justify-center h-[500px] text-muted-foreground">
+          <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
             No emails generated yet
           </div>
         )}
       </div>
 
       {/* Right side: Chat Interface */}
-      <div className="flex flex-col h-full border rounded-lg">
-        <h3 className="text-lg font-medium p-4 border-b">Chat Interface</h3>
-
-        <div className="flex flex-col h-[calc(100%-64px)]">
+      <div className="flex flex-col h-full">
+        <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
+        <div className="flex flex-col flex-1 border rounded-lg overflow-hidden">
           {/* Chat Messages */}
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
@@ -378,7 +378,7 @@ export function WriteInstructionStep({
                       "bg-muted": message.role === "assistant",
                     })}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
                   {message.role === "assistant" &&
                     suggestedMemories.length > 0 &&
