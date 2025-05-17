@@ -20,7 +20,7 @@ import { generateText } from "ai";
 import { env } from "@/app/lib/env";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
-import { generateDonorEmails } from "@/app/lib/utils/email-generator";
+import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { DonationWithDetails, getDonationById, listDonations } from "@/app/lib/data/donations";
 import type { GeneratedEmail } from "@/app/lib/utils/email-generator";
 import { db } from "@/app/lib/db";
@@ -548,17 +548,21 @@ export const communicationsRouter = router({
           })}`
         );
 
-        const emails = await generateDonorEmails(
+        const result = await generateSmartDonorEmails(
           donors,
           instruction,
           organizationName,
           emailGeneratorOrg,
           organizationWritingInstructions,
+          undefined,
+          undefined,
           communicationHistories,
           donationHistories
         );
 
-        return emails as GeneratedEmail[];
+        logger.info(`Instruction refined: ${result.refinedInstruction}. Reasoning: ${result.reasoning}`);
+
+        return result.emails;
       } catch (error) {
         logger.error("Error generating emails:", error);
         throw new TRPCError({

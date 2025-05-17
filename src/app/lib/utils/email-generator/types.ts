@@ -85,3 +85,26 @@ export interface RawCommunicationThread {
   content?: RawCommunicationContentItem[];
   // Potentially other fields like 'id', 'date', 'type' from the original CommunicationHistory
 }
+
+export interface InstructionRefinementInput {
+  userInstruction: string;
+  previousInstruction?: string;
+  userFeedback?: string;
+}
+
+export interface InstructionRefinementResult {
+  refinedInstruction: string;
+  reasoning: string;
+}
+
+export interface EmailGeneratorTool {
+  generateEmails: (
+    donors: DonorInfo[],
+    refinedInstruction: string,
+    organizationName: string,
+    organization: Organization | null,
+    organizationWritingInstructions?: string,
+    communicationHistories?: Record<number, RawCommunicationThread[]>,
+    donationHistories?: Record<number, DonationWithDetails[]>
+  ) => Promise<GeneratedEmail[]>;
+}

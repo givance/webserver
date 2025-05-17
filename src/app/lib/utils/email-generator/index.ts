@@ -3,14 +3,16 @@
  * It includes capabilities for incorporating donation history, communication history,
  * and organization-specific guidelines into the email generation process.
  *
- * The primary functions exported are:
- * - generateDonorEmail: Generates a single email with structured content and references.
- * - generateDonorEmails: Generates multiple emails in batch.
+ * The module exports:
+ * - EmailGenerationService: Service class for generating emails
+ * - InstructionRefinementAgent: Agent for refining email generation instructions
+ * - generateSmartDonorEmails: High-level function combining both agents
  */
 
-export { generateDonorEmail, generateDonorEmails } from "./service";
+export { EmailGenerationService } from "./service";
+export { InstructionRefinementAgent } from "./instruction-agent";
 
-// Optionally, re-export key types if they are part of the public API of this module
+// Export types that are part of the public API
 export type {
   GeneratedEmail,
   EmailPiece,
@@ -19,5 +21,11 @@ export type {
   DonationInfo,
   Organization,
   RawCommunicationThread,
-  RawCommunicationHistory, // from ./types which re-exports from @/app/lib/data/communications
+  RawCommunicationHistory,
+  InstructionRefinementInput,
+  InstructionRefinementResult,
+  EmailGeneratorTool,
 } from "./types";
+
+// Export the high-level smart email generation function
+export { generateSmartDonorEmails } from "./smart-email-generator";
