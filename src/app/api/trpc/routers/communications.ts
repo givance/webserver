@@ -519,10 +519,9 @@ export const communicationsRouter = router({
 
       try {
         logger.info(
-          `Generating emails for ${donors.length} donors with histories: ${JSON.stringify({
-            communicationHistoriesCount: Object.values(communicationHistories).flat().length,
-            donationHistoriesCount: Object.values(donationHistories).flat().length,
-          })}`
+          `Generating emails for ${donors.length} donors (communicationHistoriesCount: ${
+            Object.values(communicationHistories).flat().length
+          }, donationHistoriesCount: ${Object.values(donationHistories).flat().length})`
         );
 
         const userMemories = await getUserMemories(ctx.auth.user.id);
@@ -552,7 +551,7 @@ export const communicationsRouter = router({
           suggestedMemories: result.suggestedMemories,
         };
       } catch (error) {
-        logger.error("Error generating emails:", error);
+        logger.error(`Error generating emails: ${error instanceof Error ? error.message : String(error)}`);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to generate emails",

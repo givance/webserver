@@ -27,11 +27,9 @@ export async function createContext({ req, resHeaders }: FetchCreateContextFnOpt
   const organization = await getOrganizationById(orgId);
 
   if (!user || !organization) {
-    logger.error("could not find user or organization in backend", {
-      function: "createContext",
-      userId,
-      orgId,
-    });
+    logger.error(
+      `Could not find user or organization in backend (function: createContext, userId: ${userId}, orgId: ${orgId})`
+    );
     return { auth: { user: null }, req, resHeaders };
   }
 

@@ -98,7 +98,7 @@ export const crawlAndSummarizeWebsiteTask = task({
     // Updated signature
     const { url, organizationId } = payload;
     // Use imported logger for task logging
-    triggerLogger.info(`🚀 Starting crawl for ${url}`, { organizationId });
+    triggerLogger.info(`Starting crawl for ${url} (organizationId: ${organizationId})`);
 
     const visitedUrls = new Set<string>();
     const urlsToVisit = new Set<string>([url]);
@@ -118,7 +118,7 @@ export const crawlAndSummarizeWebsiteTask = task({
       });
 
       triggerLogger.info(
-        `Processing batch of ${currentBatch.length} URLs. Total visited: ${visitedUrls.size}/${maxUrls}`
+        `Processing batch of ${currentBatch.length} URLs (total visited: ${visitedUrls.size}/${maxUrls})`
       );
 
       const promises = currentBatch.map(async (currentUrl) => {

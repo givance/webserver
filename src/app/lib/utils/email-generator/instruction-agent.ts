@@ -73,60 +73,60 @@ Respond in JSON format:
 }`;
 
     try {
-      logger.info("Sending prompt to OpenAI:", {
-        promptLength: prompt.length,
-        model: env.MID_MODEL,
-      });
+      logger.info(`Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.MID_MODEL})`);
 
       const { text: aiResponse } = await generateText({
         model: openai(env.MID_MODEL),
         prompt,
       }).catch((error) => {
-        logger.error("OpenAI API call failed:", {
-          error: error instanceof Error ? error.message : "Unknown error",
-          errorObject: error,
-          stack: error instanceof Error ? error.stack : undefined,
-        });
+        logger.error(
+          `OpenAI API call failed: ${error instanceof Error ? error.message : "Unknown error"} (stack: ${
+            error instanceof Error ? error.stack : "undefined"
+          })`
+        );
         console.log(error);
         throw error;
       });
 
-      logger.info("Received response from OpenAI:", {
-        responseLength: aiResponse?.length || 0,
-        response: aiResponse?.substring(0, 100) + "...", // Log first 100 chars
-      });
+      logger.info(
+        `Received response from OpenAI (responseLength: ${aiResponse?.length || 0}, firstChars: ${aiResponse?.substring(
+          0,
+          100
+        )}...)`
+      );
 
       try {
         const trimmedResponse = aiResponse.trim();
-        logger.info("Attempting to parse JSON response:", {
-          trimmedLength: trimmedResponse.length,
-          firstFewChars: trimmedResponse.substring(0, 50) + "...",
-        });
+        logger.info(
+          `Attempting to parse JSON response (length: ${
+            trimmedResponse.length
+          }, firstChars: ${trimmedResponse.substring(0, 50)}...)`
+        );
 
         const parsedResponse = JSON.parse(trimmedResponse) as InstructionRefinementResult;
 
         if (!parsedResponse?.refinedInstruction || !parsedResponse?.reasoning) {
-          logger.error("Invalid response structure:", {
-            hasRefinedInstruction: !!parsedResponse?.refinedInstruction,
-            hasReasoning: !!parsedResponse?.reasoning,
-            parsedResponse,
-          });
+          logger.error(
+            `Invalid response structure (hasRefinedInstruction: ${!!parsedResponse?.refinedInstruction}, hasReasoning: ${!!parsedResponse?.reasoning})`
+          );
           throw new Error("AI response missing required fields");
         }
 
-        logger.info("Successfully parsed and validated response:", {
-          refinedInstructionLength: parsedResponse.refinedInstruction.length,
-          reasoningLength: parsedResponse.reasoning.length,
-          suggestedMemoriesCount: parsedResponse.suggestedMemories?.length || 0,
-        });
+        logger.info(
+          `Successfully parsed and validated response (refinedInstructionLength: ${
+            parsedResponse.refinedInstruction.length
+          }, reasoningLength: ${parsedResponse.reasoning.length}, suggestedMemoriesCount: ${
+            parsedResponse.suggestedMemories?.length || 0
+          })`
+        );
 
         return parsedResponse;
       } catch (parseError) {
-        logger.error("Failed to parse AI response for instruction refinement", {
-          aiResponse,
-          error: parseError instanceof Error ? parseError.message : "Unknown parsing error",
-          stack: parseError instanceof Error ? parseError.stack : undefined,
-        });
+        logger.error(
+          `Failed to parse AI response for instruction refinement: ${
+            parseError instanceof Error ? parseError.message : "Unknown parsing error"
+          } (stack: ${parseError instanceof Error ? parseError.stack : "undefined"})`
+        );
         throw new Error(
           `Failed to parse instruction refinement response: ${
             parseError instanceof Error ? parseError.message : parseError
@@ -134,11 +134,11 @@ Respond in JSON format:
         );
       }
     } catch (error) {
-      logger.error("Failed to refine instruction", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-        type: error instanceof Error ? error.constructor.name : typeof error,
-      });
+      logger.error(
+        `Failed to refine instruction: ${error instanceof Error ? error.message : "Unknown error"} (stack: ${
+          error instanceof Error ? error.stack : "undefined"
+        }, type: ${error instanceof Error ? error.constructor.name : typeof error})`
+      );
       throw new Error(`Instruction refinement failed: ${error instanceof Error ? error.message : error}`);
     }
   }

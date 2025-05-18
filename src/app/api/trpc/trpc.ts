@@ -40,9 +40,7 @@ export const publicProcedure = t.procedure;
  */
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.auth.user) {
-    logger.error("no user found in auth", {
-      function: "protectedProcedure",
-    });
+    logger.error(`No user found in auth (function: protectedProcedure)`);
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
@@ -55,11 +53,9 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
  */
 export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.auth.user.isAdmin()) {
-    logger.error("user is not an admin", {
-      function: "adminProcedure",
-      userId: ctx.auth.user.id,
-      role: ctx.auth.user.role,
-    });
+    logger.error(
+      `User is not an admin (function: adminProcedure, userId: ${ctx.auth.user.id}, role: ${ctx.auth.user.role})`
+    );
     throw new TRPCError({ code: "FORBIDDEN" });
   }
 

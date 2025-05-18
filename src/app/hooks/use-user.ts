@@ -56,11 +56,7 @@ export const useUser = cache(async (): Promise<BackendUser> => {
   const { userId, orgId, orgRole } = authData as ClerkAuthData;
 
   if (!userId || !orgId) {
-    logger.error("no user or organization found in auth", {
-      function: "useUser",
-      userId,
-      orgId,
-    });
+    logger.error(`No user or organization found in auth (function: useUser, userId: ${userId}, orgId: ${orgId})`);
     throw new Error("User or organization not found");
   }
 
@@ -68,18 +64,13 @@ export const useUser = cache(async (): Promise<BackendUser> => {
   const organization = await getOrganizationById(orgId);
 
   if (!user || !organization) {
-    logger.error("could not find user or organization in backend", {
-      function: "useUser",
-      userId,
-      orgId,
-    });
+    logger.error(
+      `Could not find user or organization in backend (function: useUser, userId: ${userId}, orgId: ${orgId})`
+    );
     throw new Error("User or organization not found in backend");
   }
 
-  logger.info("found user and organization in backend", {
-    userId,
-    orgId,
-  });
+  logger.info(`Found user and organization in backend (userId: ${userId}, orgId: ${orgId})`);
 
   return {
     id: user.id,

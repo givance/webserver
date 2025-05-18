@@ -34,24 +34,21 @@ export class EmailGenerationService implements EmailGeneratorTool {
     personalMemories: string[] = [],
     organizationalMemories: string[] = []
   ): Promise<GeneratedEmail[]> {
-    logger.info("Starting batch email generation:", {
-      donorCount: donors.length,
-      refinedInstruction,
-      organizationName,
-      hasOrganization: !!organization,
-      hasWritingInstructions: !!organizationWritingInstructions,
-      communicationHistoriesCount: Object.keys(communicationHistories).length,
-      donationHistoriesCount: Object.keys(donationHistories).length,
-    });
+    logger.info(
+      `Starting batch email generation for ${
+        donors.length
+      } donors (refinedInstruction: ${refinedInstruction}, organizationName: ${organizationName}, hasOrganization: ${!!organization}, hasWritingInstructions: ${!!organizationWritingInstructions}, communicationHistoriesCount: ${
+        Object.keys(communicationHistories).length
+      }, donationHistoriesCount: ${Object.keys(donationHistories).length})`
+    );
 
     const emailPromises = donors.map(async (donor) => {
       const donorCommHistory = communicationHistories[donor.id] || [];
-      logger.info(`Processing donor ${donor.id}:`, {
-        firstName: donor.firstName,
-        lastName: donor.lastName,
-        commHistoryCount: donorCommHistory.length,
-        donationHistoryCount: donationHistories[donor.id]?.length || 0,
-      });
+      logger.info(
+        `Processing donor ${donor.id} (firstName: ${donor.firstName}, lastName: ${donor.lastName}, commHistoryCount: ${
+          donorCommHistory.length
+        }, donationHistoryCount: ${donationHistories[donor.id]?.length || 0})`
+      );
 
       return await this.generateDonorEmail({
         donor,
@@ -64,29 +61,33 @@ export class EmailGenerationService implements EmailGeneratorTool {
         personalMemories,
         organizationalMemories,
       }).catch((error) => {
-        logger.error(`Failed to generate email for donor ${donor.id}`, {
-          donorId: donor.id,
-          error: error instanceof Error ? error.message : "Unknown error",
-          stack: error instanceof Error ? error.stack : undefined,
-          type: error instanceof Error ? error.constructor.name : typeof error,
-        });
+        logger.error(
+          `Failed to generate email for donor ${donor.id} (error: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }, stack: ${error instanceof Error ? error.stack : "undefined"}, type: ${
+            error instanceof Error ? error.constructor.name : typeof error
+          })`
+        );
         throw error;
       });
     });
 
     try {
       const results = await Promise.all(emailPromises);
-      logger.info("Successfully generated all emails:", {
-        totalEmails: results.length,
-        donorIds: results.map((r) => r.donorId),
-      });
+      logger.info(
+        `Successfully generated all emails (totalEmails: ${results.length}, donorIds: ${results
+          .map((r) => r.donorId)
+          .join(", ")})`
+      );
       return results;
     } catch (batchError) {
-      logger.error("Error during batch email generation:", {
-        error: batchError instanceof Error ? batchError.message : "Unknown batch error",
-        stack: batchError instanceof Error ? batchError.stack : undefined,
-        type: batchError instanceof Error ? batchError.constructor.name : typeof batchError,
-      });
+      logger.error(
+        `Error during batch email generation (error: ${
+          batchError instanceof Error ? batchError.message : "Unknown batch error"
+        }, stack: ${batchError instanceof Error ? batchError.stack : "undefined"}, type: ${
+          batchError instanceof Error ? batchError.constructor.name : typeof batchError
+        })`
+      );
       throw batchError;
     }
   }
