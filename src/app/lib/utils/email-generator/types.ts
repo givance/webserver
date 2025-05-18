@@ -91,7 +91,11 @@ export interface RawCommunicationThread {
 export interface InstructionRefinementInput {
   userInstruction: string;
   previousInstruction?: string;
+  organizationWritingInstructions?: string;
   userFeedback?: string;
+  userMemories: string[];
+  organizationMemories: string[];
+  dismissedMemories: string[];
 }
 
 export interface InstructionRefinementResult {

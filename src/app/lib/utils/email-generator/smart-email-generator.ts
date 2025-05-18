@@ -32,7 +32,8 @@ export async function generateSmartDonorEmails(
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
   donationHistories: Record<number, DonationWithDetails[]> = {},
   userMemories: string[] = [],
-  organizationMemories: string[] = []
+  organizationMemories: string[] = [],
+  dismissedMemories: string[] = []
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -59,6 +60,10 @@ export async function generateSmartDonorEmails(
     userInstruction,
     previousInstruction,
     userFeedback,
+    userMemories,
+    organizationMemories,
+    dismissedMemories,
+    organizationWritingInstructions,
   });
 
   // Then, use the refined instruction to generate emails using the second agent

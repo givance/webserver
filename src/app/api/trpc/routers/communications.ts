@@ -27,7 +27,7 @@ import { db } from "@/app/lib/db";
 import { organizations, donations, projects } from "@/app/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { DonationInfo, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
-import { getUserMemories, updateUserMemory } from "@/app/lib/data/users";
+import { getDismissedMemories, getUserMemories, updateUserMemory } from "@/app/lib/data/users";
 import { updateOrganization } from "@/app/lib/data/organizations";
 
 // Input validation schemas
@@ -532,6 +532,7 @@ export const communicationsRouter = router({
 
         const userMemories = await getUserMemories(ctx.auth.user.id);
         const organizationMemories = await getOrganizationMemories(ctx.auth.user.organizationId);
+        const dismissedMemories = await getDismissedMemories(ctx.auth.user.id);
 
         const result = await generateSmartDonorEmails(
           donors,
@@ -544,7 +545,8 @@ export const communicationsRouter = router({
           communicationHistories,
           donationHistories,
           userMemories,
-          organizationMemories
+          organizationMemories,
+          dismissedMemories
         );
 
         logger.info(`Instruction refined: ${result.refinedInstruction}. Reasoning: ${result.reasoning}`);

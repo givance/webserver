@@ -105,6 +105,11 @@ export async function getUserMemories(id: string): Promise<string[]> {
   return result[0].memory || [];
 }
 
+export async function getDismissedMemories(id: string): Promise<string[]> {
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0].dismissedMemories || [];
+}
+
 /**
  * Add a memory to the user's dismissed memories array
  * @param id The user's ID

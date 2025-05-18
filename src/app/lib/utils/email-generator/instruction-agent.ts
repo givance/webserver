@@ -19,7 +19,7 @@ export class InstructionRefinementAgent {
    * @returns Refined instruction, reasoning, and suggested new memories
    */
   async refineInstruction(input: InstructionRefinementInput): Promise<InstructionRefinementResult> {
-    const { userInstruction, previousInstruction, userFeedback } = input;
+    const { userInstruction, previousInstruction, userFeedback, organizationWritingInstructions } = input;
 
     logger.info("Starting instruction refinement with:", {
       userInstruction,
@@ -41,6 +41,8 @@ Your refined instruction should be a combination of both the previous and curren
 }
 ${userFeedback ? `User feedback on previous result: "${userFeedback}"` : ""}
 
+${organizationWritingInstructions ? `Organization writing instructions: "${organizationWritingInstructions}"` : ""}
+
 Current user instruction: "${userInstruction}"
 
 Based on this information, please provide:
@@ -56,9 +58,10 @@ Your refined instruction MUST:
 - Not lose any important details from either instruction
 
 For potential memories:
-- Identify key preferences, patterns, or requirements from the instruction that could be useful for future emails
-- Focus on reusable information that could help with personalization or maintaining consistency
-- Do not decide if they should be personal or organizational - just suggest the memories
+- The potential memories must apply to almost all future email generations, to be saved in the user's memories, unless the user specifically asked to save them in memories.
+- You should not repeat anything that is already in the organization writing instructions.
+- You should not suggest memories that is already in the existing memories.
+- You should not suggest memories that is already in the existing dismissed memories.
 
 Respond in JSON format:
 {
