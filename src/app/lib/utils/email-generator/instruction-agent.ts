@@ -62,6 +62,7 @@ For potential memories:
 - You should not repeat anything that is already in the organization writing instructions.
 - You should not suggest memories that is already in the existing memories.
 - You should not suggest memories that is already in the existing dismissed memories.
+- The memory has to be very speicifc, and actionable.
 
 Respond in JSON format:
 {
