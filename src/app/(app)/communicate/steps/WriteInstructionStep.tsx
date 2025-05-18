@@ -65,124 +65,17 @@ export function WriteInstructionStep({
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
-  const [communicationHistory, setCommunicationHistory] = useState<
-    Record<number, { content: string; datetime: string }[]>
-  >({});
-  const [donationHistory, setDonationHistory] = useState<Record<number, DonationWithDetails[]>>({});
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
   const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
   const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
-  const { getThread, listThreads, generateEmails, isGeneratingEmails } = useCommunications();
-  const { list: listDonations } = useDonations();
+  const { generateEmails } = useCommunications();
 
   // Pre-fetch donor data for all selected donors
   const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
   const orgQuery = getOrganization();
-
-  // Query threads for all selected donors
-  const threadsQuery = listThreads(
-    {
-      donorId: selectedDonors[0], // We'll handle multiple donors in the effect
-      includeDonors: true,
-      includeLatestMessage: true,
-      limit: selectedDonors.length * 10, // Increase limit to accommodate all donors
-    },
-    {
-      enabled: selectedDonors.length > 0,
-    }
-  );
-
-  // Query donations for all selected donors
-  const donationsQuery = listDonations(
-    {
-      donorId: selectedDonors[0], // We'll handle multiple donors in the effect
-      includeProject: true,
-      limit: selectedDonors.length * 30, // Increase limit to accommodate all donors
-    },
-    {
-      enabled: selectedDonors.length > 0,
-    }
-  );
-
-  // Process thread data when queries complete
-  useEffect(() => {
-    const fetchCommunicationHistory = async () => {
-      const history: Record<number, { content: string; datetime: string }[]> = {};
-
-      if (threadsQuery.data?.threads) {
-        for (const thread of threadsQuery.data.threads) {
-          const donorId = thread.donors?.[0]?.donorId;
-          if (!donorId) continue;
-
-          if (!history[donorId]) {
-            history[donorId] = [];
-          }
-
-          const threadData = await getThread({
-            id: thread.id,
-            includeMessages: true,
-          });
-
-          if (threadData.data?.content) {
-            history[donorId].push(
-              ...threadData.data.content.map((msg) => ({
-                content: msg.content,
-                datetime: new Date(msg.datetime).toISOString(),
-              }))
-            );
-          }
-        }
-      }
-
-      setCommunicationHistory(history);
-    };
-
-    fetchCommunicationHistory();
-  }, [selectedDonors, threadsQuery.data, getThread]);
-
-  // Process donation data when queries complete
-  useEffect(() => {
-    const fetchDonationHistory = async () => {
-      const history: Record<number, DonationWithDetails[]> = {};
-
-      if (donationsQuery.data?.donations) {
-        for (const donation of donationsQuery.data.donations) {
-          const donorId = donation.donorId;
-          if (!history[donorId]) {
-            history[donorId] = [];
-          }
-
-          history[donorId].push({
-            ...donation,
-            date: new Date(donation.date),
-            createdAt: new Date(donation.createdAt),
-            updatedAt: new Date(donation.updatedAt),
-            donor: donation.donor
-              ? {
-                  ...donation.donor,
-                  createdAt: new Date(donation.donor.createdAt),
-                  updatedAt: new Date(donation.donor.updatedAt),
-                }
-              : undefined,
-            project: donation.project
-              ? {
-                  ...donation.project,
-                  createdAt: new Date(donation.project.createdAt),
-                  updatedAt: new Date(donation.project.updatedAt),
-                }
-              : undefined,
-          });
-        }
-      }
-
-      setDonationHistory(history);
-    };
-
-    fetchDonationHistory();
-  }, [selectedDonors, donationsQuery.data]);
 
   const handleSubmitInstruction = async () => {
     if (!instruction.trim()) return;
@@ -200,29 +93,11 @@ export function WriteInstructionStep({
         const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
         if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
-        // Transform donation history to match expected format
-        const transformedDonationHistory = (donationHistory[donorId] || []).map((d, index) => ({
-          id: `donation-${index + 1}`,
-          amount: d.amount,
-          date: d.date,
-          project: d.project
-            ? {
-                id: d.project.id,
-                name: d.project.name,
-                description: d.project.description || null,
-                goal: d.project.goal || null,
-                status: d.project.active ? "active" : "inactive",
-              }
-            : null,
-        }));
-
         return {
           id: donor.id,
           firstName: donor.firstName,
           lastName: donor.lastName,
           email: donor.email,
-          history: communicationHistory[donorId] || [],
-          donationHistory: transformedDonationHistory,
         };
       });
 

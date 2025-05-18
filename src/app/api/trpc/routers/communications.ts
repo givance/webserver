@@ -466,28 +466,6 @@ export const communicationsRouter = router({
             firstName: z.string(),
             lastName: z.string(),
             email: z.string(),
-            history: z.array(
-              z.object({
-                content: z.string(),
-                datetime: z.string(),
-              })
-            ),
-            donationHistory: z.array(
-              z.object({
-                id: z.string(),
-                amount: z.number(),
-                date: z.union([z.date(), z.string()]).transform((d) => (d instanceof Date ? d : new Date(d))),
-                project: z
-                  .object({
-                    id: z.number(),
-                    name: z.string(),
-                    description: z.string().nullable(),
-                    goal: z.number().nullable(),
-                    status: z.string(),
-                  })
-                  .nullable(),
-              })
-            ),
           })
         ),
         organizationName: z.string(),
