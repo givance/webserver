@@ -154,7 +154,7 @@ export function WriteInstructionStep({
   return (
     <div className="grid grid-cols-2 gap-4 h-full">
       {/* Left side: Generated Emails with Vertical Tabs */}
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
         {generatedEmails.length > 0 ? (
           <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
@@ -200,15 +200,13 @@ export function WriteInstructionStep({
                       value={email.donorId.toString()}
                       className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
                     >
-                      <ScrollArea className="flex-1 p-4">
-                        <EmailDisplay
-                          donorName={`${donor.firstName} ${donor.lastName}`}
-                          donorEmail={donor.email}
-                          subject={email.subject}
-                          content={email.structuredContent}
-                          referenceContexts={referenceContexts[email.donorId] || {}}
-                        />
-                      </ScrollArea>
+                      <EmailDisplay
+                        donorName={`${donor.firstName} ${donor.lastName}`}
+                        donorEmail={donor.email}
+                        subject={email.subject}
+                        content={email.structuredContent}
+                        referenceContexts={referenceContexts[email.donorId] || {}}
+                      />
                     </TabsContent>
                   );
                 })}
@@ -223,11 +221,11 @@ export function WriteInstructionStep({
       </div>
 
       {/* Right side: Chat Interface */}
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
-        <div className="flex flex-col flex-1 border rounded-lg overflow-hidden">
+        <div className="flex flex-col flex-1 border rounded-lg overflow-hidden min-h-0">
           {/* Chat Messages */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-4 space-y-4">
               {/* System message in gray box */}
               <div className="bg-[#18181B] text-white rounded-lg p-4 space-y-4">
