@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -68,6 +68,7 @@ export function WriteInstructionStep({
   const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
   const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
   const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
@@ -76,6 +77,16 @@ export function WriteInstructionStep({
   // Pre-fetch donor data for all selected donors
   const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
   const orgQuery = getOrganization();
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [chatMessages]);
 
   const handleSubmitInstruction = async () => {
     if (!instruction.trim()) return;
@@ -86,6 +97,9 @@ export function WriteInstructionStep({
     setReferenceContexts({});
     setSuggestedMemories([]);
     setChatMessages((prev) => [...prev, { role: "user", content: instruction }]);
+
+    // Clear the input box
+    onInstructionChange("");
 
     try {
       // Prepare donor data for the API call
@@ -156,7 +170,14 @@ export function WriteInstructionStep({
       {/* Left side: Generated Emails with Vertical Tabs */}
       <div className="flex flex-col h-full min-h-0">
         <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
-        {generatedEmails.length > 0 ? (
+        {isGenerating ? (
+          <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
+            <div className="flex flex-col items-center gap-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p>Generating emails...</p>
+            </div>
+          </div>
+        ) : generatedEmails.length > 0 ? (
           <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
             <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
               <div className="bg-muted/30 overflow-y-auto">
@@ -262,6 +283,7 @@ export function WriteInstructionStep({
                     )}
                 </div>
               ))}
+              <div ref={chatEndRef} />
             </div>
           </ScrollArea>
 
