@@ -48,7 +48,8 @@ Current user instruction: "${userInstruction}"
 Based on this information, please provide:
 1. A refined, specific instruction that combines and builds upon both the previous instruction (if any) and the current instruction
 2. A brief explanation of how you combined and enhanced both instructions
-3. Any potential new memories that could be useful for future email generation based on this user instruction and / or feedback.
+3. You should not hallucinate or make up any instruction, all instruction has to come strictly from user instruction, feedback, or organizational memories provided.
+4. Any potential new memories that could be useful for future email generation based on this user instruction and / or feedback.
 
 Your refined instruction MUST:
 - Maintain all requirements from the previous instruction (if any)
@@ -62,7 +63,7 @@ For potential memories:
 - You should not repeat anything that is already in the organization writing instructions.
 - You should not suggest memories that is already in the existing memories.
 - You should not suggest memories that is already in the existing dismissed memories.
-- The memory has to be very speicifc, and actionable.
+- The memory has to be very speicifc, and actionable. For example, if the user say, something like, ask for 1.1x of the past donation, you should suggest a memory like, "ask for 1.1x of the past donation", not "ask fir slightly more money".
 
 Respond in JSON format:
 {

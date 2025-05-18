@@ -1,34 +1,29 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
 import {
+  addDonorToThread,
+  addMessageToThread,
+  addStaffToThread,
   createCommunicationThread,
   getCommunicationThreadById,
-  listCommunicationThreads,
-  addMessageToThread,
-  getMessagesInThread,
-  addStaffToThread,
-  removeStaffFromThread,
-  addDonorToThread,
-  removeDonorFromThread,
   getDonorCommunicationHistory,
+  getMessagesInThread,
+  listCommunicationThreads,
+  removeDonorFromThread,
+  removeStaffFromThread,
 } from "@/app/lib/data/communications";
+import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
 import { getDonorById } from "@/app/lib/data/donors";
+import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getStaffById } from "@/app/lib/data/staff";
-import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
-import { env } from "@/app/lib/env";
-import { getOrganizationById, getOrganizationMemories } from "@/app/lib/data/organizations";
+import { getDismissedMemories, getUserMemories } from "@/app/lib/data/users";
+import { db } from "@/app/lib/db";
+import { organizations } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
-import { DonationWithDetails, getDonationById, listDonations } from "@/app/lib/data/donations";
-import type { GeneratedEmail } from "@/app/lib/utils/email-generator";
-import { db } from "@/app/lib/db";
-import { organizations, donations, projects } from "@/app/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { DonationInfo, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
-import { getDismissedMemories, getUserMemories, updateUserMemory } from "@/app/lib/data/users";
-import { updateOrganization } from "@/app/lib/data/organizations";
+import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { protectedProcedure, router } from "../trpc";
 
 // Input validation schemas
 const threadIdSchema = z.object({
