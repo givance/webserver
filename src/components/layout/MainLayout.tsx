@@ -2,7 +2,7 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import TRPCProvider from "@/app/lib/trpc/Provider";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser, OrganizationSwitcher } from "@clerk/nextjs";
 import {
   Sidebar,
   SidebarHeader,
@@ -74,6 +74,16 @@ function Header() {
         <button className="p-2 hover:bg-gray-100 rounded-lg">
           <Bell className="w-5 h-5 text-gray-600" />
         </button>
+        <OrganizationSwitcher
+          afterCreateOrganizationUrl="/"
+          afterLeaveOrganizationUrl="/"
+          afterSelectOrganizationUrl="/"
+          appearance={{
+            elements: {
+              rootBox: "flex items-center gap-2",
+            },
+          }}
+        />
         <UserButton afterSignOutUrl="/" />
       </div>
     </header>
