@@ -25,8 +25,8 @@ function CustomNode({ data, id }: NodeProps) {
   return (
     <div className="px-6 py-5 shadow-lg rounded-lg border bg-card w-[320px] max-w-[320px]">
       <div className="flex flex-col">
-        <div className="font-semibold text-2xl mb-3 break-words line-clamp-2">{data.label}</div>
-        <div className="text-lg text-muted-foreground break-words line-clamp-3">{data.description}</div>
+        <div className="font-semibold text-3xl mb-3 break-words line-clamp-2">{data.label}</div>
+        <div className="text-xl text-muted-foreground break-words line-clamp-3">{data.description}</div>
       </div>
       <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-primary" />
       <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-primary" />
@@ -117,11 +117,13 @@ function getLayoutedElements(nodes: Node[], edges: Edge[], direction = "TB") {
       labelBgPadding: [8, 4] as [number, number],
       labelBgBorderRadius: 4,
       labelBgStyle: {
-        fill: "hsl(var(--card))",
-        fillOpacity: 0.9,
+        fill: "white",
+        stroke: "hsl(var(--border))",
+        strokeWidth: 1,
+        fillOpacity: 1, // Ensure solid background
       },
       labelStyle: {
-        fill: "hsl(var(--foreground))",
+        fill: "black",
         fontWeight: 500,
         fontSize: 14,
       },
