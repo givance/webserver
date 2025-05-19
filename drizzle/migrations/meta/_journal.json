@@ -92,6 +92,13 @@
       "when": 1747666246028,
       "tag": "0012_aspiring_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1747671909477,
+      "tag": "0013_closed_crusher_hogan",
+      "breakpoints": true
     }
   ]
 }

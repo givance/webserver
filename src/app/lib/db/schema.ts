@@ -68,6 +68,7 @@ export const organizations = pgTable("organizations", {
   websiteSummary: text("website_summary"),
   description: text("description"),
   writingInstructions: text("writing_instructions"),
+  donorJourneyText: text("donor_journey_text"),
   donorJourney: jsonb("donor_journey").default(sql`'{"nodes": [], "edges": []}'::jsonb`), // JSON object for donor journey graph
   memory: text("memory")
     .array()
