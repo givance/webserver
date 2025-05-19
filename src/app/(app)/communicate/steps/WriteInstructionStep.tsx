@@ -248,17 +248,6 @@ export function WriteInstructionStep({
           {/* Chat Messages */}
           <ScrollArea className="flex-1 min-h-0">
             <div className="p-4 space-y-4">
-              {/* System message in gray box */}
-              <div className="bg-[#18181B] text-white rounded-lg p-4 space-y-4">
-                <p>Write the donors a fundraising email, to raise money for the widow and orphan program.</p>
-                <p>If their past donation averages over $1K, ask them if they have time to talk on the phone.</p>
-                <p>
-                  If their past donation averages below $1K, ask them to donate their past average donation * 1.1,
-                  online, at [https://donor.me](https://donor.me/).
-                </p>
-                <p>Use Yeshivish English in your communications.</p>
-              </div>
-
               {chatMessages.map((message, index) => (
                 <div
                   key={index}
