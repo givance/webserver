@@ -45,6 +45,14 @@ export function useOrganization() {
     });
   };
 
+  const getDonorJourneyText = () => {
+    return trpc.organizations.getDonorJourneyText.useQuery(undefined, {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    });
+  };
+
   // Mutation hooks
   const updateMutation = trpc.organizations.updateCurrent.useMutation({
     onSuccess: () => {
@@ -58,6 +66,12 @@ export function useOrganization() {
     },
   });
 
+  const updateDonorJourneyTextMutation = trpc.organizations.updateDonorJourneyText.useMutation({
+    onSuccess: () => {
+      utils.organizations.getDonorJourneyText.invalidate();
+    },
+  });
+
   const moveFromUserMutation = trpc.organizations.moveMemoryFromUser.useMutation({
     onSuccess: () => {
       // Invalidate both user and organization queries
@@ -68,6 +82,7 @@ export function useOrganization() {
 
   const { data: organization } = getOrganization();
   const { data: donorJourney } = getDonorJourney();
+  const { data: donorJourneyText } = getDonorJourneyText();
 
   // Donor Journey operations
   const updateDonorJourney = useCallback(
@@ -81,6 +96,19 @@ export function useOrganization() {
       }
     },
     [updateDonorJourneyMutation]
+  );
+
+  const updateDonorJourneyText = useCallback(
+    async (text: string) => {
+      try {
+        await updateDonorJourneyTextMutation.mutateAsync(text);
+        toast.success("Donor journey text updated successfully");
+      } catch (error) {
+        console.error("Failed to update donor journey text:", error);
+        toast.error("Failed to update donor journey text. Please try again.");
+      }
+    },
+    [updateDonorJourneyTextMutation]
   );
 
   const addDonorJourneyNode = useCallback(
@@ -218,6 +246,7 @@ export function useOrganization() {
     // Query functions
     getOrganization,
     getDonorJourney,
+    getDonorJourneyText,
 
     // Mutation functions
     updateOrganization: updateMutation.mutateAsync,
@@ -225,6 +254,7 @@ export function useOrganization() {
 
     // Donor Journey operations
     updateDonorJourney,
+    updateDonorJourneyText,
     addDonorJourneyNode,
     addDonorJourneyEdge,
     removeDonorJourneyNode,
@@ -236,7 +266,11 @@ export function useOrganization() {
     deleteMemoryItem,
 
     // Loading states
-    isUpdating: updateMutation.isPending || moveFromUserMutation.isPending || updateDonorJourneyMutation.isPending,
+    isUpdating:
+      updateMutation.isPending ||
+      moveFromUserMutation.isPending ||
+      updateDonorJourneyMutation.isPending ||
+      updateDonorJourneyTextMutation.isPending,
 
     // Mutation results
     updateResult: updateMutation.data,

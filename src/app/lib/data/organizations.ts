@@ -279,3 +279,42 @@ export async function getDonorJourney(id: string): Promise<DonorJourney | undefi
     throw new Error("Could not get donor journey.");
   }
 }
+
+/**
+ * Updates the donor journey text for an organization
+ * @param id - The ID of the organization
+ * @param donorJourneyText - The new donor journey text
+ * @returns The updated organization
+ */
+export async function updateDonorJourneyText(id: string, donorJourneyText: string): Promise<Organization | undefined> {
+  try {
+    const result = await db
+      .update(organizations)
+      .set({ donorJourneyText, updatedAt: sql`now()` })
+      .where(eq(organizations.id, id))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to update donor journey text:", error);
+    throw new Error("Could not update donor journey text.");
+  }
+}
+
+/**
+ * Gets the donor journey text for an organization
+ * @param id - The ID of the organization
+ * @returns The donor journey text
+ */
+export async function getDonorJourneyText(id: string): Promise<string | undefined> {
+  try {
+    const result = await db
+      .select({ donorJourneyText: organizations.donorJourneyText })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return result[0]?.donorJourneyText || undefined;
+  } catch (error) {
+    console.error("Failed to get donor journey text:", error);
+    throw new Error("Could not get donor journey text.");
+  }
+}

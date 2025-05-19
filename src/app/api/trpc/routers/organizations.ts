@@ -6,6 +6,8 @@ import {
   updateOrganization,
   updateDonorJourney,
   getDonorJourney,
+  updateDonorJourneyText,
+  getDonorJourneyText,
   type DonorJourney,
 } from "@/app/lib/data/organizations";
 import { tasks } from "@trigger.dev/sdk/v3"; // Import tasks for triggering
@@ -233,6 +235,47 @@ export const organizationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to update donor journey",
+        cause: error,
+      });
+    }
+  }),
+
+  /**
+   * Get the current organization's donor journey text
+   */
+  getDonorJourneyText: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const text = await getDonorJourneyText(ctx.auth.user.organizationId);
+      return text || "";
+    } catch (error) {
+      logger.error(`Failed to get donor journey text: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get donor journey text",
+        cause: error,
+      });
+    }
+  }),
+
+  /**
+   * Update the current organization's donor journey text
+   */
+  updateDonorJourneyText: protectedProcedure.input(z.string()).mutation(async ({ input, ctx }) => {
+    try {
+      const updated = await updateDonorJourneyText(ctx.auth.user.organizationId, input);
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      return updated;
+    } catch (error) {
+      logger.error(`Failed to update donor journey text: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update donor journey text",
         cause: error,
       });
     }
