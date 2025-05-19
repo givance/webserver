@@ -14,6 +14,7 @@ import { tasks } from "@trigger.dev/sdk/v3"; // Import tasks for triggering
 import type { crawlAndSummarizeWebsiteTask } from "@/trigger/jobs/crawlAndSummarizeWebsite"; // Type-only import for the task
 import pino from "pino"; // Import logger
 import { getUserById, updateUserMemory } from "@/app/lib/data/users";
+import { DonorJourneyService } from "@/app/lib/services/donor-journey.service";
 
 const logger = pino(); // Initialize logger
 
@@ -276,6 +277,37 @@ export const organizationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to update donor journey text",
+        cause: error,
+      });
+    }
+  }),
+
+  /**
+   * Process and update the donor journey
+   */
+  processDonorJourney: protectedProcedure.input(z.string()).mutation(async ({ input, ctx }) => {
+    try {
+      // Process the journey description
+      const journeyGraph = await DonorJourneyService.processJourney(input);
+
+      // Save both the text and generated graph
+      const updated = await updateDonorJourney(ctx.auth.user.organizationId, journeyGraph);
+      await updateDonorJourneyText(ctx.auth.user.organizationId, input);
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      return updated;
+    } catch (error) {
+      logger.error(`Failed to process donor journey: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to process donor journey",
         cause: error,
       });
     }

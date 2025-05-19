@@ -80,6 +80,13 @@ export function useOrganization() {
     },
   });
 
+  const processDonorJourneyMutation = trpc.organizations.processDonorJourney.useMutation({
+    onSuccess: () => {
+      utils.organizations.getDonorJourney.invalidate();
+      utils.organizations.getDonorJourneyText.invalidate();
+    },
+  });
+
   const { data: organization } = getOrganization();
   const { data: donorJourney } = getDonorJourney();
   const { data: donorJourneyText } = getDonorJourneyText();
@@ -242,6 +249,18 @@ export function useOrganization() {
     [moveFromUserMutation]
   );
 
+  const processDonorJourney = useCallback(
+    async (text: string) => {
+      try {
+        await processDonorJourneyMutation.mutateAsync(text);
+      } catch (error) {
+        console.error("Failed to process donor journey:", error);
+        throw error;
+      }
+    },
+    [processDonorJourneyMutation]
+  );
+
   return {
     // Query functions
     getOrganization,
@@ -270,9 +289,11 @@ export function useOrganization() {
       updateMutation.isPending ||
       moveFromUserMutation.isPending ||
       updateDonorJourneyMutation.isPending ||
-      updateDonorJourneyTextMutation.isPending,
+      updateDonorJourneyTextMutation.isPending ||
+      processDonorJourneyMutation.isPending,
 
     // Mutation results
     updateResult: updateMutation.data,
+    processDonorJourney,
   };
 }

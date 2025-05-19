@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Brain } from "lucide-react";
+import { Building2, Brain, GitGraph } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
@@ -9,6 +9,7 @@ import { useOrganization } from "@/app/hooks/use-organization";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationSettings } from "./organization/OrganizationSettings";
+import { DonorJourneySettings } from "./donor-journey/DonorJourneySettings";
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -42,6 +43,10 @@ export default function SettingsPage() {
               <Building2 className="h-4 w-4" />
               <span>Organization</span>
             </TabsTrigger>
+            <TabsTrigger value="donor-journey" className="flex items-center space-x-2">
+              <GitGraph className="h-4 w-4" />
+              <span>Donor Journey</span>
+            </TabsTrigger>
             <TabsTrigger value="memories" className="flex items-center space-x-2">
               <Brain className="h-4 w-4" />
               <span>Memories</span>
@@ -60,6 +65,10 @@ export default function SettingsPage() {
                 <OrganizationSettings />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="donor-journey">
+            <DonorJourneySettings />
           </TabsContent>
 
           <TabsContent value="memories">
