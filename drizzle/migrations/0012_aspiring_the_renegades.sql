@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "donor_journey" jsonb DEFAULT '{"nodes": [], "edges": []}'::jsonb;
