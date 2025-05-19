@@ -6,6 +6,7 @@ import type { DonationWithDetails } from "@/app/lib/data/donations"; // Reusing 
 /**
  * Represents the necessary information for a donor for analysis tasks.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DonorAnalysisInfo extends Pick<Donor, "id" | "name" | "email"> {
   // Potentially add other relevant donor fields if needed directly by services
   // e.g., currentStageId if fetched upfront

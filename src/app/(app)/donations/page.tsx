@@ -63,6 +63,8 @@ function DonationsContent() {
                   ...donation.donor,
                   createdAt: new Date(donation.donor.createdAt),
                   updatedAt: new Date(donation.donor.updatedAt),
+                  predictedActions:
+                    donation.donor.predictedActions !== undefined ? donation.donor.predictedActions : null,
                 }
               : undefined,
             project: donation.project

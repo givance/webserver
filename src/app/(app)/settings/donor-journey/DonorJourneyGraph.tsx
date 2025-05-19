@@ -142,7 +142,8 @@ interface DonorJourneyGraphProps {
 }
 
 export function DonorJourneyGraph({ journey, className }: DonorJourneyGraphProps) {
-  const { fitView } = useReactFlow();
+  const reactFlowInstance = useReactFlow();
+  const { fitView } = reactFlowInstance;
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Convert donor journey data to ReactFlow format with custom styling
@@ -199,14 +200,13 @@ export function DonorJourneyGraph({ journey, className }: DonorJourneyGraphProps
   const onLayout = useCallback(
     (direction: "TB" | "LR") => {
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, direction);
-      const flow = useReactFlow();
-      flow.setNodes(layoutedNodes);
-      flow.setEdges(layoutedEdges);
+      reactFlowInstance.setNodes(layoutedNodes);
+      reactFlowInstance.setEdges(layoutedEdges);
       setTimeout(() => {
         fitView({ padding: 0.2 });
       }, 0);
     },
-    [nodes, edges, fitView]
+    [nodes, edges, fitView, reactFlowInstance]
   );
 
   return (

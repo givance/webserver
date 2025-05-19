@@ -65,6 +65,7 @@ function CommunicationsContent() {
                     ...donor.donor,
                     createdAt: new Date(donor.donor.createdAt),
                     updatedAt: new Date(donor.donor.updatedAt),
+                    predictedActions: donor.donor.predictedActions !== undefined ? donor.donor.predictedActions : null,
                   }
                 : undefined,
             })),

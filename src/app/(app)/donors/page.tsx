@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
@@ -115,30 +115,33 @@ export default function DonorListPage() {
     },
   });
 
-  const handleAnalyzeDonors = async (donorId?: string) => {
-    setIsAnalyzing(true);
-    if (donorId) {
-      setAnalyzingDonorId(donorId);
-      toast.info(`Starting analysis for donor ${donorId}...`);
-      await analyzeDonorsMutation.mutateAsync({ donorIds: [donorId] });
-    } else {
-      // Batch analysis
-      toast.info("Starting batch analysis for donors on current page...");
-      const donorIdsToAnalyze = donors.map((d) => d.id);
-      if (donorIdsToAnalyze.length === 0) {
-        toast.info("No donors to analyze on the current page.");
-        setIsAnalyzing(false);
-        return;
+  const handleAnalyzeDonors = useCallback(
+    async (donorId?: string) => {
+      setIsAnalyzing(true);
+      if (donorId) {
+        setAnalyzingDonorId(donorId);
+        toast.info(`Starting analysis for donor ${donorId}...`);
+        await analyzeDonorsMutation.mutateAsync({ donorIds: [donorId] });
+      } else {
+        // Batch analysis
+        toast.info("Starting batch analysis for donors on current page...");
+        const donorIdsToAnalyze = donors.map((d) => d.id);
+        if (donorIdsToAnalyze.length === 0) {
+          toast.info("No donors to analyze on the current page.");
+          setIsAnalyzing(false);
+          return;
+        }
+        await analyzeDonorsMutation.mutateAsync({ donorIds: donorIdsToAnalyze });
       }
-      await analyzeDonorsMutation.mutateAsync({ donorIds: donorIdsToAnalyze });
-    }
-    // onSettled from useMutation will handle setIsAnalyzing(false) and setAnalyzingDonorId(null)
-  };
+      // onSettled from useMutation will handle setIsAnalyzing(false) and setAnalyzingDonorId(null)
+    },
+    [analyzeDonorsMutation, donors, setIsAnalyzing, setAnalyzingDonorId]
+  );
 
   const columnsConfig = useMemo(() => {
     const isLoadingDonor = (id: string) => isAnalyzing && analyzingDonorId === id;
     return getColumns(handleAnalyzeDonors, isLoadingDonor);
-  }, [isAnalyzing, analyzingDonorId]);
+  }, [isAnalyzing, analyzingDonorId, handleAnalyzeDonors]);
 
   if (error) {
     return (
