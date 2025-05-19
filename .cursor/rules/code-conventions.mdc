@@ -1,7 +1,7 @@
 ---
 description:
 globs:
-alwaysApply: false
+alwaysApply: true
 ---
 # Code Conventions and Best Practices
 
@@ -27,6 +27,7 @@ alwaysApply: false
 ## Project Setup
 - Use `pnpm` as the package manager
 - Use Node.js version 22.4.0 (`nvm use 22.4.0`)
+- use vercel's AI package for LLM requests.
 
 ## Logging
 - Format log messages inline instead of using object notation
