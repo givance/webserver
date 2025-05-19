@@ -1,18 +1,34 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, ChevronRight, Brain } from "lucide-react";
-import Link from "next/link";
+import { Building2, Brain } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OrganizationSettings } from "./organization/OrganizationSettings";
 
 export default function SettingsPage() {
   const { user } = useUser();
-  const { memory, addMemoryItem, updateMemoryItem, deleteMemoryItem, isLoading } = useMemory();
-  const { moveMemoryFromUser } = useOrganization();
+  const {
+    memory: personalMemory,
+    addMemoryItem: addPersonalMemory,
+    updateMemoryItem: updatePersonalMemory,
+    deleteMemoryItem: deletePersonalMemory,
+    isLoading: isPersonalMemoryLoading,
+  } = useMemory();
+  const {
+    getOrganization,
+    addMemoryItem: addOrgMemory,
+    updateMemoryItem: updateOrgMemory,
+    deleteMemoryItem: deleteOrgMemory,
+    moveMemoryFromUser,
+  } = useOrganization();
+  const { data: organization, isLoading: isOrgLoading } = getOrganization();
+
+  const isLoading = isPersonalMemoryLoading || isOrgLoading;
 
   return (
     <>
@@ -20,55 +36,90 @@ export default function SettingsPage() {
       <div className="container mx-auto py-6 max-w-4xl">
         <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-        <div className="grid gap-6">
-          <Link href="/settings/organization">
-            <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="flex items-center space-x-2">
-                  <Building2 className="h-5 w-5" />
-                  <CardTitle>Organization</CardTitle>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
+        <Tabs defaultValue="organization" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="organization" className="flex items-center space-x-2">
+              <Building2 className="h-4 w-4" />
+              <span>Organization</span>
+            </TabsTrigger>
+            <TabsTrigger value="memories" className="flex items-center space-x-2">
+              <Brain className="h-4 w-4" />
+              <span>Memories</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="organization">
+            <Card>
+              <CardHeader>
+                <CardTitle>Organization Settings</CardTitle>
                 <CardDescription>
                   Manage your organization&apos;s name, description, website, and other metadata
                 </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <OrganizationSettings />
               </CardContent>
             </Card>
-          </Link>
+          </TabsContent>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center pb-2">
-              <div className="flex items-center space-x-2">
-                <Brain className="h-5 w-5" />
-                <CardTitle>Memory Management</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="mb-4">
-                Manage your personal memory items. These can be used to store important information or notes. You can
-                also move items to your organization&apos;s memory for team-wide access.
-              </CardDescription>
-              {isLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : (
-                <UserMemory
-                  initialMemory={memory}
-                  onAddMemory={addMemoryItem}
-                  onUpdateMemory={updateMemoryItem}
-                  onDeleteMemory={deleteMemoryItem}
-                  onMoveToOrganization={moveMemoryFromUser}
-                  showMoveToOrg={true}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          <TabsContent value="memories">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Memory</CardTitle>
+                  <CardDescription>
+                    Manage your personal memory items. These can be used to store important information or notes. You
+                    can also move items to your organization&apos;s memory for team-wide access.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <UserMemory
+                      initialMemory={personalMemory}
+                      onAddMemory={addPersonalMemory}
+                      onUpdateMemory={updatePersonalMemory}
+                      onDeleteMemory={deletePersonalMemory}
+                      onMoveToOrganization={moveMemoryFromUser}
+                      showMoveToOrg={true}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Organization Memory</CardTitle>
+                  <CardDescription>
+                    Manage your organization&apos;s memory items. These can be used to store important information or
+                    notes that all members can access.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <UserMemory
+                      initialMemory={organization?.memory || []}
+                      onAddMemory={addOrgMemory}
+                      onUpdateMemory={updateOrgMemory}
+                      onDeleteMemory={deleteOrgMemory}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   );
