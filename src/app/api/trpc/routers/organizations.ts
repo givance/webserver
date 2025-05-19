@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { getOrganizationById, updateOrganization } from "@/app/lib/data/organizations";
+import {
+  getOrganizationById,
+  updateOrganization,
+  updateDonorJourney,
+  getDonorJourney,
+  type DonorJourney,
+} from "@/app/lib/data/organizations";
 import { tasks } from "@trigger.dev/sdk/v3"; // Import tasks for triggering
 import type { crawlAndSummarizeWebsiteTask } from "@/trigger/jobs/crawlAndSummarizeWebsite"; // Type-only import for the task
 import pino from "pino"; // Import logger
@@ -16,6 +22,26 @@ const updateOrganizationSchema = z.object({
   description: z.string().optional(),
   writingInstructions: z.string().optional(),
   memory: z.array(z.string()).optional(), // Array of strings for memory
+});
+
+// Donor journey validation schemas
+const donorJourneyNodeSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  properties: z.record(z.any()),
+});
+
+const donorJourneyEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  label: z.string(),
+  properties: z.record(z.any()),
+});
+
+const donorJourneySchema = z.object({
+  nodes: z.array(donorJourneyNodeSchema),
+  edges: z.array(donorJourneyEdgeSchema),
 });
 
 export const organizationsRouter = router({
@@ -167,4 +193,48 @@ export const organizationsRouter = router({
         });
       }
     }),
+
+  /**
+   * Get the current organization's donor journey
+   */
+  getDonorJourney: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const journey = await getDonorJourney(ctx.auth.user.organizationId);
+      if (!journey) {
+        return { nodes: [], edges: [] } as DonorJourney;
+      }
+      return journey;
+    } catch (error) {
+      logger.error(`Failed to get donor journey: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get donor journey",
+        cause: error,
+      });
+    }
+  }),
+
+  /**
+   * Update the current organization's donor journey
+   */
+  updateDonorJourney: protectedProcedure.input(donorJourneySchema).mutation(async ({ input, ctx }) => {
+    try {
+      const updated = await updateDonorJourney(ctx.auth.user.organizationId, input);
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      return updated;
+    } catch (error) {
+      logger.error(`Failed to update donor journey: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update donor journey",
+        cause: error,
+      });
+    }
+  }),
 });

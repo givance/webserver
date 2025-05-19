@@ -16,6 +16,26 @@ export type NewOrganizationMembership = InferInsertModel<typeof organizationMemb
 export type OrganizationMemberDetails = OrganizationMembership & { user: User | null };
 export type UserOrganizationDetails = OrganizationMembership & { organization: Organization | null };
 
+// Types for donor journey
+export type DonorJourneyNode = {
+  id: string;
+  label: string;
+  properties: Record<string, any>;
+};
+
+export type DonorJourneyEdge = {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  properties: Record<string, any>;
+};
+
+export type DonorJourney = {
+  nodes: DonorJourneyNode[];
+  edges: DonorJourneyEdge[];
+};
+
 /**
  * Retrieves an organization by its ID.
  * Can optionally include members.
@@ -219,4 +239,43 @@ export async function getUserOrganizations(userId: string): Promise<UserOrganiza
 export async function getOrganizationMemories(id: string): Promise<string[]> {
   const result = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
   return result[0].memory || [];
+}
+
+/**
+ * Updates the donor journey for an organization
+ * @param id - The ID of the organization
+ * @param donorJourney - The new donor journey data
+ * @returns The updated organization
+ */
+export async function updateDonorJourney(id: string, donorJourney: DonorJourney): Promise<Organization | undefined> {
+  try {
+    const result = await db
+      .update(organizations)
+      .set({ donorJourney, updatedAt: sql`now()` })
+      .where(eq(organizations.id, id))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to update donor journey:", error);
+    throw new Error("Could not update donor journey.");
+  }
+}
+
+/**
+ * Gets the donor journey for an organization
+ * @param id - The ID of the organization
+ * @returns The donor journey data
+ */
+export async function getDonorJourney(id: string): Promise<DonorJourney | undefined> {
+  try {
+    const result = await db
+      .select({ donorJourney: organizations.donorJourney })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return result[0]?.donorJourney as DonorJourney | undefined;
+  } catch (error) {
+    console.error("Failed to get donor journey:", error);
+    throw new Error("Could not get donor journey.");
+  }
 }
