@@ -79,7 +79,7 @@ interface Donation {
 
 async function generateSampleStaff(count: number, organizationId: string): Promise<StaffMember[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4-turbo-preview"),
+    model: openai("gpt-4.1-mini"),
     schema: z.object({
       staff: z.array(
         z.object({
@@ -103,7 +103,7 @@ async function generateSampleStaff(count: number, organizationId: string): Promi
 
 async function generateSampleDonors(count: number, organizationId: string): Promise<Donor[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4-turbo-preview"),
+    model: openai("gpt-4.1-mini"),
     schema: z.object({
       donors: z.array(
         z.object({
@@ -134,7 +134,7 @@ async function generateSampleDonors(count: number, organizationId: string): Prom
 
 async function generateSampleProjects(count: number, organizationId: string): Promise<Project[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4-turbo-preview"),
+    model: openai("gpt-4.1-mini"),
     schema: z.object({
       projects: z.array(
         z.object({
@@ -166,7 +166,7 @@ async function generateSampleCommunications(
   count: number
 ): Promise<Communication[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4-turbo-preview"),
+    model: openai("gpt-4.1-mini"),
     schema: z.object({
       communications: z.array(
         z.object({
@@ -205,7 +205,7 @@ async function generateSampleCommunications(
 
 async function generateSampleDonations(donors: Donor[], projects: Project[], count: number): Promise<Donation[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4-turbo-preview"),
+    model: openai("gpt-4.1-mini"),
     schema: z.object({
       donations: z.array(
         z.object({
