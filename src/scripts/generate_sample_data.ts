@@ -3,7 +3,7 @@
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { config } from "dotenv";
-import { eq } from "drizzle-orm";
+import { eq, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { z } from "zod";
@@ -170,21 +170,33 @@ async function generateSampleCommunications(
     schema: z.object({
       communications: z.array(
         z.object({
+          subject: z.string(),
           content: z.string(),
           channel: z.enum(["email", "phone", "text"]),
           timestamp: z.string().datetime(),
         })
       ),
     }),
-    prompt: `Generate ${count} communication threads.
-    The content should be a brief message without any quotes or special characters that could break JSON parsing.
+    prompt: `Generate ${count} realistic email communications between nonprofit donor relations managers and donors.
+    Each communication should include:
+    1. A subject line that reflects the purpose of the email
+    2. A detailed email body that sounds like a real conversation
+    3. Include specific details about:
+       - Project updates and impact
+       - Donation acknowledgments
+       - Event invitations
+       - Impact reports
+       - Thank you messages
+       - Follow-ups on previous conversations
+    Make the tone professional but warm and personal. Include specific details about projects, amounts, and impact.
     The timestamp must be a valid ISO date string from the last 6 months.
+    Format the content as a proper email with greeting and signature.
     Make the communications diverse and realistic.`,
   });
 
   return object.communications.map((c) => ({
     channel: c.channel,
-    content: c.content,
+    content: `Subject: ${c.subject}\n\n${c.content}`,
     staffId: staffMembers[Math.floor(Math.random() * staffMembers.length)].id!,
     donorId: donors[Math.floor(Math.random() * donors.length)].id!,
     timestamp: new Date(c.timestamp),
@@ -226,15 +238,52 @@ async function generateSampleDonations(donors: Donor[], projects: Project[], cou
 async function main() {
   try {
     console.log("Starting sample data generation...");
-    const organizationId = "org_sample";
+    const organizationId = "org_2xIXH7pYMC1yiTPocKBNjsLUooz";
 
     // Delete existing data for the organization
     console.log("Cleaning up existing data...");
-    await db.delete(donations).where(eq(donations.donorId, 0)); // This will be replaced with proper cleanup
-    await db.delete(communicationThreadDonors).where(eq(communicationThreadDonors.donorId, 0));
-    await db.delete(communicationThreadStaff).where(eq(communicationThreadStaff.staffId, 0));
-    await db.delete(communicationContent).where(eq(communicationContent.threadId, 0));
-    await db.delete(communicationThreads).where(eq(communicationThreads.id, 0));
+
+    // Get all IDs for the organization
+    const orgProjects = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.organizationId, organizationId));
+    const orgStaff = await db.select({ id: staff.id }).from(staff).where(eq(staff.organizationId, organizationId));
+    const orgDonors = await db.select({ id: donors.id }).from(donors).where(eq(donors.organizationId, organizationId));
+
+    const projectIds = orgProjects.map((p) => p.id);
+    const staffIds = orgStaff.map((s) => s.id);
+    const donorIds = orgDonors.map((d) => d.id);
+
+    // Delete in correct order to handle foreign key constraints
+    if (projectIds.length > 0) {
+      // Delete donations for organization's projects
+      await db.delete(donations).where(inArray(donations.projectId, projectIds));
+    }
+
+    // Get all communication threads associated with the organization's staff and donors
+    const threadIds = await db
+      .select({ id: communicationThreads.id })
+      .from(communicationThreads)
+      .leftJoin(communicationThreadStaff, eq(communicationThreads.id, communicationThreadStaff.threadId))
+      .leftJoin(communicationThreadDonors, eq(communicationThreads.id, communicationThreadDonors.threadId))
+      .where(
+        or(
+          staffIds.length > 0 ? inArray(communicationThreadStaff.staffId, staffIds) : undefined,
+          donorIds.length > 0 ? inArray(communicationThreadDonors.donorId, donorIds) : undefined
+        )
+      );
+
+    // Delete communication data
+    if (threadIds.length > 0) {
+      const threadIdList = threadIds.map((t) => t.id);
+      await db.delete(communicationContent).where(inArray(communicationContent.threadId, threadIdList));
+      await db.delete(communicationThreadStaff).where(inArray(communicationThreadStaff.threadId, threadIdList));
+      await db.delete(communicationThreadDonors).where(inArray(communicationThreadDonors.threadId, threadIdList));
+      await db.delete(communicationThreads).where(inArray(communicationThreads.id, threadIdList));
+    }
+
+    // Finally delete the main organization data
     await db.delete(donors).where(eq(donors.organizationId, organizationId));
     await db.delete(staff).where(eq(staff.organizationId, organizationId));
     await db.delete(projects).where(eq(projects.organizationId, organizationId));
