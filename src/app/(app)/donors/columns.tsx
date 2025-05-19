@@ -2,7 +2,7 @@
 
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, Trash2, Activity } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -68,7 +68,10 @@ function DeleteDonorButton({ donorId }: { donorId: string }) {
   );
 }
 
-export const columns: ColumnDef<Donor>[] = [
+export const getColumns = (
+  handleAnalyze: (donorId: string) => void,
+  isLoadingDonor: (donorId: string) => boolean
+): ColumnDef<Donor>[] => [
   {
     accessorKey: "name",
     header: ({ column }: { column: Column<Donor> }) => {
@@ -131,20 +134,33 @@ export const columns: ColumnDef<Donor>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }: { row: Row<Donor> }) => (
-      <div className="flex items-center justify-end gap-2">
-        <Link href={`/donations?donorId=${row.original.id}`}>
-          <Button variant="ghost" size="sm">
-            Donations
+    cell: ({ row }: { row: Row<Donor> }) => {
+      const donor = row.original;
+      const isAnalyzingThisDonor = isLoadingDonor(donor.id);
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleAnalyze(donor.id)}
+            disabled={isAnalyzingThisDonor}
+            title={isAnalyzingThisDonor ? "Analyzing this donor..." : "Analyze this donor"}
+          >
+            <Activity className={`h-4 w-4 ${isAnalyzingThisDonor ? "animate-spin" : ""}`} />
           </Button>
-        </Link>
-        <Link href={`/communications?donorId=${row.original.id}`}>
-          <Button variant="ghost" size="sm">
-            Communications
-          </Button>
-        </Link>
-        <DeleteDonorButton donorId={row.original.id} />
-      </div>
-    ),
+          <Link href={`/donations?donorId=${donor.id}`}>
+            <Button variant="ghost" size="sm" title="View Donations">
+              Donations
+            </Button>
+          </Link>
+          <Link href={`/communications?donorId=${donor.id}`}>
+            <Button variant="ghost" size="sm" title="View Communications">
+              Communications
+            </Button>
+          </Link>
+          <DeleteDonorButton donorId={donor.id} />
+        </div>
+      );
+    },
   },
 ];

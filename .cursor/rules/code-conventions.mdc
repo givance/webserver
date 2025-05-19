@@ -35,6 +35,7 @@ alwaysApply: true
 - Example: ❌ `logger.info("message", {data})`
 - Example: ✅ `logger.info(\`message with ${formattedData}\`)`
 - Include relevant context in log messages (IDs, counts, etc.)
+- Logger is for bbackend only, frontend should not use it.
 
 ## Environment and Configuration
 - Use environment variables through the `env` module

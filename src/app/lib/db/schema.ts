@@ -26,6 +26,7 @@ export const users = pgTable("users", {
   // name: varchar("name", { length: 255 }).notNull(), // Original 'name' field, can be removed if using firstName/lastName
   memory: text("memory").array(), // Array of strings for user memory
   dismissedMemories: text("dismissed_memories").array(), // Array of strings for user dismissed memories
+  stages: text("stages").array(), // Array of strings for user stages
   createdAt: timestamp("created_at")
     .default(sql`now()`)
     .notNull(), // Uses default(sql`now()`) for consistency
@@ -162,6 +163,9 @@ export const donors = pgTable("donors", {
   state: varchar("state", { length: 2 }),
   notes: text("notes"),
   assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
+  currentStageId: text("current_stage_id"),
+  classificationReasoning: text("classification_reasoning"),
+  predictedActions: jsonb("predicted_actions"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
