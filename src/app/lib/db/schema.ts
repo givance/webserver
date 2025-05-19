@@ -1,5 +1,16 @@
 import { relations, sql } from "drizzle-orm";
-import { pgTable, serial, text, timestamp, varchar, boolean, integer, primaryKey, pgEnum } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  varchar,
+  boolean,
+  integer,
+  primaryKey,
+  pgEnum,
+  jsonb,
+} from "drizzle-orm/pg-core";
 
 /**
  * Users table, adapted for Clerk user data.
@@ -57,6 +68,7 @@ export const organizations = pgTable("organizations", {
   websiteSummary: text("website_summary"),
   description: text("description"),
   writingInstructions: text("writing_instructions"),
+  donorJourney: jsonb("donor_journey").default(sql`'{"nodes": [], "edges": []}'::jsonb`), // JSON object for donor journey graph
   memory: text("memory")
     .array()
     .default(sql`'{}'::text[]`), // Array of strings for organization memory, default empty array

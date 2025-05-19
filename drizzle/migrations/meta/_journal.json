@@ -85,6 +85,13 @@
       "when": 1747523774451,
       "tag": "0011_massive_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1747666246028,
+      "tag": "0012_aspiring_the_renegades",
+      "breakpoints": true
     }
   ]
 }
