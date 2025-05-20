@@ -2,12 +2,13 @@
 
 import { useTodos } from "@/app/hooks/use-todos";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/app/lib/utils/format";
-import { CheckCircle2, Circle, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search } from "lucide-react";
 import Link from "next/link";
 import type { Todo } from "@/app/types/todo";
+import { cn } from "@/lib/utils";
+import React from "react";
+import { Input } from "@/components/ui/input";
 
 function TodoStatusIcon({ status }: { status: string }) {
   switch (status.toUpperCase()) {
@@ -22,92 +23,170 @@ function TodoStatusIcon({ status }: { status: string }) {
   }
 }
 
-function TodoCard({ todo }: { todo: Todo }) {
-  return (
-    <Card className="mb-4">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg">{todo.title}</CardTitle>
-            <CardDescription className="mt-1">
-              {todo.donorId && (
-                <Link href={`/donors/${todo.donorId}`} className="text-blue-500 hover:underline">
-                  View Donor
-                </Link>
-              )}
-            </CardDescription>
-          </div>
-          <TodoStatusIcon status={todo.status} />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-gray-600 mb-2">{todo.description}</p>
-        <div className="flex gap-4 text-xs text-gray-500">
-          {todo.dueDate && <span>Due: {formatDate(todo.dueDate)}</span>}
-          {todo.scheduledDate && <span>Scheduled: {formatDate(todo.scheduledDate)}</span>}
-        </div>
-        {todo.instruction && (
-          <div className="mt-2 p-2 bg-gray-50 rounded-md text-sm">
-            <strong>Instructions:</strong> {todo.instruction}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+function TodoTypeTag({ type }: { type: string }) {
+  const getTagStyle = (type: string) => {
+    const styles = {
+      Social: "bg-red-100 text-red-700",
+      "Theme Support": "bg-orange-100 text-orange-700",
+      Friends: "bg-blue-100 text-blue-700",
+      Freelance: "bg-green-100 text-green-700",
+      Coding: "bg-purple-100 text-purple-700",
+      default: "bg-gray-100 text-gray-700",
+    };
+    return styles[type as keyof typeof styles] || styles.default;
+  };
+
+  return <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", getTagStyle(type))}>{type}</span>;
 }
 
-function TodoGroup({ title, todos }: { title: string; todos: Todo[] }) {
+interface TodosByDate {
+  [key: string]: Todo[];
+}
+
+function groupTodosByDate(todos: Todo[]): TodosByDate {
+  const groups: TodosByDate = {};
+
+  // First, sort todos by scheduled date
+  const sortedTodos = [...todos].sort((a, b) => {
+    const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : Number.MAX_SAFE_INTEGER;
+    const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : Number.MAX_SAFE_INTEGER;
+    return dateA - dateB;
+  });
+
+  // Group todos by scheduled date
+  sortedTodos.forEach((todo) => {
+    let dateKey = "Not Scheduled";
+    if (todo.scheduledDate) {
+      const date = new Date(todo.scheduledDate);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        dateKey = "Today";
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        dateKey = "Tomorrow";
+      } else {
+        dateKey = formatDate(todo.scheduledDate);
+      }
+    }
+
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(todo);
+  });
+
+  return groups;
+}
+
+function TodoList({ todos }: { todos: Todo[] }) {
+  const todosByDate = groupTodosByDate(todos);
+
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-semibold mb-4">{title}</h2>
-      <div className="space-y-4">
-        {todos.map((todo) => (
-          <TodoCard key={todo.id} todo={todo} />
-        ))}
-      </div>
+    <div className="space-y-6">
+      {Object.entries(todosByDate).map(([date, dateTodos]) => (
+        <div key={date} className="space-y-2">
+          <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm z-10 py-2">
+            <h2 className="text-sm font-medium text-gray-500">
+              {date}
+              <span className="ml-2 text-gray-400">({dateTodos.length} tasks)</span>
+            </h2>
+          </div>
+          <div className="space-y-1">
+            {dateTodos.map((todo) => (
+              <div
+                key={todo.id}
+                className="group flex items-center gap-3 rounded-lg border border-transparent bg-white p-3 hover:border-gray-200 hover:bg-gray-50/50"
+              >
+                <div className="flex-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded-sm border-gray-300 text-primary focus:ring-primary"
+                    checked={todo.status.toUpperCase() === "COMPLETED"}
+                    onChange={() => {}}
+                  />
+                </div>
+
+                <Star className="h-4 w-4 flex-none text-gray-400 hover:text-yellow-400 cursor-pointer" />
+
+                <div className="min-w-0 flex-auto">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-gray-900">{todo.title}</p>
+                    <TodoTypeTag type={todo.type} />
+                  </div>
+                  {todo.description && <p className="mt-1 truncate text-sm text-gray-500">{todo.description}</p>}
+                </div>
+
+                {todo.donorId && (
+                  <div className="flex-none">
+                    <Link
+                      href={`/donors/${todo.donorId}`}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-900"
+                    >
+                      D{todo.donorId}
+                    </Link>
+                  </div>
+                )}
+
+                <button className="flex-none opacity-0 group-hover:opacity-100">
+                  <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function Home() {
   const { groupedTodos, isLoadingGroupedTodos } = useTodos();
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   if (isLoadingGroupedTodos) {
     return (
       <div className="container mx-auto py-8">
         <h1 className="text-2xl font-bold mb-6">Organization Tasks</h1>
-        <div className="space-y-8">
-          {[1, 2].map((i) => (
-            <div key={i} className="space-y-4">
-              <Skeleton className="h-8 w-48" />
-              <div className="space-y-4">
-                {[1, 2, 3].map((j) => (
-                  <Skeleton key={j} className="h-32 w-full" />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="h-96 w-full animate-pulse bg-gray-100 rounded-lg" />
       </div>
     );
   }
 
   const todoGroups = (groupedTodos || {}) as Record<string, Todo[]>;
-  const hasAnyTodos = Object.values(todoGroups).some((group) => group.length > 0);
+  const allTodos = Object.values(todoGroups).flat();
+  const hasAnyTodos = allTodos.length > 0;
+
+  const filteredTodos = allTodos.filter(
+    (todo) =>
+      todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      todo.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto py-8 max-w-5xl">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Organization Tasks</h1>
-        <Link href="/donors">
-          <Button>View All Donors</Button>
-        </Link>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Search tasks..."
+              className="pl-10 w-64"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button className="bg-primary hover:bg-primary/90">Add Task</Button>
+        </div>
       </div>
 
       {hasAnyTodos ? (
-        Object.entries(todoGroups).map(([type, todos]) =>
-          todos.length > 0 ? <TodoGroup key={type} title={type} todos={todos} /> : null
-        )
+        <div className="rounded-xl border bg-gray-50/50 p-4">
+          <TodoList todos={filteredTodos} />
+        </div>
       ) : (
         <div className="text-center py-12">
           <p className="text-gray-500">No tasks found. Start by analyzing your donors to get predictions.</p>
