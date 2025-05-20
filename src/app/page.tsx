@@ -1,6 +1,7 @@
 "use client";
 
 import { useTodos } from "@/app/hooks/use-todos";
+import { useDonors } from "@/app/hooks/use-donors";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/app/lib/utils/format";
 import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search } from "lucide-react";
@@ -80,6 +81,31 @@ function groupTodosByDate(todos: Todo[]): TodosByDate {
   return groups;
 }
 
+function DonorLink({ donorId }: { donorId: number }) {
+  const { getDonorQuery } = useDonors();
+  const { data: donor, isLoading } = getDonorQuery(donorId);
+
+  if (isLoading) {
+    return <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />;
+  }
+
+  if (!donor) {
+    return null;
+  }
+
+  const donorName = `${donor.firstName} ${donor.lastName}`;
+
+  return (
+    <Link href={`/donors/${donorId}`} className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+        {donor.firstName[0]}
+        {donor.lastName[0]}
+      </div>
+      <span>{donorName}</span>
+    </Link>
+  );
+}
+
 function TodoList({ todos }: { todos: Todo[] }) {
   const todosByDate = groupTodosByDate(todos);
 
@@ -120,12 +146,7 @@ function TodoList({ todos }: { todos: Todo[] }) {
 
                 {todo.donorId && (
                   <div className="flex-none">
-                    <Link
-                      href={`/donors/${todo.donorId}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-900"
-                    >
-                      D{todo.donorId}
-                    </Link>
+                    <DonorLink donorId={todo.donorId} />
                   </div>
                 )}
 

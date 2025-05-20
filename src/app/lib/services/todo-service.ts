@@ -1,7 +1,8 @@
 import { db } from "@/app/lib/db";
-import { todos } from "@/app/lib/db/schema";
+import { todos, donors } from "@/app/lib/db/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import type { PredictedAction } from "@/app/lib/analysis/types";
+import type { Todo } from "@/app/types/todo";
 
 export interface CreateTodoInput {
   title: string;
@@ -20,6 +21,10 @@ export interface CreateTodoInput {
 export interface UpdateTodoInput extends Partial<CreateTodoInput> {
   status?: string;
   completedDate?: Date;
+}
+
+export interface TodoWithDonor extends Todo {
+  donorName: string | null;
 }
 
 export class TodoService {
@@ -110,8 +115,28 @@ export class TodoService {
 
   async getTodosGroupedByType(organizationId: string) {
     const allTodos = await db
-      .select()
+      .select({
+        id: todos.id,
+        title: todos.title,
+        description: todos.description,
+        type: todos.type,
+        status: todos.status,
+        priority: todos.priority,
+        dueDate: sql<string | null>`${todos.dueDate}::text`,
+        scheduledDate: sql<string | null>`${todos.scheduledDate}::text`,
+        completedDate: sql<string | null>`${todos.completedDate}::text`,
+        donorId: todos.donorId,
+        staffId: todos.staffId,
+        organizationId: todos.organizationId,
+        explanation: todos.explanation,
+        instruction: todos.instruction,
+        createdAt: sql<string>`${todos.createdAt}::text`,
+        updatedAt: sql<string>`${todos.updatedAt}::text`,
+        donorFirstName: donors.firstName,
+        donorLastName: donors.lastName,
+      })
       .from(todos)
+      .leftJoin(donors, eq(todos.donorId, donors.id))
       .where(eq(todos.organizationId, organizationId))
       .orderBy(asc(todos.type), desc(todos.createdAt));
 
@@ -121,8 +146,11 @@ export class TodoService {
       if (!groups[type]) {
         groups[type] = [];
       }
-      groups[type].push(todo);
+      groups[type].push({
+        ...todo,
+        donorName: todo.donorFirstName && todo.donorLastName ? `${todo.donorFirstName} ${todo.donorLastName}` : null,
+      });
       return groups;
-    }, {} as Record<string, typeof allTodos>);
+    }, {} as Record<string, TodoWithDonor[]>);
   }
 }
