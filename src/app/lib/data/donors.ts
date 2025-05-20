@@ -1,10 +1,18 @@
 import { db } from "../db";
-import { donors, staff } from "../db/schema";
+import { donors, staff, organizations } from "../db/schema";
 import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import { clerkClient } from "@clerk/nextjs/server";
+import type { DonorJourney } from "./organizations";
 
 export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
+
+export type DonorWithDetails = Donor & {
+  stageName?: string;
+  stageExplanation?: string;
+  possibleActions?: string[];
+};
 
 /**
  * Retrieves a donor by their ID and organization ID.
@@ -166,6 +174,71 @@ export async function unassignDonorFromStaff(donorId: number, organizationId: st
 }
 
 /**
+ * Gets the stage information and possible actions for a donor based on their current stage
+ * and the organization's donor journey configuration.
+ */
+async function getDonorStageInfo(
+  donor: Donor,
+  organizationId: string
+): Promise<Pick<DonorWithDetails, "stageName" | "stageExplanation" | "possibleActions">> {
+  try {
+    // Get the organization's donor journey
+    const org = await db
+      .select({ donorJourney: organizations.donorJourney })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    const journey = org[0]?.donorJourney as DonorJourney;
+    if (!journey || !journey.nodes || !journey.edges) {
+      return {
+        stageName: "No Journey Defined",
+        stageExplanation: "The organization has not defined a donor journey.",
+        possibleActions: [],
+      };
+    }
+
+    // Find the current stage node
+    const currentStage = journey.nodes.find((node) => node.id === donor.currentStageId);
+
+    if (!currentStage) {
+      // If no current stage is set, assume they're at the first stage
+      const firstStage = journey.nodes[0];
+      if (!firstStage) {
+        return {
+          stageName: "No Stages Defined",
+          stageExplanation: "No stages have been defined in the donor journey.",
+          possibleActions: [],
+        };
+      }
+      return {
+        stageName: firstStage.label,
+        stageExplanation: firstStage.properties?.description || "No description available.",
+        possibleActions: journey.edges.filter((edge) => edge.source === firstStage.id).map((edge) => edge.label),
+      };
+    }
+
+    // Get possible next actions from edges
+    const possibleActions = journey.edges
+      .filter((edge) => edge.source === donor.currentStageId)
+      .map((edge) => edge.label);
+
+    return {
+      stageName: currentStage.label,
+      stageExplanation: currentStage.properties?.description || "No description available.",
+      possibleActions,
+    };
+  } catch (error) {
+    console.error("Failed to get donor stage info:", error);
+    return {
+      stageName: "Error",
+      stageExplanation: "Failed to retrieve stage information.",
+      possibleActions: [],
+    };
+  }
+}
+
+/**
  * Lists donors with optional search, filtering, and sorting.
  * @param options - Options for searching, filtering, pagination, and sorting.
  * @param organizationId - The ID of the organization to filter donors by.
@@ -173,20 +246,19 @@ export async function unassignDonorFromStaff(donorId: number, organizationId: st
  */
 export async function listDonors(
   options: {
-    searchTerm?: string; // Search by name or email
+    searchTerm?: string;
     state?: string;
-    assignedToStaffId?: number | null; // Filter by assigned staff member (null for unassigned)
+    assignedToStaffId?: number | null;
     limit?: number;
     offset?: number;
-    orderBy?: keyof Pick<Donor, "firstName" | "lastName" | "email" | "createdAt">;
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
     orderDirection?: "asc" | "desc";
   } = {},
   organizationId: string
-): Promise<{ donors: Donor[]; totalCount: number }> {
+): Promise<{ donors: DonorWithDetails[]; totalCount: number }> {
   try {
     const { searchTerm, state, assignedToStaffId, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
-
-    const conditions: SQL[] = [eq(donors.organizationId, organizationId)];
+    const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
 
     if (searchTerm) {
       const term = `%${searchTerm.toLowerCase()}%`;
@@ -196,33 +268,26 @@ export async function listDonors(
         like(sql`lower(${donors.email})`, term)
       );
       if (searchCondition) {
-        conditions.push(searchCondition);
+        whereClauses.push(searchCondition);
       }
     }
     if (state) {
-      conditions.push(eq(donors.state, state.toUpperCase()));
+      whereClauses.push(eq(donors.state, state.toUpperCase()));
     }
+
     if (assignedToStaffId === null) {
-      conditions.push(isNull(donors.assignedToStaffId));
+      whereClauses.push(isNull(donors.assignedToStaffId));
     } else if (assignedToStaffId !== undefined) {
-      conditions.push(eq(donors.assignedToStaffId, assignedToStaffId));
+      whereClauses.push(eq(donors.assignedToStaffId, assignedToStaffId));
     }
 
-    // Query for the total count
-    const countQuery = db
-      .select({ value: count() })
-      .from(donors)
-      .where(and(...conditions));
-
-    // Query for the paginated data
-    let dataQueryBuilder = db
+    let queryBuilder = db
       .select()
       .from(donors)
-      .where(and(...conditions));
+      .where(and(...whereClauses));
 
-    // Apply ORDER BY if specified
     if (orderBy) {
-      const columnMap: { [key in typeof orderBy]: AnyColumn } = {
+      const columnMap: { [key in NonNullable<typeof orderBy>]: AnyColumn } = {
         firstName: donors.firstName,
         lastName: donors.lastName,
         email: donors.email,
@@ -230,16 +295,34 @@ export async function listDonors(
       };
       const selectedColumn = columnMap[orderBy];
       if (selectedColumn) {
-        const directionFunction = orderDirection === "asc" ? asc : desc;
-        dataQueryBuilder = dataQueryBuilder.orderBy(directionFunction(selectedColumn)) as typeof dataQueryBuilder;
+        const directionFn = orderDirection === "asc" ? asc : desc;
+        // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
+        queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
       }
     }
 
-    const [totalResult, donorData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+    const results = await queryBuilder.limit(limit).offset(offset);
 
-    const totalCount = totalResult[0]?.value || 0;
+    const totalCountResult = await db
+      .select({ count: count() })
+      .from(donors)
+      .where(and(...whereClauses));
 
-    return { donors: donorData, totalCount };
+    // Get stage info for each donor
+    const donorsWithStageInfo = await Promise.all(
+      results.map(async (donor) => {
+        const stageInfo = await getDonorStageInfo(donor, organizationId);
+        return {
+          ...donor,
+          ...stageInfo,
+        };
+      })
+    );
+
+    return {
+      donors: donorsWithStageInfo,
+      totalCount: totalCountResult[0]?.count || 0,
+    };
   } catch (error) {
     console.error("Failed to list donors:", error);
     throw new Error("Could not list donors.");

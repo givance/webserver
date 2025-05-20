@@ -2,7 +2,7 @@
 
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2, Activity } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, Trash2, Activity, Info, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -15,9 +15,26 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { formatCurrency } from "@/app/lib/utils/format";
+import React from "react";
+
+export type PredictedAction = {
+  type: string;
+  description: string;
+  explanation: string;
+  instruction: string;
+};
 
 export type Donor = {
   id: string;
@@ -27,6 +44,9 @@ export type Donor = {
   totalDonated: number;
   lastDonation: string;
   status: "active" | "inactive";
+  currentStageId: string | null;
+  classificationReasoning: string | null;
+  predictedActions: PredictedAction[];
 };
 
 // DeleteDonorButton component to handle delete with confirmation dialog
@@ -131,6 +151,85 @@ export const getColumns = (
         {row.getValue("status")}
       </div>
     ),
+  },
+  {
+    accessorKey: "currentStageId",
+    header: "Stage",
+    cell: ({ row }: { row: Row<Donor> }) => {
+      const stageId = row.getValue("currentStageId") as string | null;
+      const reasoning = row.original.classificationReasoning;
+
+      if (!stageId) return <div className="text-muted-foreground text-sm">Not classified</div>;
+
+      return (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="font-medium">
+            {stageId}
+          </Badge>
+          {reasoning && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm">
+                  <p>{reasoning}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    id: "predictedActions",
+    header: "Predicted Actions",
+    cell: ({ row }: { row: Row<Donor> }) => {
+      const actions = row.original.predictedActions;
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="ml-auto" disabled={!actions || actions.length === 0}>
+              {actions?.length ? `${actions.length} Actions` : "No Actions"}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          {actions && actions.length > 0 && (
+            <DropdownMenuContent align="end" className="w-80">
+              {actions.map((action, index) => (
+                <TooltipProvider key={`${action.type}-${index}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuItem
+                        className="flex flex-col items-start py-2 cursor-pointer"
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="font-medium">{action.type}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{action.description}</div>
+                      </DropdownMenuItem>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-sm">
+                      <div className="space-y-2">
+                        <div>
+                          <span className="font-medium">Explanation:</span>
+                          <p className="text-sm">{action.explanation}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium">Instructions:</span>
+                          <p className="text-sm">{action.instruction}</p>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+            </DropdownMenuContent>
+          )}
+        </DropdownMenu>
+      );
+    },
   },
   {
     id: "actions",

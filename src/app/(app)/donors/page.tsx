@@ -57,14 +57,38 @@ export default function DonorListPage() {
         const stats = donorStats?.[apiDonor.id];
         const totalDonated = stats?.totalDonated || 0;
 
+        // Parse the predicted actions if they exist
+        let parsedActions: Array<{
+          type: string;
+          description: string;
+          explanation: string;
+          instruction: string;
+        }> = [];
+
+        if (apiDonor.predictedActions) {
+          try {
+            // The field is already a JSON string in the database
+            parsedActions =
+              typeof apiDonor.predictedActions === "string"
+                ? JSON.parse(apiDonor.predictedActions)
+                : apiDonor.predictedActions;
+          } catch (e) {
+            console.error("Failed to parse predicted actions for donor", apiDonor.id, e);
+          }
+        }
+
         return {
           id: apiDonor.id.toString(),
           name: `${apiDonor.firstName} ${apiDonor.lastName}`,
           email: apiDonor.email,
           phone: apiDonor.phone || "",
-          totalDonated, // Keep as number for the Donor type
+          totalDonated,
           lastDonation: stats?.lastDonationDate ? new Date(stats.lastDonationDate).toISOString() : apiDonor.createdAt,
-          status: "active", // Placeholder - Assuming all donors are active by default or map from apiDonor if available
+          status: "active" as const,
+          // Handle undefined values explicitly
+          currentStageId: apiDonor.currentStageId || null,
+          classificationReasoning: apiDonor.classificationReasoning || null,
+          predictedActions: parsedActions,
         };
       }) || [];
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };

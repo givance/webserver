@@ -58,9 +58,31 @@ const listDonorsSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+// Define the base donor schema for reuse
+const baseDonorSchema = z.object({
+  id: z.number(),
+  organizationId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  phone: z.string().nullish(),
+  address: z.string().nullish(),
+  state: z.string().nullish(),
+  notes: z.string().nullish(),
+  assignedToStaffId: z.number().nullish(),
+  currentStageId: z.string().nullish(),
+  classificationReasoning: z.string().nullish(),
+  predictedActions: z.any().optional(),
+  createdAt: z.date().transform((d) => d.toISOString()),
+  updatedAt: z.date().transform((d) => d.toISOString()),
+  stageName: z.string().optional(),
+  stageExplanation: z.string().optional(),
+  possibleActions: z.array(z.string()).optional(),
+});
+
 // Define the output schema for the list procedure to include totalCount
 const listDonorsOutputSchema = z.object({
-  donors: z.array(z.any()), // Define a more specific donor schema if available (e.g., from prisma types or a zod schema)
+  donors: z.array(baseDonorSchema),
   totalCount: z.number(),
 });
 
