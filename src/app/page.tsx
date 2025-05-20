@@ -1,7 +1,6 @@
 "use client";
 
 import { useTodos } from "@/app/hooks/use-todos";
-import { useDonors } from "@/app/hooks/use-donors";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/app/lib/utils/format";
 import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search } from "lucide-react";
@@ -41,10 +40,10 @@ function TodoTypeTag({ type }: { type: string }) {
 }
 
 interface TodosByDate {
-  [key: string]: Todo[];
+  [key: string]: (Todo & { donorName: string | null })[];
 }
 
-function groupTodosByDate(todos: Todo[]): TodosByDate {
+function groupTodosByDate(todos: (Todo & { donorName: string | null })[]): TodosByDate {
   const groups: TodosByDate = {};
 
   // First, sort todos by scheduled date
@@ -81,32 +80,7 @@ function groupTodosByDate(todos: Todo[]): TodosByDate {
   return groups;
 }
 
-function DonorLink({ donorId }: { donorId: number }) {
-  const { getDonorQuery } = useDonors();
-  const { data: donor, isLoading } = getDonorQuery(donorId);
-
-  if (isLoading) {
-    return <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />;
-  }
-
-  if (!donor) {
-    return null;
-  }
-
-  const donorName = `${donor.firstName} ${donor.lastName}`;
-
-  return (
-    <Link href={`/donors/${donorId}`} className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-        {donor.firstName[0]}
-        {donor.lastName[0]}
-      </div>
-      <span>{donorName}</span>
-    </Link>
-  );
-}
-
-function TodoList({ todos }: { todos: Todo[] }) {
+function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] }) {
   const todosByDate = groupTodosByDate(todos);
 
   return (
@@ -144,9 +118,20 @@ function TodoList({ todos }: { todos: Todo[] }) {
                   {todo.description && <p className="mt-1 truncate text-sm text-gray-500">{todo.description}</p>}
                 </div>
 
-                {todo.donorId && (
+                {todo.donorName && (
                   <div className="flex-none">
-                    <DonorLink donorId={todo.donorId} />
+                    <Link
+                      href={`/donors/${todo.donorId}`}
+                      className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                        {todo.donorName
+                          .split(" ")
+                          .map((name) => name[0])
+                          .join("")}
+                      </div>
+                      <span>{todo.donorName}</span>
+                    </Link>
                   </div>
                 )}
 
@@ -175,14 +160,15 @@ export default function Home() {
     );
   }
 
-  const todoGroups = (groupedTodos || {}) as Record<string, Todo[]>;
+  const todoGroups = (groupedTodos || {}) as Record<string, (Todo & { donorName: string | null })[]>;
   const allTodos = Object.values(todoGroups).flat();
   const hasAnyTodos = allTodos.length > 0;
 
   const filteredTodos = allTodos.filter(
     (todo) =>
       todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      todo.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      todo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      todo.donorName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
