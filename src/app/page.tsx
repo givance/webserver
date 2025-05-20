@@ -1,81 +1,121 @@
-import Image from "next/image";
+"use client";
+
+import { useTodos } from "@/app/hooks/use-todos";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatDate } from "@/app/lib/utils/format";
+import { CheckCircle2, Circle, Clock, XCircle } from "lucide-react";
 import Link from "next/link";
+import type { Todo } from "@/app/types/todo";
+
+function TodoStatusIcon({ status }: { status: string }) {
+  switch (status.toUpperCase()) {
+    case "COMPLETED":
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    case "IN_PROGRESS":
+      return <Clock className="w-4 h-4 text-blue-500" />;
+    case "CANCELLED":
+      return <XCircle className="w-4 h-4 text-red-500" />;
+    default:
+      return <Circle className="w-4 h-4 text-gray-500" />;
+  }
+}
+
+function TodoCard({ todo }: { todo: Todo }) {
+  return (
+    <Card className="mb-4">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-lg">{todo.title}</CardTitle>
+            <CardDescription className="mt-1">
+              {todo.donorId && (
+                <Link href={`/donors/${todo.donorId}`} className="text-blue-500 hover:underline">
+                  View Donor
+                </Link>
+              )}
+            </CardDescription>
+          </div>
+          <TodoStatusIcon status={todo.status} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-gray-600 mb-2">{todo.description}</p>
+        <div className="flex gap-4 text-xs text-gray-500">
+          {todo.dueDate && <span>Due: {formatDate(todo.dueDate)}</span>}
+          {todo.scheduledDate && <span>Scheduled: {formatDate(todo.scheduledDate)}</span>}
+        </div>
+        {todo.instruction && (
+          <div className="mt-2 p-2 bg-gray-50 rounded-md text-sm">
+            <strong>Instructions:</strong> {todo.instruction}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TodoGroup({ title, todos }: { title: string; todos: Todo[] }) {
+  return (
+    <div className="mb-8">
+      <h2 className="text-xl font-semibold mb-4">{title}</h2>
+      <div className="space-y-4">
+        {todos.map((todo) => (
+          <TodoCard key={todo.id} todo={todo} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  return (
-    <>
-      <title>Givance - Nonprofit Management</title>
-      <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-        <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-          <Image src="/next.svg" alt="Next.js logo" width={180} height={38} priority />
-          <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-            <li className="mb-2 tracking-[-.01em]">
-              Get started by editing{" "}
-              <code className="bg-black/[.05] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-                src/app/page.tsx
-              </code>
-              .
-            </li>
-            <li className="tracking-[-.01em]">Save and see your changes instantly.</li>
-            <li className="mt-2 tracking-[-.01em]">
-              Check out our{" "}
-              <Link href="/trpc-example" className="text-blue-600 hover:underline hover:underline-offset-4">
-                tRPC Example
-              </Link>
-              .
-            </li>
-          </ol>
+  const { groupedTodos, isLoadingGroupedTodos } = useTodos();
 
-          <div className="flex gap-4 items-center flex-col sm:flex-row">
-            <a
-              className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-              href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Image src="/vercel.svg" alt="Vercel logomark" width={20} height={20} />
-              Deploy now
-            </a>
-            <a
-              className="rounded-full border border-solid border-black/[.08] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-              href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Read our docs
-            </a>
-          </div>
-        </main>
-        <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-          <a
-            className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-            href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image aria-hidden src="/file.svg" alt="File icon" width={16} height={16} />
-            Learn
-          </a>
-          <a
-            className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-            href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image aria-hidden src="/window.svg" alt="Window icon" width={16} height={16} />
-            Examples
-          </a>
-          <a
-            className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-            href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image aria-hidden src="/globe.svg" alt="Globe icon" width={16} height={16} />
-            Go to nextjs.org →
-          </a>
-        </footer>
+  if (isLoadingGroupedTodos) {
+    return (
+      <div className="container mx-auto py-8">
+        <h1 className="text-2xl font-bold mb-6">Organization Tasks</h1>
+        <div className="space-y-8">
+          {[1, 2].map((i) => (
+            <div key={i} className="space-y-4">
+              <Skeleton className="h-8 w-48" />
+              <div className="space-y-4">
+                {[1, 2, 3].map((j) => (
+                  <Skeleton key={j} className="h-32 w-full" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </>
+    );
+  }
+
+  const todoGroups = (groupedTodos || {}) as Record<string, Todo[]>;
+  const hasAnyTodos = Object.values(todoGroups).some((group) => group.length > 0);
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Organization Tasks</h1>
+        <Link href="/donors">
+          <Button>View All Donors</Button>
+        </Link>
+      </div>
+
+      {hasAnyTodos ? (
+        Object.entries(todoGroups).map(([type, todos]) =>
+          todos.length > 0 ? <TodoGroup key={type} title={type} todos={todos} /> : null
+        )
+      ) : (
+        <div className="text-center py-12">
+          <p className="text-gray-500">No tasks found. Start by analyzing your donors to get predictions.</p>
+          <Link href="/donors" className="mt-4 inline-block">
+            <Button>Go to Donors</Button>
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

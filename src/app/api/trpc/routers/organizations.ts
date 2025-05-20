@@ -31,15 +31,20 @@ const updateOrganizationSchema = z.object({
 const donorJourneyNodeSchema = z.object({
   id: z.string(),
   label: z.string(),
-  properties: z.record(z.any()),
+  properties: z
+    .object({
+      description: z.string(),
+      actions: z.array(z.string()).optional(),
+    })
+    .catchall(z.any()),
 });
 
 const donorJourneyEdgeSchema = z.object({
   id: z.string(),
+  label: z.string(),
   source: z.string(),
   target: z.string(),
-  label: z.string(),
-  properties: z.record(z.any()),
+  properties: z.record(z.string(), z.any()).default({}),
 });
 
 const donorJourneySchema = z.object({

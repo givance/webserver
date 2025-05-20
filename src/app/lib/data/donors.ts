@@ -199,7 +199,7 @@ async function getDonorStageInfo(
     }
 
     // Find the current stage node
-    const currentStage = journey.nodes.find((node) => node.id === donor.currentStageId);
+    const currentStage = journey.nodes.find((node) => node.label === donor.currentStageName);
 
     if (!currentStage) {
       // If no current stage is set, assume they're at the first stage
@@ -213,24 +213,21 @@ async function getDonorStageInfo(
       }
       return {
         stageName: firstStage.label,
-        stageExplanation: firstStage.properties?.description || "No description available.",
+        stageExplanation: firstStage.properties.description,
         possibleActions: [
-          ...(firstStage.properties?.actions || []),
+          ...(firstStage.properties.actions || []),
           ...journey.edges.filter((edge) => edge.source === firstStage.id).map((edge) => edge.label),
         ],
       };
     }
 
-    // Get possible next actions from both node actions and edges
-    const possibleActions = [
-      ...(currentStage.properties?.actions || []),
-      ...journey.edges.filter((edge) => edge.source === donor.currentStageId).map((edge) => edge.label),
-    ];
-
     return {
       stageName: currentStage.label,
-      stageExplanation: currentStage.properties?.description || "No description available.",
-      possibleActions,
+      stageExplanation: currentStage.properties.description,
+      possibleActions: [
+        ...(currentStage.properties.actions || []),
+        ...journey.edges.filter((edge) => edge.source === currentStage.id).map((edge) => edge.label),
+      ],
     };
   } catch (error) {
     console.error("Failed to get donor stage info:", error);

@@ -8,6 +8,7 @@ import { ActionPredictionService } from "@/app/lib/analysis/action-prediction-se
 import { db } from "@/app/lib/db"; // Assuming this is your Drizzle client
 import { donors as donorSchema } from "@/app/lib/db/schema"; // Assuming donors schema for updates
 import { eq } from "drizzle-orm";
+import { TodoService } from "@/app/lib/services/todo-service";
 
 // --- Placeholder Data Fetching Functions (replace with actual implementations) ---
 import type { DonorJourney } from "@/app/lib/data/organizations";
@@ -46,6 +47,8 @@ async function getDonorFormattedDonationHistory(donorId: string): Promise<Donati
 }
 // --- End of Placeholder Data Fetching Functions ---
 
+const todoService = new TodoService();
+
 export const analysisRouter = router({
   analyzeDonors: protectedProcedure
     .input(
@@ -74,16 +77,13 @@ export const analysisRouter = router({
           user.id
         } (org: ${organizationId}). Donor IDs: ${donorIds.join(", ")}`
       );
-      // Use the actual getDonorJourney function
+
       const donorJourneyGraph = await getDonorJourney(organizationId);
       if (!donorJourneyGraph) {
-        // If getDonorJourney can return undefined, we might want to provide a default or fallback journey
         logger.error(`Donor journey graph not found for organization ${organizationId}. Cannot proceed with analysis.`);
-        // As a fallback, using a very basic mock graph IF a journey is absolutely required and none is found.
-        // Consider if throwing an error is more appropriate if a journey MUST exist.
-        // For this example, I'm throwing an error as analysis without a journey definition is problematic.
         throw new Error(`Donor journey graph not found for organization ${organizationId}. Analysis cannot proceed.`);
       }
+
       logger.info(
         `Using donor journey graph for org ${organizationId} with ${donorJourneyGraph.nodes.length} nodes and ${donorJourneyGraph.edges.length} edges.`
       );
@@ -120,7 +120,6 @@ export const analysisRouter = router({
                 communicationHistory,
                 donationHistory,
               });
-              // Find the stage name from the journey graph using the classified stage ID
               const classifiedStage = donorJourneyGraph.nodes.find(
                 (node) => node.id === classificationResult.classifiedStageId
               );
@@ -147,7 +146,6 @@ export const analysisRouter = router({
               logger.info(
                 `Donor ${donorId} has current stage "${currentStageName}". Performing stage transition analysis.`
               );
-              // Find the current stage ID from the journey graph using the stage name
               const currentStage = donorJourneyGraph.nodes.find((node) => node.label === currentStageName);
               if (!currentStage) {
                 throw new Error(`Invalid stage name in database: ${currentStageName}`);
@@ -194,7 +192,6 @@ export const analysisRouter = router({
               };
             }
 
-            // Find the current stage ID for action prediction
             const currentStage = donorJourneyGraph.nodes.find((node) => node.label === currentStageName);
             if (!currentStage) {
               throw new Error(`Invalid stage name: ${currentStageName}`);
@@ -208,18 +205,22 @@ export const analysisRouter = router({
               communicationHistory,
               donationHistory,
             });
+
+            // Create TODOs from predicted actions
             logger.info(
-              `Predicted ${
-                actionPredictionResult.predictedActions.length
-              } actions for donor ${donorId}. Actions: ${JSON.stringify(actionPredictionResult.predictedActions)}`
+              `Creating ${actionPredictionResult.predictedActions.length} TODOs from predicted actions for donor ${donorId}`
             );
+            await todoService.createTodosFromPredictedActions(
+              Number(donorId),
+              organizationId,
+              actionPredictionResult.predictedActions
+            );
+
+            // Update donor with predicted actions (keeping this for backward compatibility)
             await db
               .update(donorSchema)
               .set({ predictedActions: actionPredictionResult.predictedActions })
               .where(eq(donorSchema.id, Number(donorId)));
-            logger.info(
-              `Stored ${actionPredictionResult.predictedActions.length} predicted actions for donor ${donorId} in database.`
-            );
 
             logger.info(
               `Successfully completed analysis pipeline for donor ${donorId}. Final Stage: "${currentStageName}"`

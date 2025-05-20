@@ -19,6 +19,7 @@ import type { AppRouter } from "@/app/api/trpc/routers/_app";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/app/lib/logger";
+import type { PredictedAction } from "@/app/lib/analysis/types";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -58,20 +59,21 @@ export default function DonorListPage() {
         const totalDonated = stats?.totalDonated || 0;
 
         // Parse the predicted actions if they exist
-        let parsedActions: Array<{
-          type: string;
-          description: string;
-          explanation: string;
-          instruction: string;
-        }> = [];
+        let parsedActions: PredictedAction[] = [];
 
         if (apiDonor.predictedActions) {
           try {
             // The field is already a JSON string in the database
-            parsedActions =
+            const actions =
               typeof apiDonor.predictedActions === "string"
                 ? JSON.parse(apiDonor.predictedActions)
                 : apiDonor.predictedActions;
+
+            // Ensure each action has the required scheduledDate field
+            parsedActions = actions.map((action: any) => ({
+              ...action,
+              scheduledDate: action.scheduledDate || new Date().toISOString(), // Default to current date if not provided
+            }));
           } catch (e) {
             console.error("Failed to parse predicted actions for donor", apiDonor.id, e);
           }
