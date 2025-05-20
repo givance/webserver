@@ -57,9 +57,7 @@ export interface PredictedAction {
   description: string; // e.g., "Send a personalized thank-you email for recent donation."
   explanation: string; // Why this action is recommended
   instruction: string; // How to perform the action, or key talking points
-  // Optional: recommendedTiming?: string; // e.g., "within 24 hours", "next week"
-  // Optional: emailSubject?: string; // If type is email
-  // Optional: emailBodyTemplate?: string; // If type is email
+  scheduledDate: string; // ISO date string for when this action should be performed
 }
 
 /**

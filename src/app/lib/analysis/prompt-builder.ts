@@ -135,11 +135,14 @@ export function buildActionPredictionPrompt(
 ): string {
   const donorHistoryStr = formatDonorHistory(communicationHistory, donationHistory);
   const journeyGraphStr = formatDonorJourneyGraph(donorJourneyGraph); // Includes stages and edges
-  const currentStage = donorJourneyGraph.nodes.find((n: DonorJourneyNode) => n.id === currentStageId); // Typed n
+  const currentStage = donorJourneyGraph.nodes.find((n: DonorJourneyNode) => n.id === currentStageId);
+  const currentDate = new Date();
 
   return `
     You are an expert donor engagement strategist.
     Your task is to predict 2-3 suitable next actions to take with a specific donor, given their current stage in the donor journey and their history.
+    
+    Current Date and Time: ${currentDate.toISOString()}
     
     Donor Information:
     - ID: ${donorInfo.id}
@@ -150,16 +153,24 @@ export function buildActionPredictionPrompt(
     - ID: ${currentStageId}
     - Label: ${currentStage?.label || "Unknown"}
     - Description: ${currentStage?.properties?.description || "N/A"}
+    - Available Actions: ${JSON.stringify(currentStage?.properties?.actions || [])}
     
     ${journeyGraphStr}
     ${donorHistoryStr}
     
-    Based on the donor's current stage, their history, and the overall donor journey, suggest 2-3 specific, actionable next steps.
+    Based on the donor's current stage, their history, and the overall donor journey, and the available actions for this stage, suggestspecific, actionable next steps.
     For each action, provide:
     - "type": (e.g., "email", "call", "meeting", "appeal", "event_invitation", "custom_message", "other")
     - "description": A brief summary of the action.
     - "explanation": Why this action is appropriate for this donor at this stage.
     - "instruction": Concrete guidance or key talking points for executing the action.
+    - "scheduledDate": A specific date when this action should be performed. IMPORTANT RULES FOR DATES:
+      1. Must be a future date (after ${currentDate.toISOString()})
+      2. Must be a weekday (Monday-Friday)
+      3. Must not be a major US holiday
+      4. Must be in ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+      5. Should be during business hours (9 AM - 5 PM local time)
+      6. Should be appropriately spaced based on action type and urgency
     
     Respond with a JSON object containing an "actions" array, where each element is an action object as described above.
     Example:
@@ -169,13 +180,15 @@ export function buildActionPredictionPrompt(
           "type": "email",
           "description": "Send a personalized thank-you email for their recent donation.",
           "explanation": "Acknowledging their recent contribution promptly will strengthen their connection.",
-          "instruction": "Draft an email mentioning their specific donation amount and date. Reference the project they supported if applicable. Express gratitude and briefly reiterate the impact of such donations."
+          "instruction": "Draft an email mentioning their specific donation amount and date. Reference the project they supported if applicable. Express gratitude and briefly reiterate the impact of such donations.",
+          "scheduledDate": "2024-03-20T14:30:00.000Z"
         },
         {
           "type": "event_invitation",
           "description": "Invite to upcoming webinar on Q3 impact.",
           "explanation": "This donor is in an engagement stage and showing interest in organizational impact; an event invitation is a good next step.",
-          "instruction": "Send the standard event invitation email, possibly with a short personal note highlighting a relevant topic from the webinar agenda."
+          "instruction": "Send the standard event invitation email, possibly with a short personal note highlighting a relevant topic from the webinar agenda.",
+          "scheduledDate": "2024-03-22T10:00:00.000Z"
         }
       ]
     }

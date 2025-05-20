@@ -34,6 +34,7 @@ export type PredictedAction = {
   description: string;
   explanation: string;
   instruction: string;
+  scheduledDate: string;
 };
 
 export type Donor = {
@@ -208,6 +209,9 @@ export const getColumns = (
                       >
                         <div className="font-medium">{action.type}</div>
                         <div className="text-xs text-muted-foreground mt-1">{action.description}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Scheduled: {new Date(action.scheduledDate).toLocaleString()}
+                        </div>
                       </DropdownMenuItem>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-sm">
@@ -219,6 +223,10 @@ export const getColumns = (
                         <div>
                           <span className="font-medium">Instructions:</span>
                           <p className="text-sm">{action.instruction}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium">Scheduled For:</span>
+                          <p className="text-sm">{new Date(action.scheduledDate).toLocaleString()}</p>
                         </div>
                       </div>
                     </TooltipContent>
