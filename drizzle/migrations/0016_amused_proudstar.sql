@@ -1,0 +1,1 @@
+ALTER TABLE "donors" RENAME COLUMN "current_stage_id" TO "current_stage_name";

@@ -53,11 +53,11 @@ export interface StageTransitionOutput {
  * Defines a predicted action for a donor.
  */
 export interface PredictedAction {
-  type: "email" | "call" | "meeting" | "appeal" | "event_invitation" | "custom_message" | "other";
-  description: string; // e.g., "Send a personalized thank-you email for recent donation."
-  explanation: string; // Why this action is recommended
-  instruction: string; // How to perform the action, or key talking points
-  scheduledDate: string; // ISO date string for when this action should be performed
+  type: string;
+  description: string;
+  explanation: string;
+  instruction: string;
+  scheduledDate: string;
 }
 
 /**
@@ -89,4 +89,19 @@ export interface LLMStageTransitionResponse {
 
 export interface LLMActionPredictionResponse {
   actions: PredictedAction[];
+}
+
+export interface StageClassificationResult {
+  classifiedStageId: string;
+  reasoning?: string;
+}
+
+export interface StageTransitionResult {
+  canTransition: boolean;
+  nextStageId: string | null;
+  reasoning?: string;
+}
+
+export interface ActionPredictionResult {
+  predictedActions: PredictedAction[];
 }

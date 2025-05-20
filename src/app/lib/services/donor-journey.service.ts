@@ -152,4 +152,20 @@ ${description}`,
 
     return validEdges;
   }
+
+  /**
+   * Gets the stage ID from a stage name in the donor journey
+   */
+  static getStageIdFromName(journey: DonorJourney, stageName: string): string | null {
+    const stage = journey.nodes.find((node) => node.label === stageName);
+    return stage?.id || null;
+  }
+
+  /**
+   * Gets the stage name from a stage ID in the donor journey
+   */
+  static getStageNameFromId(journey: DonorJourney, stageId: string): string | null {
+    const stage = journey.nodes.find((node) => node.id === stageId);
+    return stage?.label || null;
+  }
 }

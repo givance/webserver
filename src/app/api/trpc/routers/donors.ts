@@ -70,7 +70,7 @@ const baseDonorSchema = z.object({
   state: z.string().nullish(),
   notes: z.string().nullish(),
   assignedToStaffId: z.number().nullish(),
-  currentStageId: z.string().nullish(),
+  currentStageName: z.string().nullish(),
   classificationReasoning: z.string().nullish(),
   predictedActions: z.any().optional(),
   createdAt: z.date().transform((d) => d.toISOString()),

@@ -45,7 +45,7 @@ export type Donor = {
   totalDonated: number;
   lastDonation: string;
   status: "active" | "inactive";
-  currentStageId: string | null;
+  currentStageName: string | null;
   classificationReasoning: string | null;
   predictedActions: PredictedAction[];
 };
@@ -154,18 +154,18 @@ export const getColumns = (
     ),
   },
   {
-    accessorKey: "currentStageId",
+    accessorKey: "currentStageName",
     header: "Stage",
     cell: ({ row }: { row: Row<Donor> }) => {
-      const stageId = row.getValue("currentStageId") as string | null;
+      const stageName = row.getValue("currentStageName") as string | null;
       const reasoning = row.original.classificationReasoning;
 
-      if (!stageId) return <div className="text-muted-foreground text-sm">Not classified</div>;
+      if (!stageName) return <div className="text-muted-foreground text-sm">Not classified</div>;
 
       return (
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-medium">
-            {stageId}
+            {stageName}
           </Badge>
           {reasoning && (
             <TooltipProvider>

@@ -19,10 +19,8 @@ import type { DonationWithDetails } from "@/app/lib/data/donations";
 // Mock/Placeholder: Fetches necessary donor details for analysis.
 async function getDonorDetailsForAnalysis(
   donorId: string
-): Promise<{ donorInfo: DonorAnalysisInfo; currentStageId: string | null } | null> {
+): Promise<{ donorInfo: DonorAnalysisInfo; currentStageName: string | null } | null> {
   logger.info(`Placeholder: Fetching details for donor ${donorId}`);
-  // IMPORTANT: The actual 'donors' table via `db.query.donors` and `donorSchema`
-  // MUST have a 'currentStageId' field for this to work correctly.
   const donor = await db.query.donors.findFirst({ where: eq(donorSchema.id, Number(donorId)) });
   if (!donor) return null;
   return {
@@ -31,7 +29,7 @@ async function getDonorDetailsForAnalysis(
       name: `${donor.firstName} ${donor.lastName}`,
       email: donor.email,
     },
-    currentStageId: donor.currentStageId as string | null,
+    currentStageName: donor.currentStageName,
   };
 }
 
@@ -103,18 +101,18 @@ export const analysisRouter = router({
               logger.error(`Donor ${donorId} not found or essential data missing.`);
               throw new Error(`Donor ${donorId} not found.`);
             }
-            const { donorInfo, currentStageId: initialStageId } = donorDetails;
-            let currentStageId: string | null = initialStageId;
+            const { donorInfo, currentStageName: initialStageName } = donorDetails;
+            let currentStageName: string | null = initialStageName;
 
             const communicationHistory = await getDonorFormattedCommunicationHistory(donorId);
             const donationHistory = await getDonorFormattedDonationHistory(donorId);
             logger.info(
-              `Donor ${donorId}: Initial Stage ID: ${currentStageId || "None"}, Comm History: ${
+              `Donor ${donorId}: Initial Stage: ${currentStageName || "None"}, Comm History: ${
                 communicationHistory.length
               } threads, Donation History: ${donationHistory.length} records`
             );
 
-            if (!currentStageId) {
+            if (!currentStageName) {
               logger.info(`No current stage for donor ${donorId}. Performing stage classification.`);
               const classificationResult = await classificationService.classifyStage({
                 donorInfo,
@@ -122,55 +120,70 @@ export const analysisRouter = router({
                 communicationHistory,
                 donationHistory,
               });
-              currentStageId = classificationResult.classifiedStageId;
+              // Find the stage name from the journey graph using the classified stage ID
+              const classifiedStage = donorJourneyGraph.nodes.find(
+                (node) => node.id === classificationResult.classifiedStageId
+              );
+              if (!classifiedStage) {
+                throw new Error(
+                  `Invalid stage ID returned from classification: ${classificationResult.classifiedStageId}`
+                );
+              }
+              currentStageName = classifiedStage.label;
               logger.info(
-                `Donor ${donorId} classified to stage ${currentStageId}. Reasoning: ${
+                `Donor ${donorId} classified to stage "${currentStageName}". Reasoning: ${
                   classificationResult.reasoning || "N/A"
                 }`
               );
               await db
                 .update(donorSchema)
                 .set({
-                  currentStageId: currentStageId,
+                  currentStageName: currentStageName,
                   classificationReasoning: classificationResult.reasoning,
                 })
                 .where(eq(donorSchema.id, Number(donorId)));
-              logger.info(`Updated stage and reasoning for donor ${donorId} to ${currentStageId} in database.`);
+              logger.info(`Updated stage and reasoning for donor ${donorId} to "${currentStageName}" in database.`);
             } else {
               logger.info(
-                `Donor ${donorId} has current stage ${currentStageId}. Performing stage transition analysis.`
+                `Donor ${donorId} has current stage "${currentStageName}". Performing stage transition analysis.`
               );
+              // Find the current stage ID from the journey graph using the stage name
+              const currentStage = donorJourneyGraph.nodes.find((node) => node.label === currentStageName);
+              if (!currentStage) {
+                throw new Error(`Invalid stage name in database: ${currentStageName}`);
+              }
               const transitionResult = await transitionService.classifyStageTransition({
                 donorInfo,
-                currentStageId,
+                currentStageId: currentStage.id,
                 donorJourneyGraph,
                 communicationHistory,
                 donationHistory,
               });
+              const nextStageName = transitionResult.nextStageId
+                ? donorJourneyGraph.nodes.find((node) => node.id === transitionResult.nextStageId)?.label
+                : null;
               logger.info(
                 `Stage transition analysis for donor ${donorId}: Can transition: ${
                   transitionResult.canTransition
-                }, Next stage: ${transitionResult.nextStageId || "N/A"}, Reasoning: ${
-                  transitionResult.reasoning || "N/A"
-                }`
+                }, Next stage: ${nextStageName || "N/A"}, Reasoning: ${transitionResult.reasoning || "N/A"}`
               );
-              if (transitionResult.canTransition && transitionResult.nextStageId) {
-                currentStageId = transitionResult.nextStageId;
-                logger.info(`Donor ${donorId} transitioned to new stage ${currentStageId}.`);
+              if (transitionResult.canTransition && nextStageName) {
+                currentStageName = nextStageName;
+                logger.info(`Donor ${donorId} transitioned to new stage "${currentStageName}".`);
                 await db
                   .update(donorSchema)
                   .set({
-                    currentStageId: currentStageId,
+                    currentStageName: currentStageName,
                     classificationReasoning: transitionResult.reasoning,
                   })
                   .where(eq(donorSchema.id, Number(donorId)));
-                logger.info(`Updated stage and reasoning for donor ${donorId} to ${currentStageId} in database.`);
+                logger.info(`Updated stage and reasoning for donor ${donorId} to "${currentStageName}" in database.`);
               }
             }
 
-            if (!currentStageId) {
+            if (!currentStageName) {
               logger.warn(
-                `Cannot predict actions for donor ${donorId} as currentStageId is still null after classification/transition.`
+                `Cannot predict actions for donor ${donorId} as currentStageName is still null after classification/transition.`
               );
               return {
                 donorId,
@@ -180,10 +193,17 @@ export const analysisRouter = router({
                 actions: [] as PredictedAction[],
               };
             }
-            logger.info(`Performing action prediction for donor ${donorId} (current stage: ${currentStageId}).`);
+
+            // Find the current stage ID for action prediction
+            const currentStage = donorJourneyGraph.nodes.find((node) => node.label === currentStageName);
+            if (!currentStage) {
+              throw new Error(`Invalid stage name: ${currentStageName}`);
+            }
+
+            logger.info(`Performing action prediction for donor ${donorId} (current stage: "${currentStageName}").`);
             const actionPredictionResult = await predictionService.predictActions({
               donorInfo,
-              currentStageId: currentStageId!,
+              currentStageId: currentStage.id,
               donorJourneyGraph,
               communicationHistory,
               donationHistory,
@@ -202,12 +222,12 @@ export const analysisRouter = router({
             );
 
             logger.info(
-              `Successfully completed analysis pipeline for donor ${donorId}. Final Stage: ${currentStageId}`
+              `Successfully completed analysis pipeline for donor ${donorId}. Final Stage: "${currentStageName}"`
             );
             return {
               donorId,
               status: "success" as const,
-              stage: currentStageId,
+              stage: currentStageName,
               actions: actionPredictionResult.predictedActions,
             };
           } catch (error: any) {

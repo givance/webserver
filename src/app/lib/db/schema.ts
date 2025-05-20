@@ -163,7 +163,7 @@ export const donors = pgTable("donors", {
   state: varchar("state", { length: 2 }),
   notes: text("notes"),
   assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
-  currentStageId: text("current_stage_id"),
+  currentStageName: varchar("current_stage_name", { length: 255 }),
   classificationReasoning: text("classification_reasoning"),
   predictedActions: jsonb("predicted_actions"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

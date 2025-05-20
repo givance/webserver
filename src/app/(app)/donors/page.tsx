@@ -85,8 +85,7 @@ export default function DonorListPage() {
           totalDonated,
           lastDonation: stats?.lastDonationDate ? new Date(stats.lastDonationDate).toISOString() : apiDonor.createdAt,
           status: "active" as const,
-          // Handle undefined values explicitly
-          currentStageId: apiDonor.currentStageId || null,
+          currentStageName: apiDonor.currentStageName || null,
           classificationReasoning: apiDonor.classificationReasoning || null,
           predictedActions: parsedActions,
         };
