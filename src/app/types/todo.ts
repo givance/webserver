@@ -15,4 +15,5 @@ export interface Todo {
   instruction: string | null;
   createdAt: string;
   updatedAt: string;
+  donorName: string | null;
 }
