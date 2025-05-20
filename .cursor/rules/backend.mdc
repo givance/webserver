@@ -1,0 +1,10 @@
+---
+description: Rule for backend code
+globs: **/*.ts
+alwaysApply: false
+---
+
+# Backend Guidelines
+- Avoid using any, always use strict types.
+- Use async / await consistently, no callbacks.
+- Use log as needed, follow logging best practices. Format the log message yourself, do not rely on logging library to format it. Avoid using logger.log('text', object), always format in line.

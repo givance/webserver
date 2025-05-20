@@ -1,0 +1,10 @@
+---
+description: Rule for frontend code
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Frontend Guidelines
+- Never use trpc in a frontend component directly, always use hooks to call trpc.
+- Components should have clear, descriptive naming.
+- Components should not be longer than 500 lines of code, if too long, break it into smaller components.
