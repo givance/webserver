@@ -1,7 +1,6 @@
 ---
 description: Rule for frontend code
 globs: **/*.tsx
-alwaysApply: false
 ---
 
 # Frontend Guidelines
