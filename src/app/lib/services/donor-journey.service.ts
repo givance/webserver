@@ -10,7 +10,9 @@ Your task is to analyze the donor journey description and create a structured gr
 
 Rules:
 1. Each node must represent a distinct stage or entity in the donor journey
-2. Each node must have a properties object with at least a description field
+2. Each node must have a properties object with:
+   - description: A detailed description of the stage
+   - actions: An array of specific actions that need to be taken at this stage
 3. Each edge must represent a meaningful transition or relationship between nodes
 4. Each edge must have a properties object with at least a description field
 5. Use descriptive labels that capture the essence of each stage/transition
@@ -24,7 +26,12 @@ Example output format:
       "label": "Initial Contact",
       "properties": {
         "description": "First interaction with potential donor",
-        "expectedDuration": "1-2 weeks"
+        "expectedDuration": "1-2 weeks",
+        "actions": [
+          "Send welcome email xx days after initial contact",
+          "Add to CRM",
+          "Schedule initial call xx days after initial contact"
+        ]
       }
     }
   ],
@@ -51,6 +58,7 @@ const donorJourneySchema = z.object({
       properties: z
         .object({
           description: z.string(),
+          actions: z.array(z.string()).optional(),
         })
         .and(z.record(z.any())), // Allow additional properties
     })
@@ -93,6 +101,9 @@ ${description}`,
         edgeCount: journey.edges.length,
       });
 
+      logger.info(`system prompt: ${SYSTEM_PROMPT}`);
+      logger.info(`model response: ${JSON.stringify(journey, null, 2)}`);
+
       return journey;
     } catch (error) {
       logger.error("Failed to process donor journey:", error);
@@ -116,7 +127,9 @@ ${description}`,
           typeof node.label === "string" &&
           node.properties &&
           typeof node.properties === "object" &&
-          typeof node.properties.description === "string"
+          typeof node.properties.description === "string" &&
+          typeof node.properties.actions === "object" &&
+          Array.isArray(node.properties.actions)
       )
     );
 

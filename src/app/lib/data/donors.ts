@@ -214,14 +214,18 @@ async function getDonorStageInfo(
       return {
         stageName: firstStage.label,
         stageExplanation: firstStage.properties?.description || "No description available.",
-        possibleActions: journey.edges.filter((edge) => edge.source === firstStage.id).map((edge) => edge.label),
+        possibleActions: [
+          ...(firstStage.properties?.actions || []),
+          ...journey.edges.filter((edge) => edge.source === firstStage.id).map((edge) => edge.label),
+        ],
       };
     }
 
-    // Get possible next actions from edges
-    const possibleActions = journey.edges
-      .filter((edge) => edge.source === donor.currentStageId)
-      .map((edge) => edge.label);
+    // Get possible next actions from both node actions and edges
+    const possibleActions = [
+      ...(currentStage.properties?.actions || []),
+      ...journey.edges.filter((edge) => edge.source === donor.currentStageId).map((edge) => edge.label),
+    ];
 
     return {
       stageName: currentStage.label,

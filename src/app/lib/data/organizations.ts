@@ -20,7 +20,11 @@ export type UserOrganizationDetails = OrganizationMembership & { organization: O
 export type DonorJourneyNode = {
   id: string;
   label: string;
-  properties: Record<string, any>;
+  properties: {
+    description: string;
+    actions?: string[]; // Array of actions that need to be taken at this stage
+    [key: string]: any;
+  };
 };
 
 export type DonorJourneyEdge = {
