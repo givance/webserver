@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/app/api/trpc/trpc";
-import { TodoService } from "@/app/lib/services/todo-service";
+import { TodoService, type UpdateTodoInput } from "@/app/lib/services/todo-service";
 import { logger } from "@/app/lib/logger";
 
 const todoService = new TodoService();
@@ -88,14 +88,7 @@ export const todoRouter = router({
         `Bulk updating ${ids.length} todos for organization ${user.organizationId} with data: ${JSON.stringify(data)}`
       );
 
-      const serviceUpdateData: any = { ...data };
-
-      if (data.completedDate === null) {
-        serviceUpdateData.completedDate = undefined;
-      }
-      if (data.staffId === null) {
-        serviceUpdateData.staffId = undefined;
-      }
+      const serviceUpdateData: UpdateTodoInput = { ...data };
 
       const updatePromises = ids.map((id) => todoService.updateTodo(id, serviceUpdateData));
       const results = await Promise.all(updatePromises);

@@ -25,6 +25,42 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
+// Helper function to authorize thread access
+async function authorizeThreadAccess(
+  threadId: number,
+  organizationId: string,
+  includeDetails: {
+    includeStaff?: boolean;
+    includeDonors?: boolean;
+    includeMessages?: boolean | { limit: number };
+  } = {}
+) {
+  const thread = await getCommunicationThreadById(threadId, {
+    includeStaff: true, // Always include staff for auth check
+    includeDonors: true, // Always include donors for auth check
+    ...includeDetails,
+  });
+
+  if (!thread) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Communication thread not found",
+    });
+  }
+
+  const belongsToOrg =
+    (thread.staff?.some((s) => s.staff?.organizationId === organizationId) ?? false) ||
+    (thread.donors?.some((d) => d.donor?.organizationId === organizationId) ?? false);
+
+  if (!belongsToOrg) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Communication thread does not belong to your organization",
+    });
+  }
+  return thread; // Return the fetched thread
+}
+
 // Input validation schemas
 const threadIdSchema = z.object({
   id: z.number(),
@@ -131,32 +167,12 @@ export const communicationsRouter = router({
   getThread: protectedProcedure
     .input(z.object({ ...threadIdSchema.shape, ...threadDetailsSchema.shape }))
     .query(async ({ input, ctx }) => {
-      const thread = await getCommunicationThreadById(input.id, {
+      // Use the authorization helper
+      return await authorizeThreadAccess(input.id, ctx.auth.user.organizationId, {
         includeStaff: input.includeStaff,
         includeDonors: input.includeDonors,
         includeMessages: input.includeMessages,
       });
-
-      if (!thread) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Communication thread not found",
-        });
-      }
-
-      // Verify thread belongs to organization through staff or donors
-      const belongsToOrg =
-        (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-        (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-      if (!belongsToOrg) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Communication thread does not belong to your organization",
-        });
-      }
-
-      return thread;
     }),
 
   listThreads: protectedProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
@@ -187,29 +203,8 @@ export const communicationsRouter = router({
   }),
 
   addMessage: protectedProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {
-    // First verify the thread belongs to the organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // First verify the thread belongs to the organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     // Verify sender and recipient belong to organization
     if (input.fromStaffId) {
@@ -272,29 +267,8 @@ export const communicationsRouter = router({
   }),
 
   getMessages: protectedProcedure.input(getMessagesSchema).query(async ({ input, ctx }) => {
-    // First verify the thread belongs to the organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // First verify the thread belongs to the organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     return await getMessagesInThread(input.threadId, {
       limit: input.limit,
@@ -313,29 +287,8 @@ export const communicationsRouter = router({
       });
     }
 
-    // Verify thread belongs to organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // Verify thread belongs to organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     await addStaffToThread(input.threadId, input.participantId);
   }),
@@ -350,29 +303,8 @@ export const communicationsRouter = router({
       });
     }
 
-    // Verify thread belongs to organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // Verify thread belongs to organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     await removeStaffFromThread(input.threadId, input.participantId);
   }),
@@ -387,29 +319,8 @@ export const communicationsRouter = router({
       });
     }
 
-    // Verify thread belongs to organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // Verify thread belongs to organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     await addDonorToThread(input.threadId, input.participantId);
   }),
@@ -424,29 +335,8 @@ export const communicationsRouter = router({
       });
     }
 
-    // Verify thread belongs to organization
-    const thread = await getCommunicationThreadById(input.threadId, {
-      includeStaff: true,
-      includeDonors: true,
-    });
-
-    if (!thread) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
-    }
-
-    const belongsToOrg =
-      (thread.staff?.some((s) => s.staff?.organizationId === ctx.auth.user.organizationId) ?? false) ||
-      (thread.donors?.some((d) => d.donor?.organizationId === ctx.auth.user.organizationId) ?? false);
-
-    if (!belongsToOrg) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
-    }
+    // Verify thread belongs to organization using the helper
+    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
 
     await removeDonorFromThread(input.threadId, input.participantId);
   }),

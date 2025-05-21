@@ -35,9 +35,22 @@ const listProjectsSchema = z.object({
   searchTerm: z.string().optional(),
 });
 
+// Define a Zod schema for the Project model
+const projectSchema = z.object({
+  id: z.number(),
+  organizationId: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  active: z.boolean(),
+  goal: z.number().nullable(),
+  tags: z.array(z.string()).nullable(), // Based on text("tags").array()
+  createdAt: z.date(), // Timestamps will be Date objects
+  updatedAt: z.date(),
+});
+
 // Define the output schema for the list procedure to include totalCount
 const listProjectsOutputSchema = z.object({
-  projects: z.array(z.any()), // Define a more specific project schema if available
+  projects: z.array(projectSchema), // Use the specific project schema
   totalCount: z.number(),
 });
 

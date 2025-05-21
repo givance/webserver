@@ -36,9 +36,23 @@ const listStaffSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+// Define a Zod schema for the Staff model based on DB schema
+const staffSchema = z.object({
+  id: z.number(),
+  organizationId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().email(),
+  isRealPerson: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  // title: z.string().optional(), // Not in current DB schema
+  // department: z.string().optional(), // Not in current DB schema
+});
+
 // Define the output schema for the list procedure to include totalCount
 const listStaffOutputSchema = z.object({
-  staff: z.array(z.any()), // Define a more specific staff schema if available
+  staff: z.array(staffSchema), // Use the specific staff schema
   totalCount: z.number(),
 });
 

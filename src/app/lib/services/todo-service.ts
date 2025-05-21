@@ -12,7 +12,7 @@ export interface CreateTodoInput {
   dueDate?: Date;
   scheduledDate?: Date;
   donorId?: number;
-  staffId?: number;
+  staffId?: number | null;
   organizationId: string;
   explanation?: string;
   instruction?: string;

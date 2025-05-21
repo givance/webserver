@@ -8,10 +8,11 @@ import type { DonorJourney } from "./organizations";
 export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
 
-export type DonorWithDetails = Donor & {
+export type DonorWithDetails = Omit<Donor, "predictedActions"> & {
   stageName?: string;
   stageExplanation?: string;
   possibleActions?: string[];
+  predictedActions?: string[];
 };
 
 /**
@@ -313,8 +314,17 @@ export async function listDonors(
     const donorsWithStageInfo = await Promise.all(
       results.map(async (donor) => {
         const stageInfo = await getDonorStageInfo(donor, organizationId);
+        // Ensure predictedActions conforms to string[] | undefined
+        let processedPredictedActions: string[] | undefined = undefined;
+        if (Array.isArray(donor.predictedActions)) {
+          if (donor.predictedActions.every((item) => typeof item === "string")) {
+            processedPredictedActions = donor.predictedActions as string[];
+          }
+        }
+
         return {
           ...donor,
+          predictedActions: processedPredictedActions, // Use processed value
           ...stageInfo,
         };
       })

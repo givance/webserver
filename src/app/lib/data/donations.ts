@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { donations, donors } from "../db/schema";
-import { eq, sql, and, SQL, count } from "drizzle-orm";
+import { donations, donors, projects } from "../db/schema";
+import { eq, sql, and, SQL, count, desc, asc, or } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import type { Donor } from "./donors";
 import type { Project } from "./projects";
@@ -98,6 +98,7 @@ export async function deleteDonation(id: number): Promise<void> {
 /**
  * Lists donations with optional filtering and sorting.
  * @param options - Options for filtering by donor, project, date range, and pagination/sorting.
+ * @param organizationId - Optional: The ID of the organization to filter donations by.
  * @returns An object containing the paginated donations array and total count.
  */
 export async function listDonations(
@@ -112,7 +113,8 @@ export async function listDonations(
     orderDirection?: "asc" | "desc";
     includeDonor?: boolean;
     includeProject?: boolean;
-  } = {}
+  } = {},
+  organizationId?: string
 ): Promise<{ donations: DonationWithDetails[]; totalCount: number }> {
   try {
     const {
@@ -142,17 +144,27 @@ export async function listDonations(
       conditions.push(sql`${donations.date} <= ${endDate}`);
     }
 
-    // First get the total count
-    const countResult = await db
-      .select({ value: count() })
-      .from(donations)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    if (organizationId) {
+      conditions.push(or(eq(donors.organizationId, organizationId), eq(projects.organizationId, organizationId))!);
+    }
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    let countQuery;
+    if (organizationId) {
+      countQuery = db
+        .select({ value: count() })
+        .from(donations)
+        .leftJoin(donors, eq(donations.donorId, donors.id))
+        .leftJoin(projects, eq(donations.projectId, projects.id));
+    } else {
+      countQuery = db.select({ value: count() }).from(donations);
+    }
+    const countResult = await countQuery.where(whereClause);
     const totalCount = countResult[0]?.value || 0;
 
-    // Then get the paginated data
-    const query = db.query.donations.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
+    const donationsData = await db.query.donations.findMany({
+      where: whereClause,
       with: {
         donor: includeDonor ? true : undefined,
         project: includeProject ? true : undefined,
@@ -160,22 +172,20 @@ export async function listDonations(
       limit: limit,
       offset: offset,
       orderBy: orderBy
-        ? (dbDonations, { asc, desc }) => {
+        ? (table, { asc, desc }) => {
             const columnMap = {
-              date: dbDonations.date,
-              amount: dbDonations.amount,
-              createdAt: dbDonations.createdAt,
+              date: table.date,
+              amount: table.amount,
+              createdAt: table.createdAt,
             };
             const selectedColumn = columnMap[orderBy as keyof typeof columnMap];
             if (selectedColumn) {
               return orderDirection === "asc" ? asc(selectedColumn) : desc(selectedColumn);
             }
-            return []; // Default or no specific order
+            return [];
           }
         : undefined,
     });
-
-    const donationsData = await query;
 
     return {
       donations: donationsData as DonationWithDetails[],

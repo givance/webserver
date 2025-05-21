@@ -72,7 +72,7 @@ const baseDonorSchema = z.object({
   assignedToStaffId: z.number().nullish(),
   currentStageName: z.string().nullish(),
   classificationReasoning: z.string().nullish(),
-  predictedActions: z.any().optional(),
+  predictedActions: z.array(z.string()).optional(),
   createdAt: z.date().transform((d) => d.toISOString()),
   updatedAt: z.date().transform((d) => d.toISOString()),
   stageName: z.string().optional(),

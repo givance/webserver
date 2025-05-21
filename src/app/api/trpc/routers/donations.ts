@@ -9,9 +9,34 @@ import {
   listDonations,
   getDonorDonationStats,
   getMultipleDonorDonationStats,
+  type DonationWithDetails,
 } from "@/app/lib/data/donations";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getProjectById } from "@/app/lib/data/projects";
+
+// Helper function to authorize donation access
+async function authorizeDonationAccess(donationId: number, organizationId: string): Promise<DonationWithDetails> {
+  const donation = await getDonationById(donationId, { includeDonor: true, includeProject: true });
+  if (!donation) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Donation not found",
+    });
+  }
+
+  if (
+    !donation.donor ||
+    !donation.project ||
+    donation.donor.organizationId !== organizationId ||
+    donation.project.organizationId !== organizationId
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Donation does not belong to your organization",
+    });
+  }
+  return donation;
+}
 
 // Input validation schemas
 const donationIdSchema = z.object({
@@ -102,30 +127,8 @@ export const donationsRouter = router({
   }),
 
   update: protectedProcedure.input(updateDonationSchema).mutation(async ({ input, ctx }) => {
-    // First get the existing donation with donor and project details
-    const existingDonation = await getDonationById(input.id, {
-      includeDonor: true,
-      includeProject: true,
-    });
-    if (!existingDonation) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donation not found",
-      });
-    }
-
-    // Verify the donation belongs to the organization through donor and project
-    if (
-      !existingDonation.donor ||
-      !existingDonation.project ||
-      existingDonation.donor.organizationId !== ctx.auth.user.organizationId ||
-      existingDonation.project.organizationId !== ctx.auth.user.organizationId
-    ) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Donation does not belong to your organization",
-      });
-    }
+    // Authorize access to the existing donation
+    await authorizeDonationAccess(input.id, ctx.auth.user.organizationId);
 
     // If updating donor or project, verify they belong to the organization
     if (input.donorId) {
@@ -160,30 +163,8 @@ export const donationsRouter = router({
   }),
 
   delete: protectedProcedure.input(donationIdSchema).mutation(async ({ input, ctx }) => {
-    // First get the donation with donor and project details
-    const donation = await getDonationById(input.id, {
-      includeDonor: true,
-      includeProject: true,
-    });
-    if (!donation) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donation not found",
-      });
-    }
-
-    // Verify the donation belongs to the organization through donor and project
-    if (
-      !donation.donor ||
-      !donation.project ||
-      donation.donor.organizationId !== ctx.auth.user.organizationId ||
-      donation.project.organizationId !== ctx.auth.user.organizationId
-    ) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Donation does not belong to your organization",
-      });
-    }
+    // Authorize access to the donation before deleting
+    await authorizeDonationAccess(input.id, ctx.auth.user.organizationId);
 
     try {
       await deleteDonation(input.id);
@@ -196,19 +177,20 @@ export const donationsRouter = router({
   }),
 
   list: protectedProcedure.input(listDonationsSchema).query(async ({ input, ctx }) => {
-    // We'll need to filter the results after fetching to ensure we only return
-    // donations that belong to the organization through both donor and project
-    const { donations, totalCount } = await listDonations(input);
+    // Pass organizationId to the data layer function
+    const { donations, totalCount } = await listDonations(input, ctx.auth.user.organizationId);
 
-    const filteredDonations = donations.filter((donation) => {
-      const donorOrgMatch = donation.donor?.organizationId === ctx.auth.user.organizationId;
-      const projectOrgMatch = donation.project?.organizationId === ctx.auth.user.organizationId;
-      return donorOrgMatch && projectOrgMatch;
-    });
+    // The data layer function now handles organization scoping.
+    // No need for manual filtering here.
+    // const filteredDonations = donations.filter((donation) => {
+    //   const donorOrgMatch = donation.donor?.organizationId === ctx.auth.user.organizationId;
+    //   const projectOrgMatch = donation.project?.organizationId === ctx.auth.user.organizationId;
+    //   return donorOrgMatch && projectOrgMatch;
+    // });
 
     return {
-      donations: filteredDonations,
-      totalCount: totalCount, // This will be used for pagination
+      donations: donations, // Already filtered by listDonations if organizationId was passed
+      totalCount: totalCount,
     };
   }),
 
