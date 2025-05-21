@@ -9,6 +9,7 @@ import { communicationsRouter } from "./communications";
 import { usersRouter } from "./users";
 import { analysisRouter } from "@/server/api/routers/analysis";
 import { todoRouter } from "./todos";
+import { gmailRouter } from "./gmail";
 
 /**
  * Root router for the tRPC API
@@ -25,6 +26,7 @@ export const appRouter = router({
   users: usersRouter,
   analysis: analysisRouter,
   todos: todoRouter,
+  gmail: gmailRouter,
 });
 
 // Export type definition of API

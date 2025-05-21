@@ -72,6 +72,7 @@
     "drizzle-orm": "^0.43.1",
     "drizzle-orm-helpers": "^0.7.6",
     "embla-carousel-react": "^8.6.0",
+    "googleapis": "^149.0.0",
     "input-otp": "^1.4.2",
     "jsdom": "^26.1.0",
     "lucide-react": "^0.503.0",

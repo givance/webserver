@@ -16,6 +16,9 @@ export const env = createEnv({
     SMALL_MODEL: z.string().min(1),
     MID_MODEL: z.string().min(1),
     TRIGGER_SECRET_KEY: z.string().min(1),
+    GOOGLE_CLIENT_ID: z.string().min(1),
+    GOOGLE_CLIENT_SECRET: z.string().min(1),
+    GOOGLE_REDIRECT_URI: z.string().min(1),
   },
   /*
    * Environment variables available on the client (and server).
@@ -42,6 +45,9 @@ export const env = createEnv({
     SMALL_MODEL: process.env.SMALL_MODEL,
     MID_MODEL: process.env.MID_MODEL,
     TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });

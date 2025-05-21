@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Brain, GitGraph } from "lucide-react";
+import { Building2, Brain, GitGraph, Mail } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
@@ -10,6 +10,53 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationSettings } from "./organization/OrganizationSettings";
 import { DonorJourneySettings } from "./donor-journey/DonorJourneySettings";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { trpc } from "@/app/lib/trpc/client";
+import React from "react";
+
+function GmailConnect() {
+  const gmailAuthMutation = trpc.gmail.getGmailAuthUrl.useMutation({
+    onSuccess: (data) => {
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        toast.error("Could not get Gmail authentication URL. Please try again.");
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to initiate Gmail connection. Please try again.");
+    },
+  });
+
+  const handleConnectGmail = () => {
+    gmailAuthMutation.mutate();
+  };
+
+  const isGmailConnected = false;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Gmail Connection</CardTitle>
+        <CardDescription>
+          Connect your Gmail account to allow the application to compose and send emails on your behalf.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isGmailConnected ? (
+          <div className="flex flex-col items-start space-y-2">
+            <p className="text-green-600 font-semibold">Gmail account connected.</p>
+          </div>
+        ) : (
+          <Button onClick={handleConnectGmail} disabled={gmailAuthMutation.isLoading}>
+            {gmailAuthMutation.isLoading ? "Connecting..." : "Connect Gmail Account"}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -50,6 +97,10 @@ export default function SettingsPage() {
             <TabsTrigger value="memories" className="flex items-center space-x-2">
               <Brain className="h-4 w-4" />
               <span>Memories</span>
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center space-x-2">
+              <Mail className="h-4 w-4" />
+              <span>Integrations</span>
             </TabsTrigger>
           </TabsList>
 
@@ -127,6 +178,10 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="integrations">
+            <GmailConnect />
           </TabsContent>
         </Tabs>
       </div>

@@ -35,9 +35,13 @@ export const users = pgTable("users", {
     .notNull(), // Uses default(sql`now()`) for consistency
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   posts: many(posts),
   organizationMemberships: many(organizationMemberships),
+  gmailOAuthToken: one(gmailOAuthTokens, {
+    fields: [users.id],
+    references: [gmailOAuthTokens.userId],
+  }),
 }));
 
 /**
@@ -415,5 +419,28 @@ export const todosRelations = relations(todos, ({ one }) => ({
   organization: one(organizations, {
     fields: [todos.organizationId],
     references: [organizations.id],
+  }),
+}));
+
+// New table for Gmail OAuth Tokens
+export const gmailOAuthTokens = pgTable("gmail_oauth_tokens", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(), // Assuming one Gmail account per user
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(), // Refresh tokens are often long
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  scope: text("scope"), // Can store a string of scopes, or use .array() if multiple distinct scopes are common
+  tokenType: varchar("token_type", { length: 50 }), // e.g., "Bearer"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [gmailOAuthTokens.userId],
+    references: [users.id],
   }),
 }));
