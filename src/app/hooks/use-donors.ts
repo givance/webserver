@@ -3,6 +3,9 @@
 import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
+import { toast } from "sonner";
+import { logger } from "@/app/lib/logger";
+import type { TRPCClientErrorLike } from "@trpc/client";
 
 type DonorOutput = inferProcedureOutput<AppRouter["donors"]["getById"]>;
 type ListDonorsInput = inferProcedureInput<AppRouter["donors"]["list"]>;
@@ -84,6 +87,50 @@ export function useDonors() {
     },
   });
 
+  // New mutations for analyze and update staff
+  const analyzeDonorsMutation = trpc.analysis.analyzeDonors.useMutation({
+    onSuccess: (data, variables) => {
+      const singleDonorId = variables.donorIds.length === 1 ? variables.donorIds[0] : null;
+      if (singleDonorId) {
+        toast.success(`Analysis complete for donor ${singleDonorId}!`);
+      } else {
+        toast.success(
+          `Batch donor analysis complete! Successful: ${
+            data.results.filter((r) => r.status === "success").length
+          }, Failed: ${data.results.filter((r) => r.status !== "success").length}`
+        );
+      }
+      utils.donors.list.invalidate();
+      logger.info("Invalidating queries with root key ['donors'] to refetch donor data.");
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      const singleDonorId = variables.donorIds.length === 1 ? variables.donorIds[0] : null;
+      if (singleDonorId) {
+        toast.error(`Failed to analyze donor ${singleDonorId}: ${error.message}`);
+      } else {
+        toast.error(`Batch analysis failed: ${error.message}`);
+      }
+      console.error("Error analyzing donors:", error);
+    },
+  });
+
+  const updateDonorStaffMutation = trpc.donors.updateAssignedStaff.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
+      utils.donors.list.invalidate();
+      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to assign staff to donor ${variables.donorId}: ${error.message}`);
+      console.error("Error updating donor's assigned staff:", error);
+      logger.error(
+        `Error updating donor ${variables.donorId} assigned staff to ${
+          variables.staffId === null ? "unassigned" : variables.staffId
+        }: ${error.message}`
+      );
+    },
+  });
+
   /**
    * Create a new donor
    * @param input The donor data to create
@@ -127,6 +174,39 @@ export function useDonors() {
     }
   };
 
+  /**
+   * Analyze one or more donors
+   * @param donorIds Array of donor IDs to analyze
+   * @returns Promise that resolves when analysis is complete
+   */
+  const analyzeDonors = async (donorIds: string[]) => {
+    try {
+      return await analyzeDonorsMutation.mutateAsync({ donorIds });
+    } catch (error) {
+      console.error("Failed to analyze donors:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Update the assigned staff member for a donor
+   * @param donorId The ID of the donor
+   * @param staffId The ID of the staff member to assign, or null to unassign
+   * @returns Promise that resolves when update is complete
+   */
+  const updateDonorStaff = async (donorId: string, staffId: string | null) => {
+    try {
+      await updateDonorStaffMutation.mutateAsync({
+        donorId: parseInt(donorId, 10),
+        staffId: staffId ? parseInt(staffId, 10) : null,
+      });
+      return true;
+    } catch (error) {
+      console.error("Failed to update donor staff:", error);
+      return false;
+    }
+  };
+
   return {
     // Query functions
     getDonorQuery,
@@ -138,11 +218,15 @@ export function useDonors() {
     createDonor,
     updateDonor,
     deleteDonor,
+    analyzeDonors,
+    updateDonorStaff,
 
     // Loading states
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isAnalyzing: analyzeDonorsMutation.isPending,
+    isUpdatingStaff: updateDonorStaffMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,

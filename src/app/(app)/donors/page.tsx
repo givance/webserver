@@ -1,25 +1,22 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import { useDonors } from "@/app/hooks/use-donors";
+import { useOrganization } from "@/app/hooks/use-organization";
+import { logger } from "@/app/lib/logger";
+import { trpc } from "@/app/lib/trpc/client";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { DataTable } from "@/components/ui/data-table/DataTable";
-import { getColumns } from "./columns";
-import { useDonors } from "@/app/hooks/use-donors";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useDebounce } from "use-debounce";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Donor, PredictedAction as ColumnPredictedAction } from "./columns";
-import { formatCurrency } from "@/app/lib/utils/format";
-import { trpc } from "@/app/lib/trpc/client";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { logger } from "@/app/lib/logger";
-import { useOrganization } from "@/app/hooks/use-organization";
+import { useDebounce } from "use-debounce";
+import type { PredictedAction as ColumnPredictedAction, Donor } from "./columns";
+import { getColumns } from "./columns";
 
 // Assuming a type for Staff members, adjust if necessary
 interface StaffMember {
@@ -38,10 +35,15 @@ export default function DonorListPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzingDonorId, setAnalyzingDonorId] = useState<string | null>(null);
 
-  const { listDonors, getMultipleDonorStats } = useDonors();
+  const {
+    listDonors,
+    getMultipleDonorStats,
+    analyzeDonors,
+    updateDonorStaff,
+    isAnalyzing: isAnalyzingMutation,
+  } = useDonors();
   const { getOrganization } = useOrganization();
   const { data: organizationData } = getOrganization();
-  const queryClient = useQueryClient();
 
   // Fetch staff members
   const { data: staffListResponse, isLoading: isLoadingStaff } = trpc.staff.list.useQuery(
@@ -135,90 +137,13 @@ export default function DonorListPage() {
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };
   }, [listDonorsResponse, donorStats]);
 
-  // Placeholder for the new tRPC mutation
-  const analyzeDonorsMutation = trpc.analysis.analyzeDonors.useMutation({
-    onSuccess: (data, variables) => {
-      const singleDonorId = variables.donorIds.length === 1 ? variables.donorIds[0] : null;
-      if (singleDonorId) {
-        toast.success(`Analysis complete for donor ${singleDonorId}!`);
-      } else {
-        toast.success(
-          `Batch donor analysis complete! Successful: ${
-            data.results.filter((r) => r.status === "success").length
-          }, Failed: ${data.results.filter((r) => r.status !== "success").length}`
-        );
-      }
-      // Refetch donor data as stages/actions might have changed
-      // This assumes your donor list queries use a key like ['donors', params]
-      // or just ['donors'] for a broader invalidation.
-      logger.info("Invalidating queries with root key ['donors'] to refetch donor data.");
-      queryClient.invalidateQueries({ queryKey: ["donors"] });
-
-      // Potentially also refetch getMultipleDonorStats if actions affect stats displayed.
-      // For example, if donorStats are identified by a query key like ['donorStats', arrayOfIds]
-      // or a more general ['donorStats'], you might add:
-      // queryClient.invalidateQueries({ queryKey: ['donorStats'] });
-      // logger.info("Invalidated donorStats queries for donor stats.");
-    },
-    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
-      const singleDonorId = variables.donorIds.length === 1 ? variables.donorIds[0] : null;
-      if (singleDonorId) {
-        toast.error(`Failed to analyze donor ${singleDonorId}: ${error.message}`);
-      } else {
-        toast.error(`Batch analysis failed: ${error.message}`);
-      }
-      console.error("Error analyzing donors:", error);
-    },
-    onSettled: (data, error, variables) => {
-      setIsAnalyzing(false);
-      setAnalyzingDonorId(null);
-      const actionType =
-        variables.donorIds.length === 1
-          ? `single donor ${variables.donorIds[0]}`
-          : `batch of ${variables.donorIds.length} donors`;
-      logger.info(`Analysis settled for ${actionType}. Success: ${!!data}, Error: ${!!error}`);
-    },
-  });
-
-  const updateDonorStaffMutation = trpc.donors.updateAssignedStaff.useMutation({
-    onSuccess: (data, variables) => {
-      toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
-      // Invalidate queries to refetch donor data to show updated assigned staff
-      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
-      queryClient.invalidateQueries({ queryKey: ["donors"] });
-      // Potentially invalidate staff list if it changes, or individual staff details if relevant
-      // queryClient.invalidateQueries({ queryKey: ["staff"] });
-    },
-    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
-      toast.error(`Failed to assign staff to donor ${variables.donorId}: ${error.message}`);
-      console.error("Error updating donor's assigned staff:", error);
-      logger.error(
-        `Error updating donor ${variables.donorId} assigned staff to ${
-          variables.staffId === null ? "unassigned" : variables.staffId
-        }: ${error.message}`
-      );
-    },
-    onSettled: (data, error, variables) => {
-      const donorIdForLogging = variables.donorId as number; // Cast before logging
-      if (variables.donorId === null || variables.donorId === undefined) {
-        logger.error(
-          `Critical: donorId is null or undefined in onSettled for updateDonorStaffMutation. Raw donorId: ${variables.donorId}`
-        );
-        return;
-      }
-      logger.info(
-        `Update assigned staff settled for donor ${donorIdForLogging}. Success: ${!!data}, Error: ${!!error}`
-      );
-    },
-  });
-
   const handleAnalyzeDonors = useCallback(
     async (donorId?: string) => {
       setIsAnalyzing(true);
       if (donorId) {
         setAnalyzingDonorId(donorId);
         toast.info(`Starting analysis for donor ${donorId}...`);
-        await analyzeDonorsMutation.mutateAsync({ donorIds: [donorId] });
+        await analyzeDonors([donorId]);
       } else {
         // Batch analysis
         toast.info("Starting batch analysis for donors on current page...");
@@ -228,26 +153,19 @@ export default function DonorListPage() {
           setIsAnalyzing(false);
           return;
         }
-        await analyzeDonorsMutation.mutateAsync({ donorIds: donorIdsToAnalyze });
+        await analyzeDonors(donorIdsToAnalyze);
       }
-      // onSettled from useMutation will handle setIsAnalyzing(false) and setAnalyzingDonorId(null)
+      setIsAnalyzing(false);
+      setAnalyzingDonorId(null);
     },
-    [analyzeDonorsMutation, donors, setIsAnalyzing, setAnalyzingDonorId]
+    [analyzeDonors, donors]
   );
 
   const handleUpdateDonorStaff = useCallback(
     async (donorId: string, staffId: string | null) => {
-      try {
-        await updateDonorStaffMutation.mutateAsync({
-          donorId: parseInt(donorId, 10),
-          staffId: staffId ? parseInt(staffId, 10) : null,
-        });
-      } catch (error) {
-        // Error handling is already done in the mutation's onError callback
-        console.error("Error in handleUpdateDonorStaff:", error);
-      }
+      await updateDonorStaff(donorId, staffId);
     },
-    [updateDonorStaffMutation]
+    [updateDonorStaff]
   );
 
   const isLoadingDonor = useCallback(
@@ -295,8 +213,8 @@ export default function DonorListPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Donor Management</h1>
         <div className="flex gap-2">
-          <Button onClick={() => handleAnalyzeDonors()} disabled={isAnalyzing || analyzeDonorsMutation.isPending}>
-            {isAnalyzing || analyzeDonorsMutation.isPending ? batchButtonText : "Analyze Page Donors"}
+          <Button onClick={() => handleAnalyzeDonors()} disabled={isAnalyzing || isAnalyzingMutation}>
+            {isAnalyzing || isAnalyzingMutation ? batchButtonText : "Analyze Page Donors"}
           </Button>
           <Link href="/donors/add">
             <Button>
