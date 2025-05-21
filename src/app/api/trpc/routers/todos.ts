@@ -134,15 +134,21 @@ export const todoRouter = router({
       return await todoService.getTodosByOrganization(user.organizationId, input);
     }),
 
-  getGroupedByType: protectedProcedure.query(async ({ ctx }) => {
-    const { user } = ctx.auth;
-    if (!user?.organizationId) {
-      throw new Error("User must belong to an organization");
-    }
+  getGroupedByType: protectedProcedure
+    .input(
+      z.object({
+        statusesToExclude: z.array(z.string()).optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { user } = ctx.auth;
+      if (!user?.organizationId) {
+        throw new Error("User must belong to an organization");
+      }
 
-    logger.info(`Fetching grouped todos for organization ${user.organizationId}`);
-    return await todoService.getTodosGroupedByType(user.organizationId);
-  }),
+      logger.info(`Fetching grouped todos for organization ${user.organizationId}`);
+      return await todoService.getTodosGroupedByType(user.organizationId, input.statusesToExclude);
+    }),
 
   getByDonor: protectedProcedure
     .input(

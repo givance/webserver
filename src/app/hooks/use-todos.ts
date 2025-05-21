@@ -5,8 +5,11 @@ import type { Todo } from "@/app/types/todo";
 export function useTodos() {
   const utils = trpc.useUtils();
 
-  const { data: groupedTodos, isLoading: isLoadingGroupedTodos } =
-    trpc.todos.getGroupedByType.useQuery<Record<string, Todo[]>>();
+  const { data: groupedTodos, isLoading: isLoadingGroupedTodos } = trpc.todos.getGroupedByType.useQuery<
+    Record<string, Todo[]>
+  >({
+    statusesToExclude: ["COMPLETED", "CANCELLED"],
+  });
 
   const createTodoMutation = trpc.todos.create.useMutation({
     onSuccess: () => {

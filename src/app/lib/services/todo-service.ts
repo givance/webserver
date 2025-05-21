@@ -1,6 +1,6 @@
 import { db } from "@/app/lib/db";
 import { todos, donors } from "@/app/lib/db/schema";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, sql, notInArray } from "drizzle-orm";
 import type { PredictedAction } from "@/app/lib/analysis/types";
 import type { Todo } from "@/app/types/todo";
 
@@ -113,7 +113,13 @@ export class TodoService {
     return await db.select().from(todos).where(eq(todos.staffId, staffId)).orderBy(desc(todos.createdAt));
   }
 
-  async getTodosGroupedByType(organizationId: string) {
+  async getTodosGroupedByType(organizationId: string, statusesToExclude?: string[]) {
+    const conditions = [eq(todos.organizationId, organizationId)];
+
+    if (statusesToExclude && statusesToExclude.length > 0) {
+      conditions.push(notInArray(todos.status, statusesToExclude));
+    }
+
     const allTodos = await db
       .select({
         id: todos.id,
@@ -137,7 +143,7 @@ export class TodoService {
       })
       .from(todos)
       .leftJoin(donors, eq(todos.donorId, donors.id))
-      .where(eq(todos.organizationId, organizationId))
+      .where(and(...conditions))
       .orderBy(asc(todos.type), desc(todos.createdAt));
 
     // Group todos by type

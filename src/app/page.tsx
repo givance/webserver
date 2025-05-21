@@ -425,8 +425,12 @@ export default function Home() {
         </div>
       ) : (
         <div className="text-center py-12">
-          <p className="text-gray-500">No tasks found. Start by analyzing your donors to get predictions.</p>
-          {filteredTodos.length === 0 && todoGroups && Object.keys(todoGroups).length === 0 && (
+          <p className="text-gray-500">
+            {searchQuery
+              ? "No tasks match your search."
+              : "No active tasks. Check back later or go to donors to analyze and generate new tasks."}
+          </p>
+          {filteredTodos.length === 0 && Object.keys(todoGroups || {}).length === 0 && !searchQuery && (
             <TodoList
               todos={[]}
               selectedTodoIds={selectedTodoIds}
