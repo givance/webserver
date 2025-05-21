@@ -25,7 +25,7 @@ type DonationRow = {
   id: number;
   date: string;
   amount: number;
-  donorId: number;
+  donorId: number | null;
   donorName: string;
 };
 
@@ -65,7 +65,7 @@ export function ProjectDonations({ projectId }: ProjectDonationsProps) {
       id: donation.id,
       date: new Date(donation.date).toISOString(),
       amount: donation.amount,
-      donorId: donation.donor?.id || 0,
+      donorId: donation.donor?.id || null,
       donorName: donation.donor ? `${donation.donor.firstName} ${donation.donor.lastName}` : "Unknown Donor",
     }));
 
@@ -110,11 +110,17 @@ export function ProjectDonations({ projectId }: ProjectDonationsProps) {
     {
       accessorKey: "donorName",
       header: "Donor",
-      cell: ({ row }) => (
-        <Link href={`/donors/${row.original.donorId}`} className="hover:underline">
-          {row.getValue("donorName")}
-        </Link>
-      ),
+      cell: ({ row }) => {
+        const donorId = row.original.donorId;
+        const donorName = row.getValue("donorName") as string;
+        return donorId ? (
+          <Link href={`/donors/${donorId}`} className="hover:underline">
+            {donorName}
+          </Link>
+        ) : (
+          <span>{donorName}</span>
+        );
+      },
     },
   ];
 

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { useProjects } from "@/app/hooks/use-projects";
+import { formatCurrency } from "@/app/lib/utils/format";
 
 export type Project = {
   id: string;
@@ -129,11 +130,7 @@ export const columns: ColumnDef<Project>[] = [
     },
     cell: ({ row }: { row: Row<Project> }) => {
       const amount = parseFloat(row.getValue("goalAmount"));
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-      return <div className="text-right font-medium">{formatted}</div>;
+      return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
   },
   {
@@ -149,14 +146,10 @@ export const columns: ColumnDef<Project>[] = [
     cell: ({ row }: { row: Row<Project> }) => {
       const raised = parseFloat(row.getValue("raisedAmount"));
       const goal = parseFloat(row.getValue("goalAmount"));
-      const percentage = (raised / goal) * 100;
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(raised);
+      const percentage = goal > 0 ? (raised / goal) * 100 : 0;
       return (
         <div className="space-y-1">
-          <div className="text-right font-medium">{formatted}</div>
+          <div className="text-right font-medium">{formatCurrency(raised)}</div>
           <div className="w-full bg-gray-200 rounded-full h-1.5">
             <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(percentage, 100)}%` }} />
           </div>

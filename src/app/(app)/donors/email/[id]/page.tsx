@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Switch } from "@/components/ui/switch";
+import type { PredictedAction as ColumnPredictedAction } from "../../columns";
 
 export default function DonorEmailPage() {
   const router = useRouter();
@@ -25,11 +26,21 @@ export default function DonorEmailPage() {
   const { data: organization, isLoading: isOrgLoading } = getOrganization();
 
   // Get the email action from the donor's predicted actions
-  const emailAction = donor?.predictedActions
-    ? (typeof donor.predictedActions === "string" ? JSON.parse(donor.predictedActions) : donor.predictedActions).find(
-        (action: any) => action.type === "email"
-      )
-    : null;
+  let emailAction: ColumnPredictedAction | null = null;
+  if (donor?.predictedActions && Array.isArray(donor.predictedActions)) {
+    for (const actionString of donor.predictedActions) {
+      try {
+        const actionObject: ColumnPredictedAction = JSON.parse(actionString);
+        if (actionObject.type === "email") {
+          emailAction = actionObject;
+          break;
+        }
+      } catch (e) {
+        console.error(`Failed to parse predicted action string: ${actionString}`, e);
+        // Potentially log to a more persistent store if this is critical
+      }
+    }
+  }
 
   // Set the instruction from the email action when it's loaded and trigger auto-draft if enabled
   useEffect(() => {

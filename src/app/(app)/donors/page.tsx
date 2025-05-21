@@ -11,7 +11,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Donor } from "./columns";
+import type { Donor, PredictedAction as ColumnPredictedAction } from "./columns";
 import { formatCurrency } from "@/app/lib/utils/format";
 import { trpc } from "@/app/lib/trpc/client";
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ import type { AppRouter } from "@/app/api/trpc/routers/_app";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/app/lib/logger";
-import type { PredictedAction } from "@/app/lib/analysis/types";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -59,23 +58,47 @@ export default function DonorListPage() {
         const totalDonated = stats?.totalDonated || 0;
 
         // Parse the predicted actions if they exist
-        let parsedActions: PredictedAction[] = [];
+        let parsedActions: ColumnPredictedAction[] = [];
 
-        if (apiDonor.predictedActions) {
-          try {
-            // The field is already a JSON string in the database
-            const actions =
-              typeof apiDonor.predictedActions === "string"
-                ? JSON.parse(apiDonor.predictedActions)
-                : apiDonor.predictedActions;
-
-            // Ensure each action has the required scheduledDate field
-            parsedActions = actions.map((action: any) => ({
-              ...action,
-              scheduledDate: action.scheduledDate || new Date().toISOString(), // Default to current date if not provided
-            }));
-          } catch (e) {
-            console.error("Failed to parse predicted actions for donor", apiDonor.id, e);
+        if (apiDonor.predictedActions && Array.isArray(apiDonor.predictedActions)) {
+          parsedActions = apiDonor.predictedActions.reduce((acc: ColumnPredictedAction[], actionString: string) => {
+            try {
+              // Assuming each string in the array is a JSON representation of PredictedAction
+              const action: ColumnPredictedAction = JSON.parse(actionString);
+              acc.push({
+                ...action,
+                scheduledDate: action.scheduledDate || new Date().toISOString(), // Default to current date if not provided
+              });
+            } catch (e) {
+              // Log to console for debugging, consider more robust error handling if needed
+              console.error(`Failed to parse a predicted action string for donor ${apiDonor.id}: ${actionString}`, e);
+              logger.error(`Failed to parse a predicted action string for donor ${apiDonor.id}`);
+            }
+            return acc;
+          }, []);
+        } else if (apiDonor.predictedActions) {
+          // This case handles if predictedActions is unexpectedly not an array (e.g. a single JSON string due to some upstream issue)
+          // Or if it's some other truthy non-array value. This is less expected based on schema.
+          console.warn(
+            `Predicted actions for donor ${apiDonor.id} was not an array as expected: `,
+            apiDonor.predictedActions
+          );
+          logger.warn(`Predicted actions for donor ${apiDonor.id} was not an array as expected.`);
+          // Attempt to parse if it's a string, mimicking old logic for this fallback, though schema implies array of strings.
+          if (typeof apiDonor.predictedActions === "string") {
+            try {
+              const actionsArray = JSON.parse(apiDonor.predictedActions);
+              if (Array.isArray(actionsArray)) {
+                parsedActions = actionsArray.map((action: any) => ({
+                  // 'any' here as structure is unknown
+                  ...action,
+                  scheduledDate: action.scheduledDate || new Date().toISOString(),
+                }));
+              }
+            } catch (e) {
+              console.error(`Fallback parsing of predictedActions string for donor ${apiDonor.id} failed`, e);
+              logger.error(`Fallback parsing of predictedActions string for donor ${apiDonor.id} failed`);
+            }
           }
         }
 

@@ -67,24 +67,25 @@ export default function AddDonorPage() {
    * Creates a new donor and redirects to donor list on success
    * @param values Form values from the form submission
    */
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     setError(null);
     try {
-      createDonor(values)
-        .then((result) => {
-          if (result) {
-            toast.success("Donor created successfully");
-            router.push("/donors");
-          } else {
-            setError("Failed to create donor");
-          }
-        })
-        .catch((err) => {
-          setError("An unexpected error occurred");
-          console.error("Error creating donor:", err);
-        });
-    } catch (err) {
-      setError("An unexpected error occurred");
+      // The useDonors hook's createDonor mutation already handles success/error toasts internally via onEnd, onSuccess, onError.
+      // We just need to await its completion and then redirect.
+      // It will throw an error if the mutation fails, which will be caught here.
+      const newDonor = await createDonor(values);
+
+      // Assuming createDonor resolves without error on success (even if it returns void or the new donor)
+      // The toast for success is likely handled by the useDonors hook's onSuccess callback.
+      // If newDonor is returned, we could use it, but router.push is the main action here.
+      router.push("/donors");
+    } catch (err: any) {
+      // The useDonors hook's createDonor mutation should ideally use toast.error for user feedback.
+      // This setError is for a local error display on the form page itself, if still desired.
+      const message = err.message || "An unexpected error occurred while creating the donor.";
+      setError(message);
+      // Avoid double toasting if useDonors already does it.
+      // If not, uncomment: toast.error(message);
       console.error("Error creating donor:", err);
     }
   };

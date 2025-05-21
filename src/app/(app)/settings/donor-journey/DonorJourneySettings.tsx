@@ -17,8 +17,11 @@ export function DonorJourneySettings() {
   const { getDonorJourneyText, updateDonorJourneyText, processDonorJourney, getDonorJourney } = useOrganization();
   const { data: donorJourneyText, isLoading: isLoadingText } = getDonorJourneyText();
   const { data: donorJourney, isLoading: isLoadingJourney } = getDonorJourney();
+
   const [text, setText] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isSavingText, setIsSavingText] = useState(false);
+  const [isProcessingJourney, setIsProcessingJourney] = useState(false);
 
   // Update text when donor journey text is loaded
   useEffect(() => {
@@ -32,11 +35,14 @@ export function DonorJourneySettings() {
   };
 
   const handleSave = async () => {
+    setIsSavingText(true);
     try {
       await updateDonorJourneyText(text);
       toast.success("Donor journey text saved successfully");
     } catch (error) {
       toast.error("Failed to save donor journey text");
+    } finally {
+      setIsSavingText(false);
     }
   };
 
@@ -45,13 +51,15 @@ export function DonorJourneySettings() {
       toast.error("Please enter donor journey text first");
       return;
     }
-
+    setIsProcessingJourney(true);
     try {
       await processDonorJourney(text);
       toast.success("Donor journey processed successfully");
     } catch (error) {
       console.error("Failed to process donor journey:", error);
       toast.error("Failed to process donor journey");
+    } finally {
+      setIsProcessingJourney(false);
     }
   };
 
@@ -117,10 +125,14 @@ export function DonorJourneySettings() {
             </CollapsibleContent>
           </Collapsible>
           <div className="flex justify-end space-x-2">
-            <Button onClick={handleSave} variant="outline">
+            <Button onClick={handleSave} variant="outline" disabled={isSavingText || isProcessingJourney}>
+              {isSavingText && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Text
             </Button>
-            <Button onClick={handleGenerate}>Generate Graph</Button>
+            <Button onClick={handleGenerate} disabled={isProcessingJourney || isSavingText || !text}>
+              {isProcessingJourney && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Generate Graph
+            </Button>
           </div>
         </CardContent>
       </Card>

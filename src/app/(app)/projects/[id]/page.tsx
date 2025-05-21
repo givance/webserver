@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ProjectForm } from "../_components/project-form";
 import { ProjectDonations } from "../_components/project-donations";
+import type { ProjectFormValues } from "../_components/project-form";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -40,7 +41,7 @@ export default function ProjectDetailsPage() {
     }
   };
 
-  const handleUpdate = async (formData: any) => {
+  const handleUpdate = async (formData: ProjectFormValues) => {
     try {
       const result = await updateProject({
         id: projectId,
