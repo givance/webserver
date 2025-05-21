@@ -203,16 +203,31 @@ export const getColumns = (
                 <TooltipProvider key={`${action.type}-${index}`}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <DropdownMenuItem
-                        className="flex flex-col items-start py-2 cursor-pointer"
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        <div className="font-medium">{action.type}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{action.description}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Scheduled: {new Date(action.scheduledDate).toLocaleString()}
-                        </div>
-                      </DropdownMenuItem>
+                      {action.type === "email" ? (
+                        <Link href={`/donors/email/${row.original.id}`} className="w-full">
+                          <DropdownMenuItem
+                            className="flex flex-col items-start py-2 cursor-pointer"
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            <div className="font-medium">{action.type}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{action.description}</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Scheduled: {new Date(action.scheduledDate).toLocaleString()}
+                            </div>
+                          </DropdownMenuItem>
+                        </Link>
+                      ) : (
+                        <DropdownMenuItem
+                          className="flex flex-col items-start py-2 cursor-pointer"
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <div className="font-medium">{action.type}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{action.description}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Scheduled: {new Date(action.scheduledDate).toLocaleString()}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-sm">
                       <div className="space-y-2">
