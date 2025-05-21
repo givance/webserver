@@ -60,6 +60,8 @@ export default function DonorListPage() {
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
     searchTerm: debouncedSearchTerm,
+    orderBy: "firstName",
+    orderDirection: "asc",
   });
 
   // Get donation stats for all donors in the current page

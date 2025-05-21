@@ -20,7 +20,13 @@ export function useDonors() {
   const utils = trpc.useUtils();
 
   // Query hooks
-  const listDonors = (params: { searchTerm?: string; limit?: number; offset?: number }) => {
+  const listDonors = (params: {
+    searchTerm?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
+    orderDirection?: "asc" | "desc";
+  }) => {
     return trpc.donors.list.useQuery(params, {
       // Don't refetch automatically
       refetchOnWindowFocus: false,
