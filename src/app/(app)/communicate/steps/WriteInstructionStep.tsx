@@ -14,6 +14,7 @@ import type { DonationWithDetails } from "@/app/lib/data/donations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { SuggestedMemories } from "../components/SuggestedMemories";
+import React from "react";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -21,6 +22,7 @@ interface WriteInstructionStepProps {
   onBack: () => void;
   onNext: () => void;
   selectedDonors: number[];
+  ref?: React.RefObject<{ click: () => Promise<void> }>;
 }
 
 interface GeneratedEmail {
@@ -55,257 +57,255 @@ interface GenerateEmailsResponse {
   suggestedMemories?: string[];
 }
 
-export function WriteInstructionStep({
-  instruction,
-  onInstructionChange,
-  onBack,
-  onNext,
-  selectedDonors,
-}: WriteInstructionStepProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
-  const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
-  const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
-  const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
-  const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void> }, WriteInstructionStepProps>(
+  function WriteInstructionStep({ instruction, onInstructionChange, onBack, onNext, selectedDonors }, ref) {
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+    const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
+    const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
+    const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
+    const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { getDonorQuery } = useDonors();
-  const { getOrganization } = useOrganization();
-  const { generateEmails } = useCommunications();
+    const { getDonorQuery } = useDonors();
+    const { getOrganization } = useOrganization();
+    const { generateEmails } = useCommunications();
 
-  // Pre-fetch donor data for all selected donors
-  const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
-  const orgQuery = getOrganization();
+    // Pre-fetch donor data for all selected donors
+    const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
+    const { data: organization } = getOrganization();
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    const scrollToBottom = () => {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
 
-  useEffect(() => {
-    if (chatMessages.length > 0) {
-      scrollToBottom();
-    }
-  }, [chatMessages]);
+    useEffect(() => {
+      if (chatMessages.length > 0) {
+        scrollToBottom();
+      }
+    }, [chatMessages]);
 
-  const handleSubmitInstruction = async () => {
-    if (!instruction.trim()) return;
+    const handleSubmitInstruction = async () => {
+      if (!instruction.trim() || !organization) return;
 
-    setIsGenerating(true);
-    // Clear existing emails, contexts, and memories when generating new ones
-    setGeneratedEmails([]);
-    setReferenceContexts({});
-    setSuggestedMemories([]);
-    setChatMessages((prev) => [...prev, { role: "user", content: instruction }]);
+      setIsGenerating(true);
+      // Clear existing emails and contexts
+      setGeneratedEmails([]);
+      setReferenceContexts({});
+      setSuggestedMemories([]);
+      setChatMessages((prev) => [...prev, { role: "user", content: instruction }]);
 
-    // Clear the input box
-    onInstructionChange("");
+      // Clear the input box
+      onInstructionChange("");
 
-    try {
-      // Prepare donor data for the API call
-      const donorData = selectedDonors.map((donorId) => {
-        const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
-        if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
+      try {
+        // Prepare donor data for the API call
+        const donorData = selectedDonors.map((donorId) => {
+          const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
+          if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
-        return {
-          id: donor.id,
-          firstName: donor.firstName,
-          lastName: donor.lastName,
-          email: donor.email,
-        };
-      });
+          return {
+            id: donor.id,
+            firstName: donor.firstName,
+            lastName: donor.lastName,
+            email: donor.email,
+          };
+        });
 
-      const org = orgQuery.data;
-      if (!org) throw new Error("Organization data not found");
+        // Generate emails using the hook
+        const result = await generateEmails({
+          instruction,
+          donors: donorData,
+          organizationName: organization.name,
+          organizationWritingInstructions: organization.writingInstructions ?? undefined,
+          previousInstruction,
+        });
 
-      // Generate emails using the hook
-      const result = await generateEmails({
-        instruction,
-        donors: donorData,
-        organizationName: org.name,
-        organizationWritingInstructions: org.writingInstructions ?? undefined,
-        previousInstruction,
-      });
+        if (result) {
+          const typedResult = result as GenerateEmailsResponse;
+          setGeneratedEmails(typedResult.emails);
+          setPreviousInstruction(typedResult.refinedInstruction);
 
-      if (result) {
-        const typedResult = result as GenerateEmailsResponse;
-        setGeneratedEmails(typedResult.emails);
-        setPreviousInstruction(typedResult.refinedInstruction);
-        setSuggestedMemories(typedResult.suggestedMemories || []);
-        setReferenceContexts(
-          typedResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-            acc[email.donorId] = email.referenceContexts;
-            return acc;
-          }, {})
-        );
+          setReferenceContexts(
+            typedResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+              acc[email.donorId] = email.referenceContexts;
+              return acc;
+            }, {})
+          );
 
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.",
+            },
+          ]);
+        } else {
+          throw new Error("Failed to generate emails");
+        }
+      } catch (error) {
+        console.error("Error generating emails:", error);
+        toast.error("Failed to generate emails. Please try again.");
         setChatMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content:
-              "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.",
+            content: "I apologize, but I encountered an error while generating the emails. Please try again.",
           },
         ]);
-      } else {
-        throw new Error("Failed to generate emails");
+      } finally {
+        setIsGenerating(false);
       }
-    } catch (error) {
-      console.error("Error generating emails:", error);
-      toast.error("Failed to generate emails. Please try again.");
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "I apologize, but I encountered an error while generating the emails. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    };
 
-  return (
-    <div className="grid grid-cols-2 gap-4 h-full">
-      {/* Left side: Generated Emails with Vertical Tabs */}
-      <div className="flex flex-col h-full min-h-0">
-        <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
-        {isGenerating ? (
-          <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
-            <div className="flex flex-col items-center gap-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p>Generating emails...</p>
+    // Expose the handleSubmitInstruction function through a ref
+    React.useImperativeHandle(ref, () => ({
+      click: handleSubmitInstruction,
+    }));
+
+    return (
+      <div className="grid grid-cols-2 gap-4 h-full">
+        {/* Left side: Generated Emails with Vertical Tabs */}
+        <div className="flex flex-col h-full min-h-0">
+          <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
+          {isGenerating ? (
+            <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
+              <div className="flex flex-col items-center gap-2">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p>Generating emails...</p>
+              </div>
             </div>
-          </div>
-        ) : generatedEmails.length > 0 ? (
-          <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
-            <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
-              <div className="bg-muted/30 overflow-y-auto">
-                <TabsList className="flex flex-col w-full space-y-1 p-2">
+          ) : generatedEmails.length > 0 ? (
+            <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
+              <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
+                <div className="bg-muted/30 overflow-y-auto">
+                  <TabsList className="flex flex-col w-full space-y-1 p-2">
+                    {generatedEmails.map((email) => {
+                      const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
+                      if (!donor) return null;
+
+                      return (
+                        <TabsTrigger
+                          key={email.donorId}
+                          value={email.donorId.toString()}
+                          className={cn(
+                            "w-full h-[80px] p-4 rounded-lg",
+                            "flex flex-col items-start justify-center gap-1",
+                            "text-left",
+                            "transition-all duration-200",
+                            "mr-2"
+                          )}
+                        >
+                          <span className="font-medium truncate w-full">
+                            {donor.firstName} {donor.lastName}
+                          </span>
+                          <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
+                            {donor.email}
+                          </span>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                </div>
+
+                <div className="flex flex-col">
                   {generatedEmails.map((email) => {
                     const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
                     if (!donor) return null;
 
                     return (
-                      <TabsTrigger
+                      <TabsContent
                         key={email.donorId}
                         value={email.donorId.toString()}
-                        className={cn(
-                          "w-full h-[80px] p-4 rounded-lg",
-                          "flex flex-col items-start justify-center gap-1",
-                          "text-left",
-                          "transition-all duration-200",
-                          "mr-2"
-                        )}
+                        className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
                       >
-                        <span className="font-medium truncate w-full">
-                          {donor.firstName} {donor.lastName}
-                        </span>
-                        <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
-                          {donor.email}
-                        </span>
-                      </TabsTrigger>
+                        <EmailDisplay
+                          donorName={`${donor.firstName} ${donor.lastName}`}
+                          donorEmail={donor.email}
+                          subject={email.subject}
+                          content={email.structuredContent}
+                          referenceContexts={referenceContexts[email.donorId] || {}}
+                        />
+                      </TabsContent>
                     );
                   })}
-                </TabsList>
+                </div>
               </div>
-
-              <div className="flex flex-col">
-                {generatedEmails.map((email) => {
-                  const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
-                  if (!donor) return null;
-
-                  return (
-                    <TabsContent
-                      key={email.donorId}
-                      value={email.donorId.toString()}
-                      className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
-                    >
-                      <EmailDisplay
-                        donorName={`${donor.firstName} ${donor.lastName}`}
-                        donorEmail={donor.email}
-                        subject={email.subject}
-                        content={email.structuredContent}
-                        referenceContexts={referenceContexts[email.donorId] || {}}
-                      />
-                    </TabsContent>
-                  );
-                })}
-              </div>
+            </Tabs>
+          ) : (
+            <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
+              No emails generated yet
             </div>
-          </Tabs>
-        ) : (
-          <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
-            No emails generated yet
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Right side: Chat Interface */}
-      <div className="flex flex-col h-full min-h-0">
-        <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
-        <div className="flex flex-col flex-1 border rounded-lg overflow-hidden min-h-0">
-          {/* Chat Messages */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-4 space-y-4">
-              {chatMessages.map((message, index) => (
-                <div
-                  key={index}
-                  className={cn("flex flex-col space-y-2", {
-                    "items-end": message.role === "user",
-                  })}
-                >
+        {/* Right side: Chat Interface */}
+        <div className="flex flex-col h-full min-h-0">
+          <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
+          <div className="flex flex-col flex-1 border rounded-lg overflow-hidden min-h-0">
+            {/* Chat Messages */}
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-4 space-y-4">
+                {chatMessages.map((message, index) => (
                   <div
-                    className={cn("rounded-lg px-3 py-2 max-w-[80%]", {
-                      "bg-primary text-primary-foreground": message.role === "user",
-                      "bg-muted": message.role === "assistant",
+                    key={index}
+                    className={cn("flex flex-col space-y-2", {
+                      "items-end": message.role === "user",
                     })}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div
+                      className={cn("rounded-lg px-3 py-2 max-w-[80%]", {
+                        "bg-primary text-primary-foreground": message.role === "user",
+                        "bg-muted": message.role === "assistant",
+                      })}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    </div>
+                    {message.role === "assistant" &&
+                      suggestedMemories.length > 0 &&
+                      index === chatMessages.length - 1 && (
+                        <div className="w-full mt-4">
+                          <SuggestedMemories memories={suggestedMemories} />
+                        </div>
+                      )}
                   </div>
-                  {message.role === "assistant" &&
-                    suggestedMemories.length > 0 &&
-                    index === chatMessages.length - 1 && (
-                      <div className="w-full mt-4">
-                        <SuggestedMemories memories={suggestedMemories} />
-                      </div>
-                    )}
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-          </ScrollArea>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+            </ScrollArea>
 
-          {/* Input Area */}
-          <div className="p-4 border-t bg-background">
-            <div className="space-y-4">
-              <Textarea
-                value={instruction}
-                onChange={(e) => onInstructionChange(e.target.value)}
-                placeholder="Enter your instructions for email generation..."
-                className="min-h-[100px] resize-none"
-              />
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={onBack}>
-                  Back
-                </Button>
-                <div className="space-x-2">
-                  <Button
-                    onClick={handleSubmitInstruction}
-                    disabled={isGenerating || !instruction.trim()}
-                    variant="default"
-                  >
-                    {isGenerating ? "Generating..." : "Generate Emails"}
+            {/* Input Area */}
+            <div className="p-4 border-t bg-background">
+              <div className="space-y-4">
+                <Textarea
+                  value={instruction}
+                  onChange={(e) => onInstructionChange(e.target.value)}
+                  placeholder="Enter your instructions for email generation..."
+                  className="min-h-[100px] resize-none"
+                />
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={onBack}>
+                    Back
                   </Button>
-                  <Button onClick={onNext} disabled={generatedEmails.length === 0} variant="default">
-                    Next
-                  </Button>
+                  <div className="space-x-2">
+                    <Button
+                      onClick={handleSubmitInstruction}
+                      disabled={isGenerating || !instruction.trim()}
+                      variant="default"
+                    >
+                      {isGenerating ? "Generating..." : "Generate Emails"}
+                    </Button>
+                    <Button onClick={onNext} disabled={generatedEmails.length === 0} variant="default">
+                      Next
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+);

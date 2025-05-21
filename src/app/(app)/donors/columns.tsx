@@ -204,7 +204,7 @@ export const getColumns = (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       {action.type === "email" ? (
-                        <Link href={`/donors/email/${row.original.id}`} className="w-full">
+                        <Link href={`/donors/email/${row.original.id}?autoDraft=true`} className="w-full">
                           <DropdownMenuItem
                             className="flex flex-col items-start py-2 cursor-pointer"
                             onSelect={(e) => e.preventDefault()}

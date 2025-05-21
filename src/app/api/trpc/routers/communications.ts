@@ -469,13 +469,13 @@ export const communicationsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
-      const { instruction, donors, organizationName, organizationWritingInstructions, previousInstruction } = input;
+      const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
 
       // Get organization data using Drizzle
       const [organization] = await db
         .select()
         .from(organizations)
-        .where(eq(organizations.name, organizationName))
+        .where(eq(organizations.id, ctx.auth.user.organizationId))
         .limit(1);
 
       if (!organization) {
@@ -531,7 +531,7 @@ export const communicationsRouter = router({
         const result = await generateSmartDonorEmails(
           donors,
           instruction,
-          organizationName,
+          input.organizationName,
           emailGeneratorOrg,
           organizationWritingInstructions,
           previousInstruction,

@@ -1,21 +1,28 @@
 "use client";
 
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { WriteInstructionStep } from "@/app/(app)/communicate/steps/WriteInstructionStep";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
+import { useOrganization } from "@/app/hooks/use-organization";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { Switch } from "@/components/ui/switch";
 
 export default function DonorEmailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const donorId = params.id as string;
   const [instruction, setInstruction] = useState("");
+  const [autoDraft, setAutoDraft] = useState(searchParams.get("autoDraft") === "true");
+  const writeInstructionRef = useRef<{ click: () => Promise<void> }>(null);
 
   const { getDonorQuery } = useDonors();
-  const { data: donor, isLoading } = getDonorQuery(Number(donorId));
+  const { getOrganization } = useOrganization();
+  const { data: donor, isLoading: isDonorLoading } = getDonorQuery(Number(donorId));
+  const { data: organization, isLoading: isOrgLoading } = getOrganization();
 
   // Get the email action from the donor's predicted actions
   const emailAction = donor?.predictedActions
@@ -24,19 +31,26 @@ export default function DonorEmailPage() {
       )
     : null;
 
-  // Set the instruction from the email action when it's loaded
+  // Set the instruction from the email action when it's loaded and trigger auto-draft if enabled
   useEffect(() => {
-    if (emailAction?.instruction) {
+    if (emailAction?.instruction && organization) {
       setInstruction(emailAction.instruction);
+      if (autoDraft) {
+        // We need to wait for the instruction to be set in state before submitting
+        const timer = setTimeout(() => {
+          writeInstructionRef.current?.click();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [emailAction]);
+  }, [emailAction, autoDraft, organization]);
 
-  if (isLoading) {
+  if (isDonorLoading || isOrgLoading) {
     return <div>Loading...</div>;
   }
 
-  if (!donor) {
-    return <div>Donor not found</div>;
+  if (!donor || !organization) {
+    return <div>Data not found</div>;
   }
 
   return (
@@ -50,9 +64,23 @@ export default function DonorEmailPage() {
         <h1 className="text-2xl font-bold">
           Email {donor.firstName} {donor.lastName}
         </h1>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-sm">Auto Draft</label>
+          <Switch
+            checked={autoDraft}
+            onCheckedChange={(checked) => {
+              setAutoDraft(checked);
+              // Update the URL to reflect the new state
+              const newUrl = checked ? `/donors/email/${donorId}?autoDraft=true` : `/donors/email/${donorId}`;
+              router.replace(newUrl);
+            }}
+            aria-label="Toggle auto draft"
+          />
+        </div>
       </div>
 
       <WriteInstructionStep
+        ref={writeInstructionRef}
         instruction={instruction}
         onInstructionChange={setInstruction}
         onBack={() => router.push("/donors")}
