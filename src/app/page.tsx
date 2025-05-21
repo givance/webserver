@@ -3,7 +3,7 @@
 import { useTodos } from "@/app/hooks/use-todos";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/app/lib/utils/format";
-import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search } from "lucide-react";
+import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search, Mail } from "lucide-react";
 import Link from "next/link";
 import type { Todo } from "@/app/types/todo";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ function TodoStatusIcon({ status }: { status: string }) {
   }
 }
 
-function TodoTypeTag({ type }: { type: string }) {
+function TodoTypeTag({ type, title, donorId }: { type: string; title: string; donorId?: number | null }) {
   const getTagStyle = (type: string) => {
     const styles = {
       Social: "bg-red-100 text-red-700",
@@ -31,12 +31,31 @@ function TodoTypeTag({ type }: { type: string }) {
       Friends: "bg-blue-100 text-blue-700",
       Freelance: "bg-green-100 text-green-700",
       Coding: "bg-purple-100 text-purple-700",
+      PREDICTED_ACTION: "bg-purple-100 text-purple-700",
       default: "bg-gray-100 text-gray-700",
     };
     return styles[type as keyof typeof styles] || styles.default;
   };
 
-  return <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", getTagStyle(type))}>{type}</span>;
+  const isEmailAction = title.toLowerCase() === "email" || title.toLowerCase() === "custom_message";
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", getTagStyle(type))}>{type}</span>
+      {isEmailAction && donorId && (
+        <Link href={`/donors/email/${donorId}?autoDraft=true`}>
+          <Button
+            size="sm"
+            variant="default"
+            className="h-6 px-2 py-1 text-xs gap-1 bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            <Mail className="h-3 w-3" />
+            Draft Email
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
 }
 
 interface TodosByDate {
@@ -83,6 +102,8 @@ function groupTodosByDate(todos: (Todo & { donorName: string | null })[]): Todos
 function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] }) {
   const todosByDate = groupTodosByDate(todos);
 
+  console.log(todosByDate);
+
   return (
     <div className="space-y-6">
       {Object.entries(todosByDate).map(([date, dateTodos]) => (
@@ -113,7 +134,7 @@ function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] })
                 <div className="min-w-0 flex-auto">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium text-gray-900">{todo.title}</p>
-                    <TodoTypeTag type={todo.type} />
+                    <TodoTypeTag type={todo.type} title={todo.title} donorId={todo.donorId ?? undefined} />
                   </div>
                   {todo.description && <p className="mt-1 truncate text-sm text-gray-500">{todo.description}</p>}
                 </div>
