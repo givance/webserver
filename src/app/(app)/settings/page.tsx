@@ -33,7 +33,7 @@ function GmailConnect() {
     gmailAuthMutation.mutate();
   };
 
-  const isGmailConnected = false;
+  const { data: gmailConnectionStatus, isLoading: isStatusLoading } = trpc.gmail.getGmailConnectionStatus.useQuery();
 
   return (
     <Card>
@@ -44,13 +44,16 @@ function GmailConnect() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isGmailConnected ? (
+        {isStatusLoading ? (
+          <p>Loading Gmail connection status...</p>
+        ) : gmailConnectionStatus?.isConnected && gmailConnectionStatus.email ? (
           <div className="flex flex-col items-start space-y-2">
             <p className="text-green-600 font-semibold">Gmail account connected.</p>
+            <p>Email: {gmailConnectionStatus.email}</p>
           </div>
         ) : (
-          <Button onClick={handleConnectGmail} disabled={gmailAuthMutation.isLoading}>
-            {gmailAuthMutation.isLoading ? "Connecting..." : "Connect Gmail Account"}
+          <Button onClick={handleConnectGmail} disabled={gmailAuthMutation.isPending || isStatusLoading}>
+            {gmailAuthMutation.isPending ? "Connecting..." : "Connect Gmail Account"}
           </Button>
         )}
       </CardContent>

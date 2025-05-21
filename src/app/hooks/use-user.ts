@@ -11,6 +11,7 @@ export interface BackendUser {
   externalOrgId: string;
   slug: string;
   role: string;
+  email?: string;
   isAdmin: () => boolean;
 }
 

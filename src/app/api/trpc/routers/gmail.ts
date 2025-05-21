@@ -114,4 +114,33 @@ export const gmailRouter = router({
         });
       }
     }),
+
+  getGmailConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.auth.user.id;
+    const userEmail = ctx.auth.user.email; // Clerk provides the primary email
+
+    const tokenInfo = await db.query.gmailOAuthTokens.findFirst({
+      where: eq(gmailOAuthTokens.userId, userId),
+      columns: {
+        // We only need to know if it exists and maybe when it expires
+        // but for now, just checking existence is enough.
+        // We'll also return the user's email from Clerk's user object
+        id: true,
+      },
+    });
+
+    if (tokenInfo && userEmail) {
+      return {
+        isConnected: true,
+        email: userEmail,
+        message: `Connected with ${userEmail}`,
+      };
+    }
+
+    return {
+      isConnected: false,
+      email: null,
+      message: "Gmail account not connected.",
+    };
+  }),
 });

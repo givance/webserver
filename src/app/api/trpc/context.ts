@@ -40,6 +40,7 @@ export async function createContext({ req, resHeaders }: FetchCreateContextFnOpt
     externalOrgId: organization.id,
     slug: organization.slug ?? "",
     role: orgRole ?? "UNDEFINED",
+    email: user.email,
     isAdmin: () => orgRole === "org:admin",
   };
 

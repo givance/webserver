@@ -16,13 +16,13 @@ function GmailOAuthCallbackContent() {
     onSuccess: (data) => {
       // data type will be inferred
       toast.success(data.message || "Successfully connected Gmail account!");
-      router.push("/settings/gmail"); // Redirect to Gmail settings page or dashboard
+      router.push("/settings"); // Redirect to Gmail settings page or dashboard
     },
     onError: (err) => {
       // err type will be inferred
       console.error("Callback error:", err);
       toast.error(err.message || "Failed to connect Gmail account. Please try again.");
-      router.push("/settings/gmail"); // Redirect back even on error
+      router.push("/settings"); // Redirect back even on error
     },
   });
 
@@ -31,12 +31,12 @@ function GmailOAuthCallbackContent() {
       mutation.mutate({ code, state: state || undefined });
     } else {
       toast.error("Invalid callback from Google. Missing authorization code.");
-      router.push("/settings/gmail");
+      router.push("/settings");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, state, router]); // mutation.mutate is stable, no need to add to deps
 
-  if (mutation.isLoading) {
+  if (mutation.isPending) {
     return <p>Processing Gmail authentication...</p>;
   }
 
