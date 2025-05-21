@@ -42,6 +42,9 @@ export class ActionPredictionService {
         prompt,
       });
 
+      logger.info(`Action prediction prompt for donor ${donorInfo.id}: ${prompt}`);
+      logger.info(`aiResponse for action prediction of donor ${donorInfo.id}: ${aiResponse}`);
+
       const responseLength = aiResponse?.length || 0;
       logger.info(
         `Received AI response for action prediction of donor ${

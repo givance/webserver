@@ -9,6 +9,9 @@ import { db } from "@/app/lib/db"; // Assuming this is your Drizzle client
 import { donors as donorSchema } from "@/app/lib/db/schema"; // Assuming donors schema for updates
 import { eq } from "drizzle-orm";
 import { TodoService } from "@/app/lib/services/todo-service";
+import { getDonorById } from "@/app/lib/data/donors";
+import { getDonorCommunicationHistory, type CommunicationThreadWithDetails } from "@/app/lib/data/communications";
+import { listDonations } from "@/app/lib/data/donations";
 
 // --- Placeholder Data Fetching Functions (replace with actual implementations) ---
 import type { DonorJourney } from "@/app/lib/data/organizations";
@@ -17,13 +20,14 @@ import type { DonorAnalysisInfo, PredictedAction } from "@/app/lib/analysis/type
 import type { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 import type { DonationWithDetails } from "@/app/lib/data/donations";
 
-// Mock/Placeholder: Fetches necessary donor details for analysis.
+// --- Data Fetching Functions ---
 async function getDonorDetailsForAnalysis(
-  donorId: string
+  donorId: string,
+  organizationId: string
 ): Promise<{ donorInfo: DonorAnalysisInfo; currentStageName: string | null } | null> {
-  logger.info(`Placeholder: Fetching details for donor ${donorId}`);
-  const donor = await db.query.donors.findFirst({ where: eq(donorSchema.id, Number(donorId)) });
+  const donor = await getDonorById(Number(donorId), organizationId);
   if (!donor) return null;
+
   return {
     donorInfo: {
       id: donor.id.toString(),
@@ -34,18 +38,42 @@ async function getDonorDetailsForAnalysis(
   };
 }
 
-// Mock/Placeholder: Fetches and transforms communication history.
-async function getDonorFormattedCommunicationHistory(donorId: string): Promise<RawCommunicationThread[]> {
-  logger.info(`Placeholder: Fetching communication history for donor ${donorId}`);
-  return [];
+// Fetches and transforms communication history.
+async function getDonorFormattedCommunicationHistory(
+  donorId: string,
+  organizationId: string
+): Promise<RawCommunicationThread[]> {
+  const threads = await getDonorCommunicationHistory(Number(donorId), {
+    includeStaff: true,
+    messagesPerThread: 25,
+    organizationId,
+  });
+
+  // Transform to RawCommunicationThread format
+  return threads.map((thread: CommunicationThreadWithDetails) => ({
+    content:
+      thread.content?.map((message) => ({
+        content: message.content,
+      })) || [],
+  }));
 }
 
-// Mock/Placeholder: Fetches donation history.
-async function getDonorFormattedDonationHistory(donorId: string): Promise<DonationWithDetails[]> {
-  logger.info(`Placeholder: Fetching donation history for donor ${donorId}`);
-  return [];
+// Fetches donation history.
+async function getDonorFormattedDonationHistory(
+  donorId: string,
+  organizationId: string
+): Promise<DonationWithDetails[]> {
+  const { donations } = await listDonations({
+    donorId: Number(donorId),
+    includeDonor: true,
+    includeProject: true,
+    orderBy: "date",
+    orderDirection: "desc",
+    limit: 50, // Get last 50 donations
+  });
+  return donations;
 }
-// --- End of Placeholder Data Fetching Functions ---
+// --- End of Data Fetching Functions ---
 
 const todoService = new TodoService();
 
@@ -96,7 +124,7 @@ export const analysisRouter = router({
         donorIds.map(async (donorId: string) => {
           logger.info(`Starting analysis pipeline for donor ${donorId}`);
           try {
-            const donorDetails = await getDonorDetailsForAnalysis(donorId);
+            const donorDetails = await getDonorDetailsForAnalysis(donorId, organizationId);
             if (!donorDetails) {
               logger.error(`Donor ${donorId} not found or essential data missing.`);
               throw new Error(`Donor ${donorId} not found.`);
@@ -104,8 +132,8 @@ export const analysisRouter = router({
             const { donorInfo, currentStageName: initialStageName } = donorDetails;
             let currentStageName: string | null = initialStageName;
 
-            const communicationHistory = await getDonorFormattedCommunicationHistory(donorId);
-            const donationHistory = await getDonorFormattedDonationHistory(donorId);
+            const communicationHistory = await getDonorFormattedCommunicationHistory(donorId, organizationId);
+            const donationHistory = await getDonorFormattedDonationHistory(donorId, organizationId);
             logger.info(
               `Donor ${donorId}: Initial Stage: ${currentStageName || "None"}, Comm History: ${
                 communicationHistory.length

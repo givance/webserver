@@ -37,6 +37,9 @@ export class StageTransitionService {
         prompt,
       });
 
+      logger.info(`prompt for stage transition of donor ${donorInfo.id}: ${prompt}`);
+      logger.info(`aiResponse for stage transition of donor ${donorInfo.id}: ${aiResponse}`);
+
       const responseLength = aiResponse?.length || 0;
       logger.info(
         `Received AI response for stage transition of donor ${
