@@ -14,6 +14,7 @@ import {
   Mail,
   CheckSquare,
   Square,
+  User,
 } from "lucide-react";
 import Link from "next/link";
 import type { Todo } from "@/app/types/todo";
@@ -27,7 +28,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
+import { trpc } from "@/app/lib/trpc/client";
+import { useOrganization } from "@/app/hooks/use-organization";
 
 function TodoStatusIcon({ status }: { status: string }) {
   switch (status.toUpperCase()) {
@@ -129,6 +135,8 @@ function TodoList({
   onPushTodo,
   onCompleteTodo,
   onSkipTodo,
+  onAssignStaff,
+  staffMembers,
 }: {
   todos: (Todo & { donorName: string | null })[];
   selectedTodoIds: Set<number>;
@@ -136,6 +144,8 @@ function TodoList({
   onPushTodo: (todoId: number, days: number) => void;
   onCompleteTodo: (todoId: number) => void;
   onSkipTodo: (todoId: number) => void;
+  onAssignStaff: (todoId: number, staffId: number | undefined) => void;
+  staffMembers: { id: number; firstName: string; lastName: string }[];
 }) {
   const todosByDate = groupTodosByDate(todos);
 
@@ -197,6 +207,26 @@ function TodoList({
                   </div>
                 )}
 
+                {/* Staff Assignment */}
+                <div className="flex-none">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-700">
+                      {todo.staffId ? (
+                        (() => {
+                          const staff = staffMembers.find((s) => s.id === todo.staffId);
+                          return staff ? (
+                            `${staff.firstName[0]}${staff.lastName[0]}`
+                          ) : (
+                            <User className="h-4 w-4 text-gray-400" />
+                          );
+                        })()
+                      ) : (
+                        <User className="h-4 w-4 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex-none">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -208,6 +238,24 @@ function TodoList({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onPushTodo(todo.id, 1)}>Push 1 day</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onPushTodo(todo.id, 7)}>Push 7 days</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <User className="mr-2 h-4 w-4" />
+                          <span>Assign to</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem onClick={() => onAssignStaff(todo.id, undefined)}>
+                            Unassign
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {staffMembers.map((staff) => (
+                            <DropdownMenuItem key={staff.id} onClick={() => onAssignStaff(todo.id, staff.id)}>
+                              {staff.firstName} {staff.lastName}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => onCompleteTodo(todo.id)}
@@ -236,9 +284,28 @@ export default function Home() {
     pushTodoScheduledDate,
     bulkUpdateTodosStatus,
     bulkPushTodosScheduledDate,
+    updateTodo,
   } = useTodos();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedTodoIds, setSelectedTodoIds] = React.useState<Set<number>>(new Set());
+  const { getOrganization } = useOrganization();
+  const { data: organizationData } = getOrganization();
+
+  // Fetch staff members
+  const { data: staffListResponse } = trpc.staff.list.useQuery(
+    {}, // Empty object for input, as organizationId is from context
+    { enabled: !!organizationData?.id } // Only run query if organizationId is available
+  );
+
+  const staffMembers = React.useMemo(
+    () =>
+      staffListResponse?.staff?.map((s) => ({
+        id: s.id,
+        firstName: s.firstName,
+        lastName: s.lastName,
+      })) || [],
+    [staffListResponse?.staff]
+  );
 
   if (isLoadingGroupedTodos) {
     return (
@@ -344,6 +411,17 @@ export default function Home() {
     }
   };
 
+  const handleAssignStaff = async (todoId: number, staffId: number | undefined) => {
+    try {
+      await updateTodo({
+        id: todoId,
+        staffId,
+      });
+    } catch (error) {
+      console.error(`Error assigning staff to todo ${todoId}:`, error);
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 max-w-5xl">
       <div className="mb-8 flex items-center justify-between">
@@ -421,6 +499,8 @@ export default function Home() {
             onPushTodo={handlePushTodo}
             onCompleteTodo={handleCompleteTodo}
             onSkipTodo={handleSkipTodo}
+            onAssignStaff={handleAssignStaff}
+            staffMembers={staffMembers}
           />
         </div>
       ) : (
@@ -438,6 +518,8 @@ export default function Home() {
               onPushTodo={handlePushTodo}
               onCompleteTodo={handleCompleteTodo}
               onSkipTodo={handleSkipTodo}
+              onAssignStaff={handleAssignStaff}
+              staffMembers={staffMembers}
             />
           )}
           <Link href="/donors" className="mt-4 inline-block">

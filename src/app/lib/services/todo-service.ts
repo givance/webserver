@@ -3,6 +3,7 @@ import { todos, donors } from "@/app/lib/db/schema";
 import { eq, and, desc, asc, sql, notInArray } from "drizzle-orm";
 import type { PredictedAction } from "@/app/lib/analysis/types";
 import type { Todo } from "@/app/types/todo";
+import { getDonorById } from "@/app/lib/data/donors";
 
 export interface CreateTodoInput {
   title: string;
@@ -40,6 +41,12 @@ export class TodoService {
   }
 
   async createTodosFromPredictedActions(donorId: number, organizationId: string, predictedActions: PredictedAction[]) {
+    // First get the donor to find their assigned staff member
+    const donor = await getDonorById(donorId, organizationId);
+    if (!donor) {
+      throw new Error(`Donor ${donorId} not found`);
+    }
+
     const todoInputs = predictedActions.map((action) => ({
       title: action.type,
       description: action.description,
@@ -47,6 +54,7 @@ export class TodoService {
       status: "PENDING",
       priority: "MEDIUM",
       donorId,
+      staffId: donor.assignedToStaffId, // Assign to the donor's assigned staff member
       organizationId,
       scheduledDate: action.scheduledDate ? new Date(action.scheduledDate) : undefined,
       explanation: action.explanation,
