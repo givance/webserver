@@ -28,15 +28,32 @@ export default function DonorEmailPage() {
   // Get the email action from the donor's predicted actions
   let emailAction: ColumnPredictedAction | null = null;
   if (donor?.predictedActions && Array.isArray(donor.predictedActions)) {
-    for (const actionString of donor.predictedActions) {
+    // Iterate over each action, which might be a string or an object
+    for (const actionItem of donor.predictedActions) {
       try {
-        const actionObject: ColumnPredictedAction = JSON.parse(actionString);
+        let actionObject: ColumnPredictedAction;
+
+        if (typeof actionItem === "string") {
+          // If it's a string, parse it as JSON
+          actionObject = JSON.parse(actionItem) as ColumnPredictedAction;
+        } else if (typeof actionItem === "object" && actionItem !== null) {
+          // If it's already an object, assume it's the correct type.
+          // Potentially add validation here if the object structure is not guaranteed.
+          actionObject = actionItem as ColumnPredictedAction;
+        } else {
+          // Log and skip if the item is neither a string nor a valid object
+          console.warn(`Skipping unexpected item in predictedActions: ${String(actionItem)}`);
+          continue;
+        }
+
+        // Check if the parsed/retrieved action is of type "email"
         if (actionObject.type === "email") {
           emailAction = actionObject;
-          break;
+          break; // Found the email action, no need to continue
         }
       } catch (e) {
-        console.error(`Failed to parse predicted action string: ${actionString}`, e);
+        // Log an error if parsing (for strings) or processing fails
+        console.error(`Failed to process predicted action. Item: ${String(actionItem)}`, e);
         // Potentially log to a more persistent store if this is critical
       }
     }
