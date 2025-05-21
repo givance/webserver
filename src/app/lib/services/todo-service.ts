@@ -20,7 +20,7 @@ export interface CreateTodoInput {
 
 export interface UpdateTodoInput extends Partial<CreateTodoInput> {
   status?: string;
-  completedDate?: Date;
+  completedDate?: Date | null;
 }
 
 export interface TodoWithDonor extends Todo {
