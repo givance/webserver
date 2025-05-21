@@ -1,3 +1,5 @@
+"use client";
+
 import { useRouter } from "next/navigation";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Button } from "@/components/ui/button";
@@ -5,7 +7,6 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Metadata } from "next";
 import { ProjectForm, type ProjectFormValues } from "../_components/project-form"; // Import ProjectForm and its types
 
 export default function AddProjectPage() {
