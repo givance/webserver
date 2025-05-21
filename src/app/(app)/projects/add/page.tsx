@@ -1,5 +1,3 @@
-"use client";
-
 import { useRouter } from "next/navigation";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Button } from "@/components/ui/button";
@@ -9,10 +7,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { Metadata } from "next";
 import { ProjectForm, type ProjectFormValues } from "../_components/project-form"; // Import ProjectForm and its types
-
-export const metadata: Metadata = {
-  title: "Add New Project",
-};
 
 export default function AddProjectPage() {
   const { createProject, isCreating } = useProjects();
@@ -63,7 +57,7 @@ export default function AddProjectPage() {
 
   return (
     <>
-      {/* <title>Add New Project</title> */}
+      <title>Add New Project</title>
       <div className="container mx-auto py-6">
         <div className="flex items-center mb-6">
           <Link href="/projects" className="mr-4">

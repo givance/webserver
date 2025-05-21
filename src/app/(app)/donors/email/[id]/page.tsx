@@ -49,6 +49,7 @@ export default function DonorEmailPage() {
         // Check if the parsed/retrieved action is of type "email"
         if (actionObject.type === "email") {
           emailAction = actionObject;
+
           break; // Found the email action, no need to continue
         }
       } catch (e) {
