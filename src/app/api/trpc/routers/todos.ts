@@ -5,6 +5,13 @@ import { logger } from "@/app/lib/logger";
 
 const todoService = new TodoService();
 
+// Helper to preprocess date strings into Date objects or keep them as undefined/null
+const preprocessDate = (arg: unknown) => {
+  if (typeof arg === "string" || arg instanceof Date) return new Date(arg);
+  if (arg === null || arg === undefined) return arg;
+  return undefined; // Or throw an error if unexpected type
+};
+
 export const todoRouter = router({
   create: protectedProcedure
     .input(
@@ -13,8 +20,8 @@ export const todoRouter = router({
         description: z.string(),
         type: z.string(),
         priority: z.string().optional(),
-        dueDate: z.date().optional(),
-        scheduledDate: z.date().optional(),
+        dueDate: z.preprocess(preprocessDate, z.date().optional()),
+        scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
         donorId: z.number().optional(),
         staffId: z.number().optional(),
       })
@@ -41,9 +48,9 @@ export const todoRouter = router({
         type: z.string().optional(),
         priority: z.string().optional(),
         status: z.string().optional(),
-        dueDate: z.date().optional(),
-        scheduledDate: z.date().optional(),
-        completedDate: z.date().optional(),
+        dueDate: z.preprocess(preprocessDate, z.date().optional()),
+        scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
+        completedDate: z.preprocess(preprocessDate, z.date().optional().nullable()),
         staffId: z.number().optional(),
       })
     )
@@ -51,6 +58,50 @@ export const todoRouter = router({
       const { id, ...updateData } = input;
       logger.info(`Updating todo ${id}`);
       return await todoService.updateTodo(id, updateData);
+    }),
+
+  updateMany: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.number()),
+        data: z.object({
+          title: z.string().optional(),
+          description: z.string().optional(),
+          type: z.string().optional(),
+          priority: z.string().optional(),
+          status: z.string().optional(),
+          dueDate: z.preprocess(preprocessDate, z.date().optional()),
+          scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
+          completedDate: z.preprocess(preprocessDate, z.date().optional().nullable()),
+          staffId: z.number().optional().nullable(),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { ids, data } = input;
+      const { user } = ctx.auth;
+      if (!user?.organizationId) {
+        throw new Error("User must belong to an organization to update todos.");
+      }
+
+      logger.info(
+        `Bulk updating ${ids.length} todos for organization ${user.organizationId} with data: ${JSON.stringify(data)}`
+      );
+
+      const serviceUpdateData: any = { ...data };
+
+      if (data.completedDate === null) {
+        serviceUpdateData.completedDate = undefined;
+      }
+      if (data.staffId === null) {
+        serviceUpdateData.staffId = undefined;
+      }
+
+      const updatePromises = ids.map((id) => todoService.updateTodo(id, serviceUpdateData));
+      const results = await Promise.all(updatePromises);
+
+      logger.info(`Successfully bulk updated ${results.filter((r) => r).length} todos.`);
+      return { count: results.filter((r) => r).length };
     }),
 
   delete: protectedProcedure

@@ -126,10 +126,16 @@ function TodoList({
   todos,
   selectedTodoIds,
   onToggleSelection,
+  onPushTodo,
+  onCompleteTodo,
+  onSkipTodo,
 }: {
   todos: (Todo & { donorName: string | null })[];
   selectedTodoIds: Set<number>;
   onToggleSelection: (todoId: number) => void;
+  onPushTodo: (todoId: number, days: number) => void;
+  onCompleteTodo: (todoId: number) => void;
+  onSkipTodo: (todoId: number) => void;
 }) {
   const todosByDate = groupTodosByDate(todos);
 
@@ -200,20 +206,16 @@ function TodoList({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => console.log("Push 1 day for todo:", todo.id)}>
-                        Push 1 day
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => console.log("Push 7 days for todo:", todo.id)}>
-                        Push 7 days
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onPushTodo(todo.id, 1)}>Push 1 day</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onPushTodo(todo.id, 7)}>Push 7 days</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => console.log("Complete todo:", todo.id)}
+                        onClick={() => onCompleteTodo(todo.id)}
                         disabled={todo.status.toUpperCase() === "COMPLETED"}
                       >
                         Complete
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => console.log("Skip todo:", todo.id)}>Skip</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onSkipTodo(todo.id)}>Skip</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -227,7 +229,14 @@ function TodoList({
 }
 
 export default function Home() {
-  const { groupedTodos, isLoadingGroupedTodos } = useTodos();
+  const {
+    groupedTodos,
+    isLoadingGroupedTodos,
+    updateTodoStatus,
+    pushTodoScheduledDate,
+    bulkUpdateTodosStatus,
+    bulkPushTodosScheduledDate,
+  } = useTodos();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedTodoIds, setSelectedTodoIds] = React.useState<Set<number>>(new Set());
 
@@ -271,22 +280,68 @@ export default function Home() {
     }
   };
 
-  const handleBulkPush = (days: number) => {
-    console.log(`Bulk push ${days} days for todos:`, Array.from(selectedTodoIds));
-    // Implement actual bulk push logic here
-    setSelectedTodoIds(new Set()); // Clear selection after action
+  const handleBulkPush = async (days: number) => {
+    if (selectedTodoIds.size === 0) return;
+    try {
+      await bulkPushTodosScheduledDate(Array.from(selectedTodoIds), days);
+      console.log(`Bulk push ${days} days for todos:`, Array.from(selectedTodoIds));
+      setSelectedTodoIds(new Set()); // Clear selection after action
+    } catch (error) {
+      console.error(`Error bulk pushing todos:`, error);
+      // Optionally, show an error message to the user
+    }
   };
 
-  const handleBulkComplete = () => {
-    console.log("Bulk complete todos:", Array.from(selectedTodoIds));
-    // Implement actual bulk complete logic here
-    setSelectedTodoIds(new Set()); // Clear selection after action
+  const handleBulkComplete = async () => {
+    if (selectedTodoIds.size === 0) return;
+    try {
+      await bulkUpdateTodosStatus(Array.from(selectedTodoIds), "COMPLETED");
+      console.log("Bulk complete todos:", Array.from(selectedTodoIds));
+      setSelectedTodoIds(new Set()); // Clear selection after action
+    } catch (error) {
+      console.error("Error bulk completing todos:", error);
+      // Optionally, show an error message to the user
+    }
   };
 
-  const handleBulkSkip = () => {
-    console.log("Bulk skip todos:", Array.from(selectedTodoIds));
-    // Implement actual bulk skip logic here
-    setSelectedTodoIds(new Set()); // Clear selection after action
+  const handleBulkSkip = async () => {
+    if (selectedTodoIds.size === 0) return;
+    try {
+      await bulkUpdateTodosStatus(Array.from(selectedTodoIds), "CANCELLED");
+      console.log("Bulk skip todos:", Array.from(selectedTodoIds));
+      setSelectedTodoIds(new Set()); // Clear selection after action
+    } catch (error) {
+      console.error("Error bulk skipping todos:", error);
+      // Optionally, show an error message to the user
+    }
+  };
+
+  // Individual todo action handlers
+  const handlePushTodo = async (todoId: number, days: number) => {
+    try {
+      await pushTodoScheduledDate(todoId, days);
+      console.log(`Pushed todo ${todoId} by ${days} days`);
+    } catch (error) {
+      console.error(`Error pushing todo ${todoId}:`, error);
+    }
+  };
+
+  const handleCompleteTodo = async (todoId: number) => {
+    try {
+      await updateTodoStatus(todoId, "COMPLETED");
+      console.log(`Completed todo ${todoId}`);
+    } catch (error) {
+      console.error(`Error completing todo ${todoId}:`, error);
+    }
+  };
+
+  const handleSkipTodo = async (todoId: number) => {
+    try {
+      await updateTodoStatus(todoId, "CANCELLED");
+      console.log(`Skipped todo ${todoId}`);
+    } catch (error) {
+      console.error(`Error skipping todo ${todoId}:`, error);
+    }
   };
 
   return (
@@ -359,13 +414,27 @@ export default function Home() {
 
       {hasAnyTodos ? (
         <div className="rounded-xl border bg-gray-50/50 p-4">
-          <TodoList todos={filteredTodos} selectedTodoIds={selectedTodoIds} onToggleSelection={toggleTodoSelection} />
+          <TodoList
+            todos={filteredTodos}
+            selectedTodoIds={selectedTodoIds}
+            onToggleSelection={toggleTodoSelection}
+            onPushTodo={handlePushTodo}
+            onCompleteTodo={handleCompleteTodo}
+            onSkipTodo={handleSkipTodo}
+          />
         </div>
       ) : (
         <div className="text-center py-12">
           <p className="text-gray-500">No tasks found. Start by analyzing your donors to get predictions.</p>
           {filteredTodos.length === 0 && todoGroups && Object.keys(todoGroups).length === 0 && (
-            <TodoList todos={[]} selectedTodoIds={selectedTodoIds} onToggleSelection={toggleTodoSelection} />
+            <TodoList
+              todos={[]}
+              selectedTodoIds={selectedTodoIds}
+              onToggleSelection={toggleTodoSelection}
+              onPushTodo={handlePushTodo}
+              onCompleteTodo={handleCompleteTodo}
+              onSkipTodo={handleSkipTodo}
+            />
           )}
           <Link href="/donors" className="mt-4 inline-block">
             <Button>Go to Donors</Button>
