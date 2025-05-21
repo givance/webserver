@@ -150,13 +150,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
     logger.info(`Built email prompt for donor ${donor.id}:`, {
       promptLength: prompt.length,
       donationContextsCount: Object.keys(donationContexts).length,
-      model: env.MID_MODEL,
+      model: env.SMALL_MODEL,
     });
 
     try {
       logger.info(`Sending prompt to OpenAI for donor ${donor.id}`);
       const { text: aiResponse } = await generateText({
-        model: openai(env.MID_MODEL),
+        model: openai(env.SMALL_MODEL),
         prompt,
       }).catch((error) => {
         logger.error(`OpenAI API call failed for donor ${donor.id}:`, {
