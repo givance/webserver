@@ -3,12 +3,31 @@
 import { useTodos } from "@/app/hooks/use-todos";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/app/lib/utils/format";
-import { CheckCircle2, Circle, Clock, XCircle, Star, MoreHorizontal, Search, Mail } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  XCircle,
+  Star,
+  MoreHorizontal,
+  Search,
+  Mail,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 import Link from "next/link";
 import type { Todo } from "@/app/types/todo";
 import { cn } from "@/lib/utils";
 import React from "react";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function TodoStatusIcon({ status }: { status: string }) {
   switch (status.toUpperCase()) {
@@ -39,9 +58,13 @@ function TodoTypeTag({ type, title, donorId }: { type: string; title: string; do
 
   const isEmailAction = title.toLowerCase() === "email" || title.toLowerCase() === "custom_message";
 
+  const showBadge = type.toUpperCase() !== "PREDICTED_ACTION";
+
   return (
     <div className="flex items-center gap-2">
-      <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", getTagStyle(type))}>{type}</span>
+      {showBadge && (
+        <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", getTagStyle(type))}>{type}</span>
+      )}
       {isEmailAction && donorId && (
         <Link href={`/donors/email/${donorId}?autoDraft=true`}>
           <Button
@@ -99,7 +122,15 @@ function groupTodosByDate(todos: (Todo & { donorName: string | null })[]): Todos
   return groups;
 }
 
-function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] }) {
+function TodoList({
+  todos,
+  selectedTodoIds,
+  onToggleSelection,
+}: {
+  todos: (Todo & { donorName: string | null })[];
+  selectedTodoIds: Set<number>;
+  onToggleSelection: (todoId: number) => void;
+}) {
   const todosByDate = groupTodosByDate(todos);
 
   console.log(todosByDate);
@@ -118,47 +149,74 @@ function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] })
             {dateTodos.map((todo) => (
               <div
                 key={todo.id}
-                className="group flex items-center gap-3 rounded-lg border border-transparent bg-white p-3 hover:border-gray-200 hover:bg-gray-50/50"
+                className={cn(
+                  "group flex items-center gap-3 rounded-lg border bg-white p-3 shadow-sm transition-all hover:shadow-md",
+                  selectedTodoIds.has(todo.id) && "bg-blue-50 border-blue-200 hover:bg-blue-100"
+                )}
               >
                 <div className="flex-none">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded-sm border-gray-300 text-primary focus:ring-primary"
-                    checked={todo.status.toUpperCase() === "COMPLETED"}
-                    onChange={() => {}}
+                  <Checkbox
+                    id={`todo-select-${todo.id}`}
+                    checked={selectedTodoIds.has(todo.id)}
+                    onCheckedChange={() => onToggleSelection(todo.id)}
+                    aria-label={`Select task ${todo.title}`}
+                    className="h-4 w-4 rounded-sm border-gray-300 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
                   />
                 </div>
 
-                <Star className="h-4 w-4 flex-none text-gray-400 hover:text-yellow-400 cursor-pointer" />
+                <Star className="h-4 w-4 flex-none text-gray-300 hover:text-yellow-400 cursor-pointer" />
 
                 <div className="min-w-0 flex-auto">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium text-gray-900">{todo.title}</p>
                     <TodoTypeTag type={todo.type} title={todo.title} donorId={todo.donorId ?? undefined} />
                   </div>
-                  {todo.description && <p className="mt-1 truncate text-sm text-gray-500">{todo.description}</p>}
+                  {todo.description && <p className="mt-1 truncate text-sm text-gray-600">{todo.description}</p>}
                 </div>
 
                 {todo.donorName && (
-                  <div className="flex-none">
+                  <div className="flex-none ml-auto mr-2">
                     <Link
                       href={`/donors/${todo.donorId}`}
-                      className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700"
+                      className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
                     >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-700">
                         {todo.donorName
                           .split(" ")
                           .map((name) => name[0])
                           .join("")}
                       </div>
-                      <span>{todo.donorName}</span>
+                      <span className="hidden sm:inline">{todo.donorName}</span>
                     </Link>
                   </div>
                 )}
 
-                <button className="flex-none opacity-0 group-hover:opacity-100">
-                  <MoreHorizontal className="h-5 w-5 text-gray-400" />
-                </button>
+                <div className="flex-none">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700">
+                        <span className="sr-only">Open menu</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => console.log("Push 1 day for todo:", todo.id)}>
+                        Push 1 day
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => console.log("Push 7 days for todo:", todo.id)}>
+                        Push 7 days
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => console.log("Complete todo:", todo.id)}
+                        disabled={todo.status.toUpperCase() === "COMPLETED"}
+                      >
+                        Complete
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => console.log("Skip todo:", todo.id)}>Skip</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             ))}
           </div>
@@ -171,6 +229,7 @@ function TodoList({ todos }: { todos: (Todo & { donorName: string | null })[] })
 export default function Home() {
   const { groupedTodos, isLoadingGroupedTodos } = useTodos();
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [selectedTodoIds, setSelectedTodoIds] = React.useState<Set<number>>(new Set());
 
   if (isLoadingGroupedTodos) {
     return (
@@ -192,6 +251,44 @@ export default function Home() {
       todo.donorName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const toggleTodoSelection = (todoId: number) => {
+    setSelectedTodoIds((prevSelectedIds) => {
+      const newSelectedIds = new Set(prevSelectedIds);
+      if (newSelectedIds.has(todoId)) {
+        newSelectedIds.delete(todoId);
+      } else {
+        newSelectedIds.add(todoId);
+      }
+      return newSelectedIds;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTodoIds.size === filteredTodos.length) {
+      setSelectedTodoIds(new Set());
+    } else {
+      setSelectedTodoIds(new Set(filteredTodos.map((todo) => todo.id)));
+    }
+  };
+
+  const handleBulkPush = (days: number) => {
+    console.log(`Bulk push ${days} days for todos:`, Array.from(selectedTodoIds));
+    // Implement actual bulk push logic here
+    setSelectedTodoIds(new Set()); // Clear selection after action
+  };
+
+  const handleBulkComplete = () => {
+    console.log("Bulk complete todos:", Array.from(selectedTodoIds));
+    // Implement actual bulk complete logic here
+    setSelectedTodoIds(new Set()); // Clear selection after action
+  };
+
+  const handleBulkSkip = () => {
+    console.log("Bulk skip todos:", Array.from(selectedTodoIds));
+    // Implement actual bulk skip logic here
+    setSelectedTodoIds(new Set()); // Clear selection after action
+  };
+
   return (
     <div className="container mx-auto py-8 max-w-5xl">
       <div className="mb-8 flex items-center justify-between">
@@ -211,13 +308,65 @@ export default function Home() {
         </div>
       </div>
 
+      {hasAnyTodos && selectedTodoIds.size > 0 && (
+        <div className="mb-4 p-3 rounded-lg border bg-gray-100 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="select-all-checkbox"
+                checked={selectedTodoIds.size > 0 && selectedTodoIds.size === filteredTodos.length}
+                onCheckedChange={toggleSelectAll}
+                disabled={filteredTodos.length === 0}
+                aria-label="Select all tasks"
+              />
+              <label htmlFor="select-all-checkbox" className="text-sm font-medium text-gray-700 cursor-pointer">
+                {selectedTodoIds.size} task{selectedTodoIds.size === 1 ? "" : "s"} selected
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkPush(1)}
+                disabled={selectedTodoIds.size === 0}
+              >
+                Push 1 Day
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkPush(7)}
+                disabled={selectedTodoIds.size === 0}
+              >
+                Push 7 Days
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleBulkComplete} disabled={selectedTodoIds.size === 0}>
+                Complete
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkSkip}
+                disabled={selectedTodoIds.size === 0}
+                className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-300 hover:border-red-400 focus:ring-red-500"
+              >
+                Skip
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {hasAnyTodos ? (
         <div className="rounded-xl border bg-gray-50/50 p-4">
-          <TodoList todos={filteredTodos} />
+          <TodoList todos={filteredTodos} selectedTodoIds={selectedTodoIds} onToggleSelection={toggleTodoSelection} />
         </div>
       ) : (
         <div className="text-center py-12">
           <p className="text-gray-500">No tasks found. Start by analyzing your donors to get predictions.</p>
+          {filteredTodos.length === 0 && todoGroups && Object.keys(todoGroups).length === 0 && (
+            <TodoList todos={[]} selectedTodoIds={selectedTodoIds} onToggleSelection={toggleTodoSelection} />
+          )}
           <Link href="/donors" className="mt-4 inline-block">
             <Button>Go to Donors</Button>
           </Link>
