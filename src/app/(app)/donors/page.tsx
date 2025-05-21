@@ -19,6 +19,13 @@ import type { AppRouter } from "@/app/api/trpc/routers/_app";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/app/lib/logger";
+import { useOrganization } from "@/app/hooks/use-organization";
+
+// Assuming a type for Staff members, adjust if necessary
+interface StaffMember {
+  id: string; // or number, depending on your schema
+  name: string;
+}
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -32,7 +39,16 @@ export default function DonorListPage() {
   const [analyzingDonorId, setAnalyzingDonorId] = useState<string | null>(null);
 
   const { listDonors, getMultipleDonorStats } = useDonors();
+  const { getOrganization } = useOrganization();
+  const { data: organizationData } = getOrganization();
   const queryClient = useQueryClient();
+
+  // Fetch staff members
+  const { data: staffListResponse, isLoading: isLoadingStaff } = trpc.staff.list.useQuery(
+    {}, // Empty object for input, as organizationId is from context
+    { enabled: !!organizationData?.id } // Only run query if organizationId is available
+  );
+  // TODO: Potentially add organizationId if your staff.list needs it, e.g., trpc.staff.list.useQuery({ organizationId: currentOrgId });
 
   const {
     data: listDonorsResponse,
@@ -113,6 +129,7 @@ export default function DonorListPage() {
           currentStageName: apiDonor.currentStageName || null,
           classificationReasoning: apiDonor.classificationReasoning || null,
           predictedActions: parsedActions,
+          assignedToStaffId: apiDonor.assignedToStaffId?.toString() || null,
         };
       }) || [];
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };
@@ -163,6 +180,38 @@ export default function DonorListPage() {
     },
   });
 
+  const updateDonorStaffMutation = trpc.donors.updateAssignedStaff.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
+      // Invalidate queries to refetch donor data to show updated assigned staff
+      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
+      queryClient.invalidateQueries({ queryKey: ["donors"] });
+      // Potentially invalidate staff list if it changes, or individual staff details if relevant
+      // queryClient.invalidateQueries({ queryKey: ["staff"] });
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to assign staff to donor ${variables.donorId}: ${error.message}`);
+      console.error("Error updating donor's assigned staff:", error);
+      logger.error(
+        `Error updating donor ${variables.donorId} assigned staff to ${
+          variables.staffId === null ? "unassigned" : variables.staffId
+        }: ${error.message}`
+      );
+    },
+    onSettled: (data, error, variables) => {
+      const donorIdForLogging = variables.donorId as number; // Cast before logging
+      if (variables.donorId === null || variables.donorId === undefined) {
+        logger.error(
+          `Critical: donorId is null or undefined in onSettled for updateDonorStaffMutation. Raw donorId: ${variables.donorId}`
+        );
+        return;
+      }
+      logger.info(
+        `Update assigned staff settled for donor ${donorIdForLogging}. Success: ${!!data}, Error: ${!!error}`
+      );
+    },
+  });
+
   const handleAnalyzeDonors = useCallback(
     async (donorId?: string) => {
       setIsAnalyzing(true);
@@ -186,10 +235,39 @@ export default function DonorListPage() {
     [analyzeDonorsMutation, donors, setIsAnalyzing, setAnalyzingDonorId]
   );
 
-  const columnsConfig = useMemo(() => {
-    const isLoadingDonor = (id: string) => isAnalyzing && analyzingDonorId === id;
-    return getColumns(handleAnalyzeDonors, isLoadingDonor);
-  }, [isAnalyzing, analyzingDonorId, handleAnalyzeDonors]);
+  const handleUpdateDonorStaff = useCallback(
+    async (donorId: string, staffId: string | null) => {
+      try {
+        await updateDonorStaffMutation.mutateAsync({
+          donorId: parseInt(donorId, 10),
+          staffId: staffId ? parseInt(staffId, 10) : null,
+        });
+      } catch (error) {
+        // Error handling is already done in the mutation's onError callback
+        console.error("Error in handleUpdateDonorStaff:", error);
+      }
+    },
+    [updateDonorStaffMutation]
+  );
+
+  const isLoadingDonor = useCallback(
+    (id: string) => isAnalyzing && analyzingDonorId === id,
+    [isAnalyzing, analyzingDonorId]
+  );
+
+  const staffMembers = useMemo(
+    () =>
+      staffListResponse?.staff?.map((s) => ({
+        id: s.id.toString(),
+        name: `${s.firstName} ${s.lastName}`,
+      })) || [],
+    [staffListResponse?.staff]
+  );
+
+  const columnsConfig = useMemo(
+    () => getColumns(handleAnalyzeDonors, isLoadingDonor, staffMembers, handleUpdateDonorStaff),
+    [handleAnalyzeDonors, isLoadingDonor, staffMembers, handleUpdateDonorStaff]
+  );
 
   if (error) {
     return (

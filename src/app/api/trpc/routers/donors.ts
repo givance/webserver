@@ -9,6 +9,7 @@ import {
   deleteDonor,
   listDonors,
 } from "@/app/lib/data/donors";
+import { getStaffById } from "@/app/lib/data/staff";
 
 // Input validation schemas
 const donorIdSchema = z.object({
@@ -56,6 +57,12 @@ const listDonorsSchema = z.object({
   offset: z.number().min(0).optional(),
   orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
   orderDirection: z.enum(["asc", "desc"]).optional(),
+});
+
+// Schema for updating assigned staff
+const updateAssignedStaffSchema = z.object({
+  donorId: z.number(),
+  staffId: z.number().nullable(), // staffId can be null to unassign
 });
 
 // Define the base donor schema for reuse
@@ -150,6 +157,43 @@ export const donorsRouter = router({
       }
       throw error;
     }
+  }),
+
+  updateAssignedStaff: protectedProcedure.input(updateAssignedStaffSchema).mutation(async ({ input, ctx }) => {
+    const { donorId, staffId } = input;
+    const { organizationId } = ctx.auth.user;
+
+    // 1. Verify donor belongs to the organization
+    const donor = await getDonorById(donorId, organizationId);
+    if (!donor) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Donor not found in your organization",
+      });
+    }
+
+    // 2. If staffId is provided, verify staff member belongs to the organization
+    if (staffId !== null) {
+      // Assuming a getStaffById function exists and can check organization
+      // This might need to be imported from staff data functions
+      const staff = await getStaffById(staffId, organizationId);
+      if (!staff) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Staff member not found in your organization",
+        });
+      }
+    }
+
+    // 3. Update the donor's assignedToStaffId
+    const updatedDonor = await updateDonor(donorId, { assignedToStaffId: staffId }, organizationId);
+    if (!updatedDonor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update donor's assigned staff",
+      });
+    }
+    return updatedDonor;
   }),
 
   list: protectedProcedure

@@ -291,6 +291,11 @@ export const donorsRelations = relations(donors, ({ many, one }) => ({
     fields: [donors.organizationId],
     references: [organizations.id],
   }),
+  assignedStaff: one(staff, {
+    fields: [donors.assignedToStaffId],
+    references: [staff.id],
+    relationName: "assignedStaff",
+  }),
 }));
 
 export const donationsRelations = relations(donations, ({ one }) => ({
@@ -312,6 +317,7 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
     fields: [staff.organizationId],
     references: [organizations.id],
   }),
+  assignedDonors: many(donors, { relationName: "assignedStaff" }),
 }));
 
 export const communicationThreadStaffRelations = relations(communicationThreadStaff, ({ one }) => ({

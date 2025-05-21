@@ -28,6 +28,7 @@ import { useState } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { formatCurrency } from "@/app/lib/utils/format";
 import React from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type PredictedAction = {
   type: string;
@@ -36,6 +37,11 @@ export type PredictedAction = {
   instruction: string;
   scheduledDate: string;
 };
+
+export interface StaffMember {
+  id: string;
+  name: string;
+}
 
 export type Donor = {
   id: string;
@@ -48,6 +54,7 @@ export type Donor = {
   currentStageName: string | null;
   classificationReasoning: string | null;
   predictedActions: PredictedAction[];
+  assignedToStaffId: string | null;
 };
 
 // DeleteDonorButton component to handle delete with confirmation dialog
@@ -91,7 +98,9 @@ function DeleteDonorButton({ donorId }: { donorId: string }) {
 
 export const getColumns = (
   handleAnalyze: (donorId: string) => void,
-  isLoadingDonor: (donorId: string) => boolean
+  isLoadingDonor: (donorId: string) => boolean,
+  staffMembers: StaffMember[],
+  handleUpdateDonorStaff: (donorId: string, staffId: string | null) => Promise<void>
 ): ColumnDef<Donor>[] => [
   {
     accessorKey: "name",
@@ -180,6 +189,37 @@ export const getColumns = (
             </TooltipProvider>
           )}
         </div>
+      );
+    },
+  },
+  {
+    accessorKey: "assignedToStaffId",
+    header: "Assigned Staff",
+    cell: ({ row }: { row: Row<Donor> }) => {
+      const donor = row.original;
+      const currentStaffId = donor.assignedToStaffId;
+      const assignedStaffMember = staffMembers.find((staff) => staff.id === currentStaffId);
+
+      return (
+        <Select
+          value={currentStaffId || "unassigned"}
+          onValueChange={(value) => {
+            const newStaffId = value === "unassigned" ? null : value;
+            handleUpdateDonorStaff(donor.id, newStaffId);
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select staff" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {staffMembers.map((staff) => (
+              <SelectItem key={staff.id} value={staff.id}>
+                {staff.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
     },
   },
