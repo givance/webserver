@@ -1,0 +1,51 @@
+/* Styles for react-mentions component */
+.mentions-input textarea {
+  background-color: transparent !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+  resize: none !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  outline: none !important;
+  min-height: 100px !important;
+  padding: 9px !important;
+}
+
+.mentions-input textarea:focus {
+  border-color: hsl(var(--ring)) !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2) !important;
+}
+
+.mentions-input__suggestions {
+  background-color: hsl(var(--background)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  max-height: 150px !important;
+  overflow: auto !important;
+}
+
+.mentions-input__suggestions__item {
+  padding: 6px 8px !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+}
+
+.mentions-input__suggestions__item--focused {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.mentions-input__highlighter {
+  padding: 9px !important;
+  border: 1px solid transparent !important;
+}
+
+.mentions-input__mention {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  font-weight: 500 !important;
+} 

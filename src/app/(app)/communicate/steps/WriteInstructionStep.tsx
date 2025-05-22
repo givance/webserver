@@ -1,11 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useCommunications } from "@/app/hooks/use-communications";
+import { useProjects } from "@/app/hooks/use-projects";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
@@ -14,7 +14,9 @@ import type { DonationWithDetails } from "@/app/lib/data/donations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { SuggestedMemories } from "../components/SuggestedMemories";
+import { MentionsInput, Mention } from "react-mentions";
 import React from "react";
+import "../styles.css";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -70,10 +72,27 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const { getDonorQuery } = useDonors();
     const { getOrganization } = useOrganization();
     const { generateEmails } = useCommunications();
+    const { listProjects } = useProjects();
 
     // Pre-fetch donor data for all selected donors
     const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
     const { data: organization } = getOrganization();
+
+    // Fetch projects for mentions
+    const { data: projectsData } = listProjects({
+      active: true,
+      limit: 100, // Get all active projects
+    });
+
+    // Transform projects data for react-mentions
+    const projectMentions = useMemo(() => {
+      if (!projectsData?.projects) return [];
+
+      return projectsData.projects.map((project) => ({
+        id: project.id.toString(),
+        display: project.name,
+      }));
+    }, [projectsData]);
 
     const scrollToBottom = () => {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -163,6 +182,11 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     React.useImperativeHandle(ref, () => ({
       click: handleSubmitInstruction,
     }));
+
+    // Handle mentions input change
+    const handleMentionChange = (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
+      onInstructionChange(newValue);
+    };
 
     return (
       <div className="grid grid-cols-2 gap-4 h-full">
@@ -278,12 +302,31 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             {/* Input Area */}
             <div className="p-4 border-t bg-background">
               <div className="space-y-4">
-                <Textarea
-                  value={instruction}
-                  onChange={(e) => onInstructionChange(e.target.value)}
-                  placeholder="Enter your instructions for email generation..."
-                  className="min-h-[100px] resize-none"
-                />
+                <div className="relative">
+                  <MentionsInput
+                    value={instruction}
+                    onChange={handleMentionChange}
+                    placeholder="Enter your instructions for email generation... (Type @ to mention projects)"
+                    className="mentions-input"
+                  >
+                    <Mention
+                      trigger="@"
+                      data={projectMentions}
+                      markup="@[__display__](__id__)"
+                      displayTransform={(id, display) => `@${display}`}
+                      appendSpaceOnAdd={true}
+                      renderSuggestion={(entry, search, highlightedDisplay, index, focused) => (
+                        <div
+                          className={cn("px-2 py-1.5 cursor-pointer text-sm", {
+                            "bg-accent": focused,
+                          })}
+                        >
+                          <div className="font-medium">{entry.display}</div>
+                        </div>
+                      )}
+                    />
+                  </MentionsInput>
+                </div>
                 <div className="flex justify-between">
                   <Button variant="outline" onClick={onBack}>
                     Back
