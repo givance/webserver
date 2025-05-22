@@ -54,8 +54,10 @@
 /* Combined and corrected style for hover and focus */
 .mentions-input__suggestions__item:hover,
 .mentions-input__suggestions__item--focused {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important; /* Ensures contrast */
+  background-color: hsl(0, 0%, 10%) !important; /* Very dark gray background */
+  color: hsl(0, 0%, 95%) !important; /* Very light gray/off-white text */
+  border: 2px solid hsl(var(--ring)) !important; /* Keep the ring border */
+  padding: 14px 18px !important; /* Keep increased padding */
 }
 
 .mentions-input__highlighter {
