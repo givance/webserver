@@ -103,7 +103,7 @@ export const crawlAndSummarizeWebsiteTask = task({
     const visitedUrls = new Set<string>();
     const urlsToVisit = new Set<string>([url]);
     let allTextContent = "";
-    const maxUrls = 30;
+    const maxUrls = 100;
     const concurrencyLimit = 10; // Number of URLs to process concurrently
 
     // Crawling loop
