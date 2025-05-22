@@ -206,7 +206,13 @@ export const crawlAndSummarizeWebsiteTask = task({
 
     triggerLogger.info("Updating organization record.");
 
-    await db.update(organizations).set({ websiteSummary: summary }).where(eq(organizations.id, organizationId));
+    try {
+      await db.update(organizations).set({ websiteSummary: summary }).where(eq(organizations.id, organizationId));
+    } catch (error) {
+      triggerLogger.error("Error updating organization record.", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     triggerLogger.info("✅ Successfully crawled and summarized website.", { organizationId });
 
