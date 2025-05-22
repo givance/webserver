@@ -1,9 +1,10 @@
 import { db } from "../db";
 import { donations, donors, projects } from "../db/schema";
-import { eq, sql, and, SQL, count, desc, asc, or } from "drizzle-orm";
+import { eq, sql, and, SQL, count, desc, asc, or, getTableColumns } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import type { Donor } from "./donors";
 import type { Project } from "./projects";
+import type { PgSelect } from "drizzle-orm/pg-core";
 
 export type Donation = InferSelectModel<typeof donations>;
 export type NewDonation = InferInsertModel<typeof donations>;
@@ -163,29 +164,49 @@ export async function listDonations(
     const countResult = await countQuery.where(whereClause);
     const totalCount = countResult[0]?.value || 0;
 
-    const donationsData = await db.query.donations.findMany({
-      where: whereClause,
-      with: {
-        donor: includeDonor ? true : undefined,
-        project: includeProject ? true : undefined,
-      },
-      limit: limit,
-      offset: offset,
-      orderBy: orderBy
-        ? (table, { asc, desc }) => {
-            const columnMap = {
-              date: table.date,
-              amount: table.amount,
-              createdAt: table.createdAt,
-            };
-            const selectedColumn = columnMap[orderBy as keyof typeof columnMap];
-            if (selectedColumn) {
-              return orderDirection === "asc" ? asc(selectedColumn) : desc(selectedColumn);
-            }
-            return [];
-          }
-        : undefined,
-    });
+    // Explicitly type queryBuilder to maintain its methods
+    let queryBuilder: PgSelect<any, any, any> = db
+      .select({
+        ...getTableColumns(donations),
+        ...(includeDonor && { donor: donors }),
+        ...(includeProject && { project: projects }),
+      })
+      .from(donations)
+      .leftJoin(donors, eq(donations.donorId, donors.id))
+      .leftJoin(projects, eq(donations.projectId, projects.id)) as unknown as PgSelect<any, any, any>;
+
+    if (whereClause) {
+      queryBuilder = queryBuilder.where(whereClause);
+    }
+
+    if (limit !== undefined) {
+      queryBuilder = queryBuilder.limit(limit);
+    }
+
+    if (offset !== undefined) {
+      queryBuilder = queryBuilder.offset(offset);
+    }
+
+    if (orderBy) {
+      const orderExpressions = (() => {
+        const columnMap: Record<string, any> = {
+          date: donations.date,
+          amount: donations.amount,
+          createdAt: donations.createdAt,
+        };
+        const selectedColumn = columnMap[orderBy as keyof typeof columnMap];
+        if (selectedColumn) {
+          return orderDirection === "asc" ? [asc(selectedColumn)] : [desc(selectedColumn)];
+        }
+        return []; // Return an empty array if no valid column is found
+      })();
+
+      if (orderExpressions.length > 0) {
+        queryBuilder = queryBuilder.orderBy(...orderExpressions);
+      }
+    }
+
+    const donationsData = await queryBuilder;
 
     return {
       donations: donationsData as DonationWithDetails[],
