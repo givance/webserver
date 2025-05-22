@@ -20,6 +20,7 @@ import { organizations } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -361,6 +362,15 @@ export const communicationsRouter = router({
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
       const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
 
+      // Process project mentions in the instruction
+      const processedInstruction = await processProjectMentions(instruction, ctx.auth.user.organizationId);
+
+      if (processedInstruction !== instruction) {
+        logger.info(
+          `Processed project mentions in instruction (original: "${instruction}", processed: "${processedInstruction}")`
+        );
+      }
+
       // Get organization data using Drizzle
       const [organization] = await db
         .select()
@@ -420,7 +430,7 @@ export const communicationsRouter = router({
 
         const result = await generateSmartDonorEmails(
           donors,
-          instruction,
+          processedInstruction,
           input.organizationName,
           emailGeneratorOrg,
           organizationWritingInstructions,
