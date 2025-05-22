@@ -301,8 +301,8 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
             {/* Input Area */}
             <div className="p-4 border-t bg-background">
-              <div className="space-y-4">
-                <div className="relative">
+              <div className="space-y-6">
+                <div className="relative pt-40">
                   <MentionsInput
                     value={instruction}
                     onChange={handleMentionChange}
@@ -315,19 +315,10 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                       markup="@[__display__](__id__)"
                       displayTransform={(id, display) => `@${display}`}
                       appendSpaceOnAdd={true}
-                      renderSuggestion={(entry, search, highlightedDisplay, index, focused) => (
-                        <div
-                          className={cn("px-2 py-1.5 cursor-pointer text-sm", {
-                            "bg-accent": focused,
-                          })}
-                        >
-                          <div className="font-medium">{entry.display}</div>
-                        </div>
-                      )}
                     />
                   </MentionsInput>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between pt-4">
                   <Button variant="outline" onClick={onBack}>
                     Back
                   </Button>
