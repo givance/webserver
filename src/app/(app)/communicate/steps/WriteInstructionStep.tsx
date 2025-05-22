@@ -194,6 +194,16 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       onInstructionChange(newValue);
     };
 
+    // Handle keydown for submitting with Cmd/Ctrl + Enter
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault(); // Prevent default form submission or newline
+        if (!isGenerating && instruction.trim()) {
+          handleSubmitInstruction();
+        }
+      }
+    };
+
     return (
       <div className="grid grid-cols-2 gap-4 h-full">
         {/* Left side: Generated Emails with Vertical Tabs */}
@@ -316,10 +326,11 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                       isLoadingProjects
                         ? "Loading projects... Type @ to mention projects once loaded"
                         : projectMentions.length > 0
-                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available)`
-                        : "Enter your instructions for email generation... (No projects available for mentioning)"
+                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                        : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
                     }
                     className="mentions-input"
+                    onKeyDown={handleKeyDown}
                   >
                     <Mention
                       trigger="@"
