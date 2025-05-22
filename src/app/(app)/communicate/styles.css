@@ -21,40 +21,41 @@
 }
 
 .mentions-input__suggestions {
-  background-color: hsl(var(--background)) !important;
+  background-color: hsl(var(--popover)) !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   font-size: 14px !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
-  max-height: 150px !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+  min-width: 250px !important;
+  max-width: 400px !important;
+  max-height: 200px !important;
   overflow: auto !important;
-  z-index: 9999 !important;
+  z-index: 100 !important;
   position: absolute !important;
-  bottom: 100% !important;
-  left: 0 !important;
-  right: 0 !important;
-  margin-bottom: 4px !important;
+  top: 100% !important;
+  margin-top: 4px !important;
+  backdrop-filter: blur(8px) !important;
 }
 
 .mentions-input__suggestions__item {
-  padding: 8px 12px !important;
-  border-bottom: 1px solid hsl(var(--border)) !important;
+  padding: 12px 16px !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.3) !important;
   cursor: pointer !important;
   font-size: 14px !important;
-  transition: background-color 0.15s ease !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .mentions-input__suggestions__item:last-child {
   border-bottom: none !important;
 }
 
+/* Combined and corrected style for hover and focus */
+.mentions-input__suggestions__item:hover,
 .mentions-input__suggestions__item--focused {
-  background-color: hsl(var(--accent)) !important;
-  color: hsl(var(--accent-foreground)) !important;
-}
-
-.mentions-input__suggestions__item:hover {
-  background-color: hsl(var(--accent) / 0.5) !important;
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important; /* Ensures contrast */
 }
 
 .mentions-input__highlighter {

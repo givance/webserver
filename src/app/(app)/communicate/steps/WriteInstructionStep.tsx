@@ -79,14 +79,20 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const { data: organization } = getOrganization();
 
     // Fetch projects for mentions
-    const { data: projectsData } = listProjects({
+    const {
+      data: projectsData,
+      isLoading: isLoadingProjects,
+      error: projectsError,
+    } = listProjects({
       active: true,
       limit: 100, // Get all active projects
     });
 
     // Transform projects data for react-mentions
     const projectMentions = useMemo(() => {
-      if (!projectsData?.projects) return [];
+      if (!projectsData?.projects) {
+        return [];
+      }
 
       return projectsData.projects.map((project) => ({
         id: project.id.toString(),
@@ -301,12 +307,18 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
             {/* Input Area */}
             <div className="p-4 border-t bg-background">
-              <div className="space-y-6">
-                <div className="relative pt-40">
+              <div className="space-y-4">
+                <div className="relative">
                   <MentionsInput
                     value={instruction}
                     onChange={handleMentionChange}
-                    placeholder="Enter your instructions for email generation... (Type @ to mention projects)"
+                    placeholder={
+                      isLoadingProjects
+                        ? "Loading projects... Type @ to mention projects once loaded"
+                        : projectMentions.length > 0
+                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available)`
+                        : "Enter your instructions for email generation... (No projects available for mentioning)"
+                    }
                     className="mentions-input"
                   >
                     <Mention
