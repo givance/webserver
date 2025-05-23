@@ -123,7 +123,7 @@ Examples:
 ⸻
 
 4. Time Anchor (Do 1):
-Mention how long it’s been since their last gift.
+Mention how long it’s been since their last gift. Use the donation history to get the last gift amount and year.
 Examples:
 	•	It’s been 18 months since your last donation.
 	•	We haven’t heard from you since 2022, but you’ve never been forgotten.
