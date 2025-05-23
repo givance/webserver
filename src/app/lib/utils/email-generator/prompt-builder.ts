@@ -82,9 +82,6 @@ Donor Information:
 - Name: ${donor.firstName} ${donor.lastName}
 - Email: ${donor.email}
 
-Donation History (if available, donations are prefixed with their IDs):
-${donationHistoryPrompt}
-
 Past Communications (if available, messages are prefixed with their IDs):
 ${communicationHistoryPrompt}
 
@@ -106,7 +103,11 @@ Examples:
 
 2. Opening Line (Do 1):
 Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. 
-Examples:
+
+Donation History (if available, donations are prefixed with their IDs):
+${donationHistoryPrompt}
+
+Examples but use specific amounts and years from the donation history:
 	•	Your $500 gift in 2021 helped launch our scholarship program.
 	•	Thank you for your generous $350 donation two years ago.
 
