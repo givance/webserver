@@ -105,7 +105,7 @@ Examples:
 ⸻
 
 2. Opening Line (Do 1):
-Thank the donor and mention the last gift amount and year.
+Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. 
 Examples:
 	•	Your $500 gift in 2021 helped launch our scholarship program.
 	•	Thank you for your generous $350 donation two years ago.
@@ -160,7 +160,7 @@ Examples:
 Sign off with a real name + title, and a P.S. with a reminder or extra nudge.
 Example:
 Warmly,
-Maya Chen
+Jiyun Hyo
 Director of Development
 P.S. Even a small gift today can reignite hope for a family in need.
 
