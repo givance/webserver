@@ -59,7 +59,8 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
   if (generatedEmails.length === 0) {
     return (
       <div className="flex items-center justify-center flex-1 text-muted-foreground h-full p-6">
-        No emails generated yet. Emails will appear here once you provide instructions and click "Generate Emails".
+        No emails generated yet. Emails will appear here once you provide instructions and click &quot;Generate
+        Emails&quot;.
       </div>
     );
   }
