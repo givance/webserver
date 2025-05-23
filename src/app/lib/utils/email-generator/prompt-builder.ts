@@ -90,26 +90,87 @@ ${communicationHistoryPrompt}
 
 User Instruction for this email: ${instruction}
 
-Guidelines for the email content (apply these to the "piece" texts):
-1. Keep the total email length (sum of all pieces) under 200 words.
-2. Write conversationally, as one person to another; be friendly and genuine.
-3. Focus on donor impact, not organizational needs.
-4. Use only factual information provided in the context – never fabricate stories or statistics.
-5. Use active voice and a warm, personal tone. If past communications are available, try to match their tone.
-6. Keep paragraphs (which may correspond to one or more "piece" objects) to 1-3 sentences maximum.
-7. Include one clear call to action in one of the "piece" objects.
-8. Reference past communications (using their IDs in "references") if relevant to the user instruction.
-9. Write at a 4th-6th grade reading level.
-10. Use contractions (e.g., "it's", "you're") to maintain a conversational tone.
-11. If relevant to the user instruction, reference their donation history (using IDs in "references") and the projects they've supported.
+Write a reengagement email for a mid-level donor who gave $250–$999 but hasn’t donated in 12–48 months. Use the structure and examples below. Do everything listed.
 
-Structure the email content (across multiple "piece" objects) with:
-1. A personal greeting using the donor's first name (e.g., in the first "piece").
-2. An opening that acknowledges their relationship/support.
-3. A body focusing on specific impact or a real story (referencing context IDs).
-4. A clear, single call to action.
-5. A warm closing with gratitude.
-6. A professional signature (e.g., Organization Name or a representative).
+⸻
+
+1. Subject Line (Do 1):
+Make it personal + emotional. Include first name if available.
+Examples:
+	•	We’ve missed you, Sarah.
+	•	You helped change lives—will you do it again?
+	•	Your past gift still matters.
+	•	Look what you made possible.
+
+⸻
+
+2. Opening Line (Do 1):
+Thank the donor and mention the last gift amount and year.
+Examples:
+	•	Your $500 gift in 2021 helped launch our scholarship program.
+	•	Thank you for your generous $350 donation two years ago.
+
+⸻
+
+3. Emotional Hook (Do 1):
+Connect their past donation to real-world impact.
+Examples:
+	•	Because of you, 43 families received clean water.
+	•	Your support helped fund 12 medical treatments last year.
+	•	You gave a student their first laptop.
+
+⸻
+
+4. Time Anchor (Do 1):
+Mention how long it’s been since their last gift.
+Examples:
+	•	It’s been 18 months since your last donation.
+	•	We haven’t heard from you since 2022, but you’ve never been forgotten.
+
+⸻
+
+5. Ask (Do 1):
+Make a clear, direct ask. Suggest the same or slightly higher amount.
+Examples:
+	•	Will you renew your support today with a $500 gift?
+	•	We’d be honored to have you back at the $350 level.
+	•	Would you consider giving $400 again this year?
+
+⸻
+
+6. Framing (Optional but encouraged):
+If relevant, include urgency, match, or time-limited framing.
+Examples:
+	•	This week only: all gifts will be matched 2x.
+	•	Our summer campaign ends Friday—your gift matters now more than ever.
+	•	We’re just $5,000 away from our goal.
+
+⸻
+
+7. Call-to-Action (Do 1):
+Use one bold, single-button CTA with action language.
+Examples:
+	•	[Renew Your Impact]
+	•	[Give Now]
+	•	[Make a Difference Again]
+
+⸻
+
+8. Signature (Do 1):
+Sign off with a real name + title, and a P.S. with a reminder or extra nudge.
+Example:
+Warmly,
+Maya Chen
+Director of Development
+P.S. Even a small gift today can reignite hope for a family in need.
+
+⸻
+
+Instructions for Tone and Style:
+	•	Tone: Warm, personal, and confident.
+	•	Length: 120–150 words.
+	•	Avoid: Generic language, multiple CTAs, or excessive formality.
+	•	Assume you have access to: donor’s name, past gift amount, date, and program impacted.
 
 Now, generate the email strictly in the JSON format described above.
 JSON Email:`;
