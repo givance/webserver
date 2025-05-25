@@ -149,8 +149,6 @@ function TodoList({
 }) {
   const todosByDate = groupTodosByDate(todos);
 
-  console.log(todosByDate);
-
   return (
     <div className="space-y-6">
       {Object.entries(todosByDate).map(([date, dateTodos]) => (
@@ -351,11 +349,9 @@ export default function Home() {
     if (selectedTodoIds.size === 0) return;
     try {
       await bulkPushTodosScheduledDate(Array.from(selectedTodoIds), days);
-      console.log(`Bulk push ${days} days for todos:`, Array.from(selectedTodoIds));
       setSelectedTodoIds(new Set()); // Clear selection after action
     } catch (error) {
-      console.error(`Error bulk pushing todos:`, error);
-      // Optionally, show an error message to the user
+      // TODO: Add proper error handling/toast notification
     }
   };
 
@@ -363,11 +359,9 @@ export default function Home() {
     if (selectedTodoIds.size === 0) return;
     try {
       await bulkUpdateTodosStatus(Array.from(selectedTodoIds), "COMPLETED");
-      console.log("Bulk complete todos:", Array.from(selectedTodoIds));
       setSelectedTodoIds(new Set()); // Clear selection after action
     } catch (error) {
-      console.error("Error bulk completing todos:", error);
-      // Optionally, show an error message to the user
+      // TODO: Add proper error handling/toast notification
     }
   };
 
@@ -375,11 +369,9 @@ export default function Home() {
     if (selectedTodoIds.size === 0) return;
     try {
       await bulkUpdateTodosStatus(Array.from(selectedTodoIds), "CANCELLED");
-      console.log("Bulk skip todos:", Array.from(selectedTodoIds));
       setSelectedTodoIds(new Set()); // Clear selection after action
     } catch (error) {
-      console.error("Error bulk skipping todos:", error);
-      // Optionally, show an error message to the user
+      // TODO: Add proper error handling/toast notification
     }
   };
 
@@ -387,27 +379,24 @@ export default function Home() {
   const handlePushTodo = async (todoId: number, days: number) => {
     try {
       await pushTodoScheduledDate(todoId, days);
-      console.log(`Pushed todo ${todoId} by ${days} days`);
     } catch (error) {
-      console.error(`Error pushing todo ${todoId}:`, error);
+      // TODO: Add proper error handling/toast notification
     }
   };
 
   const handleCompleteTodo = async (todoId: number) => {
     try {
       await updateTodoStatus(todoId, "COMPLETED");
-      console.log(`Completed todo ${todoId}`);
     } catch (error) {
-      console.error(`Error completing todo ${todoId}:`, error);
+      // TODO: Add proper error handling/toast notification
     }
   };
 
   const handleSkipTodo = async (todoId: number) => {
     try {
       await updateTodoStatus(todoId, "CANCELLED");
-      console.log(`Skipped todo ${todoId}`);
     } catch (error) {
-      console.error(`Error skipping todo ${todoId}:`, error);
+      // TODO: Add proper error handling/toast notification
     }
   };
 
@@ -418,7 +407,7 @@ export default function Home() {
         staffId,
       });
     } catch (error) {
-      console.error(`Error assigning staff to todo ${todoId}:`, error);
+      // TODO: Add proper error handling/toast notification
     }
   };
 

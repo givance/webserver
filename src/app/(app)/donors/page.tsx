@@ -7,31 +7,25 @@ import { trpc } from "@/app/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useDebounce } from "use-debounce";
+import { usePagination } from "@/app/hooks/use-pagination";
+import { useSearch } from "@/app/hooks/use-search";
+import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import { ErrorDisplay } from "@/app/components/ErrorDisplay";
+import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import type { PredictedAction as ColumnPredictedAction, Donor } from "./columns";
 import { getColumns } from "./columns";
 
-// Assuming a type for Staff members, adjust if necessary
-interface StaffMember {
-  id: string; // or number, depending on your schema
-  name: string;
-}
-
-const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-
 export default function DonorListPage() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
-  const [searchTermInput, setSearchTermInput] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+  const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
+    resetOnDependency: debouncedSearchTerm,
+  });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzingDonorId, setAnalyzingDonorId] = useState<string | null>(null);
 
@@ -42,15 +36,7 @@ export default function DonorListPage() {
     updateDonorStaff,
     isAnalyzing: isAnalyzingMutation,
   } = useDonors();
-  const { getOrganization } = useOrganization();
-  const { data: organizationData } = getOrganization();
-
-  // Fetch staff members
-  const { data: staffListResponse, isLoading: isLoadingStaff } = trpc.staff.list.useQuery(
-    {}, // Empty object for input, as organizationId is from context
-    { enabled: !!organizationData?.id } // Only run query if organizationId is available
-  );
-  // TODO: Potentially add organizationId if your staff.list needs it, e.g., trpc.staff.list.useQuery({ organizationId: currentOrgId });
+  const { staffMembers } = useStaffMembers();
 
   const {
     data: listDonorsResponse,
@@ -58,7 +44,7 @@ export default function DonorListPage() {
     error,
   } = listDonors({
     limit: pageSize,
-    offset: (currentPage - 1) * pageSize,
+    offset: getOffset(),
     searchTerm: debouncedSearchTerm,
     orderBy: "firstName",
     orderDirection: "asc",
@@ -90,8 +76,7 @@ export default function DonorListPage() {
                 scheduledDate: action.scheduledDate || new Date().toISOString(), // Default to current date if not provided
               });
             } catch (e) {
-              // Log to console for debugging, consider more robust error handling if needed
-              console.error(`Failed to parse a predicted action string for donor ${apiDonor.id}: ${actionString}`, e);
+              // Log error for debugging
               logger.error(`Failed to parse a predicted action string for donor ${apiDonor.id}`);
             }
             return acc;
@@ -99,10 +84,6 @@ export default function DonorListPage() {
         } else if (apiDonor.predictedActions) {
           // This case handles if predictedActions is unexpectedly not an array (e.g. a single JSON string due to some upstream issue)
           // Or if it's some other truthy non-array value. This is less expected based on schema.
-          console.warn(
-            `Predicted actions for donor ${apiDonor.id} was not an array as expected: `,
-            apiDonor.predictedActions
-          );
           logger.warn(`Predicted actions for donor ${apiDonor.id} was not an array as expected.`);
           // Attempt to parse if it's a string, mimicking old logic for this fallback, though schema implies array of strings.
           if (typeof apiDonor.predictedActions === "string") {
@@ -116,7 +97,6 @@ export default function DonorListPage() {
                 }));
               }
             } catch (e) {
-              console.error(`Fallback parsing of predictedActions string for donor ${apiDonor.id} failed`, e);
               logger.error(`Fallback parsing of predictedActions string for donor ${apiDonor.id} failed`);
             }
           }
@@ -175,33 +155,16 @@ export default function DonorListPage() {
     [isAnalyzing, analyzingDonorId]
   );
 
-  const staffMembers = useMemo(
-    () =>
-      staffListResponse?.staff?.map((s) => ({
-        id: s.id.toString(),
-        name: `${s.firstName} ${s.lastName}`,
-      })) || [],
-    [staffListResponse?.staff]
-  );
-
   const columnsConfig = useMemo(
     () => getColumns(handleAnalyzeDonors, isLoadingDonor, staffMembers, handleUpdateDonorStaff),
     [handleAnalyzeDonors, isLoadingDonor, staffMembers, handleUpdateDonorStaff]
   );
 
   if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading donors: {error.message}</div>
-      </div>
-    );
+    return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading donors" />;
   }
 
-  const pageCount = Math.ceil(totalCount / pageSize);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  const pageCount = getPageCount(totalCount);
 
   // A more refined batch button text:
   let batchButtonText = "Analyze Page Donors";
@@ -230,36 +193,15 @@ export default function DonorListPage() {
       <div className="flex items-center gap-4 mb-4">
         <Input
           placeholder="Search donors by name, email..."
-          value={searchTermInput}
-          onChange={(e) => setSearchTermInput(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <Select
-          value={pageSize.toString()}
-          onValueChange={(value) => {
-            setPageSize(Number(value) as typeof pageSize);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select page size" />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <SelectItem key={size} value={size.toString()}>
-                {size} items per page
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
       </div>
 
       {isLoading && !listDonorsResponse ? (
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
+        <LoadingSkeleton />
       ) : (
         <DataTable
           columns={columnsConfig}
@@ -269,7 +211,7 @@ export default function DonorListPage() {
           pageSize={pageSize}
           pageCount={pageCount}
           currentPage={currentPage}
-          onPageChange={handlePageChange}
+          onPageChange={setCurrentPage}
         />
       )}
     </div>

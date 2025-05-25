@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
@@ -8,18 +8,17 @@ import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { columns, type Staff } from "./columns";
 import { useStaff } from "@/app/hooks/use-staff";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useDebounce } from "use-debounce";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+import { usePagination } from "@/app/hooks/use-pagination";
+import { useSearch } from "@/app/hooks/use-search";
+import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import { ErrorDisplay } from "@/app/components/ErrorDisplay";
+import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 
 export default function StaffListPage() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(DEFAULT_PAGE_SIZE);
-  const [searchTermInput, setSearchTermInput] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTermInput, 500);
+  const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
+    resetOnDependency: debouncedSearchTerm,
+  });
 
   const { listStaff } = useStaff();
 
@@ -29,15 +28,9 @@ export default function StaffListPage() {
     error,
   } = listStaff({
     limit: pageSize,
-    offset: (currentPage - 1) * pageSize,
+    offset: getOffset(),
     searchTerm: debouncedSearchTerm,
   });
-
-  useEffect(() => {
-    if (debouncedSearchTerm) {
-      setCurrentPage(1);
-    }
-  }, [debouncedSearchTerm]);
 
   const { staffMembers, totalCount } = useMemo(() => {
     const items: Staff[] =
@@ -55,18 +48,10 @@ export default function StaffListPage() {
   }, [listStaffResponse]);
 
   if (error) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-red-500">Error loading staff: {error.message}</div>
-      </div>
-    );
+    return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading staff" />;
   }
 
-  const pageCount = Math.ceil(totalCount / pageSize);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  const pageCount = getPageCount(totalCount);
 
   return (
     <>
@@ -85,36 +70,15 @@ export default function StaffListPage() {
         <div className="flex items-center gap-4 mb-4">
           <Input
             placeholder="Search staff by name, email..."
-            value={searchTermInput}
-            onChange={(e) => setSearchTermInput(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
           />
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(value) => {
-              setPageSize(Number(value) as typeof pageSize);
-              setCurrentPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select page size" />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size.toString()}>
-                  {size} items per page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
         </div>
 
         {isLoading && !listStaffResponse ? (
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
+          <LoadingSkeleton />
         ) : (
           <DataTable
             columns={columns}
@@ -124,7 +88,7 @@ export default function StaffListPage() {
             pageSize={pageSize}
             pageCount={pageCount}
             currentPage={currentPage}
-            onPageChange={handlePageChange}
+            onPageChange={setCurrentPage}
           />
         )}
       </div>
