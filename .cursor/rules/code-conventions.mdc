@@ -14,6 +14,7 @@ alwaysApply: true
   - Plan: take the research result, plan the task, and document it in a task list file
   - Execution: implement the changes that are planned
   - Review: at the end of the execution, review changes, fix lint errors, and fix build
+- You should automatically execute all the 4 steps above, no need to stop and ask for confirmation.
 - Always keep an up-to-date task list file (such as task.md) in your project.
 - After completing a significant component or task, update the task list by marking completed tasks with [x] and incomplete ones with [ ].
 - Add any new tasks discovered during implementation to the list.
