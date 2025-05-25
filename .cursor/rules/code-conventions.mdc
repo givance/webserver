@@ -3,6 +3,15 @@ description: Global rules.
 globs: *
 alwaysApply: true
 ---
+# Execution Plan
+
+## General
+- If I corrected you something, and you feel that could be useful for future development, make sur eyou store it in the rules directory in the rigth file.
+
+## Big Task
+- When you are asked to accomplish a big task, make sure you plan all the changes first
+- You should keep your plan, and progress log, in a markdonw file, and keep that file up-to-date while you work on the task
+
 # Code Conventions and Best Practices
 
 ## TypeScript Conventions
