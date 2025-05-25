@@ -7,7 +7,7 @@ import { staffRouter } from "./staff";
 import { donationsRouter } from "./donations";
 import { communicationsRouter } from "./communications";
 import { usersRouter } from "./users";
-import { analysisRouter } from "@/server/api/routers/analysis";
+import { analysisRouter } from "./analysis";
 import { todoRouter } from "./todos";
 import { gmailRouter } from "./gmail";
 

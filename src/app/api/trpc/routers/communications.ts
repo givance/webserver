@@ -25,6 +25,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
+import { CommunicationsService } from "@/app/lib/services/communications.service";
 
 // Helper function to authorize thread access
 async function authorizeThreadAccess(
@@ -111,6 +112,21 @@ const participantSchema = z.object({
   participantId: z.number(),
 });
 
+const generateEmailsSchema = z.object({
+  instruction: z.string(),
+  donors: z.array(
+    z.object({
+      id: z.number(),
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+    })
+  ),
+  organizationName: z.string(),
+  organizationWritingInstructions: z.string().optional(),
+  previousInstruction: z.string().optional(),
+});
+
 // Define input types
 interface DonorInput {
   id: number;
@@ -127,335 +143,233 @@ interface GenerateEmailsInput {
   previousInstruction?: string;
 }
 
-export const communicationsRouter = router({
-  createThread: protectedProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
-    // Verify all staff members belong to organization
-    if (input.staffIds) {
-      for (const staffId of input.staffIds) {
-        const staff = await getStaffById(staffId, ctx.auth.user.organizationId);
-        if (!staff) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: `Staff member ${staffId} not found in your organization`,
-          });
-        }
-      }
+/**
+ * Service for handling email generation business logic
+ */
+class EmailGenerationService {
+  /**
+   * Generates smart donor emails based on instruction and donor data
+   * @param input - Email generation parameters
+   * @param organizationId - The organization ID
+   * @returns Generated emails for each donor
+   */
+  async generateSmartEmails(input: GenerateEmailsInput, organizationId: string) {
+    const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
+
+    // Process project mentions in the instruction
+    const processedInstruction = await processProjectMentions(instruction, organizationId);
+
+    if (processedInstruction !== instruction) {
+      logger.info(
+        `Processed project mentions in instruction for organization ${organizationId} (original: "${instruction}", processed: "${processedInstruction}")`
+      );
     }
 
-    // Verify all donors belong to organization
-    if (input.donorIds) {
-      for (const donorId of input.donorIds) {
-        const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
-        if (!donor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: `Donor ${donorId} not found in your organization`,
-          });
-        }
-      }
-    }
+    // Get organization data
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
 
-    try {
-      return await createCommunicationThread({ channel: input.channel }, input.staffIds, input.donorIds);
-    } catch {
+    if (!organization) {
+      logger.error(`Organization ${organizationId} not found for email generation`);
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not create communication thread",
+        code: "NOT_FOUND",
+        message: "Organization not found",
       });
     }
+
+    // Convert organization to the email generator format
+    const emailGeneratorOrg = {
+      ...organization,
+      rawWebsiteSummary: organization.websiteSummary,
+    };
+
+    // Fetch all donor histories concurrently for better performance
+    const historiesPromises = donors.map(async (donor) => {
+      const [communicationHistory, donationHistory] = await Promise.all([
+        getDonorCommunicationHistory(donor.id, { organizationId }),
+        listDonations({ donorId: donor.id }),
+      ]);
+
+      return {
+        donor,
+        communicationHistory: communicationHistory.map((thread) => ({
+          content: thread.content?.map((message) => ({ content: message.content })) || [],
+        })) as RawCommunicationThread[],
+        donationHistory: donationHistory.donations,
+      };
+    });
+
+    const donorHistories = await Promise.all(historiesPromises);
+
+    // Get organization and user memories
+    const [organizationMemories, userMemories, dismissedMemories] = await Promise.all([
+      getOrganizationMemories(organizationId),
+      getUserMemories(organizationId), // Assuming this gets user memories for the org
+      getDismissedMemories(organizationId), // Assuming this gets dismissed memories for the org
+    ]);
+
+    logger.info(
+      `Generating emails for ${donors.length} donors in organization ${organizationId} with instruction: "${processedInstruction}"`
+    );
+
+    // Convert donor histories to the required format
+    const communicationHistories: Record<number, RawCommunicationThread[]> = {};
+    const donationHistoriesMap: Record<number, DonationWithDetails[]> = {};
+
+    donorHistories.forEach(({ donor, communicationHistory, donationHistory }) => {
+      communicationHistories[donor.id] = communicationHistory;
+      donationHistoriesMap[donor.id] = donationHistory;
+    });
+
+    // Generate emails using the email generator
+    const result = await generateSmartDonorEmails(
+      donors,
+      processedInstruction,
+      input.organizationName,
+      emailGeneratorOrg,
+      organizationWritingInstructions,
+      previousInstruction,
+      undefined, // userFeedback
+      communicationHistories,
+      donationHistoriesMap,
+      userMemories,
+      organizationMemories,
+      dismissedMemories
+    );
+
+    logger.info(`Successfully generated ${result.emails.length} emails for organization ${organizationId}`);
+    return result;
+  }
+}
+
+/**
+ * Communications router for managing communication threads and email generation
+ * Uses CommunicationsService for thread operations and EmailGenerationService for email generation
+ */
+export const communicationsRouter = router({
+  /**
+   * Creates a new communication thread with participants
+   */
+  createThread: protectedProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.createThreadWithParticipants(
+      input.channel,
+      input.staffIds,
+      input.donorIds,
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Retrieves a communication thread with optional details
+   */
   getThread: protectedProcedure
     .input(z.object({ ...threadIdSchema.shape, ...threadDetailsSchema.shape }))
     .query(async ({ input, ctx }) => {
-      // Use the authorization helper
-      return await authorizeThreadAccess(input.id, ctx.auth.user.organizationId, {
+      const communicationsService = new CommunicationsService();
+      return await communicationsService.authorizeThreadAccess(input.id, ctx.auth.user.organizationId, {
         includeStaff: input.includeStaff,
         includeDonors: input.includeDonors,
         includeMessages: input.includeMessages,
       });
     }),
 
+  /**
+   * Lists communication threads with filtering and pagination
+   */
   listThreads: protectedProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
-    const threads = await listCommunicationThreads({
-      ...input,
-      organizationId: ctx.auth.user.organizationId,
-    });
-
-    // Filter threads to only include those matching the staff/donor filters
-    const filteredThreads = threads.filter((thread) => {
-      // Apply staff filter
-      if (input.staffId && !thread.staff?.some((s) => s.staffId === input.staffId)) {
-        return false;
-      }
-
-      // Apply donor filter
-      if (input.donorId && !thread.donors?.some((d) => d.donorId === input.donorId)) {
-        return false;
-      }
-
-      return true;
-    });
-
-    return {
-      threads: filteredThreads,
-      totalCount: filteredThreads.length,
-    };
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.listAuthorizedThreads(input, ctx.auth.user.organizationId);
   }),
 
+  /**
+   * Adds a message to a communication thread
+   */
   addMessage: protectedProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {
-    // First verify the thread belongs to the organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    // Verify sender and recipient belong to organization
-    if (input.fromStaffId) {
-      const staff = await getStaffById(input.fromStaffId, ctx.auth.user.organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Sender staff member not found in your organization",
-        });
-      }
-    }
-
-    if (input.fromDonorId) {
-      const donor = await getDonorById(input.fromDonorId, ctx.auth.user.organizationId);
-      if (!donor) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Sender donor not found in your organization",
-        });
-      }
-    }
-
-    if (input.toStaffId) {
-      const staff = await getStaffById(input.toStaffId, ctx.auth.user.organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Recipient staff member not found in your organization",
-        });
-      }
-    }
-
-    if (input.toDonorId) {
-      const donor = await getDonorById(input.toDonorId, ctx.auth.user.organizationId);
-      if (!donor) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Recipient donor not found in your organization",
-        });
-      }
-    }
-
-    try {
-      return await addMessageToThread({
-        ...input,
-        datetime: new Date(),
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("exactly one sender")) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: error.message,
-        });
-      }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not add message to thread",
-      });
-    }
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.addAuthorizedMessage(
+      input.threadId,
+      input.content,
+      input.fromStaffId,
+      input.fromDonorId,
+      input.toStaffId,
+      input.toDonorId,
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Retrieves messages from a communication thread
+   */
   getMessages: protectedProcedure.input(getMessagesSchema).query(async ({ input, ctx }) => {
-    // First verify the thread belongs to the organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    return await getMessagesInThread(input.threadId, {
-      limit: input.limit,
-      offset: input.offset,
-      includeSendersRecipients: input.includeSendersRecipients,
-    });
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.getAuthorizedMessages(
+      input.threadId,
+      input.limit,
+      input.offset,
+      input.includeSendersRecipients,
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Adds a staff member to a communication thread
+   */
   addStaffToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    // Verify staff member belongs to organization
-    const staff = await getStaffById(input.participantId, ctx.auth.user.organizationId);
-    if (!staff) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Staff member not found in your organization",
-      });
-    }
-
-    // Verify thread belongs to organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    await addStaffToThread(input.threadId, input.participantId);
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.addAuthorizedParticipant(
+      input.threadId,
+      input.participantId,
+      "staff",
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Removes a staff member from a communication thread
+   */
   removeStaffFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    // Verify staff member belongs to organization
-    const staff = await getStaffById(input.participantId, ctx.auth.user.organizationId);
-    if (!staff) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Staff member not found in your organization",
-      });
-    }
-
-    // Verify thread belongs to organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    await removeStaffFromThread(input.threadId, input.participantId);
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.removeAuthorizedParticipant(
+      input.threadId,
+      input.participantId,
+      "staff",
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Adds a donor to a communication thread
+   */
   addDonorToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    // Verify donor belongs to organization
-    const donor = await getDonorById(input.participantId, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found in your organization",
-      });
-    }
-
-    // Verify thread belongs to organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    await addDonorToThread(input.threadId, input.participantId);
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.addAuthorizedParticipant(
+      input.threadId,
+      input.participantId,
+      "donor",
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Removes a donor from a communication thread
+   */
   removeDonorFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    // Verify donor belongs to organization
-    const donor = await getDonorById(input.participantId, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found in your organization",
-      });
-    }
-
-    // Verify thread belongs to organization using the helper
-    await authorizeThreadAccess(input.threadId, ctx.auth.user.organizationId);
-
-    await removeDonorFromThread(input.threadId, input.participantId);
+    const communicationsService = new CommunicationsService();
+    return await communicationsService.removeAuthorizedParticipant(
+      input.threadId,
+      input.participantId,
+      "donor",
+      ctx.auth.user.organizationId
+    );
   }),
 
+  /**
+   * Generates smart donor emails based on instruction and donor data
+   */
   generateEmails: protectedProcedure
-    .input(
-      z.object({
-        instruction: z.string(),
-        donors: z.array(
-          z.object({
-            id: z.number(),
-            firstName: z.string(),
-            lastName: z.string(),
-            email: z.string(),
-          })
-        ),
-        organizationName: z.string(),
-        organizationWritingInstructions: z.string().optional(),
-        previousInstruction: z.string().optional(),
-      })
-    )
+    .input(generateEmailsSchema)
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
-      const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
-
-      // Process project mentions in the instruction
-      const processedInstruction = await processProjectMentions(instruction, ctx.auth.user.organizationId);
-
-      if (processedInstruction !== instruction) {
-        logger.info(
-          `Processed project mentions in instruction (original: "${instruction}", processed: "${processedInstruction}")`
-        );
-      }
-
-      // Get organization data using Drizzle
-      const [organization] = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, ctx.auth.user.organizationId))
-        .limit(1);
-
-      if (!organization) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
-      }
-
-      // Convert organization to the new format
-      const emailGeneratorOrg = {
-        ...organization,
-        rawWebsiteSummary: organization.websiteSummary,
-      };
-
-      // Fetch all histories concurrently for better performance
-      const historiesPromises = donors.map(async (donor) => {
-        const [communicationHistory, donationHistory] = await Promise.all([
-          getDonorCommunicationHistory(donor.id, ctx.auth.user.organizationId),
-          listDonations({ donorId: donor.id }),
-        ]);
-
-        return {
-          donorId: donor.id,
-          communicationHistory,
-          donationHistory: donationHistory.donations,
-        };
-      });
-
-      // Wait for all histories to be fetched
-      const histories = await Promise.all(historiesPromises);
-
-      // Convert to the required format
-      const communicationHistories: Record<number, RawCommunicationThread[]> = {};
-      const donationHistories: Record<number, DonationWithDetails[]> = {};
-
-      histories.forEach(({ donorId, communicationHistory, donationHistory }) => {
-        communicationHistories[donorId] = communicationHistory;
-        donationHistories[donorId] = donationHistory;
-      });
-
-      try {
-        logger.info(
-          `Generating emails for ${donors.length} donors (communicationHistoriesCount: ${
-            Object.values(communicationHistories).flat().length
-          }, donationHistoriesCount: ${Object.values(donationHistories).flat().length})`
-        );
-
-        const userMemories = await getUserMemories(ctx.auth.user.id);
-        const organizationMemories = await getOrganizationMemories(ctx.auth.user.organizationId);
-        const dismissedMemories = await getDismissedMemories(ctx.auth.user.id);
-
-        const result = await generateSmartDonorEmails(
-          donors,
-          processedInstruction,
-          input.organizationName,
-          emailGeneratorOrg,
-          organizationWritingInstructions,
-          previousInstruction,
-          undefined,
-          communicationHistories,
-          donationHistories,
-          userMemories,
-          organizationMemories,
-          dismissedMemories
-        );
-
-        logger.info(`Instruction refined: ${result.refinedInstruction}. Reasoning: ${result.reasoning}`);
-
-        return {
-          emails: result.emails,
-          refinedInstruction: result.refinedInstruction,
-          suggestedMemories: result.suggestedMemories,
-        };
-      } catch (error) {
-        logger.error(`Error generating emails: ${error instanceof Error ? error.message : String(error)}`);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to generate emails",
-        });
-      }
+      const emailService = new EmailGenerationService();
+      return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId);
     }),
 });

@@ -11,7 +11,9 @@ import {
 } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
 
-// Input validation schemas
+/**
+ * Input validation schemas for donor operations
+ */
 const donorIdSchema = z.object({
   id: z.number(),
 });
@@ -59,13 +61,14 @@ const listDonorsSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
-// Schema for updating assigned staff
 const updateAssignedStaffSchema = z.object({
   donorId: z.number(),
   staffId: z.number().nullable(), // staffId can be null to unassign
 });
 
-// Define the base donor schema for reuse
+/**
+ * Base donor schema for consistent type validation across operations
+ */
 const baseDonorSchema = z.object({
   id: z.number(),
   organizationId: z.string(),
@@ -87,13 +90,25 @@ const baseDonorSchema = z.object({
   possibleActions: z.array(z.string()).optional(),
 });
 
-// Define the output schema for the list procedure to include totalCount
+/**
+ * Output schema for list operations including pagination metadata
+ */
 const listDonorsOutputSchema = z.object({
   donors: z.array(baseDonorSchema),
   totalCount: z.number(),
 });
 
+/**
+ * Donors router for managing donor data and relationships
+ * Provides CRUD operations and staff assignment functionality
+ */
 export const donorsRouter = router({
+  /**
+   * Retrieves a donor by their ID
+   * @param input.id - The donor ID to retrieve
+   * @returns The donor data if found
+   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   */
   getById: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
     const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
     if (!donor) {
@@ -105,6 +120,12 @@ export const donorsRouter = router({
     return donor;
   }),
 
+  /**
+   * Retrieves a donor by their email address
+   * @param input.email - The donor email to search for
+   * @returns The donor data if found
+   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   */
   getByEmail: protectedProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
     const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
     if (!donor) {
@@ -116,6 +137,12 @@ export const donorsRouter = router({
     return donor;
   }),
 
+  /**
+   * Creates a new donor in the organization
+   * @param input - The donor data to create
+   * @returns The created donor data
+   * @throws CONFLICT if a donor with the same email already exists
+   */
   create: protectedProcedure.input(createDonorSchema).mutation(async ({ input, ctx }) => {
     try {
       return await createDonor({
@@ -133,6 +160,13 @@ export const donorsRouter = router({
     }
   }),
 
+  /**
+   * Updates an existing donor's information
+   * @param input.id - The donor ID to update
+   * @param input - The updated donor data (partial)
+   * @returns The updated donor data
+   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   */
   update: protectedProcedure.input(updateDonorSchema).mutation(async ({ input, ctx }) => {
     const { id, ...updateData } = input;
     const updated = await updateDonor(id, updateData, ctx.auth.user.organizationId);
@@ -145,6 +179,12 @@ export const donorsRouter = router({
     return updated;
   }),
 
+  /**
+   * Deletes a donor from the organization
+   * @param input.id - The donor ID to delete
+   * @throws NOT_FOUND if donor doesn't exist
+   * @throws PRECONDITION_FAILED if donor is linked to other records (donations, communications, etc.)
+   */
   delete: protectedProcedure.input(donorIdSchema).mutation(async ({ input, ctx }) => {
     try {
       await deleteDonor(input.id, ctx.auth.user.organizationId);
@@ -159,11 +199,19 @@ export const donorsRouter = router({
     }
   }),
 
+  /**
+   * Updates the staff member assigned to a donor
+   * @param input.donorId - The donor ID to update
+   * @param input.staffId - The staff ID to assign (null to unassign)
+   * @returns The updated donor data
+   * @throws NOT_FOUND if donor or staff member doesn't exist in the organization
+   * @throws INTERNAL_SERVER_ERROR if the update operation fails
+   */
   updateAssignedStaff: protectedProcedure.input(updateAssignedStaffSchema).mutation(async ({ input, ctx }) => {
     const { donorId, staffId } = input;
     const { organizationId } = ctx.auth.user;
 
-    // 1. Verify donor belongs to the organization
+    // Verify donor belongs to the organization
     const donor = await getDonorById(donorId, organizationId);
     if (!donor) {
       throw new TRPCError({
@@ -172,10 +220,8 @@ export const donorsRouter = router({
       });
     }
 
-    // 2. If staffId is provided, verify staff member belongs to the organization
+    // If staffId is provided, verify staff member belongs to the organization
     if (staffId !== null) {
-      // Assuming a getStaffById function exists and can check organization
-      // This might need to be imported from staff data functions
       const staff = await getStaffById(staffId, organizationId);
       if (!staff) {
         throw new TRPCError({
@@ -185,7 +231,7 @@ export const donorsRouter = router({
       }
     }
 
-    // 3. Update the donor's assignedToStaffId
+    // Update the donor's assignedToStaffId
     const updatedDonor = await updateDonor(donorId, { assignedToStaffId: staffId }, organizationId);
     if (!updatedDonor) {
       throw new TRPCError({
@@ -196,12 +242,26 @@ export const donorsRouter = router({
     return updatedDonor;
   }),
 
+  /**
+   * Lists donors with filtering, searching, and pagination
+   * @param input.searchTerm - Optional search term to filter by name or email
+   * @param input.isAnonymous - Optional filter for anonymous donors
+   * @param input.isOrganization - Optional filter for organization donors
+   * @param input.limit - Maximum number of donors to return (1-100, default varies)
+   * @param input.offset - Number of donors to skip for pagination
+   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt)
+   * @param input.orderDirection - Sort direction (asc or desc)
+   * @returns Object containing donors array and total count for pagination
+   */
   list: protectedProcedure
     .input(listDonorsSchema)
-    .output(listDonorsOutputSchema) // Set the output schema for type safety
+    .output(listDonorsOutputSchema)
     .query(async ({ input, ctx }) => {
-      // listDonors now returns an object: { donors: Donor[], totalCount: number }
-      const result = await listDonors(input, ctx.auth.user.organizationId);
-      return result; // This will be validated against listDonorsOutputSchema
+      return await listDonors(
+        {
+          ...input,
+        },
+        ctx.auth.user.organizationId
+      );
     }),
 });
