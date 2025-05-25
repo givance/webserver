@@ -9,6 +9,11 @@ alwaysApply: true
 - If I corrected you something, and you feel that could be useful for future development, make sur eyou store it in the rules directory in the rigth file.
 
 ## Big Task
+- For a big task, you should follow 4 steps:
+  - Research: including thinking and researching existing code to understand what needs to be done and how to do it. This might be an iterative process that you have to do research multiple rounds
+  - Plan: take the research result, plan the task, and document it in a task list file
+  - Execution: implement the changes that are planned
+  - Review: at the end of the execution, review changes, fix lint errors, and fix build
 - Always keep an up-to-date task list file (such as task.md) in your project.
 - After completing a significant component or task, update the task list by marking completed tasks with [x] and incomplete ones with [ ].
 - Add any new tasks discovered during implementation to the list.
