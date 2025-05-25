@@ -3,7 +3,33 @@ description: Rule for frontend code
 globs: **/*.tsx
 ---
 
-# Frontend Guidelines
+## General
 - Never use trpc in a frontend component directly, always use hooks to call trpc.
 - Components should have clear, descriptive naming.
 - Components should not be longer than 500 lines of code, if too long, break it into smaller components.
+
+## 1. Organize by Feature, Not by Type
+- Group files and components by feature or module rather than by technical type.
+- Example: For an e-commerce app, keep all cart-related files (components, hooks, styles) inside a `cart/` folder within your feature directory.
+
+## 2. Use a Flat and Consistent Structure
+- Avoid deep nesting; keep folder hierarchies as flat as possible.
+- Be consistent in naming and structure throughout the project.
+
+## 3. Leverage the `app` Directory for Routing
+- Use the `app/` directory to define your route structure.
+- Each folder represents a route segment; only folders with `page.js` or `route.js` files become publicly accessible routes.
+- Co-locate route-specific components, styles, and logic inside their respective route folders.
+
+## 4. Separate Shared and Feature-Specific Code
+- Place truly shared components, utilities, and styles in dedicated top-level folders like `components/`, `lib/`, `utils/`, and `styles/` under `src/`.
+- Keep feature-specific code within its feature folder.
+
+## 5. Use Index Files for Exports
+- Create `index.ts` or `index.js` files to re-export components or utilities for easier and cleaner imports.
+
+## 6. Document Your Structure
+- Maintain a `README.md` at the project root to explain your folder structure and any project-specific conventions.
+
+## 7. Prefer Co-location
+- Keep files that are only used in one place (like styles or helper functions for a single component) close to where they’re used, ideally in the same folder.

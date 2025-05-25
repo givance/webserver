@@ -3,7 +3,35 @@ description: Rule for backend code
 globs: **/*.ts
 ---
 
-# Backend Guidelines
-- Avoid using any, always use strict types.
-- Use async / await consistently, no callbacks.
-- Use log as needed, follow logging best practices. Format the log message yourself, do not rely on logging library to format it. Avoid using logger.log('text', object), always format in line.
+## General
+- Always use strict types. Avoid using `any`. Prefer explicit, strict typing for all function arguments, return values, and variables.
+- Use `async`/`await` for all asynchronous operations. Do not use callbacks or `.then()`/`.catch()` chaining.
+- Always use trpc to handle frontend requests.
+
+## 1. Type Safety and TypeScript
+- Leverage TypeScript's utility types (`Partial`, `Pick`, etc.) where appropriate.
+- Use custom error classes for known error types when appropriate.
+- Validate all incoming request data using a schema validator (e.g., Zod, Joi, Yup).
+
+## 2. Logging Best Practices
+- Use logging judiciously to capture important events, errors, and debugging information.
+- Always format log messages yourself.
+- Example: `logger.info(\`[UserService] Created user: id=\${user.id}, email=\${user.email}\`);`
+- Avoid patterns like `logger.log('User:', user)`. Instead, interpolate relevant fields into the log string.
+- Never log sensitive information (passwords, tokens, etc.).
+
+## 3. Error Handling and Validation
+- Return clear and consistent error responses from API routes.
+- Return 400 errors for invalid input.
+- Use appropriate authentication and authorization checks.
+
+## 4. Security
+- Sanitize and validate all user input.
+- Protect against common vulnerabilities (injection, XSS, CSRF, etc.).
+
+## 5. Code Organization
+- Separate business logic from route handlers. Place reusable logic in `lib/` or `services/`.
+- Keep route handlers thin and focused.
+
+## 6. Document Your Structure
+- Maintain a `README.md` at the project root to explain your folder structure and any project-specific conventions.
