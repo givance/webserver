@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   getDonorById,
   getDonorByEmail,
+  getDonorsByIds,
   createDonor,
   updateDonor,
   deleteDonor,
@@ -16,6 +17,10 @@ import { getStaffById } from "@/app/lib/data/staff";
  */
 const donorIdSchema = z.object({
   id: z.number(),
+});
+
+const donorIdsSchema = z.object({
+  ids: z.array(z.number()),
 });
 
 const createDonorSchema = z.object({
@@ -135,6 +140,15 @@ export const donorsRouter = router({
       });
     }
     return donor;
+  }),
+
+  /**
+   * Retrieves multiple donors by their IDs
+   * @param input.ids - Array of donor IDs to retrieve
+   * @returns Array of donor data found
+   */
+  getByIds: protectedProcedure.input(donorIdsSchema).query(async ({ input, ctx }) => {
+    return await getDonorsByIds(input.ids, ctx.auth.user.organizationId);
   }),
 
   /**

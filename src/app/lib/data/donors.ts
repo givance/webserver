@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { donors, staff, organizations } from "../db/schema";
-import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count } from "drizzle-orm";
+import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
 import type { DonorJourney } from "./organizations";
@@ -52,6 +52,29 @@ export async function getDonorByEmail(email: string, organizationId: string): Pr
   } catch (error) {
     console.error("Failed to retrieve donor by email:", error);
     throw new Error("Could not retrieve donor by email.");
+  }
+}
+
+/**
+ * Retrieves multiple donors by their IDs and organization ID.
+ * @param ids - Array of donor IDs to retrieve.
+ * @param organizationId - The ID of the organization the donors belong to.
+ * @returns Array of donor objects found.
+ */
+export async function getDonorsByIds(ids: number[], organizationId: string): Promise<Donor[]> {
+  try {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const result = await db
+      .select()
+      .from(donors)
+      .where(and(inArray(donors.id, ids), eq(donors.organizationId, organizationId)));
+    return result;
+  } catch (error) {
+    console.error("Failed to retrieve donors by IDs:", error);
+    throw new Error("Could not retrieve donors by IDs.");
   }
 }
 

@@ -48,6 +48,19 @@ export function useDonors() {
       }
     );
 
+  // Get multiple donors query hook
+  const getDonorsQuery = (ids: number[]) =>
+    trpc.donors.getByIds.useQuery(
+      { ids },
+      {
+        // Don't refetch automatically
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        enabled: ids.length > 0, // Only run the query if we have IDs
+      }
+    );
+
   // Get donor donation stats
   const getDonorStats = (donorId: number) =>
     trpc.donations.getDonorStats.useQuery(
@@ -216,6 +229,7 @@ export function useDonors() {
   return {
     // Query functions
     getDonorQuery,
+    getDonorsQuery,
     listDonors,
     getDonorStats,
     getMultipleDonorStats,

@@ -12,6 +12,7 @@ import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle } from "lucide-react
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMemo } from "react";
 
 interface GeneratedEmailData {
   id: number;
@@ -58,10 +59,20 @@ export default function EmailGenerationResultsPage() {
     error: any;
   };
 
-  const { getDonorQuery } = useDonors();
+  const { getDonorsQuery } = useDonors();
 
-  // Pre-fetch donor data for all donors in the session
-  const donorQueries = sessionData?.session.selectedDonorIds?.map((id: number) => getDonorQuery(id)) || [];
+  // Memoize the donor IDs to prevent unnecessary re-renders
+  const donorIds = useMemo(() => {
+    return sessionData?.session.selectedDonorIds || [];
+  }, [sessionData?.session.selectedDonorIds]);
+
+  // Fetch all donors at once using the new getDonorsQuery hook
+  const { data: donorsData } = getDonorsQuery(donorIds);
+
+  // Helper function to get donor data by ID
+  const getDonorData = (donorId: number) => {
+    return donorsData?.find((donor) => donor.id === donorId);
+  };
 
   if (isLoading) {
     return (
@@ -197,7 +208,7 @@ export default function EmailGenerationResultsPage() {
                       <div className="bg-muted/30 overflow-y-auto">
                         <TabsList className="flex flex-col w-full space-y-1 p-2">
                           {sessionData.emails.map((email: GeneratedEmailData) => {
-                            const donor = donorQueries.find((q: any) => q.data?.id === email.donorId)?.data;
+                            const donor = getDonorData(email.donorId);
                             if (!donor) return null;
 
                             return (
@@ -226,7 +237,7 @@ export default function EmailGenerationResultsPage() {
 
                       <div className="flex flex-col">
                         {sessionData.emails.map((email: GeneratedEmailData) => {
-                          const donor = donorQueries.find((q: any) => q.data?.id === email.donorId)?.data;
+                          const donor = getDonorData(email.donorId);
                           if (!donor) return null;
 
                           return (
