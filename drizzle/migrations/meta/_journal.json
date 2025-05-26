@@ -134,6 +134,13 @@
       "when": 1747865393790,
       "tag": "0018_serious_dagger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1748216157920,
+      "tag": "0019_glorious_wildside",
+      "breakpoints": true
     }
   ]
 }

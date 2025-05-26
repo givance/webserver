@@ -268,6 +268,27 @@ export const communicationSchemas = {
     organizationWritingInstructions: z.string().optional(),
     previousInstruction: z.string().optional(),
   }),
+
+  createSession: z.object({
+    instruction: z.string().min(1),
+    chatHistory: z.array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      })
+    ),
+    selectedDonorIds: z.array(idSchema),
+    previewDonorIds: z.array(idSchema),
+    refinedInstruction: z.string().optional(),
+  }),
+
+  getSession: z.object({
+    sessionId: idSchema,
+  }),
+
+  getSessionStatus: z.object({
+    sessionId: idSchema,
+  }),
 };
 
 /**

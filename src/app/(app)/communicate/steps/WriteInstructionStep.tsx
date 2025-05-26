@@ -24,8 +24,16 @@ interface WriteInstructionStepProps {
   onBack: () => void;
   onNext: () => void;
   selectedDonors: number[];
+  onSessionDataChange?: (sessionData: {
+    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    finalInstruction: string;
+    previewDonorIds: number[];
+  }) => void;
   ref?: React.RefObject<{ click: () => Promise<void> }>;
 }
+
+// Configuration for preview donor count - can be changed later
+const PREVIEW_DONOR_COUNT = 1;
 
 interface GeneratedEmail {
   donorId: number;
@@ -60,14 +68,27 @@ interface GenerateEmailsResponse {
 }
 
 export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void> }, WriteInstructionStepProps>(
-  function WriteInstructionStep({ instruction, onInstructionChange, onBack, onNext, selectedDonors }, ref) {
+  function WriteInstructionStep(
+    { instruction, onInstructionChange, onBack, onNext, selectedDonors, onSessionDataChange },
+    ref
+  ) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
     const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
     const [referenceContexts, setReferenceContexts] = useState<Record<number, Record<string, string>>>({});
     const [previousInstruction, setPreviousInstruction] = useState<string | undefined>();
     const [suggestedMemories, setSuggestedMemories] = useState<string[]>([]);
+    const [previewDonorIds, setPreviewDonorIds] = useState<number[]>([]);
     const chatEndRef = useRef<HTMLDivElement>(null);
+
+    // Generate random subset of donors for preview on component mount
+    useEffect(() => {
+      if (selectedDonors.length > 0 && previewDonorIds.length === 0) {
+        const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
+        const preview = shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
+        setPreviewDonorIds(preview);
+      }
+    }, [selectedDonors, previewDonorIds.length]);
 
     const { getDonorQuery } = useDonors();
     const { getOrganization } = useOrganization();
@@ -124,8 +145,8 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       onInstructionChange("");
 
       try {
-        // Prepare donor data for the API call
-        const donorData = selectedDonors.map((donorId) => {
+        // Prepare donor data for the API call - use only preview donors
+        const donorData = previewDonorIds.map((donorId) => {
           const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
           if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
@@ -208,7 +229,12 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       <div className="grid grid-cols-2 gap-4 h-full">
         {/* Left side: Generated Emails with Vertical Tabs */}
         <div className="flex flex-col h-full min-h-0">
-          <h3 className="text-lg font-medium mb-4">Generated Emails</h3>
+          <div className="mb-4">
+            <h3 className="text-lg font-medium">Generated Emails</h3>
+            <p className="text-sm text-muted-foreground">
+              Preview Mode: Showing {PREVIEW_DONOR_COUNT} of {selectedDonors.length} selected donors
+            </p>
+          </div>
           {isGenerating ? (
             <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
               <div className="flex flex-col items-center gap-2">
@@ -353,7 +379,21 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                     >
                       {isGenerating ? "Generating..." : "Generate Emails"}
                     </Button>
-                    <Button onClick={onNext} disabled={generatedEmails.length === 0} variant="default">
+                    <Button
+                      onClick={() => {
+                        // Pass session data to parent before proceeding
+                        if (onSessionDataChange) {
+                          onSessionDataChange({
+                            chatHistory: chatMessages,
+                            finalInstruction: previousInstruction || instruction,
+                            previewDonorIds,
+                          });
+                        }
+                        onNext();
+                      }}
+                      disabled={generatedEmails.length === 0}
+                      variant="default"
+                    >
                       Next
                     </Button>
                   </div>

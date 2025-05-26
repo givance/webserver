@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
-import { GenerateEmailsStep } from "../steps/GenerateEmailsStep";
-import { ReviewAndSendStep } from "../steps/ReviewAndSendStep";
+import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
 import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { StepIndicator } from "@/components/ui/step-indicator";
+import { useRouter } from "next/navigation";
 
-const STEPS = ["Select Donors", "Write Instructions", "Generate Emails", "Review & Send"] as const;
+const STEPS = ["Select Donors", "Write Instructions", "Bulk Generation"] as const;
 
 interface CommunicateStepsProps {
   onClose: () => void;
@@ -18,7 +18,12 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
   const [instruction, setInstruction] = useState("");
-  const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
+  const [sessionData, setSessionData] = useState<{
+    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    finalInstruction: string;
+    previewDonorIds: number[];
+  } | null>(null);
+  const router = useRouter();
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
@@ -32,9 +37,9 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
     }
   };
 
-  const handleFinish = async () => {
-    // TODO: Implement actual email sending logic
-    console.log("Sending emails:", { selectedDonors, instruction, generatedEmails });
+  const handleBulkGenerationComplete = (sessionId: number) => {
+    // Navigate to results page
+    router.push(`/communicate/results/${sessionId}`);
     onClose();
   };
 
@@ -52,21 +57,18 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
             onBack={handleBack}
             onNext={handleNext}
             selectedDonors={selectedDonors}
+            onSessionDataChange={setSessionData}
           />
         );
       case 2:
-        return (
-          <GenerateEmailsStep
+        return sessionData ? (
+          <BulkGenerateEmailsStep
             selectedDonors={selectedDonors}
-            instruction={instruction}
-            generatedEmails={generatedEmails}
-            onEmailsGenerated={setGeneratedEmails}
+            sessionData={sessionData}
             onBack={handleBack}
-            onNext={handleNext}
+            onComplete={handleBulkGenerationComplete}
           />
-        );
-      case 3:
-        return <ReviewAndSendStep generatedEmails={generatedEmails} onBack={handleBack} onFinish={handleFinish} />;
+        ) : null;
       default:
         return null;
     }

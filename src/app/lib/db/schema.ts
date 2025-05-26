@@ -444,3 +444,74 @@ export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one }) =
     references: [users.id],
   }),
 }));
+
+/**
+ * Email generation sessions table to track bulk email generation
+ */
+export const emailGenerationSessions = pgTable("email_generation_sessions", {
+  id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  instruction: text("instruction").notNull(),
+  refinedInstruction: text("refined_instruction"),
+  chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
+  selectedDonorIds: jsonb("selected_donor_ids").notNull(), // Array of donor IDs
+  previewDonorIds: jsonb("preview_donor_ids").notNull(), // Array of donor IDs used for preview
+  status: text("status").notNull().default("PENDING"), // 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'
+  triggerJobId: text("trigger_job_id"), // ID of the trigger job
+  totalDonors: integer("total_donors").notNull(),
+  completedDonors: integer("completed_donors").default(0).notNull(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+/**
+ * Generated emails table to store all generated emails
+ */
+export const generatedEmails = pgTable("generated_emails", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id")
+    .references(() => emailGenerationSessions.id, { onDelete: "cascade" })
+    .notNull(),
+  donorId: integer("donor_id")
+    .references(() => donors.id, { onDelete: "cascade" })
+    .notNull(),
+  subject: text("subject").notNull(),
+  structuredContent: jsonb("structured_content").notNull(), // Array of EmailPiece objects
+  referenceContexts: jsonb("reference_contexts").notNull(), // Record of reference IDs to context
+  isPreview: boolean("is_preview").default(false).notNull(), // Whether this was a preview email
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Relations for email generation tables
+ */
+export const emailGenerationSessionsRelations = relations(emailGenerationSessions, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [emailGenerationSessions.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [emailGenerationSessions.userId],
+    references: [users.id],
+  }),
+  generatedEmails: many(generatedEmails),
+}));
+
+export const generatedEmailsRelations = relations(generatedEmails, ({ one }) => ({
+  session: one(emailGenerationSessions, {
+    fields: [generatedEmails.sessionId],
+    references: [emailGenerationSessions.id],
+  }),
+  donor: one(donors, {
+    fields: [generatedEmails.donorId],
+    references: [donors.id],
+  }),
+}));

@@ -16,7 +16,7 @@ import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getStaffById } from "@/app/lib/data/staff";
 import { getDismissedMemories, getUserMemories } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
-import { organizations } from "@/app/lib/db/schema";
+import { organizations, emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
@@ -26,6 +26,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { CommunicationsService } from "@/app/lib/services/communications.service";
+import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 
 // Helper function to authorize thread access
 async function authorizeThreadAccess(
@@ -127,6 +128,27 @@ const generateEmailsSchema = z.object({
   previousInstruction: z.string().optional(),
 });
 
+const createSessionSchema = z.object({
+  instruction: z.string().min(1),
+  chatHistory: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    })
+  ),
+  selectedDonorIds: z.array(z.number()),
+  previewDonorIds: z.array(z.number()),
+  refinedInstruction: z.string().optional(),
+});
+
+const getSessionSchema = z.object({
+  sessionId: z.number(),
+});
+
+const getSessionStatusSchema = z.object({
+  sessionId: z.number(),
+});
+
 // Define input types
 interface DonorInput {
   id: number;
@@ -151,9 +173,10 @@ class EmailGenerationService {
    * Generates smart donor emails based on instruction and donor data
    * @param input - Email generation parameters
    * @param organizationId - The organization ID
+   * @param userId - The user ID for fetching user memories
    * @returns Generated emails for each donor
    */
-  async generateSmartEmails(input: GenerateEmailsInput, organizationId: string) {
+  async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
     const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
 
     // Process project mentions in the instruction
@@ -203,8 +226,8 @@ class EmailGenerationService {
     // Get organization and user memories
     const [organizationMemories, userMemories, dismissedMemories] = await Promise.all([
       getOrganizationMemories(organizationId),
-      getUserMemories(organizationId), // Assuming this gets user memories for the org
-      getDismissedMemories(organizationId), // Assuming this gets dismissed memories for the org
+      getUserMemories(userId), // Get user memories for the current user
+      getDismissedMemories(userId), // Get dismissed memories for the current user
     ]);
 
     logger.info(
@@ -370,6 +393,126 @@ export const communicationsRouter = router({
     .input(generateEmailsSchema)
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
       const emailService = new EmailGenerationService();
-      return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId);
+      return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
     }),
+
+  /**
+   * Creates a new email generation session and triggers bulk generation
+   */
+  createSession: protectedProcedure.input(createSessionSchema).mutation(async ({ ctx, input }) => {
+    try {
+      // Create session record
+      const [session] = await db
+        .insert(emailGenerationSessions)
+        .values({
+          organizationId: ctx.auth.user.organizationId,
+          userId: ctx.auth.user.id,
+          instruction: input.instruction,
+          refinedInstruction: input.refinedInstruction,
+          chatHistory: input.chatHistory,
+          selectedDonorIds: input.selectedDonorIds,
+          previewDonorIds: input.previewDonorIds,
+          totalDonors: input.selectedDonorIds.length,
+          status: "PENDING",
+        })
+        .returning();
+
+      // Trigger the background job
+      await generateBulkEmailsTask.trigger({
+        sessionId: session.id,
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+        instruction: input.instruction,
+        refinedInstruction: input.refinedInstruction,
+        selectedDonorIds: input.selectedDonorIds,
+        previewDonorIds: input.previewDonorIds,
+        chatHistory: input.chatHistory,
+      });
+
+      logger.info(`Created email generation session ${session.id} for user ${ctx.auth.user.id}`);
+      return { sessionId: session.id };
+    } catch (error) {
+      logger.error(
+        `Failed to create email generation session: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create email generation session",
+      });
+    }
+  }),
+
+  /**
+   * Gets an email generation session with generated emails
+   */
+  getSession: protectedProcedure.input(getSessionSchema).query(async ({ ctx, input }) => {
+    try {
+      const [session] = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(eq(emailGenerationSessions.id, input.sessionId))
+        .limit(1);
+
+      if (!session || session.organizationId !== ctx.auth.user.organizationId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found",
+        });
+      }
+
+      // Get generated emails for this session
+      const emails = await db.select().from(generatedEmails).where(eq(generatedEmails.sessionId, input.sessionId));
+
+      return {
+        session,
+        emails,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to get email generation session: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get email generation session",
+      });
+    }
+  }),
+
+  /**
+   * Gets the status of an email generation session
+   */
+  getSessionStatus: protectedProcedure.input(getSessionStatusSchema).query(async ({ ctx, input }) => {
+    try {
+      const [session] = await db
+        .select({
+          id: emailGenerationSessions.id,
+          organizationId: emailGenerationSessions.organizationId,
+          status: emailGenerationSessions.status,
+          totalDonors: emailGenerationSessions.totalDonors,
+          completedDonors: emailGenerationSessions.completedDonors,
+          errorMessage: emailGenerationSessions.errorMessage,
+          createdAt: emailGenerationSessions.createdAt,
+          updatedAt: emailGenerationSessions.updatedAt,
+          completedAt: emailGenerationSessions.completedAt,
+        })
+        .from(emailGenerationSessions)
+        .where(eq(emailGenerationSessions.id, input.sessionId))
+        .limit(1);
+
+      if (!session || session.organizationId !== ctx.auth.user.organizationId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found",
+        });
+      }
+
+      return session;
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to get session status: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get session status",
+      });
+    }
+  }),
 });

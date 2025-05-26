@@ -11,6 +11,9 @@ type CreateThreadInput = inferProcedureInput<AppRouter["communications"]["create
 type AddMessageInput = inferProcedureInput<AppRouter["communications"]["addMessage"]>;
 type GetMessagesInput = inferProcedureInput<AppRouter["communications"]["getMessages"]>;
 type GenerateEmailsInput = inferProcedureInput<AppRouter["communications"]["generateEmails"]>;
+type CreateSessionInput = inferProcedureInput<AppRouter["communications"]["createSession"]>;
+type GetSessionInput = inferProcedureInput<AppRouter["communications"]["getSession"]>;
+type GetSessionStatusInput = inferProcedureInput<AppRouter["communications"]["getSessionStatus"]>;
 
 interface ListThreadsOptions {
   channel?: CommunicationChannel;
@@ -39,6 +42,8 @@ export function useCommunications() {
   const listThreads = trpc.communications.listThreads.useQuery;
   const getThread = trpc.communications.getThread.useQuery;
   const getMessages = trpc.communications.getMessages.useQuery;
+  const getSession = trpc.communications.getSession.useQuery;
+  const getSessionStatus = trpc.communications.getSessionStatus.useQuery;
 
   // Mutation hooks
   const createThreadMutation = trpc.communications.createThread.useMutation({
@@ -55,6 +60,12 @@ export function useCommunications() {
   });
 
   const generateEmailsMutation = trpc.communications.generateEmails.useMutation();
+
+  const createSessionMutation = trpc.communications.createSession.useMutation({
+    onSuccess: () => {
+      // Optionally invalidate any session-related queries
+    },
+  });
 
   /**
    * Create a new communication thread
@@ -98,25 +109,44 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Create a new email generation session and trigger bulk generation
+   * @param input The session data to create
+   * @returns The session ID or null if creation failed
+   */
+  const createSession = async (input: CreateSessionInput) => {
+    try {
+      return await createSessionMutation.mutateAsync(input);
+    } catch (error) {
+      console.error("Failed to create email generation session:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
     getThread,
     getMessages,
+    getSession,
+    getSessionStatus,
 
     // Mutation functions
     createThread,
     addMessage,
     generateEmails,
+    createSession,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
     isAddingMessage: addMessageMutation.isPending,
     isGeneratingEmails: generateEmailsMutation.isPending,
+    isCreatingSession: createSessionMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,
     addMessageResult: addMessageMutation.data,
     generateEmailsResult: generateEmailsMutation.data,
+    createSessionResult: createSessionMutation.data,
   };
 }

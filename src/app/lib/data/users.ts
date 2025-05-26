@@ -102,12 +102,12 @@ export async function updateUserMemory(id: string, memory: string[]): Promise<Us
 
 export async function getUserMemories(id: string): Promise<string[]> {
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return result[0].memory || [];
+  return result[0]?.memory || [];
 }
 
 export async function getDismissedMemories(id: string): Promise<string[]> {
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return result[0].dismissedMemories || [];
+  return result[0]?.dismissedMemories || [];
 }
 
 /**
