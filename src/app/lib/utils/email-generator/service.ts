@@ -4,7 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { DonationWithDetails } from "../../data/donations";
-import { buildEmailPrompt } from "./prompt-builder";
+import { buildStructuredEmailPrompt } from "./prompt-builder-structured";
 import {
   DonorInfo,
   EmailGeneratorTool,
@@ -109,14 +109,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationalMemories,
     } = options;
 
-    logger.info(`Starting email generation for donor ${donor.id}:`, {
-      instruction,
-      organizationName,
-      hasOrganization: !!organization,
-      hasWritingInstructions: !!organizationWritingInstructions,
-      communicationHistoryCount: communicationHistory?.length || 0,
-      donationHistoryCount: donationHistory.length,
-    });
+    logger.info(
+      `Starting email generation for donor ${
+        donor.id
+      }: instruction="${instruction}", organizationName="${organizationName}", hasOrganization=${!!organization}, hasWritingInstructions=${!!organizationWritingInstructions}, communicationHistoryCount=${
+        communicationHistory?.length || 0
+      }, donationHistoryCount=${donationHistory.length}`
+    );
 
     // Sort donations and prepare reference contexts
     const sortedDonations = [...donationHistory].sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -134,7 +133,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationContexts[refId] = `Donation on ${date}: ${amount}${project}`;
     });
 
-    const prompt = buildEmailPrompt(
+    const prompt = buildStructuredEmailPrompt(
       donor,
       instruction,
       organizationName,
@@ -148,46 +147,99 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
     console.log(prompt);
 
-    logger.info(`Built email prompt for donor ${donor.id}:`, {
-      promptLength: prompt.length,
-      donationContextsCount: Object.keys(donationContexts).length,
-      model: env.SMALL_MODEL,
-    });
+    logger.info(
+      `Built email prompt for donor ${donor.id}: promptLength=${prompt.length}, donationContextsCount=${
+        Object.keys(donationContexts).length
+      }, model=${env.SMALL_MODEL}`
+    );
 
     try {
-      logger.info(`Sending prompt to OpenAI for donor ${donor.id}`);
+      logger.info(
+        `Sending prompt to OpenAI for donor ${donor.id}: promptLength=${prompt.length}, model=${
+          env.SMALL_MODEL
+        }, donorName="${donor.firstName} ${donor.lastName}", donationCount=${
+          donationHistory.length
+        }, communicationCount=${communicationHistory?.length || 0}`
+      );
 
       // Define the schema for the expected response
       const emailSchema = z.object({
-        subject: z.string().describe("A compelling subject line for the email"),
+        subject: z.string().min(1).max(100).describe("A compelling subject line for the email (1-100 characters)"),
         content: z
           .array(
             z.object({
-              piece: z.string().describe("A string segment of the email (like a sentence or paragraph)"),
-              references: z.array(z.string()).describe("Array of context IDs that informed this piece"),
-              addNewlineAfter: z.boolean().describe("Whether a newline should be added after this piece"),
+              piece: z.string().min(1).describe("A string segment of the email (sentence or paragraph)"),
+              references: z
+                .array(z.string())
+                .describe(
+                  "Array of context IDs that informed this piece (e.g., ['donation-1', 'summary-paragraph-2'])"
+                ),
+              addNewlineAfter: z
+                .boolean()
+                .describe("Whether a newline should be added after this piece for formatting"),
             })
           )
-          .describe("Array of email content pieces with references"),
+          .min(1)
+          .describe("Array of email content pieces with references (at least 1 piece required)"),
       });
 
-      const { object: validatedResponse } = await generateObject({
-        model: openai(env.SMALL_MODEL),
-        prompt,
-        schema: emailSchema,
-      }).catch((error: any) => {
-        logger.error(`OpenAI API call failed for donor ${donor.id}:`, {
-          error: error instanceof Error ? error.message : "Unknown error",
-          stack: error instanceof Error ? error.stack : undefined,
-          type: error instanceof Error ? error.constructor.name : typeof error,
-        });
-        throw error;
-      });
+      logger.info(`Calling generateObject for donor ${donor.id} with schema validation`);
 
-      logger.info(`Received and validated OpenAI response for donor ${donor.id}:`, {
-        subjectLength: validatedResponse.subject.length,
-        contentPieces: validatedResponse.content.length,
-      });
+      let validatedResponse;
+      let attempt = 1;
+      const maxAttempts = 2;
+
+      while (attempt <= maxAttempts) {
+        try {
+          logger.info(`Attempt ${attempt}/${maxAttempts} for donor ${donor.id}`);
+
+          const result = await generateObject({
+            model: openai(env.SMALL_MODEL),
+            prompt,
+            schema: emailSchema,
+            schemaName: "EmailResponse",
+            schemaDescription: "A personalized donor email with subject and structured content pieces",
+            temperature: 0.7,
+          });
+
+          validatedResponse = result.object;
+          logger.info(`Successfully generated object for donor ${donor.id} on attempt ${attempt}`);
+          break;
+        } catch (error: any) {
+          logger.error(
+            `OpenAI generateObject call failed for donor ${donor.id} (attempt ${attempt}/${maxAttempts}): error="${
+              error instanceof Error ? error.message : "Unknown error"
+            }", type=${error instanceof Error ? error.constructor.name : typeof error}, errorName=${
+              error?.name
+            }, errorCode=${error?.code}`
+          );
+
+          if (attempt === maxAttempts) {
+            logger.error(
+              `All attempts failed for donor ${donor.id}. Prompt details: promptLength=${prompt.length}, donorName="${
+                donor.firstName
+              } ${donor.lastName}", promptPreview="${prompt.substring(0, 500)}..."`
+            );
+            throw error;
+          }
+
+          attempt++;
+          // Brief delay before retry
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!validatedResponse) {
+        throw new Error(`Failed to generate valid response for donor ${donor.id} after ${maxAttempts} attempts`);
+      }
+
+      logger.info(
+        `Successfully received and validated OpenAI response for donor ${donor.id}: subject="${
+          validatedResponse.subject
+        }", subjectLength=${validatedResponse.subject.length}, contentPieces=${
+          validatedResponse.content.length
+        }, allReferences=[${validatedResponse.content.flatMap((p) => p.references).join(", ")}]`
+      );
 
       // Build reference contexts
       const referenceContexts: Record<string, string> = {
@@ -214,11 +266,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
         });
       });
 
-      logger.info(`Successfully generated email for donor ${donor.id}:`, {
-        subjectLength: validatedResponse.subject.length,
-        contentPieces: validatedResponse.content.length,
-        referenceContextsCount: Object.keys(referenceContexts).length,
-      });
+      logger.info(
+        `Successfully generated email for donor ${donor.id}: subjectLength=${
+          validatedResponse.subject.length
+        }, contentPieces=${validatedResponse.content.length}, referenceContextsCount=${
+          Object.keys(referenceContexts).length
+        }`
+      );
 
       return {
         donorId: donor.id,
@@ -227,11 +281,11 @@ export class EmailGenerationService implements EmailGeneratorTool {
         referenceContexts,
       };
     } catch (error: any) {
-      logger.error(`Failed to generate email for donor ${donor.id}:`, {
-        error: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-        type: error instanceof Error ? error.constructor.name : typeof error,
-      });
+      logger.error(
+        `Failed to generate email for donor ${donor.id}: error="${
+          error instanceof Error ? error.message : "Unknown error"
+        }", type=${error instanceof Error ? error.constructor.name : typeof error}`
+      );
       throw error;
     }
   }
