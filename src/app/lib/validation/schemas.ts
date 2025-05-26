@@ -270,6 +270,7 @@ export const communicationSchemas = {
   }),
 
   createSession: z.object({
+    jobName: z.string().min(1).max(255),
     instruction: z.string().min(1),
     chatHistory: z.array(
       z.object({

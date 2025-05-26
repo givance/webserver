@@ -14,6 +14,7 @@ type GenerateEmailsInput = inferProcedureInput<AppRouter["communications"]["gene
 type CreateSessionInput = inferProcedureInput<AppRouter["communications"]["createSession"]>;
 type GetSessionInput = inferProcedureInput<AppRouter["communications"]["getSession"]>;
 type GetSessionStatusInput = inferProcedureInput<AppRouter["communications"]["getSessionStatus"]>;
+type ListJobsInput = inferProcedureInput<AppRouter["communications"]["listJobs"]>;
 
 interface ListThreadsOptions {
   channel?: CommunicationChannel;
@@ -44,6 +45,7 @@ export function useCommunications() {
   const getMessages = trpc.communications.getMessages.useQuery;
   const getSession = trpc.communications.getSession.useQuery;
   const getSessionStatus = trpc.communications.getSessionStatus.useQuery;
+  const listJobs = trpc.communications.listJobs.useQuery;
 
   // Mutation hooks
   const createThreadMutation = trpc.communications.createThread.useMutation({
@@ -130,6 +132,7 @@ export function useCommunications() {
     getMessages,
     getSession,
     getSessionStatus,
+    listJobs,
 
     // Mutation functions
     createThread,

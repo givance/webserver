@@ -11,6 +11,7 @@ import { useCommunications } from "@/app/hooks/use-communications";
 
 interface BulkGenerateEmailsStepProps {
   selectedDonors: number[];
+  jobName: string;
   sessionData: {
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     finalInstruction: string;
@@ -30,6 +31,7 @@ interface GenerationStatus {
 
 export function BulkGenerateEmailsStep({
   selectedDonors,
+  jobName,
   sessionData,
   onBack,
   onComplete,
@@ -57,6 +59,7 @@ export function BulkGenerateEmailsStep({
     try {
       // Call API to start bulk generation
       const result = await createSession({
+        jobName: jobName,
         instruction: sessionData.finalInstruction,
         chatHistory: sessionData.chatHistory,
         selectedDonorIds: selectedDonors,

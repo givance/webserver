@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
+import { JobNameStep } from "../steps/JobNameStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
 import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
 
-const STEPS = ["Select Donors", "Write Instructions", "Bulk Generation"] as const;
+const STEPS = ["Select Donors", "Job Name", "Write Instructions", "Bulk Generation"] as const;
 
 interface CommunicateStepsProps {
   onClose: () => void;
@@ -17,6 +18,7 @@ interface CommunicateStepsProps {
 export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
+  const [jobName, setJobName] = useState("");
   const [instruction, setInstruction] = useState("");
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
@@ -51,6 +53,16 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
         );
       case 1:
         return (
+          <JobNameStep
+            selectedDonors={selectedDonors}
+            jobName={jobName}
+            onJobNameChange={setJobName}
+            onBack={handleBack}
+            onNext={handleNext}
+          />
+        );
+      case 2:
+        return (
           <WriteInstructionStep
             instruction={instruction}
             onInstructionChange={setInstruction}
@@ -60,10 +72,11 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
             onSessionDataChange={setSessionData}
           />
         );
-      case 2:
+      case 3:
         return sessionData ? (
           <BulkGenerateEmailsStep
             selectedDonors={selectedDonors}
+            jobName={jobName}
             sessionData={sessionData}
             onBack={handleBack}
             onComplete={handleBulkGenerationComplete}

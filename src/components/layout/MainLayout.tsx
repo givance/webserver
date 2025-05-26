@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
-import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare, Search, Bell } from "lucide-react";
+import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare, Search, Bell, Briefcase } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
@@ -143,6 +143,14 @@ export default function MainLayout({
                       </Link>
                     </SidebarMenuItem>
                     <CommunicateMenuItem />
+                    <SidebarMenuItem>
+                      <Link href="/communication-jobs" className="w-full">
+                        <SidebarMenuButton>
+                          <Briefcase className="w-4 h-4" />
+                          <span>Communication Jobs</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/settings" className="w-full">
                         <SidebarMenuButton>

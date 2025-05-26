@@ -22,7 +22,7 @@ import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { CommunicationsService } from "@/app/lib/services/communications.service";
@@ -129,6 +129,7 @@ const generateEmailsSchema = z.object({
 });
 
 const createSessionSchema = z.object({
+  jobName: z.string().min(1).max(255),
   instruction: z.string().min(1),
   chatHistory: z.array(
     z.object({
@@ -147,6 +148,12 @@ const getSessionSchema = z.object({
 
 const getSessionStatusSchema = z.object({
   sessionId: z.number(),
+});
+
+const listJobsSchema = z.object({
+  limit: z.number().min(1).max(100).optional(),
+  offset: z.number().min(0).optional(),
+  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
 });
 
 // Define input types
@@ -407,6 +414,7 @@ export const communicationsRouter = router({
         .values({
           organizationId: ctx.auth.user.organizationId,
           userId: ctx.auth.user.id,
+          jobName: input.jobName,
           instruction: input.instruction,
           refinedInstruction: input.refinedInstruction,
           chatHistory: input.chatHistory,
@@ -512,6 +520,59 @@ export const communicationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get session status",
+      });
+    }
+  }),
+
+  /**
+   * Lists communication jobs (email generation sessions) for the organization
+   */
+  listJobs: protectedProcedure.input(listJobsSchema).query(async ({ ctx, input }) => {
+    try {
+      const { limit = 20, offset = 0, status } = input;
+
+      const whereConditions = [eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId)];
+
+      if (status) {
+        whereConditions.push(eq(emailGenerationSessions.status, status));
+      }
+
+      const jobs = await db
+        .select({
+          id: emailGenerationSessions.id,
+          jobName: emailGenerationSessions.jobName,
+          status: emailGenerationSessions.status,
+          totalDonors: emailGenerationSessions.totalDonors,
+          completedDonors: emailGenerationSessions.completedDonors,
+          errorMessage: emailGenerationSessions.errorMessage,
+          createdAt: emailGenerationSessions.createdAt,
+          updatedAt: emailGenerationSessions.updatedAt,
+          completedAt: emailGenerationSessions.completedAt,
+        })
+        .from(emailGenerationSessions)
+        .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0])
+        .orderBy(desc(emailGenerationSessions.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      // Get total count for pagination
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(emailGenerationSessions)
+        .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0]);
+
+      logger.info(`Listed ${jobs.length} communication jobs for organization ${ctx.auth.user.organizationId}`);
+
+      return {
+        jobs,
+        totalCount: count,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to list communication jobs: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to list communication jobs",
       });
     }
   }),
