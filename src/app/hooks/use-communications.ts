@@ -73,6 +73,13 @@ export function useCommunications() {
   const saveToDraftMutation = trpc.gmail.saveToDraft.useMutation();
   const sendEmailsMutation = trpc.gmail.sendEmails.useMutation();
 
+  // Delete job mutation hook
+  const deleteJobMutation = trpc.communications.deleteJob.useMutation({
+    onSuccess: () => {
+      utils.communications.listJobs.invalidate();
+    },
+  });
+
   /**
    * Create a new communication thread
    * @param input The thread data to create
@@ -157,6 +164,20 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Delete a communication job and its associated emails
+   * @param jobId The job ID to delete
+   * @returns Success result or null if deletion failed
+   */
+  const deleteJob = async (jobId: number) => {
+    try {
+      return await deleteJobMutation.mutateAsync({ jobId });
+    } catch (error) {
+      console.error("Failed to delete communication job:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
@@ -173,6 +194,7 @@ export function useCommunications() {
     createSession,
     saveToDraft,
     sendEmails,
+    deleteJob,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
@@ -181,6 +203,7 @@ export function useCommunications() {
     isCreatingSession: createSessionMutation.isPending,
     isSavingToDraft: saveToDraftMutation.isPending,
     isSendingEmails: sendEmailsMutation.isPending,
+    isDeletingJob: deleteJobMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,
@@ -189,5 +212,6 @@ export function useCommunications() {
     createSessionResult: createSessionMutation.data,
     saveToDraftResult: saveToDraftMutation.data,
     sendEmailsResult: sendEmailsMutation.data,
+    deleteJobResult: deleteJobMutation.data,
   };
 }

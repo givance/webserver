@@ -156,6 +156,10 @@ const listJobsSchema = z.object({
   status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
 });
 
+const deleteJobSchema = z.object({
+  jobId: z.number(),
+});
+
 // Define input types
 interface DonorInput {
   id: number;
@@ -573,6 +577,47 @@ export const communicationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to list communication jobs",
+      });
+    }
+  }),
+
+  /**
+   * Deletes a communication job and its associated emails
+   */
+  deleteJob: protectedProcedure.input(deleteJobSchema).mutation(async ({ ctx, input }) => {
+    try {
+      // First verify the job exists and belongs to the user's organization
+      const [existingJob] = await db
+        .select({ id: emailGenerationSessions.id, organizationId: emailGenerationSessions.organizationId })
+        .from(emailGenerationSessions)
+        .where(eq(emailGenerationSessions.id, input.jobId))
+        .limit(1);
+
+      if (!existingJob) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Communication job not found",
+        });
+      }
+
+      if (existingJob.organizationId !== ctx.auth.user.organizationId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to delete this job",
+        });
+      }
+
+      // Delete session record (cascade delete will handle associated emails)
+      await db.delete(emailGenerationSessions).where(eq(emailGenerationSessions.id, input.jobId));
+
+      logger.info(`Deleted communication job ${input.jobId} for organization ${ctx.auth.user.organizationId}`);
+      return { jobId: input.jobId };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to delete communication job: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to delete communication job",
       });
     }
   }),

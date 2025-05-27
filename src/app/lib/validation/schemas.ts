@@ -290,6 +290,10 @@ export const communicationSchemas = {
   getSessionStatus: z.object({
     sessionId: idSchema,
   }),
+
+  deleteJob: z.object({
+    jobId: idSchema,
+  }),
 };
 
 /**

@@ -37,7 +37,7 @@ interface ConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   job: CommunicationJob | null;
-  action: "draft" | "send";
+  action: "draft" | "send" | "delete";
   onConfirm: () => void;
   isLoading: boolean;
   userEmail: string | null;
@@ -54,8 +54,8 @@ function ConfirmationDialog({
 }: ConfirmationDialogProps) {
   if (!job) return null;
 
-  const actionText = action === "draft" ? "save as drafts" : "send";
-  const actionTitle = action === "draft" ? "Save to Draft" : "Send Emails";
+  const actionText = action === "draft" ? "save as drafts" : action === "send" ? "send" : "delete";
+  const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Send Emails" : "Delete Job";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,20 +71,30 @@ function ConfirmationDialog({
               <span className="font-medium">Job:</span>
               <span>{job.jobName}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Number of emails:</span>
-              <span>{job.totalDonors}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Gmail account:</span>
-              <span className="text-sm text-muted-foreground">{userEmail || "Not connected"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Action:</span>
-              <span>
-                Will {actionText} {job.totalDonors} emails
-              </span>
-            </div>
+            {action !== "delete" && (
+              <>
+                <div className="flex justify-between">
+                  <span className="font-medium">Number of emails:</span>
+                  <span>{job.totalDonors}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Gmail account:</span>
+                  <span className="text-sm text-muted-foreground">{userEmail || "Not connected"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Action:</span>
+                  <span>
+                    Will {actionText} {job.totalDonors} emails
+                  </span>
+                </div>
+              </>
+            )}
+            {action === "delete" && (
+              <div className="flex justify-between">
+                <span className="font-medium">Action:</span>
+                <span>Will permanently delete this communication job and all associated emails</span>
+              </div>
+            )}
           </div>
 
           {action === "send" && (
@@ -92,6 +102,16 @@ function ConfirmationDialog({
               <p className="text-sm text-orange-800">
                 ⚠️ <strong>Warning:</strong> This will send {job.totalDonors} emails immediately. This action cannot be
                 undone.
+              </p>
+            </div>
+          )}
+
+          {action === "delete" && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-800">
+                ⚠️ <strong>Warning:</strong> This will permanently delete the communication job &quot;{job.jobName}
+                &quot; and all
+                {job.totalDonors} associated generated emails. This action cannot be undone.
               </p>
             </div>
           )}
@@ -118,10 +138,11 @@ function CommunicationJobsContent() {
   const [confirmationDialog, setConfirmationDialog] = useState<{
     open: boolean;
     job: CommunicationJob | null;
-    action: "draft" | "send";
+    action: "draft" | "send" | "delete";
   }>({ open: false, job: null, action: "draft" });
 
-  const { listJobs, saveToDraft, sendEmails, isSavingToDraft, isSendingEmails } = useCommunications();
+  const { listJobs, saveToDraft, sendEmails, deleteJob, isSavingToDraft, isSendingEmails, isDeletingJob } =
+    useCommunications();
 
   // Get Gmail connection status
   const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
@@ -167,9 +188,8 @@ function CommunicationJobsContent() {
     toast.success("Job retry functionality will be implemented soon");
   };
 
-  const handleDeleteJob = async (jobId: number) => {
-    // TODO: Implement delete functionality
-    toast.success("Job delete functionality will be implemented soon");
+  const handleDeleteJob = (job: CommunicationJob) => {
+    setConfirmationDialog({ open: true, job, action: "delete" });
   };
 
   const handleSaveToDraft = (job: CommunicationJob) => {
@@ -201,12 +221,19 @@ function CommunicationJobsContent() {
         } else {
           toast.error("Failed to save emails as drafts");
         }
-      } else {
+      } else if (action === "send") {
         result = await sendEmails(job.id);
         if (result) {
           toast.success(result.message);
         } else {
           toast.error("Failed to send emails");
+        }
+      } else if (action === "delete") {
+        result = await deleteJob(job.id);
+        if (result) {
+          toast.success(`Communication job &quot;${job.jobName}&quot; has been deleted successfully`);
+        } else {
+          toast.error("Failed to delete communication job");
         }
       }
     } catch (error) {
@@ -302,7 +329,7 @@ function CommunicationJobsContent() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleDeleteJob(job.id)}
+              onClick={() => handleDeleteJob(job)}
               className="text-red-600 hover:text-red-700"
             >
               <Trash2 className="h-4 w-4" />
@@ -381,7 +408,7 @@ function CommunicationJobsContent() {
         job={confirmationDialog.job}
         action={confirmationDialog.action}
         onConfirm={handleConfirmAction}
-        isLoading={isSavingToDraft || isSendingEmails}
+        isLoading={isSavingToDraft || isSendingEmails || isDeletingJob}
         userEmail={gmailStatus?.email || null}
       />
     </>
