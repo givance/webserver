@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, Eye, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -11,6 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { trpc } from "@/app/lib/trpc/client";
 
 interface CommunicationJob {
   id: number;
@@ -24,13 +33,98 @@ interface CommunicationJob {
   completedAt: string | null;
 }
 
+interface ConfirmationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  job: CommunicationJob | null;
+  action: "draft" | "send";
+  onConfirm: () => void;
+  isLoading: boolean;
+  userEmail: string | null;
+}
+
+function ConfirmationDialog({
+  open,
+  onOpenChange,
+  job,
+  action,
+  onConfirm,
+  isLoading,
+  userEmail,
+}: ConfirmationDialogProps) {
+  if (!job) return null;
+
+  const actionText = action === "draft" ? "save as drafts" : "send";
+  const actionTitle = action === "draft" ? "Save to Draft" : "Send Emails";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{actionTitle}</DialogTitle>
+          <DialogDescription>Please confirm the details before proceeding.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="font-medium">Job:</span>
+              <span>{job.jobName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Number of emails:</span>
+              <span>{job.totalDonors}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Gmail account:</span>
+              <span className="text-sm text-muted-foreground">{userEmail || "Not connected"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Action:</span>
+              <span>
+                Will {actionText} {job.totalDonors} emails
+              </span>
+            </div>
+          </div>
+
+          {action === "send" && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+              <p className="text-sm text-orange-800">
+                ⚠️ <strong>Warning:</strong> This will send {job.totalDonors} emails immediately. This action cannot be
+                undone.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={isLoading}>
+            {isLoading ? "Processing..." : actionTitle}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const DEFAULT_PAGE_SIZE = 20;
 
 function CommunicationJobsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [confirmationDialog, setConfirmationDialog] = useState<{
+    open: boolean;
+    job: CommunicationJob | null;
+    action: "draft" | "send";
+  }>({ open: false, job: null, action: "draft" });
 
-  const { listJobs } = useCommunications();
+  const { listJobs, saveToDraft, sendEmails, isSavingToDraft, isSendingEmails } = useCommunications();
+
+  // Get Gmail connection status
+  const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
 
   const {
     data: jobsResponse,
@@ -76,6 +170,50 @@ function CommunicationJobsContent() {
   const handleDeleteJob = async (jobId: number) => {
     // TODO: Implement delete functionality
     toast.success("Job delete functionality will be implemented soon");
+  };
+
+  const handleSaveToDraft = (job: CommunicationJob) => {
+    if (!gmailStatus?.isConnected) {
+      toast.error("Please connect your Gmail account first in Settings");
+      return;
+    }
+    setConfirmationDialog({ open: true, job, action: "draft" });
+  };
+
+  const handleSendEmails = (job: CommunicationJob) => {
+    if (!gmailStatus?.isConnected) {
+      toast.error("Please connect your Gmail account first in Settings");
+      return;
+    }
+    setConfirmationDialog({ open: true, job, action: "send" });
+  };
+
+  const handleConfirmAction = async () => {
+    const { job, action } = confirmationDialog;
+    if (!job) return;
+
+    try {
+      let result;
+      if (action === "draft") {
+        result = await saveToDraft(job.id);
+        if (result) {
+          toast.success(result.message);
+        } else {
+          toast.error("Failed to save emails as drafts");
+        }
+      } else {
+        result = await sendEmails(job.id);
+        if (result) {
+          toast.success(result.message);
+        } else {
+          toast.error("Failed to send emails");
+        }
+      }
+    } catch (error) {
+      toast.error("An error occurred while processing your request");
+    } finally {
+      setConfirmationDialog({ open: false, job: null, action: "draft" });
+    }
   };
 
   const columns: ColumnDef<CommunicationJob>[] = [
@@ -131,6 +269,8 @@ function CommunicationJobsContent() {
       header: "Actions",
       cell: ({ row }) => {
         const job = row.original;
+        const canSendOrDraft = job.status === "COMPLETED" && job.totalDonors > 0;
+
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
@@ -138,6 +278,22 @@ function CommunicationJobsContent() {
                 <Eye className="h-4 w-4" />
               </Link>
             </Button>
+            {canSendOrDraft && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => handleSaveToDraft(job)} title="Save to Gmail Draft">
+                  <FileText className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSendEmails(job)}
+                  title="Send via Gmail"
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             {job.status === "FAILED" && (
               <Button variant="ghost" size="sm" onClick={() => handleRetryJob(job.id)}>
                 <RefreshCw className="h-4 w-4" />
@@ -218,6 +374,16 @@ function CommunicationJobsContent() {
           />
         )}
       </div>
+
+      <ConfirmationDialog
+        open={confirmationDialog.open}
+        onOpenChange={(open) => setConfirmationDialog((prev) => ({ ...prev, open }))}
+        job={confirmationDialog.job}
+        action={confirmationDialog.action}
+        onConfirm={handleConfirmAction}
+        isLoading={isSavingToDraft || isSendingEmails}
+        userEmail={gmailStatus?.email || null}
+      />
     </>
   );
 }

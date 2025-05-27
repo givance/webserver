@@ -3,9 +3,10 @@ import { google } from "googleapis";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { db } from "@/app/lib/db";
-import { gmailOAuthTokens } from "@/app/lib/db/schema";
+import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors } from "@/app/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { env } from "@/app/lib/env";
+import { logger } from "@/app/lib/logger";
 
 // Ensure you have these in your environment variables
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
@@ -23,6 +24,62 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI) {
   console.warn(
     "OAuth2Client for Google not initialized due to missing credentials. Gmail features requiring auth will fail."
   );
+}
+
+/**
+ * Helper function to get authenticated Gmail client for user
+ */
+async function getGmailClient(userId: string) {
+  if (!oauth2Client) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Google OAuth client not configured." });
+  }
+
+  const tokenInfo = await db.query.gmailOAuthTokens.findFirst({
+    where: eq(gmailOAuthTokens.userId, userId),
+  });
+
+  if (!tokenInfo) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Gmail account not connected. Please connect your Gmail account first.",
+    });
+  }
+
+  // Create a new OAuth2 client instance for this user
+  const userOAuth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+
+  userOAuth2Client.setCredentials({
+    access_token: tokenInfo.accessToken,
+    refresh_token: tokenInfo.refreshToken,
+    expiry_date: tokenInfo.expiresAt.getTime(),
+    scope: tokenInfo.scope || undefined,
+    token_type: tokenInfo.tokenType || "Bearer",
+  });
+
+  // Refresh token if expired
+  try {
+    await userOAuth2Client.getAccessToken();
+  } catch (error) {
+    logger.error(
+      `Failed to refresh Gmail token for user ${userId}: ${error instanceof Error ? error.message : String(error)}`
+    );
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Gmail token expired. Please reconnect your Gmail account.",
+    });
+  }
+
+  return google.gmail({ version: "v1", auth: userOAuth2Client });
+}
+
+/**
+ * Helper function to convert structured content to plain text
+ */
+function convertStructuredContentToText(structuredContent: Array<{ piece: string; addNewlineAfter: boolean }>) {
+  return structuredContent
+    .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
+    .join("")
+    .trim();
 }
 
 export const gmailRouter = router({
@@ -143,4 +200,232 @@ export const gmailRouter = router({
       message: "Gmail account not connected.",
     };
   }),
+
+  /**
+   * Save job emails as drafts in Gmail
+   */
+  saveToDraft: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const gmail = await getGmailClient(ctx.auth.user.id);
+
+        // Get session and emails
+        const [session] = await db
+          .select()
+          .from(emailGenerationSessions)
+          .where(eq(emailGenerationSessions.id, input.sessionId))
+          .limit(1);
+
+        if (!session || session.organizationId !== ctx.auth.user.organizationId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Session not found",
+          });
+        }
+
+        // Get all generated emails for this session
+        const emails = await db
+          .select({
+            id: generatedEmails.id,
+            donorId: generatedEmails.donorId,
+            subject: generatedEmails.subject,
+            structuredContent: generatedEmails.structuredContent,
+            donor: {
+              firstName: donors.firstName,
+              lastName: donors.lastName,
+              email: donors.email,
+            },
+          })
+          .from(generatedEmails)
+          .innerJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .where(eq(generatedEmails.sessionId, input.sessionId));
+
+        if (emails.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No emails found for this session",
+          });
+        }
+
+        // Save each email as a draft
+        const draftResults = await Promise.allSettled(
+          emails.map(async (email) => {
+            const textContent = convertStructuredContentToText(email.structuredContent as any);
+
+            const emailMessage = [`To: ${email.donor.email}`, `Subject: ${email.subject}`, ``, textContent].join("\n");
+
+            const encodedMessage = Buffer.from(emailMessage)
+              .toString("base64")
+              .replace(/\+/g, "-")
+              .replace(/\//g, "_")
+              .replace(/=+$/, "");
+
+            const draft = await gmail.users.drafts.create({
+              userId: "me",
+              requestBody: {
+                message: {
+                  raw: encodedMessage,
+                },
+              },
+            });
+
+            return {
+              donorId: email.donorId,
+              donorName: `${email.donor.firstName} ${email.donor.lastName}`,
+              draftId: draft.data.id,
+              success: true,
+            };
+          })
+        );
+
+        const successfulDrafts = draftResults
+          .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        const failedDrafts = draftResults
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason);
+
+        logger.info(
+          `Saved ${successfulDrafts.length} drafts for session ${input.sessionId}, ${failedDrafts.length} failed`
+        );
+
+        return {
+          success: true,
+          draftsCreated: successfulDrafts.length,
+          totalEmails: emails.length,
+          failedDrafts: failedDrafts.length,
+          message: `Successfully saved ${successfulDrafts.length} emails as drafts`,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        logger.error(
+          `Failed to save drafts for session ${input.sessionId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to save emails as drafts",
+        });
+      }
+    }),
+
+  /**
+   * Send job emails via Gmail
+   */
+  sendEmails: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const gmail = await getGmailClient(ctx.auth.user.id);
+
+        // Get session and emails
+        const [session] = await db
+          .select()
+          .from(emailGenerationSessions)
+          .where(eq(emailGenerationSessions.id, input.sessionId))
+          .limit(1);
+
+        if (!session || session.organizationId !== ctx.auth.user.organizationId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Session not found",
+          });
+        }
+
+        // Get all generated emails for this session
+        const emails = await db
+          .select({
+            id: generatedEmails.id,
+            donorId: generatedEmails.donorId,
+            subject: generatedEmails.subject,
+            structuredContent: generatedEmails.structuredContent,
+            donor: {
+              firstName: donors.firstName,
+              lastName: donors.lastName,
+              email: donors.email,
+            },
+          })
+          .from(generatedEmails)
+          .innerJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .where(eq(generatedEmails.sessionId, input.sessionId));
+
+        if (emails.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No emails found for this session",
+          });
+        }
+
+        // Send each email
+        const sendResults = await Promise.allSettled(
+          emails.map(async (email) => {
+            const textContent = convertStructuredContentToText(email.structuredContent as any);
+
+            const emailMessage = [`To: ${email.donor.email}`, `Subject: ${email.subject}`, ``, textContent].join("\n");
+
+            const encodedMessage = Buffer.from(emailMessage)
+              .toString("base64")
+              .replace(/\+/g, "-")
+              .replace(/\//g, "_")
+              .replace(/=+$/, "");
+
+            const sentMessage = await gmail.users.messages.send({
+              userId: "me",
+              requestBody: {
+                raw: encodedMessage,
+              },
+            });
+
+            return {
+              donorId: email.donorId,
+              donorName: `${email.donor.firstName} ${email.donor.lastName}`,
+              messageId: sentMessage.data.id,
+              success: true,
+            };
+          })
+        );
+
+        const successfulSends = sendResults
+          .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        const failedSends = sendResults
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason);
+
+        logger.info(
+          `Sent ${successfulSends.length} emails for session ${input.sessionId}, ${failedSends.length} failed`
+        );
+
+        return {
+          success: true,
+          emailsSent: successfulSends.length,
+          totalEmails: emails.length,
+          failedSends: failedSends.length,
+          message: `Successfully sent ${successfulSends.length} emails`,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        logger.error(
+          `Failed to send emails for session ${input.sessionId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to send emails",
+        });
+      }
+    }),
 });

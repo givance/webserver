@@ -69,6 +69,10 @@ export function useCommunications() {
     },
   });
 
+  // Gmail mutation hooks
+  const saveToDraftMutation = trpc.gmail.saveToDraft.useMutation();
+  const sendEmailsMutation = trpc.gmail.sendEmails.useMutation();
+
   /**
    * Create a new communication thread
    * @param input The thread data to create
@@ -125,6 +129,34 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Save job emails as drafts in Gmail
+   * @param sessionId The session ID containing the emails to save as drafts
+   * @returns Success result or null if saving failed
+   */
+  const saveToDraft = async (sessionId: number) => {
+    try {
+      return await saveToDraftMutation.mutateAsync({ sessionId });
+    } catch (error) {
+      console.error("Failed to save emails as drafts:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Send job emails via Gmail
+   * @param sessionId The session ID containing the emails to send
+   * @returns Success result or null if sending failed
+   */
+  const sendEmails = async (sessionId: number) => {
+    try {
+      return await sendEmailsMutation.mutateAsync({ sessionId });
+    } catch (error) {
+      console.error("Failed to send emails:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
@@ -139,17 +171,23 @@ export function useCommunications() {
     addMessage,
     generateEmails,
     createSession,
+    saveToDraft,
+    sendEmails,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
     isAddingMessage: addMessageMutation.isPending,
     isGeneratingEmails: generateEmailsMutation.isPending,
     isCreatingSession: createSessionMutation.isPending,
+    isSavingToDraft: saveToDraftMutation.isPending,
+    isSendingEmails: sendEmailsMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,
     addMessageResult: addMessageMutation.data,
     generateEmailsResult: generateEmailsMutation.data,
     createSessionResult: createSessionMutation.data,
+    saveToDraftResult: saveToDraftMutation.data,
+    sendEmailsResult: sendEmailsMutation.data,
   };
 }
