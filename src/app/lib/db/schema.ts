@@ -10,6 +10,7 @@ import {
   primaryKey,
   pgEnum,
   jsonb,
+  unique,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -154,25 +155,32 @@ export const projects = pgTable("projects", {
 /**
  * Donors table to store donor information
  */
-export const donors = pgTable("donors", {
-  id: serial("id").primaryKey(),
-  organizationId: text("organization_id")
-    .references(() => organizations.id, { onDelete: "cascade" })
-    .notNull(),
-  firstName: varchar("first_name", { length: 255 }).notNull(),
-  lastName: varchar("last_name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  phone: varchar("phone", { length: 20 }),
-  address: text("address"),
-  state: varchar("state", { length: 2 }),
-  notes: text("notes"),
-  assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
-  currentStageName: varchar("current_stage_name", { length: 255 }),
-  classificationReasoning: text("classification_reasoning"),
-  predictedActions: jsonb("predicted_actions"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const donors = pgTable(
+  "donors",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: text("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    firstName: varchar("first_name", { length: 255 }).notNull(),
+    lastName: varchar("last_name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    phone: varchar("phone", { length: 20 }),
+    address: text("address"),
+    state: varchar("state", { length: 2 }),
+    notes: text("notes"),
+    assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
+    currentStageName: varchar("current_stage_name", { length: 255 }),
+    classificationReasoning: text("classification_reasoning"),
+    predictedActions: jsonb("predicted_actions"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Email should be unique within each organization, not globally
+    uniqueEmailPerOrg: unique("donors_email_organization_unique").on(table.email, table.organizationId),
+  })
+);
 
 /**
  * Donations table to track financial contributions
