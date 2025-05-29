@@ -16,13 +16,18 @@ function getTrackingBaseUrl(baseUrl?: string): string {
     return baseUrl;
   }
 
-  // Try to derive from GOOGLE_REDIRECT_URI
+  // Use BASE_URL from environment configuration
+  if (env.BASE_URL) {
+    return env.BASE_URL;
+  }
+
+  // Fallback: Try to derive from GOOGLE_REDIRECT_URI
   try {
     const redirectUri = env.GOOGLE_REDIRECT_URI;
     const url = new URL(redirectUri);
     return `${url.protocol}//${url.host}`;
   } catch {
-    // Fallback to a default
+    // Final fallback to a default
     return "https://app.givance.ai";
   }
 }

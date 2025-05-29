@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLinkTracker, recordLinkClick } from "@/app/lib/data/email-tracking";
 import { extractTrackingMetadata } from "@/app/lib/utils/email-tracking/utils";
 import { logger } from "@/app/lib/logger";
+import { env } from "@/app/lib/env";
 
 /**
  * Handles link click tracking and redirection
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!linkTracker) {
       logger.warn(`Link tracker not found: ${trackerId}`);
       // Redirect to the URL from query param if available, otherwise to a default page
-      const fallbackUrl = originalUrl || "https://app.givance.ai";
+      const fallbackUrl = originalUrl || env.BASE_URL;
       return NextResponse.redirect(fallbackUrl);
     }
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       new URL(redirectUrl);
     } catch {
       logger.warn(`Invalid redirect URL: ${redirectUrl}, using fallback`);
-      return NextResponse.redirect("https://app.givance.ai");
+      return NextResponse.redirect(env.BASE_URL);
     }
 
     return NextResponse.redirect(redirectUrl);
@@ -52,12 +53,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
 
     // Fallback redirect
-    const fallbackUrl = originalUrl || "https://app.givance.ai";
+    const fallbackUrl = originalUrl || env.BASE_URL;
     try {
       new URL(fallbackUrl);
       return NextResponse.redirect(fallbackUrl);
     } catch {
-      return NextResponse.redirect("https://app.givance.ai");
+      return NextResponse.redirect(env.BASE_URL);
     }
   }
 }
