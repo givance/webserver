@@ -267,3 +267,121 @@ export async function getEmailTrackingData(emailTrackerId: string) {
     clicks,
   };
 }
+
+/**
+ * Gets an email tracker by email ID and donor ID
+ */
+export async function getEmailTrackerByEmailAndDonor(emailId: number, donorId: number): Promise<EmailTracker | null> {
+  const [tracker] = await db
+    .select()
+    .from(emailTrackers)
+    .where(and(eq(emailTrackers.emailId, emailId), eq(emailTrackers.donorId, donorId)))
+    .limit(1);
+
+  return tracker || null;
+}
+
+/**
+ * Gets detailed tracking information for an email by email ID and donor ID
+ */
+export async function getEmailTrackingByEmailAndDonor(emailId: number, donorId: number) {
+  const tracker = await getEmailTrackerByEmailAndDonor(emailId, donorId);
+  if (!tracker) return null;
+
+  const [linkTrackersData, opens] = await Promise.all([
+    db.select().from(linkTrackers).where(eq(linkTrackers.emailTrackerId, tracker.id)),
+    getEmailOpens(tracker.id),
+  ]);
+
+  // Get clicks for all link trackers
+  const allClicks = await Promise.all(linkTrackersData.map((lt) => getLinkClicks(lt.id)));
+  const clicks = allClicks.flat();
+
+  return {
+    emailTracker: tracker,
+    linkTrackers: linkTrackersData,
+    opens,
+    clicks,
+  };
+}
+
+/**
+ * Gets an email tracker by session ID and donor ID (alternative approach)
+ */
+export async function getEmailTrackerBySessionAndDonor(
+  sessionId: number,
+  donorId: number
+): Promise<EmailTracker | null> {
+  console.log(`[getEmailTrackerBySessionAndDonor] Searching for sessionId: ${sessionId}, donorId: ${donorId}`);
+
+  const [tracker] = await db
+    .select()
+    .from(emailTrackers)
+    .where(and(eq(emailTrackers.sessionId, sessionId), eq(emailTrackers.donorId, donorId)))
+    .limit(1);
+
+  console.log(`[getEmailTrackerBySessionAndDonor] Query result:`, tracker);
+
+  if (!tracker) {
+    // Debug: let's see all trackers for this session
+    const allTrackersForSession = await db.select().from(emailTrackers).where(eq(emailTrackers.sessionId, sessionId));
+
+    console.log(`[getEmailTrackerBySessionAndDonor] All trackers for session ${sessionId}:`, allTrackersForSession);
+  }
+
+  return tracker || null;
+}
+
+/**
+ * Gets detailed tracking information for an email by session ID and donor ID
+ */
+export async function getEmailTrackingBySessionAndDonor(sessionId: number, donorId: number) {
+  console.log(`[getEmailTrackingBySessionAndDonor] Looking for sessionId: ${sessionId}, donorId: ${donorId}`);
+
+  // Get ALL trackers for this session/donor combination (not just the first one)
+  const allTrackers = await db
+    .select()
+    .from(emailTrackers)
+    .where(and(eq(emailTrackers.sessionId, sessionId), eq(emailTrackers.donorId, donorId)));
+
+  console.log(`[getEmailTrackingBySessionAndDonor] Found ${allTrackers.length} trackers:`, allTrackers);
+
+  if (allTrackers.length === 0) return null;
+
+  // Get opens and clicks for ALL trackers and combine them
+  const allOpens = [];
+  const allClicks = [];
+  const allLinkTrackers = [];
+
+  for (const tracker of allTrackers) {
+    const [linkTrackersData, opens] = await Promise.all([
+      db.select().from(linkTrackers).where(eq(linkTrackers.emailTrackerId, tracker.id)),
+      getEmailOpens(tracker.id),
+    ]);
+
+    // Get clicks for all link trackers for this email tracker
+    const trackerClicks = await Promise.all(linkTrackersData.map((lt) => getLinkClicks(lt.id)));
+    const clicks = trackerClicks.flat();
+
+    // Add to combined arrays
+    allOpens.push(...opens);
+    allClicks.push(...clicks);
+    allLinkTrackers.push(...linkTrackersData);
+
+    console.log(
+      `[getEmailTrackingBySessionAndDonor] Tracker ${tracker.id}: ${opens.length} opens, ${clicks.length} clicks`
+    );
+  }
+
+  console.log(
+    `[getEmailTrackingBySessionAndDonor] Combined totals: ${allOpens.length} opens, ${allClicks.length} clicks`
+  );
+
+  // Return using the first tracker as the primary one, but with combined tracking data
+  return {
+    emailTracker: allTrackers[0],
+    linkTrackers: allLinkTrackers,
+    opens: allOpens,
+    clicks: allClicks,
+  };
+}

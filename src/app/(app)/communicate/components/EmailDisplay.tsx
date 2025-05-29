@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmailTrackingStatus } from "./EmailTrackingStatus";
 
 interface EmailPiece {
   piece: string;
@@ -14,6 +15,9 @@ interface EmailDisplayProps {
   subject: string;
   content: EmailPiece[];
   referenceContexts: Record<string, string>; // Map of reference IDs to their context
+  emailId?: number;
+  donorId?: number;
+  sessionId?: number;
 }
 
 interface ReferencesDisplayProps {
@@ -56,25 +60,39 @@ function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayP
   );
 }
 
-export function EmailDisplay({ donorName, donorEmail, subject, content, referenceContexts }: EmailDisplayProps) {
+export function EmailDisplay({
+  donorName,
+  donorEmail,
+  subject,
+  content,
+  referenceContexts,
+  emailId,
+  donorId,
+  sessionId,
+}: EmailDisplayProps) {
   return (
-    <Card className="p-4">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">
-          To: {donorName} ({donorEmail})
-        </CardTitle>
-        <div className="text-sm font-medium mt-2">Subject: {subject}</div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2 text-sm font-sans">
-          {content.map((piece, index) => (
-            <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
-              <span className="whitespace-pre-wrap">{piece.piece}</span>
-              <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts} />
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">
+            To: {donorName} ({donorEmail})
+          </CardTitle>
+          <div className="text-sm font-medium mt-2">Subject: {subject}</div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 text-sm font-sans">
+            {content.map((piece, index) => (
+              <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                <span className="whitespace-pre-wrap">{piece.piece}</span>
+                <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts} />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email Tracking Status */}
+      {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}
+    </div>
   );
 }

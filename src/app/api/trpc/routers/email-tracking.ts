@@ -5,6 +5,8 @@ import {
   getDonorTrackingStatsForSession,
   getEmailTrackingData,
   hasEmailBeenOpened,
+  getEmailTrackingByEmailAndDonor,
+  getEmailTrackingBySessionAndDonor,
 } from "@/app/lib/data/email-tracking";
 import { logger } from "@/app/lib/logger";
 
@@ -58,6 +60,29 @@ export const emailTrackingRouter = router({
     }),
 
   /**
+   * Get detailed tracking data for a specific email by email ID and donor ID
+   */
+  getEmailTracking: protectedProcedure
+    .input(
+      z.object({
+        emailId: z.number(),
+        donorId: z.number(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { user } = ctx.auth;
+      if (!user?.organizationId) {
+        throw new Error("User must belong to an organization");
+      }
+
+      logger.info(`Fetching email tracking data for email ${input.emailId}, donor ${input.donorId}`);
+
+      const trackingData = await getEmailTrackingByEmailAndDonor(input.emailId, input.donorId);
+
+      return trackingData;
+    }),
+
+  /**
    * Get detailed tracking data for a specific email
    */
   getEmailTrackingData: protectedProcedure
@@ -103,5 +128,28 @@ export const emailTrackingRouter = router({
       const hasBeenOpened = await hasEmailBeenOpened(input.emailTrackerId);
 
       return { hasBeenOpened };
+    }),
+
+  /**
+   * Get detailed tracking data for a specific email by session ID and donor ID
+   */
+  getEmailTrackingBySession: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+        donorId: z.number(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { user } = ctx.auth;
+      if (!user?.organizationId) {
+        throw new Error("User must belong to an organization");
+      }
+
+      logger.info(`Fetching email tracking data for session ${input.sessionId}, donor ${input.donorId}`);
+
+      const trackingData = await getEmailTrackingBySessionAndDonor(input.sessionId, input.donorId);
+
+      return trackingData;
     }),
 });

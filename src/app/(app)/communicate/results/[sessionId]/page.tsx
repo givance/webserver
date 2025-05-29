@@ -8,11 +8,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailDisplay } from "../../components/EmailDisplay";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle } from "lucide-react";
+import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle, Activity, Eye } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
+import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
+import { useSessionTracking } from "@/app/hooks/use-email-tracking";
+import { Badge } from "@/components/ui/badge";
 
 interface GeneratedEmailData {
   id: number;
@@ -69,9 +72,17 @@ export default function EmailGenerationResultsPage() {
   // Fetch all donors at once using the new getDonorsQuery hook
   const { data: donorsData } = getDonorsQuery(donorIds);
 
+  // Get session tracking data
+  const { donorStats } = useSessionTracking(sessionId);
+
   // Helper function to get donor data by ID
   const getDonorData = (donorId: number) => {
     return donorsData?.find((donor) => donor.id === donorId);
+  };
+
+  // Helper function to get donor tracking stats
+  const getDonorTrackingStats = (donorId: number) => {
+    return donorStats?.find((stats) => stats.donorId === donorId);
   };
 
   if (isLoading) {
@@ -180,7 +191,7 @@ export default function EmailGenerationResultsPage() {
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="emails" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 mx-4 mt-4">
+          <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
             <TabsTrigger value="emails" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               Generated Emails ({sessionData.emails.length})
@@ -192,6 +203,10 @@ export default function EmailGenerationResultsPage() {
             <TabsTrigger value="summary" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Summary
+            </TabsTrigger>
+            <TabsTrigger value="tracking" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Tracking
             </TabsTrigger>
           </TabsList>
 
@@ -209,6 +224,7 @@ export default function EmailGenerationResultsPage() {
                         <TabsList className="flex flex-col w-full space-y-1 p-2">
                           {sessionData.emails.map((email: GeneratedEmailData) => {
                             const donor = getDonorData(email.donorId);
+                            const trackingStats = getDonorTrackingStats(email.donorId);
                             if (!donor) return null;
 
                             return (
@@ -223,9 +239,17 @@ export default function EmailGenerationResultsPage() {
                                   "mr-2"
                                 )}
                               >
-                                <span className="font-medium truncate w-full">
-                                  {donor.firstName} {donor.lastName}
-                                </span>
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="font-medium truncate">
+                                    {donor.firstName} {donor.lastName}
+                                  </span>
+                                  {trackingStats && trackingStats.uniqueOpens > 0 && (
+                                    <Badge variant="default" className="text-xs flex items-center gap-1">
+                                      <Eye className="h-3 w-3" />
+                                      {trackingStats.uniqueOpens}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
                                   {donor.email}
                                 </span>
@@ -252,6 +276,9 @@ export default function EmailGenerationResultsPage() {
                                 subject={email.subject}
                                 content={email.structuredContent}
                                 referenceContexts={email.referenceContexts}
+                                emailId={email.id}
+                                donorId={email.donorId}
+                                sessionId={sessionId}
                               />
                             </TabsContent>
                           );
@@ -364,6 +391,10 @@ export default function EmailGenerationResultsPage() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="tracking" className="h-full mt-4">
+              <TrackingAnalytics sessionId={sessionId} />
             </TabsContent>
           </div>
         </Tabs>

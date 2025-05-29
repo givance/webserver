@@ -59,6 +59,34 @@ export function useEmailOpenStatus(emailTrackerId: string) {
 }
 
 /**
+ * Hook to get tracking data for individual emails by email ID and donor ID
+ */
+export function useEmailTracking(emailId: number, donorId: number) {
+  return trpc.emailTracking.getEmailTracking.useQuery(
+    { emailId, donorId },
+    {
+      enabled: !!emailId && !!donorId,
+      refetchInterval: 30000, // Refresh every 30 seconds for live tracking
+      staleTime: 25000, // Consider data stale after 25 seconds
+    }
+  );
+}
+
+/**
+ * Hook to get tracking data for individual emails by session ID and donor ID (more reliable)
+ */
+export function useEmailTrackingBySession(sessionId: number, donorId: number) {
+  return trpc.emailTracking.getEmailTrackingBySession.useQuery(
+    { sessionId, donorId },
+    {
+      enabled: !!sessionId && sessionId > 0 && !!donorId && donorId > 0,
+      refetchInterval: 30000, // Refresh every 30 seconds for live tracking
+      staleTime: 25000, // Consider data stale after 25 seconds
+    }
+  );
+}
+
+/**
  * Combined hook that provides all tracking data for a session
  */
 export function useSessionTracking(sessionId: number) {
