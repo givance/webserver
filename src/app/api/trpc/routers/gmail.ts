@@ -7,6 +7,13 @@ import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors } fr
 import { eq } from "drizzle-orm";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
+import {
+  processEmailContentWithTracking,
+  createHtmlEmail,
+  convertStructuredContentToText as convertToText,
+} from "@/app/lib/utils/email-tracking/content-processor";
+import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
+import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
 
 // Ensure you have these in your environment variables
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
@@ -255,7 +262,7 @@ export const gmailRouter = router({
         // Save each email as a draft
         const draftResults = await Promise.allSettled(
           emails.map(async (email) => {
-            const textContent = convertStructuredContentToText(email.structuredContent as any);
+            const textContent = convertToText(email.structuredContent as any);
 
             const emailMessage = [`To: ${email.donor.email}`, `Subject: ${email.subject}`, ``, textContent].join("\n");
 
@@ -326,6 +333,7 @@ export const gmailRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      logger.info(`Sending emails for session ${input.sessionId}`);
       try {
         const gmail = await getGmailClient(ctx.auth.user.id);
 
@@ -367,19 +375,45 @@ export const gmailRouter = router({
           });
         }
 
-        // Send each email
+        // Send each email with tracking
         const sendResults = await Promise.allSettled(
           emails.map(async (email) => {
-            const textContent = convertStructuredContentToText(email.structuredContent as any);
+            // Generate unique tracking ID for this email
+            const trackingId = generateTrackingId();
 
-            const emailMessage = [`To: ${email.donor.email}`, `Subject: ${email.subject}`, ``, textContent].join("\n");
+            // Create email tracker in database
+            await createEmailTracker({
+              id: trackingId,
+              emailId: email.id,
+              donorId: email.donorId,
+              organizationId: session.organizationId,
+              sessionId: input.sessionId,
+            });
 
-            const encodedMessage = Buffer.from(emailMessage)
+            // Process email content with tracking
+            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
+
+            // Create link trackers in database
+            if (processedContent.linkTrackers.length > 0) {
+              await createLinkTrackers(processedContent.linkTrackers);
+            }
+
+            // Create complete HTML email with tracking pixel
+            const htmlEmail = createHtmlEmail(
+              email.donor.email,
+              email.subject,
+              processedContent.htmlContent,
+              processedContent.textContent
+            );
+
+            // Encode email for Gmail API
+            const encodedMessage = Buffer.from(htmlEmail)
               .toString("base64")
               .replace(/\+/g, "-")
               .replace(/\//g, "_")
               .replace(/=+$/, "");
 
+            // Send email via Gmail API
             const sentMessage = await gmail.users.messages.send({
               userId: "me",
               requestBody: {
@@ -387,10 +421,16 @@ export const gmailRouter = router({
               },
             });
 
+            logger.info(
+              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+            );
+
             return {
               donorId: email.donorId,
               donorName: `${email.donor.firstName} ${email.donor.lastName}`,
               messageId: sentMessage.data.id,
+              trackingId,
+              linkTrackersCreated: processedContent.linkTrackers.length,
               success: true,
             };
           })
@@ -404,8 +444,10 @@ export const gmailRouter = router({
           .filter((result): result is PromiseRejectedResult => result.status === "rejected")
           .map((result) => result.reason);
 
+        const totalLinkTrackers = successfulSends.reduce((sum, result) => sum + result.linkTrackersCreated, 0);
+
         logger.info(
-          `Sent ${successfulSends.length} emails for session ${input.sessionId}, ${failedSends.length} failed`
+          `Sent ${successfulSends.length} tracked emails for session ${input.sessionId}, ${failedSends.length} failed, ${totalLinkTrackers} link trackers created`
         );
 
         return {
@@ -413,7 +455,8 @@ export const gmailRouter = router({
           emailsSent: successfulSends.length,
           totalEmails: emails.length,
           failedSends: failedSends.length,
-          message: `Successfully sent ${successfulSends.length} emails`,
+          linkTrackersCreated: totalLinkTrackers,
+          message: `Successfully sent ${successfulSends.length} emails with tracking`,
         };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
