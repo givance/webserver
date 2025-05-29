@@ -8,7 +8,24 @@ import { logger } from "@/app/lib/logger";
  * GET /api/track/open/[trackerId]
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ trackerId: string }> }) {
-  const { trackerId } = await params;
+  let { trackerId } = await params;
+
+  // Handle quoted-printable encoded tracker IDs
+  // Gmail might encode the URL, so we need to decode it
+  if (trackerId.includes("=")) {
+    try {
+      // Decode quoted-printable encoding (=3D becomes =, etc.)
+      trackerId = trackerId
+        .replace(/=3D/g, "=")
+        .replace(/=22/g, '"')
+        .replace(/=27/g, "'")
+        .replace(/=20/g, " ")
+        .replace(/=0A/g, "\n")
+        .replace(/=0D/g, "\r");
+    } catch (error) {
+      logger.warn(`Failed to decode tracker ID: ${trackerId}`);
+    }
+  }
 
   // Create headers for email client compatibility
   const headers = {
