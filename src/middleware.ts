@@ -8,6 +8,8 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)", // Matches /sign-up and any sub-paths
   "/create-organization(.*)", // Page to create an organization, must be public
   "/api/webhook(.*)", // Webhook routes are typically public but secured by other means
+  "/api/track/open/(.*)", // Email open tracking - must be public for tracking pixels
+  "/api/track/click/(.*)", // Email click tracking - must be public for link redirects
   // Add other public pages like landing pages, about us, etc.
   // e.g., '/about', '/pricing'
 ]);

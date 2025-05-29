@@ -84,7 +84,7 @@ export function processEmailContentWithTracking(
 
   // Add tracking pixel at the end of the email
   const trackingPixelUrl = `${trackingBaseUrl}/api/track/open/${emailTrackerId}`;
-  const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
+  const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:block !important; width:1px !important; height:1px !important; border:0 !important; margin:0 !important; padding:0 !important; opacity:0.01 !important;" alt="" border="0" />`;
 
   htmlContent += trackingPixel;
 
@@ -112,6 +112,21 @@ export function convertStructuredContentToText(structuredContent: EmailPiece[]):
  * Creates a complete HTML email with proper structure
  */
 export function createHtmlEmail(to: string, subject: string, htmlContent: string, textContent: string): string {
+  // Base64 encode the HTML content to prevent quoted-printable encoding issues
+  const htmlContentBase64 = Buffer.from(
+    `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${subject}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    ${htmlContent}
+</body>
+</html>`
+  ).toString("base64");
+
   return `MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="boundary123"
 To: ${to}
@@ -125,19 +140,9 @@ ${textContent}
 
 --boundary123
 Content-Type: text/html; charset=UTF-8
-Content-Transfer-Encoding: 7bit
+Content-Transfer-Encoding: base64
 
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${subject}</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    ${htmlContent}
-</body>
-</html>
+${htmlContentBase64}
 
 --boundary123--`;
 }

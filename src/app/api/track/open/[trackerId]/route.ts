@@ -10,6 +10,21 @@ import { logger } from "@/app/lib/logger";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ trackerId: string }> }) {
   const { trackerId } = await params;
 
+  // Create headers for email client compatibility
+  const headers = {
+    "Content-Type": "image/png",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    Pragma: "no-cache",
+    Expires: "0",
+    // CORS headers for email clients
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET",
+    "Access-Control-Allow-Headers": "Content-Type",
+    // Additional headers for email client compatibility
+    "X-Content-Type-Options": "nosniff",
+    "Content-Disposition": "inline",
+  };
+
   try {
     // Verify the tracker exists
     const emailTracker = await getEmailTracker(trackerId);
@@ -19,12 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const pixelBuffer = createTrackingPixel();
       return new NextResponse(new Uint8Array(pixelBuffer), {
         status: 200,
-        headers: {
-          "Content-Type": "image/png",
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
+        headers,
       });
     }
 
@@ -42,12 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const pixelBuffer = createTrackingPixel();
     return new NextResponse(new Uint8Array(pixelBuffer), {
       status: 200,
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
+      headers,
     });
   } catch (error) {
     logger.error(
@@ -60,12 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const pixelBuffer = createTrackingPixel();
     return new NextResponse(new Uint8Array(pixelBuffer), {
       status: 200,
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
+      headers,
     });
   }
 }
