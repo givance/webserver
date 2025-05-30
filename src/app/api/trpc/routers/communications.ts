@@ -16,7 +16,7 @@ import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getStaffById } from "@/app/lib/data/staff";
 import { getDismissedMemories, getUserMemories } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
-import { organizations, emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
+import { organizations, emailGenerationSessions, generatedEmails, donors } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
@@ -158,6 +158,19 @@ const listJobsSchema = z.object({
 
 const deleteJobSchema = z.object({
   jobId: z.number(),
+});
+
+const sendIndividualEmailSchema = z.object({
+  emailId: z.number(),
+});
+
+const sendBulkEmailsSchema = z.object({
+  sessionId: z.number(),
+  sendType: z.enum(["all", "unsent"]),
+});
+
+const getEmailStatusSchema = z.object({
+  emailId: z.number(),
 });
 
 // Define input types
@@ -541,6 +554,7 @@ export const communicationsRouter = router({
         whereConditions.push(eq(emailGenerationSessions.status, status));
       }
 
+      // Get jobs with sent email counts
       const jobs = await db
         .select({
           id: emailGenerationSessions.id,
@@ -552,9 +566,13 @@ export const communicationsRouter = router({
           createdAt: emailGenerationSessions.createdAt,
           updatedAt: emailGenerationSessions.updatedAt,
           completedAt: emailGenerationSessions.completedAt,
+          sentEmails: sql<number>`COALESCE(COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END), 0)`,
+          totalEmails: sql<number>`COALESCE(COUNT(${generatedEmails.id}), 0)`,
         })
         .from(emailGenerationSessions)
+        .leftJoin(generatedEmails, eq(generatedEmails.sessionId, emailGenerationSessions.id))
         .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0])
+        .groupBy(emailGenerationSessions.id)
         .orderBy(desc(emailGenerationSessions.createdAt))
         .limit(limit)
         .offset(offset);
@@ -618,6 +636,45 @@ export const communicationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to delete communication job",
+      });
+    }
+  }),
+
+  /**
+   * Get email sending status
+   */
+  getEmailStatus: protectedProcedure.input(getEmailStatusSchema).query(async ({ ctx, input }) => {
+    try {
+      const [email] = await db
+        .select({
+          id: generatedEmails.id,
+          isSent: generatedEmails.isSent,
+          sentAt: generatedEmails.sentAt,
+        })
+        .from(generatedEmails)
+        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+        .where(
+          and(
+            eq(generatedEmails.id, input.emailId),
+            eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!email) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Email not found",
+        });
+      }
+
+      return email;
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to get email status: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get email status",
       });
     }
   }),

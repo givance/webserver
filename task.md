@@ -164,3 +164,136 @@ The email tracking implementation is **COMPLETE and PRODUCTION-READY**. The syst
 - ✅ **Production Security** and validation
 
 The nonprofit organization now has access to powerful email tracking analytics that rival commercial platforms like Superhuman, providing detailed insights into donor engagement and email campaign effectiveness.
+
+# Email Sending Status Tracking Implementation
+
+## Overview
+Implement comprehensive email sending status tracking with the ability to track sent/not sent status for batch-generated emails, display counts in communication jobs, and provide individual email sending capabilities.
+
+## Requirements
+1. ✅ Add sent/not sent flags for batch-generated emails
+2. ✅ Show sent email counts in communication jobs page  
+3. ✅ Allow individual email sending in email lists
+4. ✅ Provide dialog for sending all vs unsent emails
+
+## Implementation Plan
+
+### Phase 1: Database Schema Updates ✅
+- [x] Add `isSent` boolean field (default false) to `generatedEmails` table
+- [x] Add `sentAt` timestamp field to `generatedEmails` table
+- [x] Generate and apply database migration
+
+**Files Modified:**
+- `src/app/lib/db/schema.ts` - Added new fields
+- `drizzle/migrations/0023_magical_wendell_rand.sql` - Migration file
+
+### Phase 2: Backend API Changes ✅
+- [x] Update `listJobs` query to include sent email counts
+- [x] Add `getEmailStatus` endpoint to check individual email status
+- [x] Add `sendIndividualEmail` endpoint for single email sending
+- [x] Add `sendBulkEmails` endpoint with "all" vs "unsent" options
+- [x] Update Gmail router to mark emails as sent after successful sending
+
+**Files Modified:**
+- `src/app/api/trpc/routers/communications.ts` - Added new endpoints and updated queries
+- `src/app/api/trpc/routers/gmail.ts` - Enhanced with email status tracking
+
+### Phase 3: Frontend Communication Jobs Updates ✅
+- [x] Update `CommunicationJob` interface to include sent/total email counts
+- [x] Add "Email Status" column showing sent/total emails with progress visualization
+- [x] Enhance confirmation dialog with send type selection (all vs unsent)
+- [x] Update `useCommunications` hook with new functions
+- [x] Add dynamic warning messages based on send type
+
+**Files Modified:**
+- `src/app/(app)/communication-jobs/page.tsx` - UI updates and send options
+- `src/app/hooks/use-communications.ts` - Hook enhancements
+
+### Phase 4: Email Results Page Updates ✅
+- [x] Create `EmailSendButton` component for individual email sending
+- [x] Add email status display (sent/not sent) with timestamps
+- [x] Integrate send functionality with proper loading states
+- [x] Update `EmailDisplay` component to include send button
+- [x] Modify `EmailTrackingStatus` to only show for sent emails
+- [x] Add toast notifications for send success/failure
+
+**Files Modified:**
+- `src/app/(app)/communicate/components/EmailSendButton.tsx` - New component for individual sending
+- `src/app/(app)/communicate/components/EmailDisplay.tsx` - Integrated send button
+- `src/app/(app)/communicate/components/EmailTrackingStatus.tsx` - Updated to handle unsent emails
+- `src/app/hooks/use-communications.ts` - Added getEmailStatus query and cache invalidation
+
+**Key Features Implemented:**
+- Individual email send buttons with loading states
+- Real-time email status checking (sent/not sent)
+- Proper error handling and user feedback via toast notifications
+- Automatic UI refresh after sending emails
+- Integration with existing email tracking system
+
+### Phase 5: Testing and Polish 🔄
+- [ ] Test individual email sending functionality
+- [ ] Test bulk email sending with different options
+- [ ] Verify email status updates correctly
+- [ ] Test error handling scenarios
+- [ ] Ensure proper loading states and user feedback
+- [ ] Performance testing with large email lists
+
+## Technical Implementation Details
+
+### Database Schema
+```sql
+-- Added to generatedEmails table
+isSent BOOLEAN DEFAULT FALSE
+sentAt TIMESTAMP
+```
+
+### API Endpoints
+- `getEmailStatus(emailId)` - Returns email send status and timestamp
+- `sendIndividualEmail(emailId)` - Sends a single email with tracking
+- `sendBulkEmails(sessionId, sendType)` - Sends multiple emails with filtering
+
+### Frontend Components
+- `EmailSendButton` - Individual email send functionality with status display
+- Enhanced `ConfirmationDialog` - Bulk send options with email counts
+- Updated `EmailDisplay` - Integrated send button and status
+- Modified `EmailTrackingStatus` - Only shows for sent emails
+
+### Key Features
+- Real-time status tracking with automatic cache invalidation
+- Progress visualization for bulk operations
+- Comprehensive error handling and user feedback
+- Integration with existing email tracking infrastructure
+- Toast notifications for all user actions
+
+## Relevant Files
+
+### Database & Schema
+- `src/app/lib/db/schema.ts` - Database schema with email status fields
+- `drizzle/migrations/0023_magical_wendell_rand.sql` - Migration for new fields
+
+### Backend API
+- `src/app/api/trpc/routers/communications.ts` - Email status and sending endpoints
+- `src/app/api/trpc/routers/gmail.ts` - Gmail integration with status tracking
+
+### Frontend Components
+- `src/app/(app)/communication-jobs/page.tsx` - Jobs list with send options
+- `src/app/(app)/communicate/results/[sessionId]/page.tsx` - Email results page
+- `src/app/(app)/communicate/components/EmailSendButton.tsx` - Individual send component
+- `src/app/(app)/communicate/components/EmailDisplay.tsx` - Email display with send button
+- `src/app/(app)/communicate/components/EmailTrackingStatus.tsx` - Tracking status display
+
+### Hooks & Utilities
+- `src/app/hooks/use-communications.ts` - Enhanced with new API functions
+
+## Current Status
+- ✅ Phase 1: Database schema updates completed
+- ✅ Phase 2: Backend API changes completed  
+- ✅ Phase 3: Communication jobs page updates completed
+- ✅ Phase 4: Email results page updates completed
+- 🔄 Phase 5: Testing and polish in progress
+
+## Next Steps
+1. Comprehensive testing of all implemented features
+2. Performance optimization for large email lists
+3. Additional error handling edge cases
+4. User experience improvements based on testing feedback

@@ -15,6 +15,7 @@ type CreateSessionInput = inferProcedureInput<AppRouter["communications"]["creat
 type GetSessionInput = inferProcedureInput<AppRouter["communications"]["getSession"]>;
 type GetSessionStatusInput = inferProcedureInput<AppRouter["communications"]["getSessionStatus"]>;
 type ListJobsInput = inferProcedureInput<AppRouter["communications"]["listJobs"]>;
+type GetEmailStatusInput = inferProcedureInput<AppRouter["communications"]["getEmailStatus"]>;
 
 interface ListThreadsOptions {
   channel?: CommunicationChannel;
@@ -46,6 +47,7 @@ export function useCommunications() {
   const getSession = trpc.communications.getSession.useQuery;
   const getSessionStatus = trpc.communications.getSessionStatus.useQuery;
   const listJobs = trpc.communications.listJobs.useQuery;
+  const getEmailStatus = trpc.communications.getEmailStatus.useQuery;
 
   // Mutation hooks
   const createThreadMutation = trpc.communications.createThread.useMutation({
@@ -72,6 +74,8 @@ export function useCommunications() {
   // Gmail mutation hooks
   const saveToDraftMutation = trpc.gmail.saveToDraft.useMutation();
   const sendEmailsMutation = trpc.gmail.sendEmails.useMutation();
+  const sendIndividualEmailMutation = trpc.gmail.sendIndividualEmail.useMutation();
+  const sendBulkEmailsMutation = trpc.gmail.sendBulkEmails.useMutation();
 
   // Delete job mutation hook
   const deleteJobMutation = trpc.communications.deleteJob.useMutation({
@@ -178,6 +182,41 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Send an individual email
+   * @param emailId The email ID to send
+   * @returns Success result or null if sending failed
+   */
+  const sendIndividualEmail = async (emailId: number) => {
+    try {
+      const result = await sendIndividualEmailMutation.mutateAsync({ emailId });
+      // Invalidate email status query to refresh the UI
+      utils.communications.getEmailStatus.invalidate({ emailId });
+      return result;
+    } catch (error) {
+      console.error("Failed to send individual email:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Send bulk emails with options (all or unsent only)
+   * @param sessionId The session ID containing the emails to send
+   * @param sendType Whether to send all emails or only unsent ones
+   * @returns Success result or null if sending failed
+   */
+  const sendBulkEmails = async (sessionId: number, sendType: "all" | "unsent") => {
+    try {
+      const result = await sendBulkEmailsMutation.mutateAsync({ sessionId, sendType });
+      // Invalidate session query to refresh email counts
+      utils.communications.getSession.invalidate({ sessionId });
+      return result;
+    } catch (error) {
+      console.error("Failed to send bulk emails:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
@@ -186,6 +225,7 @@ export function useCommunications() {
     getSession,
     getSessionStatus,
     listJobs,
+    getEmailStatus,
 
     // Mutation functions
     createThread,
@@ -195,6 +235,8 @@ export function useCommunications() {
     saveToDraft,
     sendEmails,
     deleteJob,
+    sendIndividualEmail,
+    sendBulkEmails,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
@@ -204,6 +246,8 @@ export function useCommunications() {
     isSavingToDraft: saveToDraftMutation.isPending,
     isSendingEmails: sendEmailsMutation.isPending,
     isDeletingJob: deleteJobMutation.isPending,
+    isSendingIndividualEmail: sendIndividualEmailMutation.isPending,
+    isSendingBulkEmails: sendBulkEmailsMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,
@@ -213,5 +257,7 @@ export function useCommunications() {
     saveToDraftResult: saveToDraftMutation.data,
     sendEmailsResult: sendEmailsMutation.data,
     deleteJobResult: deleteJobMutation.data,
+    sendIndividualEmailResult: sendIndividualEmailMutation.data,
+    sendBulkEmailsResult: sendBulkEmailsMutation.data,
   };
 }

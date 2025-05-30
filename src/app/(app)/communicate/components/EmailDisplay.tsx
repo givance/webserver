@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
+import { EmailSendButton } from "./EmailSendButton";
 
 interface EmailPiece {
   piece: string;
@@ -90,6 +91,9 @@ export function EmailDisplay({
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Send Button */}
+      {emailId && <EmailSendButton emailId={emailId} donorName={donorName} donorEmail={donorEmail} />}
 
       {/* Email Tracking Status */}
       {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}

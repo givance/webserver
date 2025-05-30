@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { db } from "@/app/lib/db";
 import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import {
@@ -421,6 +421,16 @@ export const gmailRouter = router({
               },
             });
 
+            // Mark email as sent in database
+            await db
+              .update(generatedEmails)
+              .set({
+                isSent: true,
+                sentAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(generatedEmails.id, email.id));
+
             logger.info(
               `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
             );
@@ -468,6 +478,320 @@ export const gmailRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to send emails",
+        });
+      }
+    }),
+
+  /**
+   * Send an individual email
+   */
+  sendIndividualEmail: protectedProcedure
+    .input(
+      z.object({
+        emailId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const gmail = await getGmailClient(ctx.auth.user.id);
+
+        // Get the email with donor information
+        const [email] = await db
+          .select({
+            id: generatedEmails.id,
+            sessionId: generatedEmails.sessionId,
+            donorId: generatedEmails.donorId,
+            subject: generatedEmails.subject,
+            structuredContent: generatedEmails.structuredContent,
+            isSent: generatedEmails.isSent,
+            donor: {
+              firstName: donors.firstName,
+              lastName: donors.lastName,
+              email: donors.email,
+            },
+          })
+          .from(generatedEmails)
+          .innerJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+          .where(
+            and(
+              eq(generatedEmails.id, input.emailId),
+              eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId)
+            )
+          )
+          .limit(1);
+
+        if (!email) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Email not found",
+          });
+        }
+
+        if (email.isSent) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Email has already been sent",
+          });
+        }
+
+        // Generate unique tracking ID for this email
+        const trackingId = generateTrackingId();
+
+        // Create email tracker in database
+        await createEmailTracker({
+          id: trackingId,
+          emailId: email.id,
+          donorId: email.donorId,
+          organizationId: ctx.auth.user.organizationId,
+          sessionId: email.sessionId,
+        });
+
+        // Process email content with tracking
+        const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
+
+        // Create link trackers in database
+        if (processedContent.linkTrackers.length > 0) {
+          await createLinkTrackers(processedContent.linkTrackers);
+        }
+
+        // Create complete HTML email with tracking pixel
+        const htmlEmail = createHtmlEmail(
+          email.donor.email,
+          email.subject,
+          processedContent.htmlContent,
+          processedContent.textContent
+        );
+
+        // Encode email for Gmail API
+        const encodedMessage = Buffer.from(htmlEmail)
+          .toString("base64")
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+
+        // Send email via Gmail API
+        const sentMessage = await gmail.users.messages.send({
+          userId: "me",
+          requestBody: {
+            raw: encodedMessage,
+          },
+        });
+
+        // Mark email as sent in database
+        await db
+          .update(generatedEmails)
+          .set({
+            isSent: true,
+            sentAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(generatedEmails.id, email.id));
+
+        logger.info(
+          `Sent individual tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+        );
+
+        return {
+          success: true,
+          donorId: email.donorId,
+          donorName: `${email.donor.firstName} ${email.donor.lastName}`,
+          messageId: sentMessage.data.id,
+          trackingId,
+          linkTrackersCreated: processedContent.linkTrackers.length,
+          message: `Successfully sent email to ${email.donor.firstName} ${email.donor.lastName}`,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        logger.error(
+          `Failed to send individual email ${input.emailId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to send individual email",
+        });
+      }
+    }),
+
+  /**
+   * Send bulk emails with options (all or unsent only)
+   */
+  sendBulkEmails: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+        sendType: z.enum(["all", "unsent"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      logger.info(`Sending ${input.sendType} emails for session ${input.sessionId}`);
+      try {
+        const gmail = await getGmailClient(ctx.auth.user.id);
+
+        // Get session and emails
+        const [session] = await db
+          .select()
+          .from(emailGenerationSessions)
+          .where(eq(emailGenerationSessions.id, input.sessionId))
+          .limit(1);
+
+        if (!session || session.organizationId !== ctx.auth.user.organizationId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Session not found",
+          });
+        }
+
+        // Get emails based on send type
+        const whereConditions = [eq(generatedEmails.sessionId, input.sessionId)];
+        if (input.sendType === "unsent") {
+          whereConditions.push(eq(generatedEmails.isSent, false));
+        }
+
+        const emails = await db
+          .select({
+            id: generatedEmails.id,
+            donorId: generatedEmails.donorId,
+            subject: generatedEmails.subject,
+            structuredContent: generatedEmails.structuredContent,
+            isSent: generatedEmails.isSent,
+            donor: {
+              firstName: donors.firstName,
+              lastName: donors.lastName,
+              email: donors.email,
+            },
+          })
+          .from(generatedEmails)
+          .innerJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0]);
+
+        if (emails.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              input.sendType === "unsent"
+                ? "No unsent emails found for this session"
+                : "No emails found for this session",
+          });
+        }
+
+        // Filter out already sent emails if sending all
+        const emailsToSend = input.sendType === "all" ? emails.filter((email) => !email.isSent) : emails;
+
+        if (emailsToSend.length === 0) {
+          return {
+            success: true,
+            emailsSent: 0,
+            totalEmails: emails.length,
+            failedSends: 0,
+            linkTrackersCreated: 0,
+            message: "All emails have already been sent",
+          };
+        }
+
+        // Send each email with tracking
+        const sendResults = await Promise.allSettled(
+          emailsToSend.map(async (email) => {
+            // Generate unique tracking ID for this email
+            const trackingId = generateTrackingId();
+
+            // Create email tracker in database
+            await createEmailTracker({
+              id: trackingId,
+              emailId: email.id,
+              donorId: email.donorId,
+              organizationId: session.organizationId,
+              sessionId: input.sessionId,
+            });
+
+            // Process email content with tracking
+            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
+
+            // Create link trackers in database
+            if (processedContent.linkTrackers.length > 0) {
+              await createLinkTrackers(processedContent.linkTrackers);
+            }
+
+            // Create complete HTML email with tracking pixel
+            const htmlEmail = createHtmlEmail(
+              email.donor.email,
+              email.subject,
+              processedContent.htmlContent,
+              processedContent.textContent
+            );
+
+            // Encode email for Gmail API
+            const encodedMessage = Buffer.from(htmlEmail)
+              .toString("base64")
+              .replace(/\+/g, "-")
+              .replace(/\//g, "_")
+              .replace(/=+$/, "");
+
+            // Send email via Gmail API
+            const sentMessage = await gmail.users.messages.send({
+              userId: "me",
+              requestBody: {
+                raw: encodedMessage,
+              },
+            });
+
+            // Mark email as sent in database
+            await db
+              .update(generatedEmails)
+              .set({
+                isSent: true,
+                sentAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(generatedEmails.id, email.id));
+
+            logger.info(
+              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+            );
+
+            return {
+              donorId: email.donorId,
+              donorName: `${email.donor.firstName} ${email.donor.lastName}`,
+              messageId: sentMessage.data.id,
+              trackingId,
+              linkTrackersCreated: processedContent.linkTrackers.length,
+              success: true,
+            };
+          })
+        );
+
+        const successfulSends = sendResults
+          .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        const failedSends = sendResults
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason);
+
+        const totalLinkTrackers = successfulSends.reduce((sum, result) => sum + result.linkTrackersCreated, 0);
+
+        logger.info(
+          `Sent ${successfulSends.length} tracked emails for session ${input.sessionId} (${input.sendType}), ${failedSends.length} failed, ${totalLinkTrackers} link trackers created`
+        );
+
+        return {
+          success: true,
+          emailsSent: successfulSends.length,
+          totalEmails: emailsToSend.length,
+          failedSends: failedSends.length,
+          linkTrackersCreated: totalLinkTrackers,
+          message: `Successfully sent ${successfulSends.length} ${input.sendType} emails with tracking`,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        logger.error(
+          `Failed to send ${input.sendType} emails for session ${input.sessionId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to send ${input.sendType} emails`,
         });
       }
     }),

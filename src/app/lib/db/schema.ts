@@ -495,6 +495,8 @@ export const generatedEmails = pgTable("generated_emails", {
   structuredContent: jsonb("structured_content").notNull(), // Array of EmailPiece objects
   referenceContexts: jsonb("reference_contexts").notNull(), // Record of reference IDs to context
   isPreview: boolean("is_preview").default(false).notNull(), // Whether this was a preview email
+  isSent: boolean("is_sent").default(false).notNull(), // Whether this email has been sent
+  sentAt: timestamp("sent_at"), // When this email was sent (null if not sent)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

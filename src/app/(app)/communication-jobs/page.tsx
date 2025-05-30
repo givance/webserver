@@ -31,6 +31,8 @@ interface CommunicationJob {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  sentEmails: number;
+  totalEmails: number;
 }
 
 interface ConfirmationDialogProps {
@@ -38,7 +40,7 @@ interface ConfirmationDialogProps {
   onOpenChange: (open: boolean) => void;
   job: CommunicationJob | null;
   action: "draft" | "send" | "delete";
-  onConfirm: () => void;
+  onConfirm: (sendType?: "all" | "unsent") => void;
   isLoading: boolean;
   userEmail: string | null;
 }
@@ -52,10 +54,14 @@ function ConfirmationDialog({
   isLoading,
   userEmail,
 }: ConfirmationDialogProps) {
+  const [sendType, setSendType] = useState<"all" | "unsent">("unsent");
+
   if (!job) return null;
 
   const actionText = action === "draft" ? "save as drafts" : action === "send" ? "send" : "delete";
   const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Send Emails" : "Delete Job";
+
+  const unsentCount = job.totalEmails - job.sentEmails;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,19 +80,58 @@ function ConfirmationDialog({
             {action !== "delete" && (
               <>
                 <div className="flex justify-between">
-                  <span className="font-medium">Number of emails:</span>
-                  <span>{job.totalDonors}</span>
+                  <span className="font-medium">Total emails:</span>
+                  <span>{job.totalEmails}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Sent emails:</span>
+                  <span>{job.sentEmails}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Unsent emails:</span>
+                  <span>{unsentCount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Gmail account:</span>
                   <span className="text-sm text-muted-foreground">{userEmail || "Not connected"}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Action:</span>
-                  <span>
-                    Will {actionText} {job.totalDonors} emails
-                  </span>
-                </div>
+
+                {action === "send" && (
+                  <div className="space-y-3">
+                    <div className="font-medium">Send options:</div>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          name="sendType"
+                          value="unsent"
+                          checked={sendType === "unsent"}
+                          onChange={(e) => setSendType(e.target.value as "all" | "unsent")}
+                          className="form-radio"
+                        />
+                        <span>Send only unsent emails ({unsentCount} emails)</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          name="sendType"
+                          value="all"
+                          checked={sendType === "all"}
+                          onChange={(e) => setSendType(e.target.value as "all" | "unsent")}
+                          className="form-radio"
+                        />
+                        <span>Resend all emails ({job.totalEmails} emails)</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {action === "draft" && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Action:</span>
+                    <span>Will save {job.totalEmails} emails as drafts</span>
+                  </div>
+                )}
               </>
             )}
             {action === "delete" && (
@@ -100,8 +145,8 @@ function ConfirmationDialog({
           {action === "send" && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
               <p className="text-sm text-orange-800">
-                ⚠️ <strong>Warning:</strong> This will send {job.totalDonors} emails immediately. This action cannot be
-                undone.
+                ⚠️ <strong>Warning:</strong> This will send {sendType === "all" ? job.totalEmails : unsentCount} emails
+                immediately. This action cannot be undone.
               </p>
             </div>
           )}
@@ -110,8 +155,7 @@ function ConfirmationDialog({
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-sm text-red-800">
                 ⚠️ <strong>Warning:</strong> This will permanently delete the communication job &quot;{job.jobName}
-                &quot; and all
-                {job.totalDonors} associated generated emails. This action cannot be undone.
+                &quot; and all {job.totalEmails} associated generated emails. This action cannot be undone.
               </p>
             </div>
           )}
@@ -121,7 +165,7 @@ function ConfirmationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={onConfirm} disabled={isLoading}>
+          <Button onClick={() => onConfirm(action === "send" ? sendType : undefined)} disabled={isLoading}>
             {isLoading ? "Processing..." : actionTitle}
           </Button>
         </DialogFooter>
@@ -141,8 +185,17 @@ function CommunicationJobsContent() {
     action: "draft" | "send" | "delete";
   }>({ open: false, job: null, action: "draft" });
 
-  const { listJobs, saveToDraft, sendEmails, deleteJob, isSavingToDraft, isSendingEmails, isDeletingJob } =
-    useCommunications();
+  const {
+    listJobs,
+    saveToDraft,
+    sendEmails,
+    sendBulkEmails,
+    deleteJob,
+    isSavingToDraft,
+    isSendingEmails,
+    isSendingBulkEmails,
+    isDeletingJob,
+  } = useCommunications();
 
   // Get Gmail connection status
   const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
@@ -208,7 +261,7 @@ function CommunicationJobsContent() {
     setConfirmationDialog({ open: true, job, action: "send" });
   };
 
-  const handleConfirmAction = async () => {
+  const handleConfirmAction = async (sendType?: "all" | "unsent") => {
     const { job, action } = confirmationDialog;
     if (!job) return;
 
@@ -222,7 +275,8 @@ function CommunicationJobsContent() {
           toast.error("Failed to save emails as drafts");
         }
       } else if (action === "send") {
-        result = await sendEmails(job.id);
+        const typeToSend = sendType || "unsent";
+        result = await sendBulkEmails(job.id, typeToSend);
         if (result) {
           toast.success(result.message);
         } else {
@@ -231,7 +285,7 @@ function CommunicationJobsContent() {
       } else if (action === "delete") {
         result = await deleteJob(job.id);
         if (result) {
-          toast.success(`Communication job &quot;${job.jobName}&quot; has been deleted successfully`);
+          toast.success(`Communication job "${job.jobName}" has been deleted successfully`);
         } else {
           toast.error("Failed to delete communication job");
         }
@@ -269,6 +323,25 @@ function CommunicationJobsContent() {
               <span>{Math.round(percentage)}%</span>
             </div>
             <Progress value={percentage} className="h-2" />
+          </div>
+        );
+      },
+    },
+    {
+      id: "emailStatus",
+      header: "Email Status",
+      cell: ({ row }) => {
+        const job = row.original;
+        const sentPercentage = job.totalEmails > 0 ? (job.sentEmails / job.totalEmails) * 100 : 0;
+        return (
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span>
+                {job.sentEmails}/{job.totalEmails} sent
+              </span>
+              <span>{Math.round(sentPercentage)}%</span>
+            </div>
+            <Progress value={sentPercentage} className="h-2" />
           </div>
         );
       },
@@ -408,7 +481,7 @@ function CommunicationJobsContent() {
         job={confirmationDialog.job}
         action={confirmationDialog.action}
         onConfirm={handleConfirmAction}
-        isLoading={isSavingToDraft || isSendingEmails || isDeletingJob}
+        isLoading={isSavingToDraft || isSendingEmails || isSendingBulkEmails || isDeletingJob}
         userEmail={gmailStatus?.email || null}
       />
     </>

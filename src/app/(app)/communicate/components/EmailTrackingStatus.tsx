@@ -31,20 +31,10 @@ export function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTracki
     );
   }
 
+  // Only show tracking status if the email has been sent (has tracking data)
   if (!trackingData || !sessionId || sessionId <= 0) {
-    console.log("[EmailTrackingStatus] No data or invalid session:", { trackingData: !!trackingData, sessionId });
-    return (
-      <Card className="mt-4">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
-              Not Sent
-            </Badge>
-            <span className="text-sm text-muted-foreground">This email has not been sent yet</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    console.log("[EmailTrackingStatus] No tracking data - email not sent yet");
+    return null; // Don't show anything if email hasn't been sent
   }
 
   const { emailTracker, opens, clicks } = trackingData;
@@ -57,7 +47,7 @@ export function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTracki
         <div className="space-y-3">
           {/* Status Header */}
           <div className="flex items-center gap-2">
-            <Badge variant={hasOpens ? "default" : "secondary"} className="text-xs">
+            <Badge variant={hasOpens ? "default" : "outline"} className="text-xs">
               {hasOpens ? "Opened" : "Sent"}
             </Badge>
             <span className="text-sm text-muted-foreground">
