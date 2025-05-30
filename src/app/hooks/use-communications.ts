@@ -76,6 +76,7 @@ export function useCommunications() {
   const sendEmailsMutation = trpc.gmail.sendEmails.useMutation();
   const sendIndividualEmailMutation = trpc.gmail.sendIndividualEmail.useMutation();
   const sendBulkEmailsMutation = trpc.gmail.sendBulkEmails.useMutation();
+  const updateEmailMutation = trpc.communications.updateEmail.useMutation();
 
   // Delete job mutation hook
   const deleteJobMutation = trpc.communications.deleteJob.useMutation({
@@ -217,6 +218,42 @@ export function useCommunications() {
     }
   };
 
+  /**
+   * Update email content and subject
+   * @param emailId The email ID to update
+   * @param subject The new subject line
+   * @param structuredContent The new email content
+   * @param referenceContexts The reference contexts
+   * @returns Success result or null if update failed
+   */
+  const updateEmail = async (
+    emailId: number,
+    subject: string,
+    structuredContent: Array<{
+      piece: string;
+      references: string[];
+      addNewlineAfter: boolean;
+    }>,
+    referenceContexts: Record<string, string>
+  ) => {
+    try {
+      const result = await updateEmailMutation.mutateAsync({
+        emailId,
+        subject,
+        structuredContent,
+        referenceContexts,
+      });
+      // Invalidate all related queries to refresh the UI
+      await utils.communications.getSession.invalidate();
+      await utils.communications.getEmailStatus.invalidate({ emailId });
+      await utils.communications.listJobs.invalidate();
+      return result;
+    } catch (error) {
+      console.error("Failed to update email:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listThreads,
@@ -237,6 +274,7 @@ export function useCommunications() {
     deleteJob,
     sendIndividualEmail,
     sendBulkEmails,
+    updateEmail,
 
     // Loading states
     isCreatingThread: createThreadMutation.isPending,
@@ -248,6 +286,7 @@ export function useCommunications() {
     isDeletingJob: deleteJobMutation.isPending,
     isSendingIndividualEmail: sendIndividualEmailMutation.isPending,
     isSendingBulkEmails: sendBulkEmailsMutation.isPending,
+    isUpdatingEmail: updateEmailMutation.isPending,
 
     // Mutation results
     createThreadResult: createThreadMutation.data,

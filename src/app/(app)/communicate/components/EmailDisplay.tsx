@@ -1,8 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Edit, Send } from "lucide-react";
+import { useState } from "react";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
 import { EmailSendButton } from "./EmailSendButton";
+import { EmailEditModal } from "./EmailEditModal";
+import { useCommunications } from "@/app/hooks/use-communications";
 
 interface EmailPiece {
   piece: string;
@@ -71,14 +76,35 @@ export function EmailDisplay({
   donorId,
   sessionId,
 }: EmailDisplayProps) {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { getEmailStatus } = useCommunications();
+
+  // Get email status to check if sent
+  const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 });
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">
-            To: {donorName} ({donorEmail})
-          </CardTitle>
-          <div className="text-sm font-medium mt-2">Subject: {subject}</div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-sm">
+                To: {donorName} ({donorEmail})
+              </CardTitle>
+              <div className="text-sm font-medium mt-2">Subject: {subject}</div>
+            </div>
+            {emailId && !emailStatus?.isSent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm font-sans">
@@ -97,6 +123,20 @@ export function EmailDisplay({
 
       {/* Email Tracking Status */}
       {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}
+
+      {/* Email Edit Modal */}
+      {emailId && (
+        <EmailEditModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          emailId={emailId}
+          initialSubject={subject}
+          initialContent={content}
+          initialReferenceContexts={referenceContexts}
+          donorName={donorName}
+          donorEmail={donorEmail}
+        />
+      )}
     </div>
   );
 }

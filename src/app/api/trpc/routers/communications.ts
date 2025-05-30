@@ -173,6 +173,19 @@ const getEmailStatusSchema = z.object({
   emailId: z.number(),
 });
 
+const updateEmailSchema = z.object({
+  emailId: z.number(),
+  subject: z.string().min(1).max(200),
+  structuredContent: z.array(
+    z.object({
+      piece: z.string(),
+      references: z.array(z.string()),
+      addNewlineAfter: z.boolean(),
+    })
+  ),
+  referenceContexts: z.record(z.string(), z.string()),
+});
+
 // Define input types
 interface DonorInput {
   id: number;
@@ -675,6 +688,73 @@ export const communicationsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get email status",
+      });
+    }
+  }),
+
+  /**
+   * Update email content and subject
+   */
+  updateEmail: protectedProcedure.input(updateEmailSchema).mutation(async ({ ctx, input }) => {
+    try {
+      // First verify the email exists and belongs to the user's organization
+      const [existingEmail] = await db
+        .select({
+          id: generatedEmails.id,
+          sessionId: generatedEmails.sessionId,
+          isSent: generatedEmails.isSent,
+        })
+        .from(generatedEmails)
+        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+        .where(
+          and(
+            eq(generatedEmails.id, input.emailId),
+            eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!existingEmail) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Email not found",
+        });
+      }
+
+      if (existingEmail.isSent) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot edit an email that has already been sent",
+        });
+      }
+
+      // Update the email
+      const [updatedEmail] = await db
+        .update(generatedEmails)
+        .set({
+          subject: input.subject,
+          structuredContent: input.structuredContent,
+          referenceContexts: input.referenceContexts,
+          updatedAt: new Date(),
+        })
+        .where(eq(generatedEmails.id, input.emailId))
+        .returning();
+
+      logger.info(
+        `Updated email ${input.emailId} for organization ${ctx.auth.user.organizationId}: subject="${input.subject}"`
+      );
+
+      return {
+        success: true,
+        email: updatedEmail,
+        message: "Email updated successfully",
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to update email: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update email",
       });
     }
   }),

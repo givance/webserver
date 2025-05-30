@@ -271,6 +271,7 @@ export default function EmailGenerationResultsPage() {
                               className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
                             >
                               <EmailDisplay
+                                key={`${email.id}-${email.donorId}-${sessionId}`}
                                 donorName={`${donor.firstName} ${donor.lastName}`}
                                 donorEmail={donor.email}
                                 subject={email.subject}
