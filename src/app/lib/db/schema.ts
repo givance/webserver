@@ -454,6 +454,22 @@ export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one }) =
 }));
 
 /**
+ * Templates table to store reusable communication prompts
+ */
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  prompt: text("prompt").notNull(), // The actual template content/prompt
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
  * Email generation sessions table to track bulk email generation
  */
 export const emailGenerationSessions = pgTable("email_generation_sessions", {
@@ -464,6 +480,7 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
   userId: text("user_id")
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
+  templateId: integer("template_id").references(() => templates.id), // Optional reference to template used
   jobName: varchar("job_name", { length: 255 }).notNull(), // Name for the communication job
   instruction: text("instruction").notNull(),
   refinedInstruction: text("refined_instruction"),
@@ -502,6 +519,17 @@ export const generatedEmails = pgTable("generated_emails", {
 });
 
 /**
+ * Relations for templates
+ */
+export const templatesRelations = relations(templates, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [templates.organizationId],
+    references: [organizations.id],
+  }),
+  emailGenerationSessions: many(emailGenerationSessions),
+}));
+
+/**
  * Relations for email generation tables
  */
 export const emailGenerationSessionsRelations = relations(emailGenerationSessions, ({ one, many }) => ({
@@ -512,6 +540,10 @@ export const emailGenerationSessionsRelations = relations(emailGenerationSession
   user: one(users, {
     fields: [emailGenerationSessions.userId],
     references: [users.id],
+  }),
+  template: one(templates, {
+    fields: [emailGenerationSessions.templateId],
+    references: [templates.id],
   }),
   generatedEmails: many(generatedEmails),
 }));

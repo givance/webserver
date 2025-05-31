@@ -29,6 +29,7 @@ interface WriteInstructionStepProps {
     finalInstruction: string;
     previewDonorIds: number[];
   }) => void;
+  templatePrompt?: string; // Optional template prompt to pre-populate
   ref?: React.RefObject<{ click: () => Promise<void> }>;
 }
 
@@ -69,7 +70,7 @@ interface GenerateEmailsResponse {
 
 export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void> }, WriteInstructionStepProps>(
   function WriteInstructionStep(
-    { instruction, onInstructionChange, onBack, onNext, selectedDonors, onSessionDataChange },
+    { instruction, onInstructionChange, onBack, onNext, selectedDonors, onSessionDataChange, templatePrompt },
     ref
   ) {
     const [isGenerating, setIsGenerating] = useState(false);

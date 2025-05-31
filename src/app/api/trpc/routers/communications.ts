@@ -140,6 +140,7 @@ const createSessionSchema = z.object({
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
   refinedInstruction: z.string().optional(),
+  templateId: z.number().optional(),
 });
 
 const getSessionSchema = z.object({
@@ -444,6 +445,7 @@ export const communicationsRouter = router({
         .values({
           organizationId: ctx.auth.user.organizationId,
           userId: ctx.auth.user.id,
+          templateId: input.templateId,
           jobName: input.jobName,
           instruction: input.instruction,
           refinedInstruction: input.refinedInstruction,
@@ -465,6 +467,7 @@ export const communicationsRouter = router({
         selectedDonorIds: input.selectedDonorIds,
         previewDonorIds: input.previewDonorIds,
         chatHistory: input.chatHistory,
+        templateId: input.templateId,
       });
 
       logger.info(`Created email generation session ${session.id} for user ${ctx.auth.user.id}`);

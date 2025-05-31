@@ -25,6 +25,7 @@ const generateBulkEmailsPayloadSchema = z.object({
       content: z.string(),
     })
   ),
+  templateId: z.number().optional(),
 });
 
 type GenerateBulkEmailsPayload = z.infer<typeof generateBulkEmailsPayloadSchema>;
@@ -44,6 +45,7 @@ export const generateBulkEmailsTask = task({
       selectedDonorIds,
       previewDonorIds,
       chatHistory,
+      templateId,
     } = payload;
 
     triggerLogger.info(

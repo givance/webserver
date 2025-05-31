@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Brain, GitGraph, Mail } from "lucide-react";
+import { Building2, Brain, GitGraph, Mail, FileText } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { UserMemory } from "@/app/components/UserMemory";
 import { useMemory } from "@/app/hooks/use-memory";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { trpc } from "@/app/lib/trpc/client";
 import React from "react";
+import Link from "next/link";
 
 function GmailConnect() {
   const gmailAuthMutation = trpc.gmail.getGmailAuthUrl.useMutation({
@@ -97,6 +98,10 @@ export default function SettingsPage() {
               <GitGraph className="h-4 w-4" />
               <span>Donor Journey</span>
             </TabsTrigger>
+            <TabsTrigger value="templates" className="flex items-center space-x-2">
+              <FileText className="h-4 w-4" />
+              <span>Templates</span>
+            </TabsTrigger>
             <TabsTrigger value="memories" className="flex items-center space-x-2">
               <Brain className="h-4 w-4" />
               <span>Memories</span>
@@ -123,6 +128,31 @@ export default function SettingsPage() {
 
           <TabsContent value="donor-journey">
             <DonorJourneySettings />
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <Card>
+              <CardHeader>
+                <CardTitle>Communication Templates</CardTitle>
+                <CardDescription>
+                  Manage reusable communication prompts for your organization. Templates can be used when creating
+                  communication jobs to speed up the process.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Create and manage templates that can be used when composing communications to donors.
+                  </p>
+                  <Link href="/settings/templates">
+                    <Button>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Manage Templates
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="memories">

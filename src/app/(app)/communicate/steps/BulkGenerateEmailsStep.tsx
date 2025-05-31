@@ -17,6 +17,7 @@ interface BulkGenerateEmailsStepProps {
     finalInstruction: string;
     previewDonorIds: number[];
   };
+  templateId?: number;
   onBack: () => void;
   onComplete: (sessionId: number) => void;
 }
@@ -33,6 +34,7 @@ export function BulkGenerateEmailsStep({
   selectedDonors,
   jobName,
   sessionData,
+  templateId,
   onBack,
   onComplete,
 }: BulkGenerateEmailsStepProps) {
@@ -65,6 +67,7 @@ export function BulkGenerateEmailsStep({
         selectedDonorIds: selectedDonors,
         previewDonorIds: sessionData.previewDonorIds,
         refinedInstruction: sessionData.finalInstruction,
+        templateId: templateId,
       });
 
       if (!result?.sessionId) {

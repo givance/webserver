@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { JobNameStep } from "../steps/JobNameStep";
+import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
 import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
 
-const STEPS = ["Select Donors", "Job Name", "Write Instructions", "Bulk Generation"] as const;
+const STEPS = ["Select Donors", "Job Name", "Select Template", "Write Instructions", "Bulk Generation"] as const;
 
 interface CommunicateStepsProps {
   onClose: () => void;
@@ -19,6 +20,8 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
   const [jobName, setJobName] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templatePrompt, setTemplatePrompt] = useState<string>("");
   const [instruction, setInstruction] = useState("");
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
@@ -36,6 +39,15 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
   const handleBack = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleTemplateSelected = (templateId: number | null, prompt?: string) => {
+    setSelectedTemplateId(templateId);
+    setTemplatePrompt(prompt || "");
+    // If a template is selected, pre-populate the instruction
+    if (prompt) {
+      setInstruction(prompt);
     }
   };
 
@@ -63,6 +75,15 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
         );
       case 2:
         return (
+          <SelectTemplateStep
+            selectedTemplateId={selectedTemplateId || undefined}
+            onTemplateSelected={handleTemplateSelected}
+            onBack={handleBack}
+            onNext={handleNext}
+          />
+        );
+      case 3:
+        return (
           <WriteInstructionStep
             instruction={instruction}
             onInstructionChange={setInstruction}
@@ -70,14 +91,16 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
             onNext={handleNext}
             selectedDonors={selectedDonors}
             onSessionDataChange={setSessionData}
+            templatePrompt={templatePrompt}
           />
         );
-      case 3:
+      case 4:
         return sessionData ? (
           <BulkGenerateEmailsStep
             selectedDonors={selectedDonors}
             jobName={jobName}
             sessionData={sessionData}
+            templateId={selectedTemplateId || undefined}
             onBack={handleBack}
             onComplete={handleBulkGenerationComplete}
           />
