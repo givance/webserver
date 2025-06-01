@@ -153,6 +153,16 @@ export const projects = pgTable("projects", {
 });
 
 /**
+ * Communication channel enum
+ */
+export const communicationChannelEnum = pgEnum("communication_channel", ["email", "phone", "text"]);
+
+/**
+ * Gender enum for donors
+ */
+export const genderEnum = pgEnum("gender", ["male", "female"]);
+
+/**
  * Donors table to store donor information
  */
 export const donors = pgTable(
@@ -168,6 +178,7 @@ export const donors = pgTable(
     phone: varchar("phone", { length: 20 }),
     address: text("address"),
     state: varchar("state", { length: 2 }),
+    gender: genderEnum("gender"), // Added gender field with enum, nullable by default
     notes: text("notes"),
     assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
     currentStageName: varchar("current_stage_name", { length: 255 }),
@@ -215,11 +226,6 @@ export const staff = pgTable("staff", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
-
-/**
- * Communication channel enum
- */
-export const communicationChannelEnum = pgEnum("communication_channel", ["email", "phone", "text"]);
 
 /**
  * Communication threads table to group related communications

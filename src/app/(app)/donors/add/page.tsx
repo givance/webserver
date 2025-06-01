@@ -10,6 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -30,6 +31,7 @@ const formSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   notes: z.string().optional(),
   isAnonymous: z.boolean(),
   isOrganization: z.boolean(),
@@ -55,6 +57,7 @@ export default function AddDonorPage() {
       state: "",
       postalCode: "",
       country: "",
+      gender: null,
       notes: "",
       isAnonymous: false,
       isOrganization: false,
@@ -292,6 +295,34 @@ export default function AddDonorPage() {
                 )}
               />
             </div>
+
+            <FormField
+              // @ts-ignore - Known type mismatch with react-hook-form's Control type
+              control={form.control}
+              name="gender"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Gender</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value ? field.value.toString() : ""}
+                      onValueChange={(value) => {
+                        field.onChange(value === "male" ? "male" : value === "female" ? "female" : null);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               // @ts-ignore - Known type mismatch with react-hook-form's Control type

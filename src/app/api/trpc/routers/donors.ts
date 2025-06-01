@@ -33,6 +33,7 @@ const createDonorSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   notes: z.string().optional(),
   isAnonymous: z.boolean().default(false),
   isOrganization: z.boolean().default(false),
@@ -50,6 +51,7 @@ const updateDonorSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   notes: z.string().optional(),
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
@@ -60,6 +62,7 @@ const listDonorsSchema = z.object({
   searchTerm: z.string().optional(),
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
@@ -83,6 +86,7 @@ const baseDonorSchema = z.object({
   phone: z.string().nullish(),
   address: z.string().nullish(),
   state: z.string().nullish(),
+  gender: z.enum(["male", "female"]).nullish(),
   notes: z.string().nullish(),
   assignedToStaffId: z.number().nullish(),
   currentStageName: z.string().nullish(),
@@ -261,6 +265,7 @@ export const donorsRouter = router({
    * @param input.searchTerm - Optional search term to filter by name or email
    * @param input.isAnonymous - Optional filter for anonymous donors
    * @param input.isOrganization - Optional filter for organization donors
+   * @param input.gender - Optional filter for gender
    * @param input.limit - Maximum number of donors to return (1-100, default varies)
    * @param input.offset - Number of donors to skip for pagination
    * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt)

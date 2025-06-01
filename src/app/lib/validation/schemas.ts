@@ -80,6 +80,7 @@ export const donorSchemas = {
     phone: phoneSchema.optional(),
     address: z.string().optional(),
     state: z.string().length(2).optional(),
+    gender: z.enum(["male", "female"]).nullable().optional(),
     notes: z.string().optional(),
     assignedToStaffId: idSchema.optional(),
   }),
@@ -91,6 +92,7 @@ export const donorSchemas = {
     phone: phoneSchema.optional(),
     address: z.string().optional(),
     state: z.string().length(2).optional(),
+    gender: z.enum(["male", "female"]).nullable().optional(),
     notes: z.string().optional(),
     assignedToStaffId: idSchema.nullable().optional(),
   }),
@@ -98,6 +100,7 @@ export const donorSchemas = {
   list: z.object({
     searchTerm: z.string().optional(),
     state: z.string().length(2).optional(),
+    gender: z.enum(["male", "female"]).nullable().optional(),
     assignedToStaffId: idSchema.nullable().optional(),
     ...paginationSchema.shape,
     ...orderingSchema.shape,

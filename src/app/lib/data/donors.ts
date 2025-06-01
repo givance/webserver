@@ -273,6 +273,7 @@ export async function listDonors(
   options: {
     searchTerm?: string;
     state?: string;
+    gender?: "male" | "female" | null;
     assignedToStaffId?: number | null;
     limit?: number;
     offset?: number;
@@ -282,7 +283,16 @@ export async function listDonors(
   organizationId: string
 ): Promise<{ donors: DonorWithDetails[]; totalCount: number }> {
   try {
-    const { searchTerm, state, assignedToStaffId, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const {
+      searchTerm,
+      state,
+      gender,
+      assignedToStaffId,
+      limit = 10,
+      offset = 0,
+      orderBy,
+      orderDirection = "asc",
+    } = options;
     const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
 
     if (searchTerm) {
@@ -298,6 +308,13 @@ export async function listDonors(
     }
     if (state) {
       whereClauses.push(eq(donors.state, state.toUpperCase()));
+    }
+    if (gender !== undefined) {
+      if (gender === null) {
+        whereClauses.push(isNull(donors.gender));
+      } else {
+        whereClauses.push(eq(donors.gender, gender));
+      }
     }
 
     if (assignedToStaffId === null) {

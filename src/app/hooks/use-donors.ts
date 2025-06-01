@@ -22,6 +22,7 @@ export function useDonors() {
   // Query hooks
   const listDonors = (params: {
     searchTerm?: string;
+    gender?: "male" | "female" | null;
     limit?: number;
     offset?: number;
     orderBy?: "firstName" | "lastName" | "email" | "createdAt";
