@@ -183,6 +183,13 @@
       "when": 1748753363999,
       "tag": "0025_wealthy_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1748841046316,
+      "tag": "0026_silent_jetstream",
+      "breakpoints": true
     }
   ]
 }

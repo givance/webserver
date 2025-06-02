@@ -177,7 +177,7 @@ export const donors = pgTable(
     email: varchar("email", { length: 255 }).notNull(),
     phone: varchar("phone", { length: 20 }),
     address: text("address"),
-    state: varchar("state", { length: 2 }),
+    state: varchar("state", { length: 50 }),
     gender: genderEnum("gender"), // Added gender field with enum, nullable by default
     notes: text("notes"),
     assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),

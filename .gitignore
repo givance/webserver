@@ -42,3 +42,5 @@ next-env.d.ts
 
 .trigger
 task.md
+
+data/
