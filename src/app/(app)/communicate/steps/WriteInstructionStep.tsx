@@ -286,7 +286,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
               </div>
             </div>
           ) : generatedEmails.length > 0 ? (
-            <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1">
+            <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1 mt-2">
               <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
                 <div className="bg-muted/30 overflow-y-auto">
                   <TabsList className="flex flex-col w-full space-y-1 p-2">
@@ -299,7 +299,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                           key={email.donorId}
                           value={email.donorId.toString()}
                           className={cn(
-                            "w-full h-[80px] p-4 rounded-lg",
+                            "w-full h-auto py-2 px-3 rounded-lg",
                             "flex flex-col items-start justify-center gap-1",
                             "text-left",
                             "transition-all duration-200",
@@ -351,7 +351,10 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
         {/* Right side: Chat Interface */}
         <div className="flex flex-col h-full min-h-0">
-          <h3 className="text-lg font-medium mb-4">Chat Interface</h3>
+          <div className="mb-4">
+            <h3 className="text-lg font-medium">Chat Interface</h3>
+            <p className="text-sm text-muted-foreground">&nbsp;</p>
+          </div>
           <div className="flex flex-col flex-1 border rounded-lg overflow-hidden min-h-0">
             {/* Chat Messages */}
             <ScrollArea className="flex-1 min-h-0">
