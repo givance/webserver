@@ -3,7 +3,7 @@ import { DonationInfo, FormattedCommunicationMessage, Organization, RawCommunica
 
 /**
  * Formats donation history with unique IDs and prepares a string for the AI prompt.
- * Donations are sorted by date (most recent first) and only the latest 30 are included in the prompt string.
+ * Donations are sorted by date (most recent first) and all fetched donations are included in the prompt string.
  *
  * @param donations - Array of donation information.
  * @returns An object containing the formatted string for the prompt and the list of donations with assigned IDs.
@@ -23,7 +23,7 @@ export function formatDonationHistoryWithIds(donations: DonationWithDetails[] = 
     displayId: `donation-${index + 1}`,
   }));
 
-  const recentDonationsForPrompt = donationsWithIds.slice(0, 30);
+  const recentDonationsForPrompt = donationsWithIds;
 
   const promptString = recentDonationsForPrompt
     .map((d) => {

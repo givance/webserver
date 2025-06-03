@@ -102,7 +102,7 @@ Examples:
 ⸻
 
 2. Opening Line (Do 1):
-Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. 
+Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. When mentioning the past donation, prefer to use the most recent donation record, or the biggest donation record if that is recent. Youc an also mention one of their year's total donation if they donated a lot in that year.
 
 Donation History (if available, donations are prefixed with their IDs):
 ${donationHistoryPrompt}

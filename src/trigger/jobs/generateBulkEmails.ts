@@ -89,7 +89,12 @@ export const generateBulkEmailsTask = task({
       const historiesPromises = selectedDonors.map(async (donor) => {
         const [communicationHistory, donationHistory] = await Promise.all([
           getDonorCommunicationHistory(donor.id, { organizationId }),
-          listDonations({ donorId: donor.id }),
+          listDonations({
+            donorId: donor.id,
+            limit: 20,
+            orderBy: "date",
+            orderDirection: "desc",
+          }),
         ]);
 
         return {
