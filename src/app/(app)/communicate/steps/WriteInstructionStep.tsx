@@ -287,9 +287,9 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             </div>
           ) : generatedEmails.length > 0 ? (
             <Tabs defaultValue={generatedEmails[0]?.donorId?.toString()} orientation="vertical" className="flex-1 mt-2">
-              <div className="grid grid-cols-[220px_1fr] h-full border rounded-lg overflow-hidden">
-                <div className="bg-muted/30 overflow-y-auto">
-                  <TabsList className="flex flex-col w-full space-y-1 p-2">
+              <div className="grid grid-cols-[220px_1fr] h-full rounded-lg overflow-hidden">
+                <div className="bg-muted/30 h-full flex">
+                  <TabsList data-orientation="vertical" className="flex h-full flex-col w-full space-y-1 p-2">
                     {generatedEmails.map((email) => {
                       const donor = donorQueries.find((q) => q.data?.id === email.donorId)?.data;
                       if (!donor) return null;
@@ -298,13 +298,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                         <TabsTrigger
                           key={email.donorId}
                           value={email.donorId.toString()}
-                          className={cn(
-                            "w-full h-auto py-2 px-3 rounded-lg",
-                            "flex flex-col items-start justify-center gap-1",
-                            "text-left",
-                            "transition-all duration-200",
-                            "mr-2"
-                          )}
+                          className={cn("w-full h-auto py-2 px-3 rounded-lg")}
                         >
                           <span className="font-medium truncate w-full">
                             {donor.firstName} {donor.lastName}
