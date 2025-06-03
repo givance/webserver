@@ -10,6 +10,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { EmailPiece, GeneratedEmail } from "@/app/lib/utils/email-generator/types";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface GenerateEmailsStepProps {
   selectedDonors: number[];
@@ -193,7 +194,7 @@ export function GenerateEmailsStep({
                       onClick={() => setSelectedSampleIndex(index)}
                     >
                       <EmailDisplay
-                        donorName={`${donor.firstName} ${donor.lastName}`}
+                        donorName={formatDonorName(donor)}
                         donorEmail={donor.email}
                         subject={email.subject}
                         content={email.structuredContent}

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDonors } from "@/app/hooks/use-donors";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { EmailPiece } from "@/app/lib/utils/email-generator/types";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface GeneratedEmail {
   donorId: number;
@@ -56,7 +57,7 @@ export function ReviewAndSendStep({ generatedEmails, onBack, onFinish }: ReviewA
             return (
               <EmailDisplay
                 key={email.donorId}
-                donorName={`${donor.firstName} ${donor.lastName}`}
+                donorName={formatDonorName(donor)}
                 donorEmail={donor.email}
                 subject={email.subject}
                 content={email.structuredContent}

@@ -6,6 +6,7 @@ import { ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/app/lib/utils/format";
 import { DonationWithDetails } from "@/app/lib/data/donations";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 export const columns: ColumnDef<DonationWithDetails>[] = [
   {
@@ -46,7 +47,7 @@ export const columns: ColumnDef<DonationWithDetails>[] = [
       if (!donor) return "Unknown Donor";
       return (
         <Link href={`/donors/${donor.id}`} className="hover:underline">
-          {donor.firstName} {donor.lastName}
+          {formatDonorName(donor)}
         </Link>
       );
     },

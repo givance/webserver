@@ -13,6 +13,7 @@ import { useDebounce } from "use-debounce";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -66,7 +67,7 @@ export function ProjectDonations({ projectId }: ProjectDonationsProps) {
       date: new Date(donation.date).toISOString(),
       amount: donation.amount,
       donorId: donation.donor?.id || null,
-      donorName: donation.donor ? `${donation.donor.firstName} ${donation.donor.lastName}` : "Unknown Donor",
+      donorName: donation.donor ? formatDonorName(donation.donor) : "Unknown Donor",
     }));
 
     return {

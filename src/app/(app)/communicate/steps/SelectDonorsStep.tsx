@@ -7,6 +7,7 @@ import { useDebounce } from "use-debounce";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDonors } from "@/app/hooks/use-donors";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface SelectDonorsStepProps {
   selectedDonors: number[];
@@ -77,7 +78,7 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
                   htmlFor={`donor-${donor.id}`}
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  {donor.firstName} {donor.lastName} ({donor.email})
+                  {formatDonorName(donor)} ({donor.email})
                 </label>
               </div>
             ))}

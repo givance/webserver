@@ -127,9 +127,21 @@ export const generateBulkEmailsTask = task({
       // Convert donors to the format expected by the email generator
       const donorInfos = selectedDonors.map((donor) => ({
         id: donor.id,
+        email: donor.email,
+        // Include all the new name fields
+        displayName: donor.displayName,
+        hisTitle: donor.hisTitle,
+        hisFirstName: donor.hisFirstName,
+        hisInitial: donor.hisInitial,
+        hisLastName: donor.hisLastName,
+        herTitle: donor.herTitle,
+        herFirstName: donor.herFirstName,
+        herInitial: donor.herInitial,
+        herLastName: donor.herLastName,
+        isCouple: donor.isCouple,
+        // Keep deprecated fields for fallback
         firstName: donor.firstName,
         lastName: donor.lastName,
-        email: donor.email,
       }));
 
       triggerLogger.info(`Generating emails for ${donorInfos.length} donors`);

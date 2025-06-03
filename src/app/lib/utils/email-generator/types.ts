@@ -1,5 +1,6 @@
 import { CommunicationHistory as RawCommunicationHistory } from "@/app/lib/data/communications";
 import { DonationWithDetails } from "../../data/donations";
+import { DonorNameFields } from "../donor-name-formatter";
 
 export interface Organization {
   id: string;
@@ -30,10 +31,8 @@ export interface DonationInfo {
   } | null;
 }
 
-export interface DonorInfo {
+export interface DonorInfo extends DonorNameFields {
   id: number;
-  firstName: string;
-  lastName: string;
   email: string;
   donationHistory?: DonationInfo[]; // Will be processed to add IDs
 }

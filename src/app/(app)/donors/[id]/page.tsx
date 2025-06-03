@@ -16,6 +16,7 @@ import { formatCurrency } from "@/app/lib/utils/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 type DonationRow = {
   id: number;
@@ -227,9 +228,7 @@ export default function DonorProfilePage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">
-              {donor.firstName} {donor.lastName}
-            </h1>
+            <h1 className="text-2xl font-bold">{formatDonorName(donor)}</h1>
             <p className="text-muted-foreground">{donor.email}</p>
           </div>
         </div>

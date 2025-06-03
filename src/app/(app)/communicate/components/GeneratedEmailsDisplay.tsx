@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 // import type { UseQueryResult } from "@tanstack/react-query"; // For donorQueries type
 // Import 'donors' schema type or a more specific Donor type if available
 import type { donors as DonorSchemaType } from "@/app/lib/db/schema";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 // Define types based on WriteInstructionStep.tsx
 interface GeneratedEmailData {
@@ -85,9 +86,7 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
                     "transition-all duration-200 hover:bg-muted/50 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   )}
                 >
-                  <span className="font-medium truncate w-full text-sm">
-                    {donor.firstName} {donor.lastName}
-                  </span>
+                  <span className="font-medium truncate w-full text-sm">{formatDonorName(donor)}</span>
                   <span className="text-xs text-muted-foreground data-[state=active]:text-primary-foreground/80 truncate w-full">
                     {donor.email}
                   </span>
@@ -105,7 +104,7 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
             return (
               <TabsContent key={email.donorId} value={email.donorId.toString()} className="h-full p-0">
                 <EmailDisplay
-                  donorName={`${donor.firstName} ${donor.lastName}`}
+                  donorName={formatDonorName(donor)}
                   donorEmail={donor.email}
                   subject={email.subject}
                   content={email.structuredContent}

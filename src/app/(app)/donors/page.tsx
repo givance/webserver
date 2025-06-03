@@ -20,6 +20,7 @@ import { ErrorDisplay } from "@/app/components/ErrorDisplay";
 import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import type { PredictedAction as ColumnPredictedAction, Donor } from "./columns";
 import { getColumns } from "./columns";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 export default function DonorListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
@@ -104,7 +105,7 @@ export default function DonorListPage() {
 
         return {
           id: apiDonor.id.toString(),
-          name: `${apiDonor.firstName} ${apiDonor.lastName}`,
+          name: formatDonorName(apiDonor),
           email: apiDonor.email,
           phone: apiDonor.phone || "",
           totalDonated,
@@ -114,6 +115,18 @@ export default function DonorListPage() {
           classificationReasoning: apiDonor.classificationReasoning || null,
           predictedActions: parsedActions,
           assignedToStaffId: apiDonor.assignedToStaffId?.toString() || null,
+          displayName: apiDonor.displayName,
+          hisTitle: apiDonor.hisTitle,
+          hisFirstName: apiDonor.hisFirstName,
+          hisInitial: apiDonor.hisInitial,
+          hisLastName: apiDonor.hisLastName,
+          herTitle: apiDonor.herTitle,
+          herFirstName: apiDonor.herFirstName,
+          herInitial: apiDonor.herInitial,
+          herLastName: apiDonor.herLastName,
+          isCouple: apiDonor.isCouple,
+          firstName: apiDonor.firstName,
+          lastName: apiDonor.lastName,
         };
       }) || [];
     return { donors: donorItems, totalCount: listDonorsResponse?.totalCount || 0 };

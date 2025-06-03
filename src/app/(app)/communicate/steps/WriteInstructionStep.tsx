@@ -17,6 +17,7 @@ import { SuggestedMemories } from "../components/SuggestedMemories";
 import { MentionsInput, Mention } from "react-mentions";
 import React from "react";
 import "../styles.css";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface WriteInstructionStepProps {
   instruction: string;
@@ -310,9 +311,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                           className={cn("w-full h-auto py-2 px-3 rounded-lg")}
                         >
                           <div className="flex flex-col w-full items-start">
-                            <span className="font-medium truncate w-full">
-                              {donor.firstName} {donor.lastName}
-                            </span>
+                            <span className="font-medium truncate w-full">{formatDonorName(donor)}</span>
                             <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
                               {donor.email}
                             </span>
@@ -344,7 +343,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                         className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
                       >
                         <EmailDisplay
-                          donorName={`${donor.firstName} ${donor.lastName}`}
+                          donorName={formatDonorName(donor)}
                           donorEmail={donor.email}
                           subject={email.subject}
                           content={email.structuredContent}

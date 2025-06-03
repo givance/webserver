@@ -10,6 +10,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Switch } from "@/components/ui/switch";
 import type { PredictedAction as ColumnPredictedAction } from "../../columns";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 export default function DonorEmailPage() {
   const router = useRouter();
@@ -90,9 +91,7 @@ export default function DonorEmailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">
-          Email {donor.firstName} {donor.lastName}
-        </h1>
+        <h1 className="text-2xl font-bold">Email {formatDonorName(donor)}</h1>
         <div className="ml-auto flex items-center gap-2">
           <label className="text-sm">Auto Draft</label>
           <Switch

@@ -29,6 +29,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { formatCurrency } from "@/app/lib/utils/format";
 import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DonorNameFields } from "@/app/lib/utils/donor-name-formatter";
 
 export type PredictedAction = {
   type: string;
@@ -43,9 +44,9 @@ export interface StaffMember {
   name: string;
 }
 
-export type Donor = {
+export type Donor = DonorNameFields & {
   id: string;
-  name: string;
+  name: string; // This will be the formatted name for display
   email: string;
   phone: string;
   totalDonated: number;

@@ -14,6 +14,7 @@ import {
   Organization,
   RawCommunicationThread,
 } from "./types";
+import { formatDonorName } from "../donor-name-formatter";
 
 /**
  * Email generation service that implements the EmailGeneratorTool interface.
@@ -49,7 +50,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
     const emailPromises = donors.map(async (donor) => {
       const donorCommHistory = communicationHistories[donor.id] || [];
       logger.info(
-        `Processing donor ${donor.id} (firstName: ${donor.firstName}, lastName: ${donor.lastName}, commHistoryCount: ${
+        `Processing donor ${donor.id} (${formatDonorName(donor)}, commHistoryCount: ${
           donorCommHistory.length
         }, donationHistoryCount: ${donationHistories[donor.id]?.length || 0})`
       );
@@ -163,9 +164,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
       logger.info(
         `Sending prompt to OpenAI for donor ${donor.id}: promptLength=${prompt.length}, model=${
           env.SMALL_MODEL
-        }, donorName="${donor.firstName} ${donor.lastName}", donationCount=${
-          donationHistory.length
-        }, communicationCount=${communicationHistory?.length || 0}`
+        }, donorName="${formatDonorName(donor)}", donationCount=${donationHistory.length}, communicationCount=${
+          communicationHistory?.length || 0
+        }`
       );
 
       // Define the schema for the expected response
@@ -222,9 +223,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
           if (attempt === maxAttempts) {
             logger.error(
-              `All attempts failed for donor ${donor.id}. Prompt details: promptLength=${prompt.length}, donorName="${
-                donor.firstName
-              } ${donor.lastName}", promptPreview="${prompt.substring(0, 500)}..."`
+              `All attempts failed for donor ${donor.id}. Prompt details: promptLength=${
+                prompt.length
+              }, donorName="${formatDonorName(donor)}", promptPreview="${prompt.substring(0, 500)}..."`
             );
             throw error;
           }

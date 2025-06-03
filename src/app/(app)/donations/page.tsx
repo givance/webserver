@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "use-debounce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSearchParams, useRouter } from "next/navigation";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -118,9 +119,9 @@ function DonationsContent() {
           {(donorId || projectId) && (
             <div className="flex items-center gap-2 w-full mb-4">
               <span className="text-sm text-muted-foreground">Active filters:</span>
-              {donorId && (
+              {donorId && donations[0]?.donor && (
                 <Button variant="secondary" size="sm" onClick={clearFilters}>
-                  Donor: {donations[0]?.donor?.firstName} {donations[0]?.donor?.lastName} ×
+                  Donor: {donations[0].donor.firstName} {donations[0].donor.lastName} ×
                 </Button>
               )}
               {projectId && (

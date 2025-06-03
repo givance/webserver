@@ -5,6 +5,7 @@ import {
   formatWebsiteSummaryWithIds,
 } from "./context-formatters";
 import { DonationWithDetails } from "../../data/donations";
+import { formatDonorName } from "../donor-name-formatter";
 
 /**
  * Builds a focused prompt for generateObject that doesn't include JSON formatting instructions
@@ -37,7 +38,7 @@ ${organization?.description ? `Organization Description: ${organization.descript
     organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""
   }
 
-Donor: ${donor.firstName} ${donor.lastName} (${donor.email})
+Donor: ${formatDonorName(donor)} (${donor.email})
 
 ${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
 ${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}

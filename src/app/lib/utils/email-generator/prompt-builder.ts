@@ -5,6 +5,7 @@ import {
   formatWebsiteSummaryWithIds,
 } from "./context-formatters";
 import { DonationWithDetails } from "../../data/donations";
+import { formatDonorName } from "../donor-name-formatter";
 
 /**
  * Builds the prompt for the AI to generate a personalized donor email.
@@ -27,14 +28,15 @@ export function buildEmailPrompt(
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
   personalMemories: string[] = [],
-  organizationalMemories: string[] = []
-): string {
+  organizationalMemories: string[] = [],
+  currentDate?: string
+): { prompt: string; referenceContexts: Record<string, string> } {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
 
   // Constructing the detailed prompt with instructions for JSON output
-  return `You are an expert in donor communications, helping to write personalized emails.
+  const prompt = `You are an expert in donor communications, helping to write personalized emails.
 Your task is to generate an email based on the provided context and instructions.
 The output MUST be a valid JSON object with two fields:
 1. "subject": A string containing a compelling subject line for the email
@@ -81,8 +83,9 @@ Organization Website Summary (if available, paragraphs are prefixed with their I
 ${websiteSummaryPrompt}
 
 Donor Information:
-- Name: ${donor.firstName} ${donor.lastName}
+- Name: ${formatDonorName(donor)}
 - Email: ${donor.email}
+${donor.donationHistory && donor.donationHistory.length > 0 ? `- Donation Count: ${donor.donationHistory.length}` : ""}
 
 Past Communications (if available, messages are prefixed with their IDs):
 ${communicationHistoryPrompt}
@@ -161,4 +164,11 @@ Instructions for Tone and Style:
 
 Now, generate the email strictly in the JSON format described above.
 JSON Email:`;
+
+  return {
+    prompt: prompt,
+    referenceContexts: {
+      // Add any necessary reference contexts here
+    },
+  };
 }
