@@ -13,7 +13,7 @@ export default function CommunicatePage() {
         <div className="flex items-center px-6 h-14 border-b">
           <h1 className="text-2xl font-bold">Communicate with Donors</h1>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           <CommunicateSteps onClose={() => router.back()} />
         </div>
       </div>
