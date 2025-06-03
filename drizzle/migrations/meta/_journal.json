@@ -190,6 +190,20 @@
       "when": 1748841046316,
       "tag": "0026_silent_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1748993717436,
+      "tag": "0027_lean_goliath",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1748993909809,
+      "tag": "0028_lazy_shooting_star",
+      "breakpoints": true
     }
   ]
 }

@@ -164,6 +164,7 @@ export const genderEnum = pgEnum("gender", ["male", "female"]);
 
 /**
  * Donors table to store donor information
+ * Updated to support couple information from CSV imports
  */
 export const donors = pgTable(
   "donors",
@@ -172,13 +173,33 @@ export const donors = pgTable(
     organizationId: text("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
+
+    // Legacy fields for backward compatibility (still required for now)
     firstName: varchar("first_name", { length: 255 }).notNull(),
     lastName: varchar("last_name", { length: 255 }).notNull(),
+
+    // New fields to support couple structure from CSV
+    hisTitle: varchar("his_title", { length: 50 }), // Mr., Dr., Rabbi, etc.
+    hisFirstName: varchar("his_first_name", { length: 255 }),
+    hisInitial: varchar("his_initial", { length: 10 }),
+    hisLastName: varchar("his_last_name", { length: 255 }), // His last name (may be different)
+
+    herTitle: varchar("her_title", { length: 50 }), // Mrs., Ms., Dr., etc.
+    herFirstName: varchar("her_first_name", { length: 255 }),
+    herInitial: varchar("her_initial", { length: 10 }),
+    herLastName: varchar("her_last_name", { length: 255 }), // Her last name (may be different)
+
+    // Display name for communications (e.g., "Mr. and Mrs. Smith", "Dr. John and Mrs. Jane Doe")
+    displayName: varchar("display_name", { length: 500 }),
+
+    // Indicator if this is a couple record or individual
+    isCouple: boolean("is_couple").default(false).notNull(),
+
     email: varchar("email", { length: 255 }).notNull(),
     phone: varchar("phone", { length: 20 }),
     address: text("address"),
     state: varchar("state", { length: 50 }),
-    gender: genderEnum("gender"), // Added gender field with enum, nullable by default
+    gender: genderEnum("gender"), // For individual donors
     notes: text("notes"),
     assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
     currentStageName: varchar("current_stage_name", { length: 255 }),
