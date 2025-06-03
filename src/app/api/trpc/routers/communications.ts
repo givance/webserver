@@ -1,32 +1,19 @@
-import {
-  addDonorToThread,
-  addMessageToThread,
-  addStaffToThread,
-  createCommunicationThread,
-  getCommunicationThreadById,
-  getDonorCommunicationHistory,
-  getMessagesInThread,
-  listCommunicationThreads,
-  removeDonorFromThread,
-  removeStaffFromThread,
-} from "@/app/lib/data/communications";
+import { getCommunicationThreadById, getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
-import { getDonorById } from "@/app/lib/data/donors";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
-import { getStaffById } from "@/app/lib/data/staff";
 import { getDismissedMemories, getUserMemories } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
-import { organizations, emailGenerationSessions, generatedEmails, donors } from "@/app/lib/db/schema";
+import { emailGenerationSessions, generatedEmails, organizations } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
+import { CommunicationsService } from "@/app/lib/services/communications.service";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
-import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
+import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { CommunicationsService } from "@/app/lib/services/communications.service";
-import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 
 // Helper function to authorize thread access
 async function authorizeThreadAccess(

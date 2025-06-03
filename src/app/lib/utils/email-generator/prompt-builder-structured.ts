@@ -33,7 +33,9 @@ export function buildStructuredEmailPrompt(
 
 CONTEXT:
 Organization: ${organizationName}
-${dateContext}${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
+${organization?.description ? `Organization Description: ${organization.description}\n` : ""}${dateContext}${
+    organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""
+  }
 
 Donor: ${donor.firstName} ${donor.lastName} (${donor.email})
 

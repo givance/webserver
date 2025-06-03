@@ -73,7 +73,9 @@ Instructions from Organization Memories:
 ${organizationalMemories.join("\n")}
 
 Organization: ${organizationName}
-${organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""}
+${organization?.description ? `Organization Description: ${organization.description}\n` : ""}${
+    organizationWritingInstructions ? `Organization Writing Instructions: ${organizationWritingInstructions}\n` : ""
+  }
 
 Organization Website Summary (if available, paragraphs are prefixed with their IDs):
 ${websiteSummaryPrompt}
@@ -87,14 +89,14 @@ ${communicationHistoryPrompt}
 
 User Instruction for this email: ${instruction}
 
-Write a reengagement email for a mid-level donor who gave $250–$999 but hasn’t donated in 12–48 months. Use the structure and examples below. Do everything listed.
+Write a reengagement email for a mid-level donor who gave $250–$999 but hasn't donated in 12–48 months. Use the structure and examples below. Do everything listed.
 
 ⸻
 
 1. Subject Line (Do 1):
 Make it personal + emotional. Include first name if available.
 Examples:
-	•	We’ve missed you, Sarah.
+	•	We've missed you, Sarah.
 	•	You helped change lives—will you do it again?
 	•	Your past gift still matters.
 	•	Look what you made possible.
@@ -123,10 +125,10 @@ Examples:
 ⸻
 
 4. Time Anchor (Do 1):
-Mention how long it’s been since their last gift. Use the donation history to get the last gift amount and year.
+Mention how long it's been since their last gift. Use the donation history to get the last gift amount and year.
 Examples:
-	•	It’s been 18 months since your last donation.
-	•	We haven’t heard from you since 2022, but you’ve never been forgotten.
+	•	It's been 18 months since your last donation.
+	•	We haven't heard from you since 2022, but you've never been forgotten.
 
 ⸻
 
@@ -134,7 +136,7 @@ Examples:
 Make a clear, direct ask. Suggest the same or slightly higher amount.
 Examples:
 	•	Will you renew your support today with a $500 gift?
-	•	We’d be honored to have you back at the $350 level.
+	•	We'd be honored to have you back at the $350 level.
 	•	Would you consider giving $400 again this year?
 
 ⸻
@@ -144,7 +146,7 @@ If relevant, include urgency, match, or time-limited framing.
 Examples:
 	•	This week only: all gifts will be matched 2x.
 	•	Our summer campaign ends Friday—your gift matters now more than ever.
-	•	We’re just $5,000 away from our goal.
+	•	We're just $5,000 away from our goal.
 
 ⸻
 
@@ -171,7 +173,7 @@ Instructions for Tone and Style:
 	•	Tone: Warm, personal, and confident.
 	•	Length: 120–150 words.
 	•	Avoid: Generic language, multiple CTAs, or excessive formality.
-	•	Assume you have access to: donor’s name, past gift amount, date, and program impacted.
+	•	Assume you have access to: donor's name, past gift amount, date, and program impacted.
 
 Now, generate the email strictly in the JSON format described above.
 JSON Email:`;
