@@ -16,8 +16,11 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
   const { getEmailStatus, sendIndividualEmail, isSendingIndividualEmail } = useCommunications();
   const [isLocalSending, setIsLocalSending] = useState(false);
 
-  // Get email status
-  const { data: emailStatus, isLoading: isLoadingStatus } = getEmailStatus({ emailId });
+  // Get email status - only query if emailId exists
+  const { data: emailStatus, isLoading: isLoadingStatus } = getEmailStatus(
+    { emailId },
+    { enabled: !!emailId && emailId > 0 }
+  );
 
   const handleSendEmail = async () => {
     setIsLocalSending(true);

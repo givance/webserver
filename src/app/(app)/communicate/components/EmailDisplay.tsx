@@ -79,8 +79,8 @@ export function EmailDisplay({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { getEmailStatus } = useCommunications();
 
-  // Get email status to check if sent
-  const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 });
+  // Get email status to check if sent - only query if emailId exists
+  const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
 
   return (
     <div className="space-y-4">

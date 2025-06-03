@@ -661,6 +661,19 @@ export const communicationsRouter = router({
    */
   getEmailStatus: protectedProcedure.input(getEmailStatusSchema).query(async ({ ctx, input }) => {
     try {
+      logger.info(
+        `Getting email status for emailId: ${input.emailId}, organizationId: ${ctx.auth.user.organizationId}`
+      );
+
+      // Validate emailId
+      if (!input.emailId || input.emailId <= 0) {
+        logger.warn(`Invalid emailId provided: ${input.emailId}`);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid email ID provided",
+        });
+      }
+
       const [email] = await db
         .select({
           id: generatedEmails.id,
@@ -678,16 +691,22 @@ export const communicationsRouter = router({
         .limit(1);
 
       if (!email) {
+        logger.warn(`Email not found for emailId: ${input.emailId}, organizationId: ${ctx.auth.user.organizationId}`);
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Email not found",
         });
       }
 
+      logger.info(`Successfully retrieved email status for emailId: ${input.emailId}, isSent: ${email.isSent}`);
       return email;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to get email status: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get email status for emailId: ${input.emailId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get email status",

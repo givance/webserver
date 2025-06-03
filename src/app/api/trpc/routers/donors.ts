@@ -63,7 +63,7 @@ const listDonorsSchema = z.object({
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().min(1).optional(),
   offset: z.number().min(0).optional(),
   orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
   orderDirection: z.enum(["asc", "desc"]).optional(),

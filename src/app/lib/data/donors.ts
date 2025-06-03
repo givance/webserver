@@ -288,7 +288,7 @@ export async function listDonors(
       state,
       gender,
       assignedToStaffId,
-      limit = 10,
+      limit, // No default limit - if not provided, fetch all
       offset = 0,
       orderBy,
       orderDirection = "asc",
@@ -343,7 +343,13 @@ export async function listDonors(
       }
     }
 
-    const results = await queryBuilder.limit(limit).offset(offset);
+    // Apply pagination if limit is provided, otherwise get all results
+    let results;
+    if (limit !== undefined) {
+      results = await queryBuilder.limit(limit).offset(offset);
+    } else {
+      results = await queryBuilder;
+    }
 
     const totalCountResult = await db
       .select({ count: count() })

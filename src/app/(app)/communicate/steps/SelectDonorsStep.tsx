@@ -21,7 +21,6 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
   const { listDonors } = useDonors();
   const { data: donorsData, isLoading } = listDonors({
     searchTerm: debouncedSearchTerm,
-    limit: 50,
   });
 
   const handleToggleDonor = (donorId: number) => {
@@ -40,6 +39,10 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
   const handleClearAll = () => {
     onDonorsSelected([]);
   };
+
+  const displayedCount = donorsData?.donors?.length || 0;
+  const totalCount = donorsData?.totalCount || 0;
+  const hasMoreDonors = totalCount > displayedCount;
 
   return (
     <div className="space-y-4">
@@ -84,7 +87,10 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
       </ScrollArea>
 
       <div className="flex justify-between items-center pt-4">
-        <div className="text-sm text-muted-foreground">{selectedDonors.length} donors selected</div>
+        <div className="text-sm text-muted-foreground">
+          {selectedDonors.length} donors selected
+          {totalCount > 0 && <span className="ml-2">• {totalCount} total donors</span>}
+        </div>
         <Button onClick={onNext} disabled={selectedDonors.length === 0}>
           Next
         </Button>
