@@ -34,7 +34,7 @@ interface WriteInstructionStepProps {
 }
 
 // Configuration for preview donor count - can be changed later
-const PREVIEW_DONOR_COUNT = 1;
+const PREVIEW_DONOR_COUNT = 10;
 
 interface GeneratedEmail {
   donorId: number;
