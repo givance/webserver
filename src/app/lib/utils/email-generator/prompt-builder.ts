@@ -104,7 +104,11 @@ Examples:
 ⸻
 
 2. Opening Line (Do 1):
-Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. When mentioning the past donation, prefer to use the most recent donation record, or the biggest donation record if that is recent. Youc an also mention one of their year's total donation if they donated a lot in that year.
+Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. When mentioning the past donation:
+- Always mention the exact amount of the donation.
+- Prefer to use a donation that is donated to a specific program, and mention that program.
+- Prefer to mention a larger donation amount
+- Prefer to mention a recent donation
 
 Donation History (if available, donations are prefixed with their IDs):
 ${donationHistoryPrompt}
@@ -116,7 +120,7 @@ Examples but use specific amounts and years from the donation history:
 ⸻
 
 3. Emotional Hook (Do 1):
-Connect their past donation to real-world impact.
+Connect their past donation to real-world impact. Be very specific about the impact if you are to mention, and use the company's information to make it more specific.
 Examples:
 	•	Because of you, 43 families received clean water.
 	•	Your support helped fund 12 medical treatments last year.
@@ -125,7 +129,7 @@ Examples:
 ⸻
 
 4. Time Anchor (Do 1):
-Mention how long it's been since their last gift. Use the donation history to get the last gift amount and year.
+Mention exactly how long it's been since their last gift. Use the donation history to get the last gift amount and year.
 Examples:
 	•	It's been 18 months since your last donation.
 	•	We haven't heard from you since 2022, but you've never been forgotten.
@@ -134,32 +138,12 @@ Examples:
 
 5. Ask (Do 1):
 Make a clear, direct ask. Suggest the same or slightly higher amount.
-Examples:
-	•	Will you renew your support today with a $500 gift?
-	•	We'd be honored to have you back at the $350 level.
-	•	Would you consider giving $400 again this year?
+- make it clear what program needs support and why, if you are not asking for the general fund. 
+- explicitly mention how much impact that amount can make, for example, supporting 2 poor families, etc. if you can find that information.
 
 ⸻
 
-6. Framing (Optional but encouraged):
-If relevant, include urgency, match, or time-limited framing.
-Examples:
-	•	This week only: all gifts will be matched 2x.
-	•	Our summer campaign ends Friday—your gift matters now more than ever.
-	•	We're just $5,000 away from our goal.
-
-⸻
-
-7. Call-to-Action (Do 1):
-Use one bold, single-button CTA with action language.
-Examples:
-	•	[Renew Your Impact]
-	•	[Give Now]
-	•	[Make a Difference Again]
-
-⸻
-
-8. Signature (Do 1):
+6. Signature (Do 1):
 Sign off with a real name + title, and a P.S. with a reminder or extra nudge.
 Example:
 Warmly,
