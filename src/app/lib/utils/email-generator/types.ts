@@ -53,6 +53,7 @@ export interface GenerateEmailOptions {
   donationHistory?: DonationWithDetails[]; // Will be processed
   personalMemories?: string[];
   organizationalMemories?: string[];
+  currentDate?: string; // Added for today's date
 }
 
 export interface EmailPiece {
@@ -112,6 +113,9 @@ export interface EmailGeneratorTool {
     organization: Organization | null,
     organizationWritingInstructions?: string,
     communicationHistories?: Record<number, RawCommunicationThread[]>,
-    donationHistories?: Record<number, DonationWithDetails[]>
+    donationHistories?: Record<number, DonationWithDetails[]>,
+    personalMemories?: string[],
+    organizationalMemories?: string[],
+    currentDate?: string // Added for today's date
   ) => Promise<GeneratedEmail[]>;
 }

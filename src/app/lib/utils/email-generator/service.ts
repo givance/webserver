@@ -33,14 +33,17 @@ export class EmailGenerationService implements EmailGeneratorTool {
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
     donationHistories: Record<number, DonationWithDetails[]> = {},
     personalMemories: string[] = [],
-    organizationalMemories: string[] = []
+    organizationalMemories: string[] = [],
+    currentDate?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
       `Starting batch email generation for ${
         donors.length
       } donors (refinedInstruction: ${refinedInstruction}, organizationName: ${organizationName}, hasOrganization: ${!!organization}, hasWritingInstructions: ${!!organizationWritingInstructions}, communicationHistoriesCount: ${
         Object.keys(communicationHistories).length
-      }, donationHistoriesCount: ${Object.keys(donationHistories).length})`
+      }, donationHistoriesCount: ${Object.keys(donationHistories).length}, currentDate: ${
+        currentDate || "not provided"
+      })`
     );
 
     const emailPromises = donors.map(async (donor) => {
@@ -61,6 +64,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         donationHistory: donationHistories[donor.id] || [],
         personalMemories,
         organizationalMemories,
+        currentDate,
       }).catch((error) => {
         logger.error(
           `Failed to generate email for donor ${donor.id} (error: ${
@@ -107,6 +111,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationHistory = [],
       personalMemories,
       organizationalMemories,
+      currentDate,
     } = options;
 
     logger.info(
@@ -114,7 +119,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         donor.id
       }: instruction="${instruction}", organizationName="${organizationName}", hasOrganization=${!!organization}, hasWritingInstructions=${!!organizationWritingInstructions}, communicationHistoryCount=${
         communicationHistory?.length || 0
-      }, donationHistoryCount=${donationHistory.length}`
+      }, donationHistoryCount=${donationHistory.length}, currentDate=${currentDate || "not provided"}`
     );
 
     // Sort donations and prepare reference contexts
@@ -142,7 +147,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       communicationHistory as RawCommunicationThread[],
       donationHistory,
       personalMemories,
-      organizationalMemories
+      organizationalMemories,
+      currentDate
     );
 
     console.log(prompt);

@@ -19,17 +19,21 @@ export function buildStructuredEmailPrompt(
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
   personalMemories: string[] = [],
-  organizationalMemories: string[] = []
+  organizationalMemories: string[] = [],
+  currentDate?: string
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
 
+  // Format current date if provided
+  const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
+
   return `You are an expert in donor communications writing personalized emails.
 
 CONTEXT:
 Organization: ${organizationName}
-${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
+${dateContext}${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
 
 Donor: ${donor.firstName} ${donor.lastName} (${donor.email})
 
@@ -51,6 +55,7 @@ REQUIREMENTS:
 - Tone: Warm, personal, confident
 - Length: 120-150 words
 - Reference specific donation amounts and dates from the history when available
+- Use the current date context for time-sensitive references and seasonal messaging
 
 IMPORTANT INSTRUCTIONS:
 1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]

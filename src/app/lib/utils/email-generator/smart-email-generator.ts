@@ -19,6 +19,10 @@ import { getUserMemories } from "../../data/users";
  * @param userFeedback - Optional feedback on previous results
  * @param communicationHistories - Optional map of donor communication histories
  * @param donationHistories - Optional map of donor donation histories
+ * @param userMemories - User's personal memories
+ * @param organizationMemories - Organization-wide memories
+ * @param dismissedMemories - Memories that have been dismissed
+ * @param currentDate - Current date for time-sensitive content
  * @returns Object containing refined instruction, reasoning, and generated emails
  */
 export async function generateSmartDonorEmails(
@@ -33,7 +37,8 @@ export async function generateSmartDonorEmails(
   donationHistories: Record<number, DonationWithDetails[]> = {},
   userMemories: string[] = [],
   organizationMemories: string[] = [],
-  dismissedMemories: string[] = []
+  dismissedMemories: string[] = [],
+  currentDate?: string
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -76,7 +81,8 @@ export async function generateSmartDonorEmails(
     communicationHistories,
     donationHistories,
     userMemories,
-    organizationMemories
+    organizationMemories,
+    currentDate
   );
 
   // Return both the refinement information and the generated emails

@@ -126,6 +126,7 @@ const generateEmailsSchema = z.object({
   organizationName: z.string(),
   organizationWritingInstructions: z.string().optional(),
   previousInstruction: z.string().optional(),
+  currentDate: z.string().optional(),
 });
 
 const createSessionSchema = z.object({
@@ -201,6 +202,7 @@ interface GenerateEmailsInput {
   organizationName: string;
   organizationWritingInstructions?: string;
   previousInstruction?: string;
+  currentDate?: string;
 }
 
 /**
@@ -215,7 +217,7 @@ class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
+    const { instruction, donors, organizationWritingInstructions, previousInstruction, currentDate } = input;
 
     // Process project mentions in the instruction
     const processedInstruction = await processProjectMentions(instruction, organizationId);
@@ -294,7 +296,8 @@ class EmailGenerationService {
       donationHistoriesMap,
       userMemories,
       organizationMemories,
-      dismissedMemories
+      dismissedMemories,
+      currentDate
     );
 
     logger.info(`Successfully generated ${result.emails.length} emails for organization ${organizationId}`);

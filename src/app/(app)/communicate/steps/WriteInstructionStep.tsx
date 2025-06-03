@@ -164,6 +164,14 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             };
           });
 
+          // Get current date in a readable format
+          const currentDate = new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+
           // Generate emails using the hook
           const result = await generateEmails({
             instruction: finalInstruction,
@@ -171,6 +179,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             organizationName: organization.name,
             organizationWritingInstructions: organization.writingInstructions ?? undefined,
             previousInstruction,
+            currentDate, // Pass the current date
           });
 
           if (result) {
@@ -300,12 +309,23 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                           value={email.donorId.toString()}
                           className={cn("w-full h-auto py-2 px-3 rounded-lg")}
                         >
-                          <span className="font-medium truncate w-full">
-                            {donor.firstName} {donor.lastName}
-                          </span>
-                          <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
-                            {donor.email}
-                          </span>
+                          <div className="flex flex-col w-full items-start">
+                            <span className="font-medium truncate w-full">
+                              {donor.firstName} {donor.lastName}
+                            </span>
+                            <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
+                              {donor.email}
+                            </span>
+                            <a
+                              href={`/donors/${donor.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 data-[state=active]:text-blue-200 hover:underline mt-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View Profile →
+                            </a>
+                          </div>
                         </TabsTrigger>
                       );
                     })}

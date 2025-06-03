@@ -145,7 +145,7 @@ export default function MainLayout({
                     <CommunicateMenuItem />
                     <SidebarMenuItem>
                       <Link href="/communication-jobs" className="w-full">
-                        <SidebarMenuButton>
+                        <SidebarMenuButton className="justify-start">
                           <Briefcase className="w-4 h-4" />
                           <span>Communication Jobs</span>
                         </SidebarMenuButton>
