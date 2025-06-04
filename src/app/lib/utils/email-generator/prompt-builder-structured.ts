@@ -112,6 +112,8 @@ IMPORTANT INSTRUCTIONS:
 3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 4. DO NOT use "-", "--" or "—" in the email ever.
 
+If the requirements or the important instructions conflicts with the task, prioritize the task.
+
 Generate a compelling, personalized email that will re-engage this donor.`;
 
   structuredSystemPromptCache = systemPrompt;
