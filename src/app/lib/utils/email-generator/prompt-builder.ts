@@ -92,19 +92,10 @@ ${communicationHistoryPrompt}
 
 User Instruction for this email: ${instruction}
 
-Write a reengagement email for a mid-level donor who gave $250–$999 but hasn't donated in 12–48 months. Use the structure and examples below. Do everything listed.
-
-⸻
+Write an email for a donor who following the user instruction above, it could be a reengagement email to a donor who hasn't donated in a while, or a new donor who just donated. Use the structure and examples below.
 
 1. Subject Line (Do 1):
 Make it personal + emotional. Include first name if available.
-Examples:
-	•	We've missed you, Sarah.
-	•	You helped change lives—will you do it again?
-	•	Your past gift still matters.
-	•	Look what you made possible.
-
-⸻
 
 2. Opening Line (Do 1):
 Thank the donor and mention the last gift amount and year. Acknowledge their past gift and its amount. When mentioning the past donation:
@@ -112,15 +103,8 @@ Thank the donor and mention the last gift amount and year. Acknowledge their pas
 - Prefer to use a donation that is donated to a specific program, and mention that program.
 - Prefer to mention a larger donation amount
 - Prefer to mention a recent donation
-
 Donation History (if available, donations are prefixed with their IDs):
 ${donationHistoryPrompt}
-
-Examples but use specific amounts and years from the donation history:
-	•	Your $500 gift in 2021 helped launch our scholarship program.
-	•	Thank you for your generous $350 donation two years ago.
-
-⸻
 
 3. Emotional Hook (Do 1):
 Connect their past donation to real-world impact. Be very specific about the impact if you are to mention, and use the company's information to make it more specific.
@@ -129,22 +113,17 @@ Examples:
 	•	Your support helped fund 12 medical treatments last year.
 	•	You gave a student their first laptop.
 
-⸻
-
 4. Time Anchor (Do 1):
 Mention exactly how long it's been since their last gift. Use the donation history to get the last gift amount and year.
 Examples:
 	•	It's been 18 months since your last donation.
 	•	We haven't heard from you since 2022, but you've never been forgotten.
 
-⸻
-
 5. Ask (Do 1):
-Make a clear, direct ask. Suggest the same or slightly higher amount.
+Make a clear, direct ask based on the user instruction. 
+If asking for a new donation:
 - make it clear what program needs support and why, if you are not asking for the general fund. 
 - explicitly mention how much impact that amount can make, for example, supporting 2 poor families, etc. if you can find that information.
-
-⸻
 
 6. Signature (Do 1):
 Sign off with a real name + title, and a P.S. with a reminder or extra nudge.
@@ -153,8 +132,6 @@ Warmly,
 Jiyun Hyo
 Director of Development
 P.S. Even a small gift today can reignite hope for a family in need.
-
-⸻
 
 Instructions for Tone and Style:
 	•	Tone: Warm, personal, and confident.
