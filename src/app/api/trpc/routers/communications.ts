@@ -238,7 +238,7 @@ class EmailGenerationService {
         getDonorCommunicationHistory(donor.id, { organizationId }),
         listDonations({
           donorId: donor.id,
-          limit: 20,
+          limit: 50,
           orderBy: "date",
           orderDirection: "desc",
         }),
