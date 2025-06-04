@@ -110,7 +110,7 @@ IMPORTANT INSTRUCTIONS:
 1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
 2. For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
 3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
-4. Create at least 5 content pieces for a complete email structure
+4. DO NOT use "-", "--" or "—" in the email ever.
 
 Generate a compelling, personalized email that will re-engage this donor.`;
 
