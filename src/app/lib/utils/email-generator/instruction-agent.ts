@@ -1,8 +1,14 @@
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
 import { EmailGeneratorTool, InstructionRefinementInput, InstructionRefinementResult } from "./types";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 /**
  * Refines user instructions for email generation based on feedback and previous instructions.
@@ -25,7 +31,7 @@ export class InstructionRefinementAgent {
       userInstruction,
       previousInstruction: previousInstruction || "none",
       userFeedback: userFeedback || "none",
-      modelName: env.MID_MODEL,
+      modelName: env.AZURE_OPENAI_DEPLOYMENT_NAME,
     });
 
     const prompt = `You are an AI assistant helping to refine instructions for email generation. 
@@ -73,10 +79,12 @@ Respond in JSON format:
 }`;
 
     try {
-      logger.info(`Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.MID_MODEL})`);
+      logger.info(
+        `Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`
+      );
 
-      const { text: aiResponse } = await generateText({
-        model: openai(env.MID_MODEL),
+      const { text } = await generateText({
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         prompt,
       }).catch((error) => {
         logger.error(
@@ -89,14 +97,14 @@ Respond in JSON format:
       });
 
       logger.info(
-        `Received response from OpenAI (responseLength: ${aiResponse?.length || 0}, firstChars: ${aiResponse?.substring(
+        `Received response from OpenAI (responseLength: ${text?.length || 0}, firstChars: ${text?.substring(
           0,
           100
         )}...)`
       );
 
       try {
-        const trimmedResponse = aiResponse.trim();
+        const trimmedResponse = text.trim();
         logger.info(
           `Attempting to parse JSON response (length: ${
             trimmedResponse.length

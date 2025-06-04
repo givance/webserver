@@ -20,6 +20,10 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().min(1),
     GOOGLE_REDIRECT_URI: z.string().min(1),
     BASE_URL: z.string().min(1),
+    AZURE_OPENAI_API_KEY: z.string().min(1),
+    AZURE_OPENAI_ENDPOINT: z.string().min(1),
+    AZURE_OPENAI_RESOURCE_NAME: z.string().min(1),
+    AZURE_OPENAI_DEPLOYMENT_NAME: z.string().min(1),
   },
   /*
    * Environment variables available on the client (and server).
@@ -50,6 +54,10 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
     BASE_URL: process.env.BASE_URL,
+    AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT,
+    AZURE_OPENAI_RESOURCE_NAME: process.env.AZURE_OPENAI_RESOURCE_NAME,
+    AZURE_OPENAI_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });

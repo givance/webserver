@@ -1,9 +1,15 @@
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
 import { buildStageClassificationPrompt } from "./prompt-builder";
 import type { StageClassificationInput, StageClassificationOutput, LLMStageClassificationResponse } from "./types";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 export class StageClassificationService {
   /**
@@ -25,7 +31,7 @@ export class StageClassificationService {
     try {
       logger.info(`Sending stage classification prompt to AI for donor ${donorInfo.id}`);
       const { text: aiResponse } = await generateText({
-        model: openai(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         prompt,
         // Consider adding system prompt if needed, or specific temperature/maxTokens
       });

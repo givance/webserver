@@ -4,15 +4,21 @@ import { z } from "zod";
 import { db } from "@/app/lib/db"; // Assuming db client is here
 import { organizations } from "@/app/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { openai } from "@ai-sdk/openai"; // Corrected import: lowercase openai
-import { generateText, type CoreTool } from "ai";
+import { generateText } from "ai";
+import { createAzure } from "@ai-sdk/azure";
+import { env } from "@/app/lib/env";
 // import { JSDOM } from "jsdom"; // Removed JSDOM
 import * as cheerio from "cheerio"; // Added cheerio
-import { env } from "@/app/lib/env"; // Import env variables
 import pino from "pino";
 // import type { TaskRunContext, TaskLogger } from "@trigger.dev/sdk/v3"; // Removed, use logger from v3 import
 
 const baseLogger = pino(); // Use separate logger for non-task specific logs
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 // Define the payload schema using Zod
 const crawlPayloadSchema = z.object({
@@ -179,7 +185,7 @@ export const crawlAndSummarizeWebsiteTask = task({
     let summary = "Summary generation failed.";
     try {
       const { text: summaryText } = await generateText({
-        model: openai(env.SMALL_MODEL),
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         prompt: `Summarize the following website content for a nonprofit's fundraising purposes. Focus on extracting these key details:
           1.  **Mission and impact story:** Provide a clear, concise mission statement and 2-3 compelling stories about specific people or communities the nonprofit has helped. Include concrete before/after outcomes and emotional details that illustrate the work's importance.
           2.  **Target audience demographics:** Share detailed information about the donor base - age ranges, giving history, interests, values, and what motivates them to give. Include different segments if there are various donor types. (If not explicitly stated, infer based on content).

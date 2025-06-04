@@ -1,6 +1,6 @@
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { DonationWithDetails } from "../../data/donations";
@@ -15,6 +15,12 @@ import {
   RawCommunicationThread,
 } from "./types";
 import { formatDonorName } from "../donor-name-formatter";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 /**
  * Email generation service that implements the EmailGeneratorTool interface.
@@ -210,7 +216,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
           logger.info(`Attempt ${attempt}/${maxAttempts} for donor ${donor.id}`);
 
           const result = await generateObject({
-            model: openai(env.MID_MODEL),
+            model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
             prompt,
             schema: emailSchema,
             schemaName: "EmailResponse",

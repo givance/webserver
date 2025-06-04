@@ -11,7 +11,7 @@ import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
 import type { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 
 // Maximum number of concurrent operations
-const MAX_CONCURRENCY = 10;
+const MAX_CONCURRENCY = 3;
 
 /**
  * Process items in batches with limited concurrency

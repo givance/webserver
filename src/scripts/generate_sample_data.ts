@@ -1,7 +1,10 @@
 #!/usr/bin/env tsx
 
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
+import { parse } from "csv-parse/sync";
+import * as fs from "fs";
+import * as path from "path";
 import { config } from "dotenv";
 import { eq, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -17,6 +20,7 @@ import {
   projects,
   staff,
 } from "../app/lib/db/schema";
+import { env } from "../app/lib/env";
 
 // Load environment variables
 config();
@@ -26,6 +30,12 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 const db = drizzle(pool);
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 interface StaffMember {
   id?: number;
@@ -79,7 +89,7 @@ interface Donation {
 
 async function generateSampleStaff(count: number, organizationId: string): Promise<StaffMember[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
     schema: z.object({
       staff: z.array(
         z.object({
@@ -103,7 +113,7 @@ async function generateSampleStaff(count: number, organizationId: string): Promi
 
 async function generateSampleDonors(count: number, organizationId: string): Promise<Donor[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
     schema: z.object({
       donors: z.array(
         z.object({
@@ -134,7 +144,7 @@ async function generateSampleDonors(count: number, organizationId: string): Prom
 
 async function generateSampleProjects(count: number, organizationId: string): Promise<Project[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
     schema: z.object({
       projects: z.array(
         z.object({
@@ -166,7 +176,7 @@ async function generateSampleCommunications(
   count: number
 ): Promise<Communication[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
     schema: z.object({
       communications: z.array(
         z.object({
@@ -205,7 +215,7 @@ async function generateSampleCommunications(
 
 async function generateSampleDonations(donors: Donor[], projects: Project[], count: number): Promise<Donation[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4.1-mini"),
+    model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
     schema: z.object({
       donations: z.array(
         z.object({

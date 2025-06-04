@@ -1,9 +1,15 @@
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import type { DonorJourney } from "@/app/lib/data/organizations";
 import { z } from "zod";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 const SYSTEM_PROMPT = `You are a donor journey analyzer that converts natural language descriptions into graph structures.
 Your task is to analyze the donor journey description and create a structured graph representation with nodes and edges.
@@ -87,7 +93,7 @@ export class DonorJourneyService {
       logger.info("Processing donor journey description");
 
       const { object: journey } = await generateObject({
-        model: openai(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         schema: donorJourneySchema,
         prompt: `Based on this donor journey description, generate a graph structure with nodes representing stages and edges representing transitions. Each node and edge must have a descriptive properties object.
 

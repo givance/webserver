@@ -1,6 +1,6 @@
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
 import { buildActionPredictionPrompt } from "./prompt-builder";
 import type {
@@ -9,6 +9,12 @@ import type {
   LLMActionPredictionResponse,
   PredictedAction,
 } from "./types";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 export class ActionPredictionService {
   /**
@@ -38,7 +44,7 @@ export class ActionPredictionService {
     try {
       logger.info(`Sending action prediction prompt to AI for donor ${donorInfo.id}`);
       const { text: aiResponse } = await generateText({
-        model: openai(env.MID_MODEL), // Or a more capable model if needed for complex action generation
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME), // Or a more capable model if needed for complex action generation
         prompt,
       });
 
