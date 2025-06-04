@@ -192,11 +192,11 @@ export default function EmailGenerationResultsPage() {
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="emails" className="h-full flex flex-col">
           <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
-            <TabsTrigger value="emails" className="flex items-center gap-2">
+            <TabsTrigger value="emails" className="flex h-full items-center gap-2">
               <Mail className="h-4 w-4" />
               Generated Emails ({sessionData.emails.length})
             </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
+            <TabsTrigger value="chat" className="flex items-center gap-2 h-full">
               <MessageSquare className="h-4 w-4" />
               Chat History
             </TabsTrigger>
@@ -221,7 +221,7 @@ export default function EmailGenerationResultsPage() {
                   >
                     <div className="grid grid-cols-[300px_1fr] h-full border rounded-lg overflow-hidden">
                       <div className="bg-muted/30 overflow-y-auto">
-                        <TabsList className="flex flex-col w-full space-y-1 p-2">
+                        <TabsList className="flex flex-col w-full h-full space-y-1 p-2">
                           {sessionData.emails.map((email: GeneratedEmailData) => {
                             const donor = getDonorData(email.donorId);
                             const trackingStats = getDonorTrackingStats(email.donorId);
