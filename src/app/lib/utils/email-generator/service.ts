@@ -161,13 +161,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
     logger.info(
       `Built email prompt for donor ${donor.id}: promptLength=${prompt.length}, donationContextsCount=${
         Object.keys(donationContexts).length
-      }, model=${env.SMALL_MODEL}`
+      }, model=${env.MID_MODEL}`
     );
 
     try {
       logger.info(
         `Sending prompt to OpenAI for donor ${donor.id}: promptLength=${prompt.length}, model=${
-          env.SMALL_MODEL
+          env.MID_MODEL
         }, donorName="${formatDonorName(donor)}", donationCount=${donationHistory.length}, communicationCount=${
           communicationHistory?.length || 0
         }`
@@ -205,7 +205,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
           logger.info(`Attempt ${attempt}/${maxAttempts} for donor ${donor.id}`);
 
           const result = await generateObject({
-            model: openai(env.SMALL_MODEL),
+            model: openai(env.MID_MODEL),
             prompt,
             schema: emailSchema,
             schemaName: "EmailResponse",

@@ -10,6 +10,33 @@ import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
 import type { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 
+// Maximum number of concurrent operations
+const MAX_CONCURRENCY = 10;
+
+/**
+ * Process items in batches with limited concurrency
+ */
+async function processConcurrently<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  maxConcurrency: number = MAX_CONCURRENCY
+): Promise<R[]> {
+  const results: R[] = [];
+
+  for (let i = 0; i < items.length; i += maxConcurrency) {
+    const batch = items.slice(i, i + maxConcurrency);
+    const batchResults = await Promise.all(batch.map(processor));
+    results.push(...batchResults);
+
+    // Log progress for large batches
+    if (items.length > maxConcurrency) {
+      triggerLogger.info(`Processed ${Math.min(i + maxConcurrency, items.length)}/${items.length} items`);
+    }
+  }
+
+  return results;
+}
+
 // Define the payload schema using Zod
 const generateBulkEmailsPayloadSchema = z.object({
   sessionId: z.number(),
@@ -92,28 +119,32 @@ export const generateBulkEmailsTask = task({
         rawWebsiteSummary: organization.websiteSummary,
       };
 
-      // Fetch all donor histories concurrently for better performance
-      const historiesPromises = selectedDonors.map(async (donor) => {
-        const [communicationHistory, donationHistory] = await Promise.all([
-          getDonorCommunicationHistory(donor.id, { organizationId }),
-          listDonations({
-            donorId: donor.id,
-            limit: 20,
-            orderBy: "date",
-            orderDirection: "desc",
-          }),
-        ]);
+      // Fetch donor histories with concurrency limiting
+      triggerLogger.info(`Fetching communication and donation histories for ${selectedDonors.length} donors`);
 
-        return {
-          donor,
-          communicationHistory: communicationHistory.map((thread) => ({
-            content: thread.content?.map((message) => ({ content: message.content })) || [],
-          })) as RawCommunicationThread[],
-          donationHistory: donationHistory.donations,
-        };
-      });
+      const donorHistories = await processConcurrently(
+        selectedDonors,
+        async (donor) => {
+          const [communicationHistory, donationHistory] = await Promise.all([
+            getDonorCommunicationHistory(donor.id, { organizationId }),
+            listDonations({
+              donorId: donor.id,
+              limit: 20,
+              orderBy: "date",
+              orderDirection: "desc",
+            }),
+          ]);
 
-      const donorHistories = await Promise.all(historiesPromises);
+          return {
+            donor,
+            communicationHistory: communicationHistory.map((thread) => ({
+              content: thread.content?.map((message) => ({ content: message.content })) || [],
+            })) as RawCommunicationThread[],
+            donationHistory: donationHistory.donations,
+          };
+        },
+        MAX_CONCURRENCY
+      );
 
       // Get organization and user memories
       const [organizationMemories, userMemories, dismissedMemories] = await Promise.all([
@@ -151,28 +182,44 @@ export const generateBulkEmailsTask = task({
         lastName: donor.lastName,
       }));
 
-      triggerLogger.info(`Generating emails for ${donorInfos.length} donors`);
-
-      // Generate emails using the email generation service
-      const emailService = new EmailGenerationService();
-      const emailResults = await emailService.generateEmails(
-        donorInfos,
-        refinedInstruction || instruction,
-        organization.name,
-        emailGeneratorOrg,
-        organization.writingInstructions ?? undefined,
-        communicationHistories,
-        donationHistoriesMap,
-        userMemories,
-        organizationMemories,
-        undefined, // currentDate - will use default
-        user.emailSignature ?? undefined // Pass user's email signature
+      triggerLogger.info(
+        `Generating emails for ${donorInfos.length} donors with concurrency limit of ${MAX_CONCURRENCY}`
       );
 
-      triggerLogger.info(`Successfully generated ${emailResults.length} emails`);
+      // Generate emails in batches with concurrency limiting
+      const emailService = new EmailGenerationService();
+      const allEmailResults: any[] = [];
+
+      // Process donors in batches for email generation
+      await processConcurrently(
+        donorInfos,
+        async (donorInfo) => {
+          // Generate email for single donor
+          const singleDonorResults = await emailService.generateEmails(
+            [donorInfo], // Single donor
+            refinedInstruction || instruction,
+            organization.name,
+            emailGeneratorOrg,
+            organization.writingInstructions ?? undefined,
+            communicationHistories,
+            donationHistoriesMap,
+            userMemories,
+            organizationMemories,
+            undefined, // currentDate - will use default
+            user.emailSignature ?? undefined // Pass user's email signature
+          );
+
+          // Add results to the main array (thread-safe since we're awaiting each batch)
+          allEmailResults.push(...singleDonorResults);
+          return singleDonorResults;
+        },
+        MAX_CONCURRENCY
+      );
+
+      triggerLogger.info(`Successfully generated ${allEmailResults.length} emails`);
 
       // Store generated emails in database
-      const emailInserts = emailResults.map((email: any) => ({
+      const emailInserts = allEmailResults.map((email: any) => ({
         sessionId,
         donorId: email.donorId,
         subject: email.subject,
@@ -202,7 +249,7 @@ export const generateBulkEmailsTask = task({
       return {
         status: "success",
         sessionId,
-        emailsGenerated: emailResults.length,
+        emailsGenerated: allEmailResults.length,
         refinedInstruction: refinedInstruction || instruction,
       };
     } catch (error) {

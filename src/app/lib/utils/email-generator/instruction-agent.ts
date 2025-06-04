@@ -25,7 +25,7 @@ export class InstructionRefinementAgent {
       userInstruction,
       previousInstruction: previousInstruction || "none",
       userFeedback: userFeedback || "none",
-      modelName: env.SMALL_MODEL,
+      modelName: env.MID_MODEL,
     });
 
     const prompt = `You are an AI assistant helping to refine instructions for email generation. 
@@ -73,10 +73,10 @@ Respond in JSON format:
 }`;
 
     try {
-      logger.info(`Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.SMALL_MODEL})`);
+      logger.info(`Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.MID_MODEL})`);
 
       const { text: aiResponse } = await generateText({
-        model: openai(env.SMALL_MODEL),
+        model: openai(env.MID_MODEL),
         prompt,
       }).catch((error) => {
         logger.error(
