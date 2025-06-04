@@ -100,6 +100,21 @@ export async function updateUserMemory(id: string, memory: string[]): Promise<Us
   return result[0];
 }
 
+/**
+ * Update a user's email signature
+ * @param id The user's ID
+ * @param emailSignature The new email signature
+ * @returns The updated user or undefined if not found
+ */
+export async function updateUserEmailSignature(id: string, emailSignature: string): Promise<User | undefined> {
+  const result = await db
+    .update(users)
+    .set({ emailSignature, updatedAt: sql`now()` })
+    .where(eq(users.id, id))
+    .returning();
+  return result[0];
+}
+
 export async function getUserMemories(id: string): Promise<string[]> {
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result[0]?.memory || [];

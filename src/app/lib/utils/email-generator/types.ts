@@ -53,6 +53,7 @@ export interface GenerateEmailOptions {
   personalMemories?: string[];
   organizationalMemories?: string[];
   currentDate?: string; // Added for today's date
+  emailSignature?: string; // User's email signature
 }
 
 export interface EmailPiece {
@@ -115,6 +116,7 @@ export interface EmailGeneratorTool {
     donationHistories?: Record<number, DonationWithDetails[]>,
     personalMemories?: string[],
     organizationalMemories?: string[],
-    currentDate?: string // Added for today's date
+    currentDate?: string, // Added for today's date
+    emailSignature?: string // User's email signature
   ) => Promise<GeneratedEmail[]>;
 }

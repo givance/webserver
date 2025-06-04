@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { getUserById, updateUserMemory, addDismissedMemory } from "@/app/lib/data/users";
+import { getUserById, updateUserMemory, addDismissedMemory, updateUserEmailSignature } from "@/app/lib/data/users";
 import { logger } from "@/app/lib/logger";
 
 export const usersRouter = router({
@@ -76,6 +76,39 @@ export const usersRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to dismiss memory",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * Update the user's email signature
+   */
+  updateEmailSignature: protectedProcedure
+    .input(
+      z.object({
+        signature: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const userId = ctx.auth.user.id;
+        const updated = await updateUserEmailSignature(userId, input.signature);
+        if (!updated) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found",
+          });
+        }
+        return updated;
+      } catch (error) {
+        logger.error(
+          `Failed to update user email signature: ${error instanceof Error ? error.message : String(error)}`
+        );
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update user email signature",
           cause: error,
         });
       }

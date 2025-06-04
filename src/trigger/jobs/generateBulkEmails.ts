@@ -1,7 +1,7 @@
 import { task, logger as triggerLogger } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, donors, organizations } from "@/app/lib/db/schema";
+import { emailGenerationSessions, generatedEmails, donors, organizations, users } from "@/app/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
@@ -68,6 +68,13 @@ export const generateBulkEmailsTask = task({
 
       if (!organization) {
         throw new Error(`Organization ${organizationId} not found`);
+      }
+
+      // Get user data including email signature
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
       }
 
       // Get all donor data
@@ -157,7 +164,9 @@ export const generateBulkEmailsTask = task({
         communicationHistories,
         donationHistoriesMap,
         userMemories,
-        organizationMemories
+        organizationMemories,
+        undefined, // currentDate - will use default
+        user.emailSignature ?? undefined // Pass user's email signature
       );
 
       triggerLogger.info(`Successfully generated ${emailResults.length} emails`);

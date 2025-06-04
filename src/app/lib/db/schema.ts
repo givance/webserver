@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   lastName: text("last_name"), // From Clerk
   email: varchar("email", { length: 255 }).notNull().unique(), // Kept from original, ensure it matches Clerk's primary email
   profileImageUrl: text("profile_image_url"), // From Clerk
+  emailSignature: text("email_signature"), // User's email signature for generated emails
   // name: varchar("name", { length: 255 }).notNull(), // Original 'name' field, can be removed if using firstName/lastName
   memory: text("memory").array(), // Array of strings for user memory
   dismissedMemories: text("dismissed_memories").array(), // Array of strings for user dismissed memories

@@ -1,7 +1,7 @@
 import { getCommunicationThreadById, getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
-import { getDismissedMemories, getUserMemories } from "@/app/lib/data/users";
+import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
 import { emailGenerationSessions, generatedEmails, organizations } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
@@ -255,11 +255,12 @@ class EmailGenerationService {
 
     const donorHistories = await Promise.all(historiesPromises);
 
-    // Get organization and user memories
-    const [organizationMemories, userMemories, dismissedMemories] = await Promise.all([
+    // Get organization and user memories, and user data including signature
+    const [organizationMemories, userMemories, dismissedMemories, user] = await Promise.all([
       getOrganizationMemories(organizationId),
       getUserMemories(userId), // Get user memories for the current user
       getDismissedMemories(userId), // Get dismissed memories for the current user
+      getUserById(userId), // Get user data including email signature
     ]);
 
     logger.info(
@@ -289,7 +290,8 @@ class EmailGenerationService {
       userMemories,
       organizationMemories,
       dismissedMemories,
-      currentDate
+      currentDate,
+      user?.emailSignature ?? undefined // Pass user's email signature
     );
 
     logger.info(`Successfully generated ${result.emails.length} emails for organization ${organizationId}`);

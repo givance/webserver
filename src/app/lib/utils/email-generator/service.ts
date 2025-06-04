@@ -35,7 +35,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
     donationHistories: Record<number, DonationWithDetails[]> = {},
     personalMemories: string[] = [],
     organizationalMemories: string[] = [],
-    currentDate?: string
+    currentDate?: string,
+    emailSignature?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
       `Starting batch email generation for ${
@@ -66,6 +67,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         personalMemories,
         organizationalMemories,
         currentDate,
+        emailSignature,
       }).catch((error) => {
         logger.error(
           `Failed to generate email for donor ${donor.id} (error: ${
@@ -113,6 +115,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personalMemories,
       organizationalMemories,
       currentDate,
+      emailSignature,
     } = options;
 
     logger.info(
@@ -149,7 +152,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationHistory,
       personalMemories,
       organizationalMemories,
-      currentDate
+      currentDate,
+      emailSignature
     );
 
     console.log(prompt);

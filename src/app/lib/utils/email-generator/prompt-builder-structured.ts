@@ -21,7 +21,8 @@ export function buildStructuredEmailPrompt(
   donationHistoryInput: DonationWithDetails[] = [],
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
-  currentDate?: string
+  currentDate?: string,
+  emailSignature?: string
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
@@ -30,11 +31,16 @@ export function buildStructuredEmailPrompt(
   // Format current date if provided
   const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
 
+  // Format email signature if provided
+  const signatureContext = emailSignature ? `Email Signature to Use:\n${emailSignature}\n` : "";
+
   return `You are an expert in donor communications writing personalized emails.
 
 CONTEXT:
 Organization: ${organizationName}
-${organization?.description ? `Organization Description: ${organization.description}\n` : ""}${dateContext}${
+${
+  organization?.description ? `Organization Description: ${organization.description}\n` : ""
+}${dateContext}${signatureContext}${
     organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""
   }
 
@@ -59,12 +65,14 @@ REQUIREMENTS:
 - Length: 120-150 words
 - Reference specific donation amounts and dates from the history when available
 - Use the current date context for time-sensitive references and seasonal messaging
+${emailSignature ? "- Use the provided email signature for the closing of the email" : ""}
 
 IMPORTANT INSTRUCTIONS:
 1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
 2. For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
 3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 4. Create at least 5 content pieces for a complete email structure
+${emailSignature ? "5. Include the provided email signature as the final piece(s) of the email" : ""}
 
 Generate a compelling, personalized email that will re-engage this donor.`;
 }
