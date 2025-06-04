@@ -8,35 +8,63 @@ import { DonationWithDetails } from "../../data/donations";
 import { formatDonorName } from "../donor-name-formatter";
 
 /**
- * Builds the prompt for the AI to generate a personalized donor email.
- *
- * @param donor - Donor information.
- * @param instruction - Specific instruction for the email.
- * @param organizationName - Name of the organization.
- * @param organization - Organization details.
- * @param organizationWritingInstructions - Optional writing guidelines for the organization.
- * @param communicationHistoryInput - Raw communication history for the donor.
- * @param donationHistoryInput - Raw donation history for the donor.
- * @returns The complete prompt string for the AI.
+ * Cache for system prompt to avoid regenerating static content
  */
-export function buildEmailPrompt(
-  donor: DonorInfo,
+let systemPromptCache: string | null = null;
+let systemPromptCacheKey: string | null = null;
+
+/**
+ * Creates a cache key for the system prompt based on static parameters
+ */
+function createSystemPromptCacheKey(
   instruction: string,
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
-  communicationHistoryInput: RawCommunicationThread[] = [],
-  donationHistoryInput: DonationWithDetails[] = [],
   personalMemories: string[] = [],
-  organizationalMemories: string[] = [],
-  currentDate?: string
-): { prompt: string; referenceContexts: Record<string, string> } {
-  const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
-  const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
+  organizationalMemories: string[] = []
+): string {
+  const websiteSummary = organization?.websiteSummary || "";
+  const orgDescription = organization?.description || "";
+  return JSON.stringify({
+    instruction,
+    organizationName,
+    orgDescription,
+    organizationWritingInstructions: organizationWritingInstructions || "",
+    websiteSummary,
+    personalMemories,
+    organizationalMemories,
+  });
+}
+
+/**
+ * Builds the static system prompt that can be cached and reused.
+ * This includes all the formatting instructions, organization info, memories, and user instruction.
+ */
+export function buildSystemPrompt(
+  instruction: string,
+  organizationName: string,
+  organization: Organization | null,
+  organizationWritingInstructions?: string,
+  personalMemories: string[] = [],
+  organizationalMemories: string[] = []
+): string {
+  const cacheKey = createSystemPromptCacheKey(
+    instruction,
+    organizationName,
+    organization,
+    organizationWritingInstructions,
+    personalMemories,
+    organizationalMemories
+  );
+
+  if (systemPromptCache && systemPromptCacheKey === cacheKey) {
+    return systemPromptCache;
+  }
+
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
 
-  // Constructing the detailed prompt with instructions for JSON output
-  const prompt = `You are an expert in donor communications, helping to write personalized emails.
+  const systemPrompt = `You are an expert in donor communications, helping to write personalized emails.
 Your task is to generate an email based on the provided context and instructions.
 The output MUST be a valid JSON object with two fields:
 1. "subject": A string containing a compelling subject line for the email
@@ -82,15 +110,13 @@ ${organization?.description ? `Organization Description: ${organization.descript
 Organization Website Summary (if available, paragraphs are prefixed with their IDs):
 ${websiteSummaryPrompt}
 
-Donor Information:
-- Name: ${formatDonorName(donor)}
-- Email: ${donor.email}
-${donor.donationHistory && donor.donationHistory.length > 0 ? `- Donation Count: ${donor.donationHistory.length}` : ""}
-
-Past Communications (if available, messages are prefixed with their IDs):
-${communicationHistoryPrompt}
-
 User Instruction for this email: ${instruction}
+
+Instructions for Tone and Style:
+	•	Tone: Warm, personal, and confident.
+	•	Length: 120–150 words.
+	•	Avoid: Generic language, multiple CTAs, or excessive formality.
+	•	Assume you have access to: donor's name, past gift amount, date, and program impacted.
 
 Write an email for a donor who following the user instruction above, it could be a reengagement email to a donor who hasn't donated in a while, or a new donor who just donated. Use the structure and examples below.
 
@@ -103,8 +129,6 @@ Thank the donor and mention the last gift amount and year. Acknowledge their pas
 - Prefer to use a donation that is donated to a specific program, and mention that program.
 - Prefer to mention a larger donation amount
 - Prefer to mention a recent donation
-Donation History (if available, donations are prefixed with their IDs):
-${donationHistoryPrompt}
 
 3. Emotional Hook (Do 1):
 Connect their past donation to real-world impact. Be very specific about the impact if you are to mention, and use the company's information to make it more specific.
@@ -126,26 +150,89 @@ If asking for a new donation:
 - explicitly mention how much impact that amount can make, for example, supporting 2 poor families, etc. if you can find that information.
 
 6. Signature (Do 1):
-Sign off with a real name + title, and a P.S. with a reminder or extra nudge.
-Example:
-Warmly,
-Jiyun Hyo
-Director of Development
-P.S. Even a small gift today can reignite hope for a family in need.
 
-Instructions for Tone and Style:
-	•	Tone: Warm, personal, and confident.
-	•	Length: 120–150 words.
-	•	Avoid: Generic language, multiple CTAs, or excessive formality.
-	•	Assume you have access to: donor's name, past gift amount, date, and program impacted.
+Now, generate the email strictly in the JSON format described above.`;
 
-Now, generate the email strictly in the JSON format described above.
-JSON Email:`;
+  systemPromptCache = systemPrompt;
+  systemPromptCacheKey = cacheKey;
+  return systemPrompt;
+}
+
+/**
+ * Builds the dynamic donor-specific context that changes for each email.
+ */
+export function buildDonorContext(
+  donor: DonorInfo,
+  communicationHistoryInput: RawCommunicationThread[] = [],
+  donationHistoryInput: DonationWithDetails[] = []
+): string {
+  const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
+  const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
+
+  return `Donor Information:
+- Name: ${formatDonorName(donor)}
+- Email: ${donor.email}
+
+Past Communications (if available, messages are prefixed with their IDs):
+${communicationHistoryPrompt}
+
+Donation History (if available, donations are prefixed with their IDs):
+${donationHistoryPrompt}`;
+}
+
+/**
+ * Builds the prompt for the AI to generate a personalized donor email.
+ * This function now uses caching for the system prompt and returns both parts separately.
+ *
+ * @param donor - Donor information.
+ * @param instruction - Specific instruction for the email.
+ * @param organizationName - Name of the organization.
+ * @param organization - Organization details.
+ * @param organizationWritingInstructions - Optional writing guidelines for the organization.
+ * @param communicationHistoryInput - Raw communication history for the donor.
+ * @param donationHistoryInput - Raw donation history for the donor.
+ * @returns Object with separate system prompt, donor context, and reference contexts.
+ */
+export function buildEmailPrompt(
+  donor: DonorInfo,
+  instruction: string,
+  organizationName: string,
+  organization: Organization | null,
+  organizationWritingInstructions?: string,
+  communicationHistoryInput: RawCommunicationThread[] = [],
+  donationHistoryInput: DonationWithDetails[] = [],
+  personalMemories: string[] = [],
+  organizationalMemories: string[] = [],
+  currentDate?: string
+): {
+  systemPrompt: string;
+  donorContext: string;
+  referenceContexts: Record<string, string>;
+} {
+  const systemPrompt = buildSystemPrompt(
+    instruction,
+    organizationName,
+    organization,
+    organizationWritingInstructions,
+    personalMemories,
+    organizationalMemories
+  );
+
+  const donorContext = buildDonorContext(donor, communicationHistoryInput, donationHistoryInput);
 
   return {
-    prompt: prompt,
+    systemPrompt,
+    donorContext,
     referenceContexts: {
       // Add any necessary reference contexts here
     },
   };
+}
+
+/**
+ * Utility function to clear the system prompt cache if needed (for testing or updates).
+ */
+export function clearSystemPromptCache(): void {
+  systemPromptCache = null;
+  systemPromptCacheKey = null;
 }

@@ -142,7 +142,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationContexts[refId] = `Donation on ${date}: ${amount}${project}`;
     });
 
-    const prompt = buildStructuredEmailPrompt(
+    const promptParts = buildStructuredEmailPrompt(
       donor,
       instruction,
       organizationName,
@@ -156,12 +156,17 @@ export class EmailGenerationService implements EmailGeneratorTool {
       emailSignature
     );
 
+    // Combine the system prompt and donor context for the AI call
+    const prompt = `${promptParts.systemPrompt}\n\n${promptParts.donorContext}`;
+
     console.log(prompt);
 
     logger.info(
-      `Built email prompt for donor ${donor.id}: promptLength=${prompt.length}, donationContextsCount=${
-        Object.keys(donationContexts).length
-      }, model=${env.MID_MODEL}`
+      `Built email prompt for donor ${donor.id}: systemPromptLength=${
+        promptParts.systemPrompt.length
+      }, donorContextLength=${promptParts.donorContext.length}, totalPromptLength=${
+        prompt.length
+      }, donationContextsCount=${Object.keys(donationContexts).length}, model=${env.MID_MODEL}`
     );
 
     try {
