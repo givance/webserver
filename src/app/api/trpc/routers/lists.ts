@@ -63,6 +63,20 @@ const getListsForDonorSchema = z.object({
   donorId: z.number().positive(),
 });
 
+const uploadFilesSchema = z.object({
+  listId: z.number(),
+  accountsFile: z.object({
+    name: z.string(),
+    content: z.string(), // base64 encoded CSV content
+  }),
+  pledgesFile: z
+    .object({
+      name: z.string(),
+      content: z.string(), // base64 encoded CSV content
+    })
+    .optional(),
+});
+
 /**
  * Donor lists router for managing donor lists and memberships
  * Provides CRUD operations for lists and member management functionality
@@ -282,6 +296,56 @@ export const listsRouter = router({
    * @returns Array of lists containing the specified donor
    */
   getListsForDonor: protectedProcedure.input(getListsForDonorSchema).query(async ({ input, ctx }) => {
-    return await getListsForDonor(input.donorId, ctx.auth.user.organizationId);
+    try {
+      const lists = await getListsForDonor(input.donorId, ctx.auth.user.organizationId);
+      return lists;
+    } catch (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get lists for donor",
+      });
+    }
+  }),
+
+  /**
+   * Upload and process CSV files to import donors and pledges into a list
+   */
+  uploadAndProcessFiles: protectedProcedure.input(uploadFilesSchema).mutation(async ({ input, ctx }) => {
+    try {
+      // Import the CSV processing functionality
+      const { processCSVFiles } = await import("@/app/lib/utils/csv-import");
+
+      // Verify list exists and belongs to organization
+      const list = await getDonorListById(input.listId, ctx.auth.user.organizationId);
+      if (!list) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "List not found",
+        });
+      }
+
+      // Decode base64 content
+      const accountsContent = Buffer.from(input.accountsFile.content, "base64").toString("utf-8");
+      const pledgesContent = input.pledgesFile
+        ? Buffer.from(input.pledgesFile.content, "base64").toString("utf-8")
+        : null;
+
+      // Process the CSV files
+      const result = await processCSVFiles({
+        accountsCSV: accountsContent,
+        pledgesCSV: pledgesContent,
+        organizationId: ctx.auth.user.organizationId,
+        listId: input.listId,
+        userId: ctx.auth.user.id,
+      });
+
+      return result;
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error instanceof Error ? error.message : "Failed to process files",
+      });
+    }
   }),
 });

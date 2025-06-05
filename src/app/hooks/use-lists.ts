@@ -12,6 +12,7 @@ type DonorListWithMembersOutput = inferProcedureOutput<AppRouter["lists"]["getBy
 type ListDonorListsInput = inferProcedureInput<AppRouter["lists"]["list"]>;
 type CreateDonorListInput = inferProcedureInput<AppRouter["lists"]["create"]>;
 type UpdateDonorListInput = inferProcedureInput<AppRouter["lists"]["update"]>;
+type UploadFilesInput = inferProcedureInput<AppRouter["lists"]["uploadAndProcessFiles"]>;
 
 /**
  * Hook for managing donor lists through the tRPC API
@@ -173,6 +174,41 @@ export function useLists() {
     },
   });
 
+  const uploadFilesMutation = trpc.lists.uploadAndProcessFiles.useMutation({
+    onSuccess: (result, variables) => {
+      utils.lists.list.invalidate();
+      utils.lists.getByIdWithMemberCount.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
+      utils.lists.getDonorIdsFromLists.invalidate();
+
+      // Show detailed success message
+      const messages = [];
+      if (result.donorsCreated > 0) {
+        messages.push(`${result.donorsCreated} new donor${result.donorsCreated !== 1 ? "s" : ""} created`);
+      }
+      if (result.donorsUpdated > 0) {
+        messages.push(`${result.donorsUpdated} donor${result.donorsUpdated !== 1 ? "s" : ""} updated`);
+      }
+      if (result.pledgesCreated > 0) {
+        messages.push(`${result.pledgesCreated} pledge${result.pledgesCreated !== 1 ? "s" : ""} imported`);
+      }
+
+      const summary = `Processed ${result.donorsProcessed} donor records. ${messages.join(", ")}.`;
+      toast.success(summary);
+
+      if (result.errors.length > 0) {
+        const errorSummary = `${result.errors.length} error${
+          result.errors.length !== 1 ? "s" : ""
+        } occurred during import`;
+        toast.warning(errorSummary);
+        console.warn("Import errors:", result.errors);
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to upload and process files: ${error.message}`);
+    },
+  });
+
   // Helper functions for easier use
   const createList = async (data: CreateDonorListInput) => {
     return createMutation.mutateAsync(data);
@@ -194,6 +230,10 @@ export function useLists() {
     return removeDonorsMutation.mutateAsync({ listId, donorIds });
   };
 
+  const uploadFilesToList = async (data: UploadFilesInput) => {
+    return uploadFilesMutation.mutateAsync(data);
+  };
+
   return {
     // Query hooks
     listDonorLists,
@@ -209,6 +249,7 @@ export function useLists() {
     deleteMutation,
     addDonorsMutation,
     removeDonorsMutation,
+    uploadFilesMutation,
 
     // Helper functions
     createList,
@@ -216,6 +257,7 @@ export function useLists() {
     deleteList,
     addDonorsToList,
     removeDonorsFromList,
+    uploadFilesToList,
 
     // Loading states
     isCreating: createMutation.isPending,
@@ -223,5 +265,6 @@ export function useLists() {
     isDeleting: deleteMutation.isPending,
     isAddingDonors: addDonorsMutation.isPending,
     isRemovingDonors: removeDonorsMutation.isPending,
+    isUploadingFiles: uploadFilesMutation.isPending,
   };
 }

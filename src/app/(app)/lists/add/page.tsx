@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Users, Search } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, Users, Search, Upload } from "lucide-react";
 import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { useDonors } from "@/app/hooks/use-donors";
@@ -28,7 +29,7 @@ type SelectableDonor = {
 
 export default function AddListPage() {
   const router = useRouter();
-  const { createList, addDonorsToList, isCreating, isAddingDonors } = useLists();
+  const { createList, addDonorsToList, uploadFilesToList, isCreating, isAddingDonors, isUploadingFiles } = useLists();
   const { listDonors } = useDonors();
 
   const [formData, setFormData] = useState({
@@ -41,6 +42,12 @@ export default function AddListPage() {
   const [selectedDonorIds, setSelectedDonorIds] = useState<number[]>([]);
   const [donorSearchTerm, setDonorSearchTerm] = useState("");
   const [showDonorSelection, setShowDonorSelection] = useState(false);
+
+  // File upload state
+  const [donorMethod, setDonorMethod] = useState<"none" | "select" | "upload">("none");
+  const [accountsFile, setAccountsFile] = useState<File | null>(null);
+  const [pledgesFile, setPledgesFile] = useState<File | null>(null);
+  const [uploadResult, setUploadResult] = useState<any>(null);
 
   // Get donors for selection
   const {
@@ -65,6 +72,21 @@ export default function AddListPage() {
     );
   }, [donorsResponse, selectedDonorIds]);
 
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:application/... prefix to get just the base64 content
+        const base64Content = result.split(",")[1];
+        resolve(base64Content);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -72,6 +94,13 @@ export default function AddListPage() {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) {
       newErrors.name = "List name is required";
+    }
+
+    // Validate donor method specific requirements
+    if (donorMethod === "upload") {
+      if (!accountsFile) {
+        newErrors.accountsFile = "Account list CSV file is required";
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -87,17 +116,39 @@ export default function AddListPage() {
         isActive: formData.isActive,
       });
 
-      // Step 2: Add selected donors to the list (if any)
-      if (selectedDonorIds.length > 0 && newList) {
-        await addDonorsToList(newList.id, selectedDonorIds);
+      if (!newList) {
+        throw new Error("Failed to create list");
       }
 
-      // Navigate to the list detail page or lists page
-      if (newList) {
-        router.push(`/lists/${newList.id}`);
-      } else {
-        router.push("/lists");
+      // Step 2: Handle donor addition based on method
+      if (donorMethod === "select" && selectedDonorIds.length > 0) {
+        await addDonorsToList(newList.id, selectedDonorIds);
+      } else if (donorMethod === "upload" && accountsFile) {
+        // Convert files to base64
+        const accountsContent = await fileToBase64(accountsFile);
+        const pledgesContent = pledgesFile ? await fileToBase64(pledgesFile) : null;
+
+        // Upload and process files
+        const result = await uploadFilesToList({
+          listId: newList.id,
+          accountsFile: {
+            name: accountsFile.name,
+            content: accountsContent,
+          },
+          pledgesFile:
+            pledgesContent && pledgesFile
+              ? {
+                  name: pledgesFile.name,
+                  content: pledgesContent,
+                }
+              : undefined,
+        });
+
+        setUploadResult(result);
       }
+
+      // Navigate to the list detail page
+      router.push(`/lists/${newList.id}`);
     } catch (error) {
       console.error("Error creating list:", error);
     }
@@ -123,7 +174,33 @@ export default function AddListPage() {
     }
   };
 
-  const isLoading = isCreating || isAddingDonors;
+  const handleFileChange = (type: "accounts" | "pledges", file: File | null) => {
+    if (type === "accounts") {
+      setAccountsFile(file);
+      // Clear error when file is selected
+      if (file && errors.accountsFile) {
+        setErrors((prev) => ({ ...prev, accountsFile: "" }));
+      }
+    } else {
+      setPledgesFile(file);
+    }
+  };
+
+  const handleDonorMethodChange = (method: "none" | "select" | "upload") => {
+    setDonorMethod(method);
+    setShowDonorSelection(method === "select");
+
+    // Clear relevant state when switching methods
+    if (method !== "select") {
+      setSelectedDonorIds([]);
+    }
+    if (method !== "upload") {
+      setAccountsFile(null);
+      setPledgesFile(null);
+    }
+  };
+
+  const isLoading = isCreating || isAddingDonors || isUploadingFiles;
 
   return (
     <div className="container mx-auto py-6">
@@ -184,6 +261,67 @@ export default function AddListPage() {
                   </p>
                 </div>
 
+                {/* Donor Method Selection */}
+                <div className="space-y-4 pt-4 border-t">
+                  <Label className="text-base font-medium">Add Donors to List</Label>
+                  <RadioGroup value={donorMethod} onValueChange={handleDonorMethodChange}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="none" id="method-none" />
+                      <Label htmlFor="method-none">Create empty list (add donors later)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="select" id="method-select" />
+                      <Label htmlFor="method-select">Select from existing donors</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="upload" id="method-upload" />
+                      <Label htmlFor="method-upload">Upload CSV files</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* File Upload Section */}
+                {donorMethod === "upload" && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountsFile" className="flex items-center space-x-2">
+                        <Upload className="w-4 h-4" />
+                        <span>Account List CSV *</span>
+                      </Label>
+                      <Input
+                        id="accountsFile"
+                        type="file"
+                        accept=".csv"
+                        onChange={(e) => handleFileChange("accounts", e.target.files?.[0] || null)}
+                        className={errors.accountsFile ? "border-red-500" : ""}
+                      />
+                      {errors.accountsFile && <p className="text-sm text-red-500">{errors.accountsFile}</p>}
+                      {accountsFile && <p className="text-sm text-green-600">✓ {accountsFile.name} selected</p>}
+                      <p className="text-sm text-muted-foreground">
+                        CSV file containing donor account information. Required fields: ACT_ID, Email, names.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pledgesFile" className="flex items-center space-x-2">
+                        <Upload className="w-4 h-4" />
+                        <span>Pledge List CSV (Optional)</span>
+                      </Label>
+                      <Input
+                        id="pledgesFile"
+                        type="file"
+                        accept=".csv"
+                        onChange={(e) => handleFileChange("pledges", e.target.files?.[0] || null)}
+                      />
+                      {pledgesFile && <p className="text-sm text-green-600">✓ {pledgesFile.name} selected</p>}
+                      <p className="text-sm text-muted-foreground">
+                        Optional CSV file containing pledge/donation data. Required fields: ACT_ID, PLG_Amount,
+                        PLG_Date.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Toggle donor selection */}
                 <div className="flex items-center space-x-2 pt-4 border-t">
                   <Switch
@@ -205,7 +343,11 @@ export default function AddListPage() {
                     {isLoading
                       ? isCreating
                         ? "Creating..."
+                        : isUploadingFiles
+                        ? "Processing files..."
                         : "Adding donors..."
+                      : donorMethod === "upload" && accountsFile
+                      ? "Create List & Upload Files"
                       : selectedDonorIds.length > 0
                       ? `Create List with ${selectedDonorIds.length} Donor${selectedDonorIds.length !== 1 ? "s" : ""}`
                       : "Create List"}
@@ -216,7 +358,7 @@ export default function AddListPage() {
           </Card>
 
           {/* Donor Selection */}
-          {showDonorSelection && (
+          {donorMethod === "select" && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
