@@ -37,7 +37,20 @@ function CommunicateMenuItem() {
       <Link href="/communicate" className="w-full">
         <SidebarMenuButton>
           <MessageSquare className="w-4 h-4" />
-          <span>Communicate</span>
+          <span className="text-left">Communicate</span>
+        </SidebarMenuButton>
+      </Link>
+    </SidebarMenuItem>
+  );
+}
+
+function CommunicationJobsMenuItem() {
+  return (
+    <SidebarMenuItem>
+      <Link href="/communication-jobs" className="w-full">
+        <SidebarMenuButton>
+          <Briefcase className="w-4 h-4" />
+          <span className="text-left">Communication Jobs</span>
         </SidebarMenuButton>
       </Link>
     </SidebarMenuItem>
@@ -114,7 +127,7 @@ export default function MainLayout({
                       <Link href="/" className="w-full">
                         <SidebarMenuButton isActive>
                           <Home className="w-4 h-4" />
-                          <span>Home</span>
+                          <span className="text-left">Home</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -122,7 +135,7 @@ export default function MainLayout({
                       <Link href="/staff" className="w-full">
                         <SidebarMenuButton>
                           <Users className="w-4 h-4" />
-                          <span>Staff</span>
+                          <span className="text-left">Staff</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -130,7 +143,7 @@ export default function MainLayout({
                       <Link href="/donors" className="w-full">
                         <SidebarMenuButton>
                           <Heart className="w-4 h-4" />
-                          <span>Donors</span>
+                          <span className="text-left">Donors</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -138,7 +151,7 @@ export default function MainLayout({
                       <Link href="/lists" className="w-full">
                         <SidebarMenuButton>
                           <List className="w-4 h-4" />
-                          <span>Donor Lists</span>
+                          <span className="text-left">Donor Lists</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -146,24 +159,17 @@ export default function MainLayout({
                       <Link href="/projects" className="w-full">
                         <SidebarMenuButton>
                           <FolderGit2 className="w-4 h-4" />
-                          <span>Projects</span>
+                          <span className="text-left">Projects</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <CommunicateMenuItem />
-                    <SidebarMenuItem>
-                      <Link href="/communication-jobs" className="w-full">
-                        <SidebarMenuButton className="justify-start">
-                          <Briefcase className="w-4 h-4" />
-                          <span>Communication Jobs</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
+                    <CommunicationJobsMenuItem />
                     <SidebarMenuItem>
                       <Link href="/settings" className="w-full">
                         <SidebarMenuButton>
                           <Settings2 className="w-4 h-4" />
-                          <span>Settings</span>
+                          <span className="text-left">Settings</span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
