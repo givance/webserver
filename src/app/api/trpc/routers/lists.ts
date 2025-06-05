@@ -14,6 +14,7 @@ import {
   getDonorIdsFromLists,
   getListsForDonor,
 } from "@/app/lib/data/donor-lists";
+import { processCSVFiles } from "@/app/lib/utils/csv-import";
 
 /**
  * Input validation schemas for donor list operations
@@ -312,9 +313,6 @@ export const listsRouter = router({
    */
   uploadAndProcessFiles: protectedProcedure.input(uploadFilesSchema).mutation(async ({ input, ctx }) => {
     try {
-      // Import the CSV processing functionality
-      const { processCSVFiles } = await import("@/app/lib/utils/csv-import");
-
       // Verify list exists and belongs to organization
       const list = await getDonorListById(input.listId, ctx.auth.user.organizationId);
       if (!list) {
