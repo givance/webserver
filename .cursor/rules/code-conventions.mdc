@@ -16,6 +16,7 @@ alwaysApply: true
   - Review: at the end of the execution, review changes, fix lint errors, do not automatically build unless i asked you to do so.
 - You should automatically execute all the 4 steps above, no need to stop and ask for confirmation.
 - Always keep an up-to-date task list file (such as task.md) in your project.
+- When you are starting a new task, and the task.md is not empty, delete the content first. do not append.
 - After completing a significant component or task, update the task list by marking completed tasks with [x] and incomplete ones with [ ].
 - Add any new tasks discovered during implementation to the list.
 - Maintain a "Relevant Files" section with accurate file paths and descriptions.
