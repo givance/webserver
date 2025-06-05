@@ -9,6 +9,7 @@ import {
   updateDonor,
   deleteDonor,
   listDonors,
+  listDonorsForCommunication,
 } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
 
@@ -71,6 +72,14 @@ const listDonorsSchema = z.object({
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 
+const listDonorsForCommunicationSchema = z.object({
+  searchTerm: z.string().optional(),
+  limit: z.number().min(1).optional(),
+  offset: z.number().min(0).optional(),
+  orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
+  orderDirection: z.enum(["asc", "desc"]).optional(),
+});
+
 const updateAssignedStaffSchema = z.object({
   donorId: z.number(),
   staffId: z.number().nullable(), // staffId can be null to unassign
@@ -118,6 +127,35 @@ const baseDonorSchema = z.object({
  */
 const listDonorsOutputSchema = z.object({
   donors: z.array(baseDonorSchema),
+  totalCount: z.number(),
+});
+
+/**
+ * Lightweight donor schema for communication features
+ */
+const communicationDonorSchema = z.object({
+  id: z.number(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  phone: z.string().nullish(),
+  displayName: z.string().nullish(),
+  hisTitle: z.string().nullish(),
+  hisFirstName: z.string().nullish(),
+  hisInitial: z.string().nullish(),
+  hisLastName: z.string().nullish(),
+  herTitle: z.string().nullish(),
+  herFirstName: z.string().nullish(),
+  herInitial: z.string().nullish(),
+  herLastName: z.string().nullish(),
+  isCouple: z.boolean().nullish(),
+});
+
+/**
+ * Output schema for communication donor list operations
+ */
+const listDonorsForCommunicationOutputSchema = z.object({
+  donors: z.array(communicationDonorSchema),
   totalCount: z.number(),
 });
 
@@ -291,6 +329,28 @@ export const donorsRouter = router({
     .output(listDonorsOutputSchema)
     .query(async ({ input, ctx }) => {
       return await listDonors(
+        {
+          ...input,
+        },
+        ctx.auth.user.organizationId
+      );
+    }),
+
+  /**
+   * Lists donors with minimal data optimized for communication features
+   * Returns only essential fields without expensive stage information processing
+   * @param input.searchTerm - Optional search term to filter by name or email
+   * @param input.limit - Maximum number of donors to return
+   * @param input.offset - Number of donors to skip for pagination
+   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt)
+   * @param input.orderDirection - Sort direction (asc or desc)
+   * @returns Object containing lightweight donor objects and total count for pagination
+   */
+  listForCommunication: protectedProcedure
+    .input(listDonorsForCommunicationSchema)
+    .output(listDonorsForCommunicationOutputSchema)
+    .query(async ({ input, ctx }) => {
+      return await listDonorsForCommunication(
         {
           ...input,
         },

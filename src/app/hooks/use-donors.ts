@@ -36,6 +36,22 @@ export function useDonors() {
     });
   };
 
+  // Optimized query for communication features
+  const listDonorsForCommunication = (params: {
+    searchTerm?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
+    orderDirection?: "asc" | "desc";
+  }) => {
+    return trpc.donors.listForCommunication.useQuery(params, {
+      // Don't refetch automatically
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    });
+  };
+
   // Get donor query hook
   const getDonorQuery = (id: number) =>
     trpc.donors.getById.useQuery(
@@ -232,6 +248,7 @@ export function useDonors() {
     getDonorQuery,
     getDonorsQuery,
     listDonors,
+    listDonorsForCommunication,
     getDonorStats,
     getMultipleDonorStats,
 

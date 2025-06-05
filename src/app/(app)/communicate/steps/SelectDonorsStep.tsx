@@ -35,10 +35,10 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
   const [debouncedSearchTerm] = useDebounce(searchTerm, 500);
   const [debouncedListSearchTerm] = useDebounce(listSearchTerm, 500);
 
-  const { listDonors } = useDonors();
+  const { listDonorsForCommunication } = useDonors();
   const { listDonorLists, getDonorIdsFromListsQuery } = useLists();
 
-  const { data: donorsData, isLoading: isDonorsLoading } = listDonors({
+  const { data: donorsData, isLoading: isDonorsLoading } = listDonorsForCommunication({
     searchTerm: debouncedSearchTerm,
   });
 

@@ -15,6 +15,25 @@ export type DonorWithDetails = Omit<Donor, "predictedActions"> & {
   predictedActions?: string[];
 };
 
+export type CommunicationDonor = Pick<
+  Donor,
+  | "id"
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "phone"
+  | "displayName"
+  | "hisTitle"
+  | "hisFirstName"
+  | "hisInitial"
+  | "hisLastName"
+  | "herTitle"
+  | "herFirstName"
+  | "herInitial"
+  | "herLastName"
+  | "isCouple"
+>;
+
 /**
  * Retrieves a donor by their ID and organization ID.
  * @param id - The ID of the donor to retrieve.
@@ -383,5 +402,97 @@ export async function listDonors(
   } catch (error) {
     console.error("Failed to list donors:", error);
     throw new Error("Could not list donors.");
+  }
+}
+
+/**
+ * Lists donors with minimal data for communication features (optimized for performance).
+ * Returns only essential fields without stage information processing.
+ * @param options - Options for searching, filtering, pagination, and sorting.
+ * @param organizationId - The ID of the organization to filter donors by.
+ * @returns An object containing an array of lightweight donor objects and the total count.
+ */
+export async function listDonorsForCommunication(
+  options: {
+    searchTerm?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
+    orderDirection?: "asc" | "desc";
+  } = {},
+  organizationId: string
+): Promise<{ donors: CommunicationDonor[]; totalCount: number }> {
+  try {
+    const { searchTerm, limit, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
+
+    if (searchTerm) {
+      const term = `%${searchTerm.toLowerCase()}%`;
+      const searchCondition = or(
+        like(sql`lower(${donors.firstName})`, term),
+        like(sql`lower(${donors.lastName})`, term),
+        like(sql`lower(${donors.email})`, term)
+      );
+      if (searchCondition) {
+        whereClauses.push(searchCondition);
+      }
+    }
+
+    let queryBuilder = db
+      .select({
+        id: donors.id,
+        firstName: donors.firstName,
+        lastName: donors.lastName,
+        email: donors.email,
+        phone: donors.phone,
+        displayName: donors.displayName,
+        hisTitle: donors.hisTitle,
+        hisFirstName: donors.hisFirstName,
+        hisInitial: donors.hisInitial,
+        hisLastName: donors.hisLastName,
+        herTitle: donors.herTitle,
+        herFirstName: donors.herFirstName,
+        herInitial: donors.herInitial,
+        herLastName: donors.herLastName,
+        isCouple: donors.isCouple,
+      })
+      .from(donors)
+      .where(and(...whereClauses));
+
+    if (orderBy) {
+      const columnMap: { [key in NonNullable<typeof orderBy>]: AnyColumn } = {
+        firstName: donors.firstName,
+        lastName: donors.lastName,
+        email: donors.email,
+        createdAt: donors.createdAt,
+      };
+      const selectedColumn = columnMap[orderBy];
+      if (selectedColumn) {
+        const directionFn = orderDirection === "asc" ? asc : desc;
+        // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
+        queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
+      }
+    }
+
+    // Apply pagination if limit is provided, otherwise get all results
+    let results;
+    if (limit !== undefined) {
+      results = await queryBuilder.limit(limit).offset(offset);
+    } else {
+      results = await queryBuilder;
+    }
+
+    const totalCountResult = await db
+      .select({ count: count() })
+      .from(donors)
+      .where(and(...whereClauses));
+
+    return {
+      donors: results,
+      totalCount: totalCountResult[0]?.count || 0,
+    };
+  } catch (error) {
+    console.error("Failed to list donors for communication:", error);
+    throw new Error("Could not list donors for communication.");
   }
 }
