@@ -175,6 +175,9 @@ export const donors = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
 
+    // External ID from CRM systems - unique within organization
+    externalId: varchar("external_id", { length: 255 }),
+
     // Legacy fields for backward compatibility (still required for now)
     firstName: varchar("first_name", { length: 255 }).notNull(),
     lastName: varchar("last_name", { length: 255 }).notNull(),
@@ -212,6 +215,8 @@ export const donors = pgTable(
   (table) => ({
     // Email should be unique within each organization, not globally
     uniqueEmailPerOrg: unique("donors_email_organization_unique").on(table.email, table.organizationId),
+    // External ID should be unique within each organization when provided
+    uniqueExternalIdPerOrg: unique("donors_external_id_organization_unique").on(table.externalId, table.organizationId),
   })
 );
 

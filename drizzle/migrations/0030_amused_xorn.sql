@@ -1,0 +1,2 @@
+ALTER TABLE "donors" ADD COLUMN "external_id" varchar(255);--> statement-breakpoint
+ALTER TABLE "donors" ADD CONSTRAINT "donors_external_id_organization_unique" UNIQUE("external_id","organization_id");

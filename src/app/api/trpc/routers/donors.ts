@@ -24,6 +24,7 @@ const donorIdsSchema = z.object({
 });
 
 const createDonorSchema = z.object({
+  externalId: z.string().optional(),
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
@@ -42,6 +43,7 @@ const createDonorSchema = z.object({
 
 const updateDonorSchema = z.object({
   id: z.number(),
+  externalId: z.string().optional(),
   email: z.string().email().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
@@ -80,6 +82,7 @@ const updateAssignedStaffSchema = z.object({
 const baseDonorSchema = z.object({
   id: z.number(),
   organizationId: z.string(),
+  externalId: z.string().nullish(), // External CRM ID
   firstName: z.string(),
   lastName: z.string(),
   // New couple structure fields
