@@ -9,14 +9,10 @@ import {
   deleteStaff,
   listStaff,
   updateStaffSignature,
-  linkStaffEmailAccount,
-  unlinkStaffEmailAccount,
 } from "@/app/lib/data/staff";
 import { listDonors } from "@/app/lib/data/donors";
 import { staffSchemas } from "@/app/lib/validation/schemas";
-import { db } from "@/app/lib/db";
-import { gmailOAuthTokens } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
+// Note: db and gmailOAuthTokens imports removed since staff Gmail is now handled via staffGmailRouter
 
 // Input validation schemas
 const staffIdSchema = z.object({
@@ -60,9 +56,15 @@ const staffSchema = z.object({
   email: z.string().email(),
   isRealPerson: z.boolean(),
   signature: z.string().nullable(),
-  linkedGmailTokenId: z.number().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
+  gmailToken: z
+    .object({
+      id: z.number(),
+      email: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 // Define the output schema for the list procedure to include totalCount
@@ -184,53 +186,6 @@ export const staffRouter = router({
       return updated;
     }),
 
-  linkEmailAccount: protectedProcedure.input(z.object({ staffId: z.number() })).mutation(async ({ input, ctx }) => {
-    const { staffId } = input;
-    try {
-      // Get the current user's Gmail token
-      const gmailToken = await db.query.gmailOAuthTokens.findFirst({
-        where: eq(gmailOAuthTokens.userId, ctx.auth.user.id),
-      });
-
-      if (!gmailToken) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No Gmail account connected. Please connect your Gmail account first.",
-        });
-      }
-
-      const updated = await linkStaffEmailAccount(staffId, gmailToken.id, ctx.auth.user.organizationId);
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found",
-        });
-      }
-      return updated;
-    } catch (error) {
-      if (error instanceof TRPCError) throw error;
-      if (error instanceof Error && error.message.includes("Gmail OAuth token not found")) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Gmail OAuth token not found",
-        });
-      }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not link email account to staff member",
-      });
-    }
-  }),
-
-  unlinkEmailAccount: protectedProcedure.input(z.object({ staffId: z.number() })).mutation(async ({ input, ctx }) => {
-    const { staffId } = input;
-    const updated = await unlinkStaffEmailAccount(staffId, ctx.auth.user.organizationId);
-    if (!updated) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Staff member not found",
-      });
-    }
-    return updated;
-  }),
+  // Note: Staff Gmail account management is now handled through the staffGmailRouter
+  // Individual staff members authenticate their own Gmail accounts via OAuth
 });

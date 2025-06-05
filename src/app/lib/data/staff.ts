@@ -153,22 +153,33 @@ export async function listStaff(
       .from(staff)
       .where(and(...conditions));
 
-    // Query for the paginated data
-    let dataQueryBuilder = db
-      .select()
-      .from(staff)
-      .where(and(...conditions));
-
-    // Build order by clause
+    // Build order by for relational query
+    let orderByClause;
     if (orderBy) {
       const column = staff[orderBy];
       if (column) {
         const direction = orderDirection === "asc" ? asc : desc;
-        dataQueryBuilder = dataQueryBuilder.orderBy(direction(column)) as typeof dataQueryBuilder;
+        orderByClause = direction(column);
       }
     }
 
-    const [totalResult, staffData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+    // Query for the paginated data with gmailToken relation
+    const staffDataQuery = db.query.staff.findMany({
+      where: and(...conditions),
+      with: {
+        gmailToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+      limit,
+      offset,
+      orderBy: orderByClause,
+    });
+
+    const [totalResult, staffData] = await Promise.all([countQuery, staffDataQuery]);
 
     const totalCount = totalResult[0]?.value || 0;
 
@@ -204,60 +215,5 @@ export async function updateStaffSignature(
   }
 }
 
-/**
- * Links an email account (Gmail OAuth token) to a staff member.
- * @param staffId - The ID of the staff member.
- * @param gmailTokenId - The ID of the Gmail OAuth token to link.
- * @param organizationId - The ID of the organization the staff member belongs to.
- * @returns The updated staff member object.
- */
-export async function linkStaffEmailAccount(
-  staffId: number,
-  gmailTokenId: number,
-  organizationId: string
-): Promise<Staff | undefined> {
-  try {
-    // First verify the Gmail token exists and belongs to the organization
-    const tokenInfo = await db.query.gmailOAuthTokens.findFirst({
-      where: eq(gmailOAuthTokens.id, gmailTokenId),
-      with: {
-        user: true,
-      },
-    });
-
-    if (!tokenInfo) {
-      throw new Error("Gmail OAuth token not found.");
-    }
-
-    // Update the staff member with the linked token
-    const result = await db
-      .update(staff)
-      .set({ linkedGmailTokenId: gmailTokenId, updatedAt: sql`now()` })
-      .where(and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)))
-      .returning();
-    return result[0];
-  } catch (error) {
-    console.error("Failed to link email account to staff:", error);
-    throw new Error("Could not link email account to staff member.");
-  }
-}
-
-/**
- * Unlinks the email account from a staff member.
- * @param staffId - The ID of the staff member.
- * @param organizationId - The ID of the organization the staff member belongs to.
- * @returns The updated staff member object.
- */
-export async function unlinkStaffEmailAccount(staffId: number, organizationId: string): Promise<Staff | undefined> {
-  try {
-    const result = await db
-      .update(staff)
-      .set({ linkedGmailTokenId: null, updatedAt: sql`now()` })
-      .where(and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)))
-      .returning();
-    return result[0];
-  } catch (error) {
-    console.error("Failed to unlink email account from staff:", error);
-    throw new Error("Could not unlink email account from staff member.");
-  }
-}
+// Note: Staff Gmail account management is now handled through the staffGmailRouter
+// Individual staff members authenticate their own Gmail accounts via OAuth

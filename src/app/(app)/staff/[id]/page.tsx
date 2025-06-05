@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText, Link2, Unlink } from "lucide-react";
+import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ import { formatCurrency } from "@/app/lib/utils/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { trpc } from "@/app/lib/trpc/client";
+import { GmailConnect } from "@/components/ui/GmailConnect";
 
 /**
  * Form schema for staff editing
@@ -79,21 +80,17 @@ export default function StaffDetailPage() {
     },
   });
 
-  const linkEmailAccountMutation = trpc.staff.linkEmailAccount.useMutation({
-    onSuccess: () => {
-      toast.success("Email account linked successfully");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to link email account");
-    },
-  });
+  // Staff Gmail connection mutations - using the new staff-specific endpoints
+  const { data: staffGmailStatus, refetch: refetchGmailStatus } =
+    trpc.staffGmail.getStaffGmailConnectionStatus.useQuery({ staffId }, { enabled: !!staffId });
 
-  const unlinkEmailAccountMutation = trpc.staff.unlinkEmailAccount.useMutation({
+  const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
-      toast.success("Email account unlinked successfully");
+      toast.success("Gmail account disconnected successfully");
+      refetchGmailStatus();
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to unlink email account");
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to disconnect Gmail account");
     },
   });
 
@@ -240,38 +237,7 @@ export default function StaffDetailPage() {
     }
   };
 
-  /**
-   * Handle linking email account
-   */
-  const handleLinkEmailAccount = async () => {
-    if (!gmailConnectionStatus?.isConnected) {
-      toast.error("Please connect your Gmail account first from Settings");
-      return;
-    }
-
-    try {
-      await linkEmailAccountMutation.mutateAsync({
-        staffId,
-      });
-      await refetchStaff();
-      toast.success("Email account linked successfully");
-    } catch (error) {
-      console.error("Error linking email account:", error);
-      toast.error("Failed to link email account");
-    }
-  };
-
-  /**
-   * Handle unlinking email account
-   */
-  const handleUnlinkEmailAccount = async () => {
-    try {
-      await unlinkEmailAccountMutation.mutateAsync({ staffId });
-      await refetchStaff();
-    } catch (error) {
-      console.error("Error unlinking email account:", error);
-    }
-  };
+  // Note: Gmail account management is now handled through the GmailConnect component
 
   /**
    * Cancel editing and reset form
@@ -408,8 +374,8 @@ export default function StaffDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <Badge variant={staff.linkedGmailTokenId ? "default" : "secondary"}>
-                {staff.linkedGmailTokenId ? "Connected" : "Not Connected"}
+              <Badge variant={staffGmailStatus?.isConnected ? "default" : "secondary"}>
+                {staffGmailStatus?.isConnected ? "Connected" : "Not Connected"}
               </Badge>
             </div>
           </CardContent>
@@ -647,81 +613,16 @@ export default function StaffDetailPage() {
 
         {/* Email Account Tab */}
         <TabsContent value="email">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Account Connection</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Connection Status</label>
-                  <div className="flex items-center gap-2 mt-2">
-                    {staff.linkedGmailTokenId ? (
-                      <>
-                        <Badge variant="default" className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          Connected
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          This staff member has a linked Gmail account
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Badge variant="secondary" className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          Not Connected
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          No Gmail account linked to this staff member
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    When a Gmail account is linked to a staff member, emails sent to donors assigned to this staff will
-                    be sent from their connected account instead of the organization's default account.
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  {staff.linkedGmailTokenId ? (
-                    <Button
-                      variant="outline"
-                      onClick={handleUnlinkEmailAccount}
-                      disabled={unlinkEmailAccountMutation.isPending}
-                    >
-                      <Unlink className="h-4 w-4 mr-2" />
-                      {unlinkEmailAccountMutation.isPending ? "Unlinking..." : "Unlink Account"}
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleLinkEmailAccount}
-                      disabled={linkEmailAccountMutation.isPending || !gmailConnectionStatus?.isConnected}
-                    >
-                      <Link2 className="h-4 w-4 mr-2" />
-                      {linkEmailAccountMutation.isPending ? "Linking..." : "Link Gmail Account"}
-                    </Button>
-                  )}
-                </div>
-
-                {!gmailConnectionStatus?.isConnected && !staff.linkedGmailTokenId && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Note:</strong> You need to connect your Gmail account in Settings before you can link it
-                      to this staff member.
-                    </p>
-                    <Button variant="outline" size="sm" className="mt-2" asChild>
-                      <Link href="/settings">Go to Settings</Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <GmailConnect
+            context="staff"
+            staffId={staffId}
+            title="Email Account Connection"
+            description="Link your Gmail account to this staff member to enable sending emails from their profile. When a Gmail account is linked, emails sent to donors assigned to this staff will be sent from their connected account instead of the organization's default account."
+            onConnectionChange={() => {
+              // Refetch staff data to update the UI
+              refetchStaff();
+            }}
+          />
         </TabsContent>
 
         {/* Assigned Donors Tab */}

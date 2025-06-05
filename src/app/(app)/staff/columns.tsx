@@ -1,6 +1,6 @@
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Trash2, Mail, MailX, FileText } from "lucide-react";
+import { ArrowUpDown, Trash2, Mail, MailX, FileText, Link2 } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { useStaff } from "@/app/hooks/use-staff";
+import { GmailConnect } from "@/components/ui/GmailConnect";
 
 export type Staff = {
   id: string | number;
@@ -23,7 +24,10 @@ export type Staff = {
   email: string;
   isRealPerson: boolean;
   signature?: string | null;
-  linkedGmailTokenId?: number | null;
+  gmailToken?: {
+    id: number;
+    email: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   organizationId: string;
@@ -68,6 +72,22 @@ function DeleteStaffButton({ staffId }: { staffId: string | number }) {
   );
 }
 
+// GmailConnectButton component for inline use in staff table
+function GmailConnectButton({ staffId, hasLinkedAccount }: { staffId: string | number; hasLinkedAccount: boolean }) {
+  if (hasLinkedAccount) {
+    return null; // Don't show button if already connected
+  }
+
+  return (
+    <GmailConnect
+      context="staff"
+      staffId={Number(staffId)}
+      showConnectionStatus={false}
+      className="p-0 border-0 shadow-none bg-transparent"
+    />
+  );
+}
+
 export const columns: ColumnDef<Staff>[] = [
   {
     id: "name",
@@ -108,7 +128,7 @@ export const columns: ColumnDef<Staff>[] = [
     id: "emailAccount",
     header: "Email Account",
     cell: ({ row }: { row: Row<Staff> }) => {
-      const hasLinkedAccount = row.original.linkedGmailTokenId !== null;
+      const hasLinkedAccount = row.original.gmailToken !== null;
       return (
         <div className="flex items-center gap-2">
           {hasLinkedAccount ? (
@@ -125,7 +145,7 @@ export const columns: ColumnDef<Staff>[] = [
         </div>
       );
     },
-    accessorFn: (row: Staff) => (row.linkedGmailTokenId ? "Connected" : "Not connected"),
+    accessorFn: (row: Staff) => (row.gmailToken ? "Connected" : "Not connected"),
   },
   {
     id: "signature",
@@ -160,15 +180,19 @@ export const columns: ColumnDef<Staff>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }: { row: Row<Staff> }) => (
-      <div className="flex items-center justify-end gap-2">
-        <Link href={`/communications?staffId=${row.original.id}`}>
-          <Button variant="ghost" size="sm">
-            Communications
-          </Button>
-        </Link>
-        <DeleteStaffButton staffId={row.original.id} />
-      </div>
-    ),
+    cell: ({ row }: { row: Row<Staff> }) => {
+      const hasLinkedAccount = row.original.gmailToken !== null;
+      return (
+        <div className="flex items-center justify-end gap-2">
+          <Link href={`/communications?staffId=${row.original.id}`}>
+            <Button variant="ghost" size="sm">
+              Communications
+            </Button>
+          </Link>
+          <GmailConnectButton staffId={row.original.id} hasLinkedAccount={hasLinkedAccount} />
+          <DeleteStaffButton staffId={row.original.id} />
+        </div>
+      );
+    },
   },
 ];

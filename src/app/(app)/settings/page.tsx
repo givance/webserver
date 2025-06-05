@@ -16,51 +16,10 @@ import { trpc } from "@/app/lib/trpc/client";
 import React from "react";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
+import { GmailConnect as GmailConnectComponent } from "@/components/ui/GmailConnect";
 
 function GmailConnect() {
-  const gmailAuthMutation = trpc.gmail.getGmailAuthUrl.useMutation({
-    onSuccess: (data) => {
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        toast.error("Could not get Gmail authentication URL. Please try again.");
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to initiate Gmail connection. Please try again.");
-    },
-  });
-
-  const handleConnectGmail = () => {
-    gmailAuthMutation.mutate();
-  };
-
-  const { data: gmailConnectionStatus, isLoading: isStatusLoading } = trpc.gmail.getGmailConnectionStatus.useQuery();
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Gmail Connection</CardTitle>
-        <CardDescription>
-          Connect your Gmail account to allow the application to compose and send emails on your behalf.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isStatusLoading ? (
-          <p>Loading Gmail connection status...</p>
-        ) : gmailConnectionStatus?.isConnected && gmailConnectionStatus.email ? (
-          <div className="flex flex-col items-start space-y-2">
-            <p className="text-green-600 font-semibold">Gmail account connected.</p>
-            <p>Email: {gmailConnectionStatus.email}</p>
-          </div>
-        ) : (
-          <Button onClick={handleConnectGmail} disabled={gmailAuthMutation.isPending || isStatusLoading}>
-            {gmailAuthMutation.isPending ? "Connecting..." : "Connect Gmail Account"}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
+  return <GmailConnectComponent context="settings" />;
 }
 
 function SignatureSettings() {

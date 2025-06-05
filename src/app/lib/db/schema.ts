@@ -251,7 +251,6 @@ export const staff = pgTable("staff", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   isRealPerson: boolean("is_real_person").default(true).notNull(),
   signature: text("signature"), // Rich text signature for emails
-  linkedGmailTokenId: integer("linked_gmail_token_id").references(() => gmailOAuthTokens.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -365,9 +364,9 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
     references: [organizations.id],
   }),
   assignedDonors: many(donors, { relationName: "assignedStaff" }),
-  linkedGmailToken: one(gmailOAuthTokens, {
-    fields: [staff.linkedGmailTokenId],
-    references: [gmailOAuthTokens.id],
+  gmailToken: one(staffGmailTokens, {
+    fields: [staff.id],
+    references: [staffGmailTokens.staffId],
   }),
 }));
 
@@ -786,5 +785,29 @@ export const donorListMembersRelations = relations(donorListMembers, ({ one }) =
   addedByUser: one(users, {
     fields: [donorListMembers.addedBy],
     references: [users.id],
+  }),
+}));
+
+// New table for Staff Gmail OAuth Tokens - separate from user tokens
+export const staffGmailTokens = pgTable("staff_gmail_tokens", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id")
+    .references(() => staff.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(), // One Gmail account per staff member
+  email: varchar("email", { length: 255 }).notNull(), // The Gmail email address
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  scope: text("scope"), // OAuth scopes granted
+  tokenType: varchar("token_type", { length: 50 }), // e.g., "Bearer"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const staffGmailTokensRelations = relations(staffGmailTokens, ({ one }) => ({
+  staff: one(staff, {
+    fields: [staffGmailTokens.staffId],
+    references: [staff.id],
   }),
 }));

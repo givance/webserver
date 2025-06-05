@@ -97,7 +97,7 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
     with: {
       assignedStaff: {
         with: {
-          linkedGmailToken: true,
+          gmailToken: true,
         },
       },
     },
@@ -120,10 +120,10 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
 
   try {
     // Case 1: Donor assigned to staff with linked email account
-    if (donorInfo.assignedStaff?.linkedGmailToken) {
+    if (donorInfo.assignedStaff?.gmailToken) {
       logger.info(`Using staff Gmail account for donor ${donorId}, staff ${donorInfo.assignedStaff.id}`);
 
-      const staffToken = donorInfo.assignedStaff.linkedGmailToken;
+      const staffToken = donorInfo.assignedStaff.gmailToken;
       const staffOAuth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
 
       staffOAuth2Client.setCredentials({
@@ -239,7 +239,7 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
     return {
       gmailClient,
       senderInfo,
-      accountType: donorInfo.assignedStaff?.linkedGmailToken ? "staff" : "fallback",
+      accountType: donorInfo.assignedStaff?.gmailToken ? "staff" : "fallback",
       staffId: donorInfo.assignedStaff?.id || null,
     };
   } catch (error) {
