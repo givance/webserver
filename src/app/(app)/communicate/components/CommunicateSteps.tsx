@@ -2,7 +2,7 @@
 
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
 import { JobNameStep } from "../steps/JobNameStep";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
@@ -27,6 +27,15 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
     finalInstruction: string;
     previewDonorIds: number[];
   } | null>(null);
+  // Add state to persist chat history and generated emails
+  const [persistedChatHistory, setPersistedChatHistory] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
+  const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>([]);
+  const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<Record<number, Record<string, string>>>(
+    {}
+  );
+  const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>([]);
   const router = useRouter();
 
   const handleNext = () => {
@@ -49,6 +58,27 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
       setInstruction(prompt);
     }
   };
+
+  const handleSessionDataChange = useCallback(
+    (newSessionData: {
+      chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+      finalInstruction: string;
+      previewDonorIds: number[];
+      generatedEmails?: any[];
+      referenceContexts?: Record<number, Record<string, string>>;
+    }) => {
+      setSessionData(newSessionData);
+      setPersistedChatHistory(newSessionData.chatHistory);
+      setPersistedPreviewDonorIds(newSessionData.previewDonorIds);
+      if (newSessionData.generatedEmails) {
+        setPersistedGeneratedEmails(newSessionData.generatedEmails);
+      }
+      if (newSessionData.referenceContexts) {
+        setPersistedReferenceContexts(newSessionData.referenceContexts);
+      }
+    },
+    []
+  );
 
   const handleBulkGenerationComplete = (sessionId: number) => {
     // Navigate to results page
@@ -89,8 +119,12 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
             onBack={handleBack}
             onNext={handleNext}
             selectedDonors={selectedDonors}
-            onSessionDataChange={setSessionData}
+            onSessionDataChange={handleSessionDataChange}
             templatePrompt={templatePrompt}
+            initialChatHistory={persistedChatHistory}
+            initialGeneratedEmails={persistedGeneratedEmails}
+            initialReferenceContexts={persistedReferenceContexts}
+            initialPreviewDonorIds={persistedPreviewDonorIds}
           />
         );
       case 4:
