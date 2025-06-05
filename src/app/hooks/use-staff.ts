@@ -19,6 +19,7 @@ export function useStaff() {
   // Query hooks
   const listStaff = trpc.staff.list.useQuery;
   const getStaffById = trpc.staff.getById.useQuery;
+  const getAssignedDonors = trpc.staff.getAssignedDonors.useQuery;
 
   // Mutation hooks
   const createMutation = trpc.staff.create.useMutation({
@@ -86,6 +87,7 @@ export function useStaff() {
     // Query functions
     listStaff,
     getStaffById,
+    getAssignedDonors,
 
     // Mutation functions
     createStaff,

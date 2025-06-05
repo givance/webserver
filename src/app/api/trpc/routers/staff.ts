@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { getStaffById, getStaffByEmail, createStaff, updateStaff, deleteStaff, listStaff } from "@/app/lib/data/staff";
+import { listDonors } from "@/app/lib/data/donors";
 
 // Input validation schemas
 const staffIdSchema = z.object({
@@ -130,4 +131,28 @@ export const staffRouter = router({
       const result = await listStaff(input, ctx.auth.user.organizationId);
       return result; // This will be validated against listStaffOutputSchema
     }),
+
+  getAssignedDonors: protectedProcedure.input(staffIdSchema).query(async ({ input, ctx }) => {
+    // First verify staff member exists and belongs to the organization
+    const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
+    if (!staff) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+
+    // Get all donors assigned to this staff member
+    const result = await listDonors(
+      {
+        assignedToStaffId: input.id,
+        orderBy: "firstName",
+        orderDirection: "asc",
+        // No limit to get all assigned donors
+      },
+      ctx.auth.user.organizationId
+    );
+
+    return result;
+  }),
 });

@@ -78,7 +78,7 @@ export const columns: ColumnDef<Staff>[] = [
       );
     },
     cell: ({ row }: { row: Row<Staff> }) => (
-      <Link href={`/staff/${row.original.id}`} className="font-medium">
+      <Link href={`/staff/${row.original.id}`} className="font-medium hover:underline">
         {row.original.firstName} {row.original.lastName}
       </Link>
     ),
