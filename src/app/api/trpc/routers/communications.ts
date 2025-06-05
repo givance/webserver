@@ -3,7 +3,7 @@ import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, organizations } from "@/app/lib/db/schema";
+import { emailGenerationSessions, generatedEmails, organizations, donors as donorsSchema } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { CommunicationsService } from "@/app/lib/services/communications.service";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
@@ -11,7 +11,7 @@ import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
@@ -226,6 +226,41 @@ class EmailGenerationService {
       });
     }
 
+    // Fetch full donor data from database to include notes and other fields
+    const donorIds = donors.map((d) => d.id);
+    const fullDonorData = await db
+      .select()
+      .from(donorsSchema)
+      .where(and(inArray(donorsSchema.id, donorIds), eq(donorsSchema.organizationId, organizationId)));
+
+    if (fullDonorData.length !== donorIds.length) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Some donors not found or don't belong to this organization",
+      });
+    }
+
+    // Convert to DonorInfo format including notes
+    const donorInfos = fullDonorData.map((donor) => ({
+      id: donor.id,
+      email: donor.email,
+      notes: donor.notes, // Include user notes
+      // Include all the new name fields
+      displayName: donor.displayName,
+      hisTitle: donor.hisTitle,
+      hisFirstName: donor.hisFirstName,
+      hisInitial: donor.hisInitial,
+      hisLastName: donor.hisLastName,
+      herTitle: donor.herTitle,
+      herFirstName: donor.herFirstName,
+      herInitial: donor.herInitial,
+      herLastName: donor.herLastName,
+      isCouple: donor.isCouple,
+      // Keep deprecated fields for fallback
+      firstName: donor.firstName,
+      lastName: donor.lastName,
+    }));
+
     // Convert organization to the email generator format
     const emailGeneratorOrg = {
       ...organization,
@@ -233,7 +268,7 @@ class EmailGenerationService {
     };
 
     // Fetch all donor histories concurrently for better performance
-    const historiesPromises = donors.map(async (donor) => {
+    const historiesPromises = donorInfos.map(async (donor) => {
       const [communicationHistory, donationHistory] = await Promise.all([
         getDonorCommunicationHistory(donor.id, { organizationId }),
         listDonations({
@@ -264,7 +299,7 @@ class EmailGenerationService {
     ]);
 
     logger.info(
-      `Generating emails for ${donors.length} donors in organization ${organizationId} with instruction: "${processedInstruction}"`
+      `Generating emails for ${donorInfos.length} donors in organization ${organizationId} with instruction: "${processedInstruction}"`
     );
 
     // Convert donor histories to the required format
@@ -278,7 +313,7 @@ class EmailGenerationService {
 
     // Generate emails using the email generator
     const result = await generateSmartDonorEmails(
-      donors,
+      donorInfos, // Use full donor data instead of simplified input
       processedInstruction,
       input.organizationName,
       emailGeneratorOrg,

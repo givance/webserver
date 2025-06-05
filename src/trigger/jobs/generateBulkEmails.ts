@@ -166,6 +166,7 @@ export const generateBulkEmailsTask = task({
       const donorInfos = selectedDonors.map((donor) => ({
         id: donor.id,
         email: donor.email,
+        notes: donor.notes,
         // Include all the new name fields
         displayName: donor.displayName,
         hisTitle: donor.hisTitle,

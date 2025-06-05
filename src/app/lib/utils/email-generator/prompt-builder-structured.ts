@@ -111,6 +111,7 @@ IMPORTANT INSTRUCTIONS:
 2. For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
 3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 4. DO NOT use "-", "--" or "—" in the email ever.
+5. PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 
 If the requirements or the important instructions conflicts with the task, prioritize the task.
 
@@ -133,6 +134,7 @@ export function buildStructuredDonorContext(
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
 
   return `Donor: ${formatDonorName(donor)} (${donor.email})
+${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}
 
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 

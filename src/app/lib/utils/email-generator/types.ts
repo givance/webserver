@@ -34,6 +34,7 @@ export interface DonationInfo {
 export interface DonorInfo extends DonorNameFields {
   id: number;
   email: string;
+  notes?: string | null; // User notes about the donor
   donationHistory?: DonationInfo[]; // Will be processed to add IDs
 }
 

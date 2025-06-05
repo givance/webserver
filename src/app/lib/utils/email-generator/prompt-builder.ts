@@ -112,6 +112,8 @@ ${websiteSummaryPrompt}
 
 User Instruction for this email: ${instruction}
 
+PRIORITY: If there are User Notes about the donor in the donor information below, those should take precedence over Organization Memories or Writing Instructions if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
+
 Instructions for Tone and Style:
 	•	Tone: Warm, personal, and confident.
 	•	Length: 120–150 words.
@@ -172,6 +174,7 @@ export function buildDonorContext(
   return `Donor Information:
 - Name: ${formatDonorName(donor)}
 - Email: ${donor.email}
+${donor.notes ? `- User Notes: ${donor.notes}` : ""}
 
 Past Communications (if available, messages are prefixed with their IDs):
 ${communicationHistoryPrompt}
