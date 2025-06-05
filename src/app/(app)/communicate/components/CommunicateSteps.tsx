@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { SelectDonorsStep } from "../steps/SelectDonorsStep";
-import { JobNameStep } from "../steps/JobNameStep";
-import { SelectTemplateStep } from "../steps/SelectTemplateStep";
-import { WriteInstructionStep } from "../steps/WriteInstructionStep";
-import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
-import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
+import { JobNameStep } from "../steps/JobNameStep";
+import { SelectDonorsStep } from "../steps/SelectDonorsStep";
+import { SelectTemplateStep } from "../steps/SelectTemplateStep";
+import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 
 const STEPS = ["Select Donors", "Job Name", "Select Template", "Write Instructions", "Bulk Generation"] as const;
 

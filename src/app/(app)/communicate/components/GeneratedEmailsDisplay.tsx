@@ -1,12 +1,11 @@
 "use client";
 
-import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmailDisplay } from "./EmailDisplay"; // Assuming EmailDisplay is in the same directory or adjust path
 import { cn } from "@/lib/utils";
+import React from "react";
+import { EmailDisplay } from "./EmailDisplay"; // Assuming EmailDisplay is in the same directory or adjust path
 // import type { UseQueryResult } from "@tanstack/react-query"; // For donorQueries type
 // Import 'donors' schema type or a more specific Donor type if available
-import type { donors as DonorSchemaType } from "@/app/lib/db/schema";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 // Define types based on WriteInstructionStep.tsx

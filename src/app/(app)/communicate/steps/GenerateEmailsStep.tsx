@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
-import { EmailDisplay } from "../components/EmailDisplay";
-import { EmailPiece, GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { GeneratedEmail } from "@/app/lib/utils/email-generator/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState } from "react";
+import { EmailDisplay } from "../components/EmailDisplay";
 
 interface GenerateEmailsStepProps {
   selectedDonors: number[];

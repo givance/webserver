@@ -1,13 +1,13 @@
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Edit, Send } from "lucide-react";
-import { useState } from "react";
-import { EmailTrackingStatus } from "./EmailTrackingStatus";
-import { EmailSendButton } from "./EmailSendButton";
-import { EmailEditModal } from "./EmailEditModal";
 import { useCommunications } from "@/app/hooks/use-communications";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Edit } from "lucide-react";
+import { useState } from "react";
+import { EmailEditModal } from "./EmailEditModal";
+import { EmailSendButton } from "./EmailSendButton";
+import { EmailTrackingStatus } from "./EmailTrackingStatus";
 
 interface EmailPiece {
   piece: string;

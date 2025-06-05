@@ -1,26 +1,23 @@
 "use client";
 
+import { ErrorDisplay } from "@/app/components/ErrorDisplay";
+import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import { useDonors } from "@/app/hooks/use-donors";
-import { useOrganization } from "@/app/hooks/use-organization";
+import { usePagination } from "@/app/hooks/use-pagination";
+import { useSearch } from "@/app/hooks/use-search";
+import { useStaffMembers } from "@/app/hooks/use-staff-members";
 import { logger } from "@/app/lib/logger";
-import { trpc } from "@/app/lib/trpc/client";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Input } from "@/components/ui/input";
-import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { usePagination } from "@/app/hooks/use-pagination";
-import { useSearch } from "@/app/hooks/use-search";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
-import { ErrorDisplay } from "@/app/components/ErrorDisplay";
-import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import type { PredictedAction as ColumnPredictedAction, Donor } from "./columns";
 import { getColumns } from "./columns";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 export default function DonorListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();

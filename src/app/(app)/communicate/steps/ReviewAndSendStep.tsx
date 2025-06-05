@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useDonors } from "@/app/hooks/use-donors";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { EmailPiece } from "@/app/lib/utils/email-generator/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDonors } from "@/app/hooks/use-donors";
+import { useState } from "react";
 import { EmailDisplay } from "../components/EmailDisplay";
-import { EmailPiece } from "@/app/lib/utils/email-generator/types";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface GeneratedEmail {
   donorId: number;

@@ -1,23 +1,20 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
-import { useCommunications } from "@/app/hooks/use-communications";
 import { useProjects } from "@/app/hooks/use-projects";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { EmailDisplay } from "../components/EmailDisplay";
-import { toast } from "sonner";
-import { useDonations } from "@/app/hooks/use-donations";
-import type { DonationWithDetails } from "@/app/lib/data/donations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Mention, MentionsInput } from "react-mentions";
+import { toast } from "sonner";
+import { EmailDisplay } from "../components/EmailDisplay";
 import { SuggestedMemories } from "../components/SuggestedMemories";
-import { MentionsInput, Mention } from "react-mentions";
-import React from "react";
 import "../styles.css";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 
 interface WriteInstructionStepProps {
   instruction: string;
