@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { staff } from "../db/schema";
+import { staff, gmailOAuthTokens } from "../db/schema";
 import { eq, sql, like, or, asc, desc, SQL, and, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
@@ -176,5 +176,88 @@ export async function listStaff(
   } catch (error) {
     console.error("Failed to list staff:", error);
     throw new Error("Could not list staff.");
+  }
+}
+
+/**
+ * Updates a staff member's signature.
+ * @param id - The ID of the staff member to update.
+ * @param signature - The new signature content.
+ * @param organizationId - The ID of the organization the staff member belongs to.
+ * @returns The updated staff member object.
+ */
+export async function updateStaffSignature(
+  id: number,
+  signature: string | null,
+  organizationId: string
+): Promise<Staff | undefined> {
+  try {
+    const result = await db
+      .update(staff)
+      .set({ signature, updatedAt: sql`now()` })
+      .where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to update staff signature:", error);
+    throw new Error("Could not update staff member signature.");
+  }
+}
+
+/**
+ * Links an email account (Gmail OAuth token) to a staff member.
+ * @param staffId - The ID of the staff member.
+ * @param gmailTokenId - The ID of the Gmail OAuth token to link.
+ * @param organizationId - The ID of the organization the staff member belongs to.
+ * @returns The updated staff member object.
+ */
+export async function linkStaffEmailAccount(
+  staffId: number,
+  gmailTokenId: number,
+  organizationId: string
+): Promise<Staff | undefined> {
+  try {
+    // First verify the Gmail token exists and belongs to the organization
+    const tokenInfo = await db.query.gmailOAuthTokens.findFirst({
+      where: eq(gmailOAuthTokens.id, gmailTokenId),
+      with: {
+        user: true,
+      },
+    });
+
+    if (!tokenInfo) {
+      throw new Error("Gmail OAuth token not found.");
+    }
+
+    // Update the staff member with the linked token
+    const result = await db
+      .update(staff)
+      .set({ linkedGmailTokenId: gmailTokenId, updatedAt: sql`now()` })
+      .where(and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to link email account to staff:", error);
+    throw new Error("Could not link email account to staff member.");
+  }
+}
+
+/**
+ * Unlinks the email account from a staff member.
+ * @param staffId - The ID of the staff member.
+ * @param organizationId - The ID of the organization the staff member belongs to.
+ * @returns The updated staff member object.
+ */
+export async function unlinkStaffEmailAccount(staffId: number, organizationId: string): Promise<Staff | undefined> {
+  try {
+    const result = await db
+      .update(staff)
+      .set({ linkedGmailTokenId: null, updatedAt: sql`now()` })
+      .where(and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to unlink email account from staff:", error);
+    throw new Error("Could not unlink email account from staff member.");
   }
 }

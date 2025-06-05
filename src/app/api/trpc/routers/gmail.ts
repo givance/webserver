@@ -3,7 +3,7 @@ import { google } from "googleapis";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { db } from "@/app/lib/db";
-import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors } from "@/app/lib/db/schema";
+import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors, staff, users } from "@/app/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
@@ -77,6 +77,181 @@ async function getGmailClient(userId: string) {
   }
 
   return google.gmail({ version: "v1", auth: userOAuth2Client });
+}
+
+/**
+ * Enhanced helper function to get Gmail client based on donor assignment
+ * Returns Gmail client, sender info, and signature based on business logic:
+ * 1. If donor assigned to staff with linked email account → use staff's Gmail account + staff signature
+ * 2. If donor assigned to staff without linked email account → use org default Gmail account + staff signature
+ * 3. If donor not assigned → use org default Gmail account & signature
+ */
+async function getGmailClientForDonor(donorId: number, organizationId: string, fallbackUserId: string) {
+  if (!oauth2Client) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Google OAuth client not configured." });
+  }
+
+  // Get donor with staff assignment
+  const donorInfo = await db.query.donors.findFirst({
+    where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
+    with: {
+      assignedStaff: {
+        with: {
+          linkedGmailToken: true,
+        },
+      },
+    },
+  });
+
+  if (!donorInfo) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Donor not found",
+    });
+  }
+
+  let gmailClient;
+  let senderInfo: { name: string; email: string | null; signature: string | null } = {
+    name: "Organization",
+    email: null,
+    signature: null,
+  };
+  let shouldUseStaffSignature = false;
+
+  try {
+    // Case 1: Donor assigned to staff with linked email account
+    if (donorInfo.assignedStaff?.linkedGmailToken) {
+      logger.info(`Using staff Gmail account for donor ${donorId}, staff ${donorInfo.assignedStaff.id}`);
+
+      const staffToken = donorInfo.assignedStaff.linkedGmailToken;
+      const staffOAuth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+
+      staffOAuth2Client.setCredentials({
+        access_token: staffToken.accessToken,
+        refresh_token: staffToken.refreshToken,
+        expiry_date: staffToken.expiresAt.getTime(),
+        scope: staffToken.scope || undefined,
+        token_type: staffToken.tokenType || "Bearer",
+      });
+
+      // Refresh token if expired
+      try {
+        await staffOAuth2Client.getAccessToken();
+        gmailClient = google.gmail({ version: "v1", auth: staffOAuth2Client });
+
+        senderInfo = {
+          name: `${donorInfo.assignedStaff.firstName} ${donorInfo.assignedStaff.lastName}`,
+          email: donorInfo.assignedStaff.email,
+          signature: donorInfo.assignedStaff.signature,
+        };
+
+        logger.info(`Successfully authenticated with staff Gmail for donor ${donorId}`);
+      } catch (error) {
+        logger.warn(
+          `Staff Gmail token expired for staff ${donorInfo.assignedStaff.id}, falling back to org default: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        // Fall through to org default logic
+        gmailClient = null;
+        shouldUseStaffSignature = true;
+      }
+    }
+    // Case 2: Donor assigned to staff without linked email account
+    else if (donorInfo.assignedStaff) {
+      logger.info(
+        `Donor ${donorId} assigned to staff ${donorInfo.assignedStaff.id} but no linked email, using org default with staff signature`
+      );
+      shouldUseStaffSignature = true;
+    }
+    // Case 3: Donor not assigned to staff
+    else {
+      logger.info(`Donor ${donorId} not assigned to staff, using org default`);
+    }
+
+    // If we don't have a staff Gmail client, use organization default (fallback user)
+    if (!gmailClient) {
+      const fallbackTokenInfo = await db.query.gmailOAuthTokens.findFirst({
+        where: eq(gmailOAuthTokens.userId, fallbackUserId),
+      });
+
+      if (!fallbackTokenInfo) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No Gmail account available. Please connect a Gmail account.",
+        });
+      }
+
+      const fallbackOAuth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+
+      fallbackOAuth2Client.setCredentials({
+        access_token: fallbackTokenInfo.accessToken,
+        refresh_token: fallbackTokenInfo.refreshToken,
+        expiry_date: fallbackTokenInfo.expiresAt.getTime(),
+        scope: fallbackTokenInfo.scope || undefined,
+        token_type: fallbackTokenInfo.tokenType || "Bearer",
+      });
+
+      // Refresh token if expired
+      try {
+        await fallbackOAuth2Client.getAccessToken();
+      } catch (error) {
+        logger.error(
+          `Failed to refresh fallback Gmail token for user ${fallbackUserId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Gmail token expired. Please reconnect your Gmail account.",
+        });
+      }
+
+      gmailClient = google.gmail({ version: "v1", auth: fallbackOAuth2Client });
+
+      // Get fallback user info
+      const fallbackUser = await db.query.users.findFirst({
+        where: eq(users.id, fallbackUserId),
+      });
+
+      // If we should use staff signature, get it; otherwise use fallback user signature or none
+      if (shouldUseStaffSignature && donorInfo.assignedStaff) {
+        senderInfo = {
+          name: `${donorInfo.assignedStaff.firstName} ${donorInfo.assignedStaff.lastName}`,
+          email: fallbackUser?.email || null,
+          signature: donorInfo.assignedStaff.signature,
+        };
+      } else {
+        senderInfo = {
+          name: fallbackUser ? `${fallbackUser.firstName} ${fallbackUser.lastName}` : "Organization",
+          email: fallbackUser?.email || null,
+          signature: fallbackUser?.emailSignature || null,
+        };
+      }
+
+      logger.info(
+        `Using fallback Gmail account for donor ${donorId} with signature from ${
+          shouldUseStaffSignature ? "staff" : "user"
+        }`
+      );
+    }
+
+    return {
+      gmailClient,
+      senderInfo,
+      accountType: donorInfo.assignedStaff?.linkedGmailToken ? "staff" : "fallback",
+      staffId: donorInfo.assignedStaff?.id || null,
+    };
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+    logger.error(
+      `Error in getGmailClientForDonor for donor ${donorId}: ${error instanceof Error ? error.message : String(error)}`
+    );
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to get Gmail client for donor",
+    });
+  }
 }
 
 /**
@@ -335,8 +510,6 @@ export const gmailRouter = router({
     .mutation(async ({ ctx, input }) => {
       logger.info(`Sending emails for session ${input.sessionId}`);
       try {
-        const gmail = await getGmailClient(ctx.auth.user.id);
-
         // Get session and emails
         const [session] = await db
           .select()
@@ -375,9 +548,16 @@ export const gmailRouter = router({
           });
         }
 
-        // Send each email with tracking
+        // Send each email with tracking using staff-specific accounts
         const sendResults = await Promise.allSettled(
           emails.map(async (email) => {
+            // Get Gmail client and sender info based on donor assignment
+            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
+              email.donorId,
+              ctx.auth.user.organizationId,
+              ctx.auth.user.id
+            );
+
             // Generate unique tracking ID for this email
             const trackingId = generateTrackingId();
 
@@ -398,13 +578,19 @@ export const gmailRouter = router({
               await createLinkTrackers(processedContent.linkTrackers);
             }
 
+            // Add signature to content if available
+            let finalHtmlContent = processedContent.htmlContent;
+            let finalTextContent = processedContent.textContent;
+
+            if (senderInfo.signature) {
+              // Add signature to HTML content
+              finalHtmlContent += `<br><br>${senderInfo.signature}`;
+              // Add signature to text content
+              finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
+            }
+
             // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(
-              email.donor.email,
-              email.subject,
-              processedContent.htmlContent,
-              processedContent.textContent
-            );
+            const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
 
             // Encode email for Gmail API
             const encodedMessage = Buffer.from(htmlEmail)
@@ -414,7 +600,7 @@ export const gmailRouter = router({
               .replace(/=+$/, "");
 
             // Send email via Gmail API
-            const sentMessage = await gmail.users.messages.send({
+            const sentMessage = await gmailClient.users.messages.send({
               userId: "me",
               requestBody: {
                 raw: encodedMessage,
@@ -432,7 +618,7 @@ export const gmailRouter = router({
               .where(eq(generatedEmails.id, email.id));
 
             logger.info(
-              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}, account type: ${accountType}, sender: ${senderInfo.name}`
             );
 
             return {
@@ -441,6 +627,12 @@ export const gmailRouter = router({
               messageId: sentMessage.data.id,
               trackingId,
               linkTrackersCreated: processedContent.linkTrackers.length,
+              senderInfo: {
+                name: senderInfo.name,
+                email: senderInfo.email,
+                accountType,
+                staffId,
+              },
               success: true,
             };
           })
@@ -493,8 +685,6 @@ export const gmailRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const gmail = await getGmailClient(ctx.auth.user.id);
-
         // Get the email with donor information
         const [email] = await db
           .select({
@@ -535,6 +725,13 @@ export const gmailRouter = router({
           });
         }
 
+        // Get Gmail client and sender info based on donor assignment
+        const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
+          email.donorId,
+          ctx.auth.user.organizationId,
+          ctx.auth.user.id
+        );
+
         // Generate unique tracking ID for this email
         const trackingId = generateTrackingId();
 
@@ -555,13 +752,19 @@ export const gmailRouter = router({
           await createLinkTrackers(processedContent.linkTrackers);
         }
 
+        // Add signature to content if available
+        let finalHtmlContent = processedContent.htmlContent;
+        let finalTextContent = processedContent.textContent;
+
+        if (senderInfo.signature) {
+          // Add signature to HTML content
+          finalHtmlContent += `<br><br>${senderInfo.signature}`;
+          // Add signature to text content
+          finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
+        }
+
         // Create complete HTML email with tracking pixel
-        const htmlEmail = createHtmlEmail(
-          email.donor.email,
-          email.subject,
-          processedContent.htmlContent,
-          processedContent.textContent
-        );
+        const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
 
         // Encode email for Gmail API
         const encodedMessage = Buffer.from(htmlEmail)
@@ -571,7 +774,7 @@ export const gmailRouter = router({
           .replace(/=+$/, "");
 
         // Send email via Gmail API
-        const sentMessage = await gmail.users.messages.send({
+        const sentMessage = await gmailClient.users.messages.send({
           userId: "me",
           requestBody: {
             raw: encodedMessage,
@@ -589,7 +792,7 @@ export const gmailRouter = router({
           .where(eq(generatedEmails.id, email.id));
 
         logger.info(
-          `Sent individual tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+          `Sent individual tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}, account type: ${accountType}, sender: ${senderInfo.name}`
         );
 
         return {
@@ -599,7 +802,13 @@ export const gmailRouter = router({
           messageId: sentMessage.data.id,
           trackingId,
           linkTrackersCreated: processedContent.linkTrackers.length,
-          message: `Successfully sent email to ${email.donor.firstName} ${email.donor.lastName}`,
+          senderInfo: {
+            name: senderInfo.name,
+            email: senderInfo.email,
+            accountType,
+            staffId,
+          },
+          message: `Successfully sent email to ${email.donor.firstName} ${email.donor.lastName} from ${senderInfo.name}`,
         };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
@@ -626,8 +835,6 @@ export const gmailRouter = router({
     .mutation(async ({ ctx, input }) => {
       logger.info(`Sending ${input.sendType} emails for session ${input.sessionId}`);
       try {
-        const gmail = await getGmailClient(ctx.auth.user.id);
-
         // Get session and emails
         const [session] = await db
           .select()
@@ -689,9 +896,16 @@ export const gmailRouter = router({
           };
         }
 
-        // Send each email with tracking
+        // Send each email with tracking using staff-specific accounts
         const sendResults = await Promise.allSettled(
           emailsToSend.map(async (email) => {
+            // Get Gmail client and sender info based on donor assignment
+            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
+              email.donorId,
+              ctx.auth.user.organizationId,
+              ctx.auth.user.id
+            );
+
             // Generate unique tracking ID for this email
             const trackingId = generateTrackingId();
 
@@ -712,13 +926,19 @@ export const gmailRouter = router({
               await createLinkTrackers(processedContent.linkTrackers);
             }
 
+            // Add signature to content if available
+            let finalHtmlContent = processedContent.htmlContent;
+            let finalTextContent = processedContent.textContent;
+
+            if (senderInfo.signature) {
+              // Add signature to HTML content
+              finalHtmlContent += `<br><br>${senderInfo.signature}`;
+              // Add signature to text content
+              finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
+            }
+
             // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(
-              email.donor.email,
-              email.subject,
-              processedContent.htmlContent,
-              processedContent.textContent
-            );
+            const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
 
             // Encode email for Gmail API
             const encodedMessage = Buffer.from(htmlEmail)
@@ -728,7 +948,7 @@ export const gmailRouter = router({
               .replace(/=+$/, "");
 
             // Send email via Gmail API
-            const sentMessage = await gmail.users.messages.send({
+            const sentMessage = await gmailClient.users.messages.send({
               userId: "me",
               requestBody: {
                 raw: encodedMessage,
@@ -746,7 +966,7 @@ export const gmailRouter = router({
               .where(eq(generatedEmails.id, email.id));
 
             logger.info(
-              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+              `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}, account type: ${accountType}, sender: ${senderInfo.name}`
             );
 
             return {
@@ -755,6 +975,12 @@ export const gmailRouter = router({
               messageId: sentMessage.data.id,
               trackingId,
               linkTrackersCreated: processedContent.linkTrackers.length,
+              senderInfo: {
+                name: senderInfo.name,
+                email: senderInfo.email,
+                accountType,
+                staffId,
+              },
               success: true,
             };
           })

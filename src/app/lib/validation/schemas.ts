@@ -123,6 +123,7 @@ export const staffSchemas = {
     phone: phoneSchema.optional(),
     role: z.string().min(1).max(100),
     department: z.string().max(100).optional(),
+    signature: z.string().optional(),
   }),
 
   update: z.object({
@@ -132,7 +133,18 @@ export const staffSchemas = {
     phone: phoneSchema.optional(),
     role: z.string().min(1).max(100).optional(),
     department: z.string().max(100).optional(),
+    signature: z.string().optional(),
   }),
+
+  updateSignature: z.object({
+    signature: z.string().optional(),
+  }),
+
+  linkEmailAccount: z.object({
+    gmailTokenId: idSchema,
+  }),
+
+  unlinkEmailAccount: z.object({}),
 
   list: z.object({
     searchTerm: z.string().optional(),

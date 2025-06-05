@@ -1,6 +1,6 @@
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Trash2 } from "lucide-react";
+import { ArrowUpDown, Trash2, Mail, MailX, FileText } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -22,6 +22,8 @@ export type Staff = {
   lastName: string;
   email: string;
   isRealPerson: boolean;
+  signature?: string | null;
+  linkedGmailTokenId?: number | null;
   createdAt: string;
   updatedAt: string;
   organizationId: string;
@@ -101,6 +103,52 @@ export const columns: ColumnDef<Staff>[] = [
       </div>
     ),
     accessorFn: (row: Staff) => (row.isRealPerson ? "Active" : "Inactive"),
+  },
+  {
+    id: "emailAccount",
+    header: "Email Account",
+    cell: ({ row }: { row: Row<Staff> }) => {
+      const hasLinkedAccount = row.original.linkedGmailTokenId !== null;
+      return (
+        <div className="flex items-center gap-2">
+          {hasLinkedAccount ? (
+            <>
+              <Mail className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-600">Connected</span>
+            </>
+          ) : (
+            <>
+              <MailX className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-500">Not connected</span>
+            </>
+          )}
+        </div>
+      );
+    },
+    accessorFn: (row: Staff) => (row.linkedGmailTokenId ? "Connected" : "Not connected"),
+  },
+  {
+    id: "signature",
+    header: "Signature",
+    cell: ({ row }: { row: Row<Staff> }) => {
+      const hasSignature = row.original.signature && row.original.signature.trim().length > 0;
+      return (
+        <div className="flex items-center gap-2">
+          {hasSignature ? (
+            <>
+              <FileText className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-600">Set</span>
+            </>
+          ) : (
+            <>
+              <FileText className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-500">Not set</span>
+            </>
+          )}
+        </div>
+      );
+    },
+    accessorFn: (row: Staff) => (row.signature ? "Set" : "Not set"),
   },
   {
     accessorKey: "createdAt",

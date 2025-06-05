@@ -250,6 +250,8 @@ export const staff = pgTable("staff", {
   lastName: varchar("last_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   isRealPerson: boolean("is_real_person").default(true).notNull(),
+  signature: text("signature"), // Rich text signature for emails
+  linkedGmailTokenId: integer("linked_gmail_token_id").references(() => gmailOAuthTokens.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -363,6 +365,10 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
     references: [organizations.id],
   }),
   assignedDonors: many(donors, { relationName: "assignedStaff" }),
+  linkedGmailToken: one(gmailOAuthTokens, {
+    fields: [staff.linkedGmailTokenId],
+    references: [gmailOAuthTokens.id],
+  }),
 }));
 
 export const communicationThreadStaffRelations = relations(communicationThreadStaff, ({ one }) => ({
@@ -479,11 +485,12 @@ export const gmailOAuthTokens = pgTable("gmail_oauth_tokens", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one }) => ({
+export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one, many }) => ({
   user: one(users, {
     fields: [gmailOAuthTokens.userId],
     references: [users.id],
   }),
+  linkedStaff: many(staff),
 }));
 
 /**

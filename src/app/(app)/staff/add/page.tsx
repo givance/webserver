@@ -8,6 +8,7 @@ import { useStaff } from "@/app/hooks/use-staff";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -25,6 +26,7 @@ const formSchema = z.object({
   email: z.string().email("Invalid email address"),
   title: z.string().optional(),
   department: z.string().optional(),
+  signature: z.string().optional(),
   isRealPerson: z.boolean().default(true),
 });
 
@@ -44,6 +46,7 @@ export default function AddStaffPage() {
       email: "",
       title: "",
       department: "",
+      signature: "",
       isRealPerson: true,
     },
   });
@@ -172,6 +175,28 @@ export default function AddStaffPage() {
                       <Input placeholder="Marketing" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormDescription>Enter the staff member&apos;s department</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
+                name="signature"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Signature</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Best regards,&#10;John Doe&#10;Marketing Manager&#10;example@nonprofit.org"
+                        {...field}
+                        value={field.value || ""}
+                        rows={4}
+                        className="resize-none"
+                      />
+                    </FormControl>
+                    <FormDescription>Enter the staff member&apos;s email signature (optional)</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
