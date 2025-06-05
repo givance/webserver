@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "use-debounce";
@@ -24,6 +24,13 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
   const [listSearchTerm, setListSearchTerm] = useState("");
   const [selectedLists, setSelectedLists] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<"donors" | "lists">("donors");
+  const prevDonorIdsFromListsRef = useRef<number[]>([]);
+  const selectedDonorsRef = useRef<number[]>(selectedDonors);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    selectedDonorsRef.current = selectedDonors;
+  }, [selectedDonors]);
 
   const [debouncedSearchTerm] = useDebounce(searchTerm, 500);
   const [debouncedListSearchTerm] = useDebounce(listSearchTerm, 500);
@@ -45,13 +52,31 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
 
   // Update selected donors when lists change
   useEffect(() => {
-    if (donorIdsFromLists && selectedLists.length > 0) {
-      // Combine individual donors and list-based donors
-      const individualDonors = selectedDonors.filter((donorId) => !donorIdsFromLists.includes(donorId));
-      const combinedDonors = [...new Set([...individualDonors, ...donorIdsFromLists])];
-      onDonorsSelected(combinedDonors);
+    const currentDonorIdsFromLists = donorIdsFromLists || [];
+    const prevDonorIdsFromLists = prevDonorIdsFromListsRef.current;
+
+    // Only proceed if the donor IDs from lists have actually changed
+    const listsChanged =
+      currentDonorIdsFromLists.length !== prevDonorIdsFromLists.length ||
+      !currentDonorIdsFromLists.every((id) => prevDonorIdsFromLists.includes(id));
+
+    if (listsChanged) {
+      prevDonorIdsFromListsRef.current = currentDonorIdsFromLists;
+
+      if (selectedLists.length > 0 && currentDonorIdsFromLists.length > 0) {
+        // Get current individual donors (not from lists) - use the ref to get current value
+        const currentSelectedDonors = selectedDonorsRef.current;
+        const individualDonors = currentSelectedDonors.filter((donorId) => !currentDonorIdsFromLists.includes(donorId));
+        const combinedDonors = [...new Set([...individualDonors, ...currentDonorIdsFromLists])];
+        onDonorsSelected(combinedDonors);
+      } else if (selectedLists.length === 0) {
+        // If no lists are selected, remove list-based donors but keep individual ones
+        const currentSelectedDonors = selectedDonorsRef.current;
+        const individualDonors = currentSelectedDonors.filter((donorId) => !prevDonorIdsFromLists.includes(donorId));
+        onDonorsSelected(individualDonors);
+      }
     }
-  }, [donorIdsFromLists, selectedLists, selectedDonors, onDonorsSelected]);
+  }, [donorIdsFromLists, selectedLists]); // Only depend on external data
 
   const handleToggleDonor = (donorId: number) => {
     // Only allow manual donor selection if not selected via lists
