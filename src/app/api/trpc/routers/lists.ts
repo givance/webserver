@@ -13,8 +13,8 @@ import {
   removeDonorsFromList,
   getDonorIdsFromLists,
   getListsForDonor,
-} from "@/app/lib/data/donor-lists";
-import { processCSVFiles } from "@/app/lib/utils/csv-import";
+} from "../../../lib/data/donor-lists";
+import { processCSVFiles } from "../../../lib/utils/csv-import";
 
 /**
  * Input validation schemas for donor list operations
