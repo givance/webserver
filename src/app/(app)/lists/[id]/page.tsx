@@ -60,7 +60,13 @@ function AddDonorsDialog({ listId, listName }: { listId: number; listName: strin
   const [selectedDonorIds, setSelectedDonorIds] = useState<number[]>([]);
 
   const { listDonors } = useDonors();
-  const { addDonorsToList, isAddingDonors } = useLists();
+  const { addDonorsToList, isAddingDonors, getDonorListWithMembersQuery } = useLists();
+
+  // Get current list members to exclude from selection
+  const { data: currentList } = getDonorListWithMembersQuery(listId);
+  const currentMemberIds = useMemo(() => {
+    return new Set(currentList?.members?.map((member) => member.donor.id) || []);
+  }, [currentList]);
 
   // Get donors for selection
   const { data: donorsResponse, isLoading: isDonorsLoading } = listDonors({
@@ -71,15 +77,17 @@ function AddDonorsDialog({ listId, listName }: { listId: number; listName: strin
 
   const selectableDonors: SelectableDonor[] = useMemo(() => {
     return (
-      donorsResponse?.donors?.map((donor) => ({
-        id: donor.id,
-        name: formatDonorName(donor),
-        email: donor.email,
-        phone: donor.phone || null,
-        selected: selectedDonorIds.includes(donor.id),
-      })) || []
+      donorsResponse?.donors
+        ?.filter((donor) => !currentMemberIds.has(donor.id)) // Filter out donors already in the list
+        ?.map((donor) => ({
+          id: donor.id,
+          name: formatDonorName(donor),
+          email: donor.email,
+          phone: donor.phone || null,
+          selected: selectedDonorIds.includes(donor.id),
+        })) || []
     );
-  }, [donorsResponse, selectedDonorIds]);
+  }, [donorsResponse, selectedDonorIds, currentMemberIds]);
 
   const handleDonorToggle = (donorId: number, checked: boolean) => {
     setSelectedDonorIds((prev) => (checked ? [...prev, donorId] : prev.filter((id) => id !== donorId)));
@@ -123,21 +131,38 @@ function AddDonorsDialog({ listId, listName }: { listId: number; listName: strin
             <LoadingSkeleton />
           ) : (
             <div className="flex-1 overflow-auto">
-              <div className="space-y-2">
-                {selectableDonors.map((donor) => (
-                  <div key={donor.id} className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50">
-                    <Checkbox
-                      checked={donor.selected}
-                      onCheckedChange={(checked) => handleDonorToggle(donor.id, !!checked)}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{donor.name}</div>
-                      <div className="text-sm text-muted-foreground">{donor.email}</div>
-                      {donor.phone && <div className="text-sm text-muted-foreground">{donor.phone}</div>}
+              {selectableDonors.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  {searchTerm ? (
+                    <>
+                      <h3 className="font-medium mb-2">No available donors found</h3>
+                      <p className="text-sm">No donors match your search that aren&apos;t already in this list.</p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="font-medium mb-2">All donors are already in this list</h3>
+                      <p className="text-sm">All your donors are already members of this list.</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectableDonors.map((donor) => (
+                    <div key={donor.id} className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50">
+                      <Checkbox
+                        checked={donor.selected}
+                        onCheckedChange={(checked) => handleDonorToggle(donor.id, !!checked)}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{donor.name}</div>
+                        <div className="text-sm text-muted-foreground">{donor.email}</div>
+                        {donor.phone && <div className="text-sm text-muted-foreground">{donor.phone}</div>}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
