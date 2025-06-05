@@ -706,3 +706,78 @@ export const linkClicksRelations = relations(linkClicks, ({ one }) => ({
     references: [linkTrackers.id],
   }),
 }));
+
+/**
+ * Donor lists table to store named collections of donors
+ */
+export const donorLists = pgTable(
+  "donor_lists",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: text("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Name should be unique within each organization
+    uniqueNamePerOrg: unique("donor_lists_name_organization_unique").on(table.name, table.organizationId),
+  })
+);
+
+/**
+ * Donor list members table to store the many-to-many relationship between lists and donors
+ */
+export const donorListMembers = pgTable(
+  "donor_list_members",
+  {
+    id: serial("id").primaryKey(),
+    listId: integer("list_id")
+      .references(() => donorLists.id, { onDelete: "cascade" })
+      .notNull(),
+    donorId: integer("donor_id")
+      .references(() => donors.id, { onDelete: "cascade" })
+      .notNull(),
+    addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
+    addedAt: timestamp("added_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Each donor can only be in a list once
+    uniqueDonorPerList: unique("donor_list_members_donor_list_unique").on(table.listId, table.donorId),
+  })
+);
+
+/**
+ * Relations for donor lists tables
+ */
+export const donorListsRelations = relations(donorLists, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [donorLists.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [donorLists.createdBy],
+    references: [users.id],
+  }),
+  members: many(donorListMembers),
+}));
+
+export const donorListMembersRelations = relations(donorListMembers, ({ one }) => ({
+  list: one(donorLists, {
+    fields: [donorListMembers.listId],
+    references: [donorLists.id],
+  }),
+  donor: one(donors, {
+    fields: [donorListMembers.donorId],
+    references: [donors.id],
+  }),
+  addedByUser: one(users, {
+    fields: [donorListMembers.addedBy],
+    references: [users.id],
+  }),
+}));

@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "use-debounce";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useDonors } from "@/app/hooks/use-donors";
+import { useLists } from "@/app/hooks/use-lists";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Users, List } from "lucide-react";
 
 interface SelectDonorsStepProps {
   selectedDonors: number[];
@@ -17,84 +21,242 @@ interface SelectDonorsStepProps {
 
 export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: SelectDonorsStepProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [listSearchTerm, setListSearchTerm] = useState("");
+  const [selectedLists, setSelectedLists] = useState<number[]>([]);
+  const [activeTab, setActiveTab] = useState<"donors" | "lists">("donors");
+
   const [debouncedSearchTerm] = useDebounce(searchTerm, 500);
+  const [debouncedListSearchTerm] = useDebounce(listSearchTerm, 500);
 
   const { listDonors } = useDonors();
-  const { data: donorsData, isLoading } = listDonors({
+  const { listDonorLists, getDonorIdsFromListsQuery } = useLists();
+
+  const { data: donorsData, isLoading: isDonorsLoading } = listDonors({
     searchTerm: debouncedSearchTerm,
   });
 
+  const { data: listsData, isLoading: isListsLoading } = listDonorLists({
+    searchTerm: debouncedListSearchTerm,
+    isActive: true,
+  });
+
+  // Get donor IDs from selected lists
+  const { data: donorIdsFromLists } = getDonorIdsFromListsQuery(selectedLists);
+
+  // Update selected donors when lists change
+  useEffect(() => {
+    if (donorIdsFromLists && selectedLists.length > 0) {
+      // Combine individual donors and list-based donors
+      const individualDonors = selectedDonors.filter((donorId) => !donorIdsFromLists.includes(donorId));
+      const combinedDonors = [...new Set([...individualDonors, ...donorIdsFromLists])];
+      onDonorsSelected(combinedDonors);
+    }
+  }, [donorIdsFromLists, selectedLists, selectedDonors, onDonorsSelected]);
+
   const handleToggleDonor = (donorId: number) => {
+    // Only allow manual donor selection if not selected via lists
+    const isDonorFromLists = donorIdsFromLists?.includes(donorId) || false;
+
+    if (isDonorFromLists) {
+      // Don't allow manual deselection of donors from lists
+      return;
+    }
+
     const newSelectedDonors = selectedDonors.includes(donorId)
       ? selectedDonors.filter((id) => id !== donorId)
       : [...selectedDonors, donorId];
     onDonorsSelected(newSelectedDonors);
   };
 
-  const handleSelectAll = () => {
+  const handleToggleList = (listId: number) => {
+    const newSelectedLists = selectedLists.includes(listId)
+      ? selectedLists.filter((id) => id !== listId)
+      : [...selectedLists, listId];
+    setSelectedLists(newSelectedLists);
+  };
+
+  const handleSelectAllDonors = () => {
     if (!donorsData?.donors) return;
     const allDonorIds = donorsData.donors.map((donor) => donor.id);
-    onDonorsSelected(allDonorIds);
+    onDonorsSelected([...new Set([...selectedDonors, ...allDonorIds])]);
+  };
+
+  const handleSelectAllLists = () => {
+    if (!listsData?.lists) return;
+    const allListIds = listsData.lists.map((list) => list.id);
+    setSelectedLists(allListIds);
   };
 
   const handleClearAll = () => {
     onDonorsSelected([]);
+    setSelectedLists([]);
   };
 
-  const displayedCount = donorsData?.donors?.length || 0;
-  const totalCount = donorsData?.totalCount || 0;
-  const hasMoreDonors = totalCount > displayedCount;
+  const displayedDonorCount = donorsData?.donors?.length || 0;
+  const totalDonorCount = donorsData?.totalCount || 0;
+  const displayedListCount = listsData?.lists?.length || 0;
+  const totalListCount = listsData?.totalCount || 0;
+
+  const donorsFromLists = donorIdsFromLists?.length || 0;
+  const individualDonors = selectedDonors.length - donorsFromLists;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="Search donors by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1"
-        />
-        <Button variant="outline" onClick={handleSelectAll}>
-          Select All
-        </Button>
-        <Button variant="outline" onClick={handleClearAll}>
-          Clear All
-        </Button>
+      <div className="space-y-2">
+        <h3 className="text-lg font-medium">Select Donors</h3>
+        <p className="text-sm text-muted-foreground">
+          Choose individual donors or select entire lists to include in your communication campaign.
+        </p>
       </div>
 
-      <ScrollArea className="h-[300px] border rounded-md p-4">
-        {isLoading ? (
-          <div>Loading donors...</div>
-        ) : (
-          <div className="space-y-2">
-            {donorsData?.donors?.map((donor) => (
-              <div key={donor.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`donor-${donor.id}`}
-                  checked={selectedDonors.includes(donor.id)}
-                  onCheckedChange={() => handleToggleDonor(donor.id)}
-                />
-                <label
-                  htmlFor={`donor-${donor.id}`}
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  {formatDonorName(donor)} ({donor.email})
-                </label>
-              </div>
-            ))}
-            {donorsData?.donors?.length === 0 && <div className="text-sm text-muted-foreground">No donors found</div>}
-          </div>
-        )}
-      </ScrollArea>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "donors" | "lists")}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="donors" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Individual Donors
+          </TabsTrigger>
+          <TabsTrigger value="lists" className="flex items-center gap-2">
+            <List className="h-4 w-4" />
+            Donor Lists
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="flex justify-between items-center pt-4">
-        <div className="text-sm text-muted-foreground">
-          {selectedDonors.length} donors selected
-          {totalCount > 0 && <span className="ml-2">• {totalCount} total donors</span>}
+        <TabsContent value="donors" className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Input
+              placeholder="Search donors by name or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+            <Button variant="outline" onClick={handleSelectAllDonors}>
+              Select All
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[300px] border rounded-md p-4">
+            {isDonorsLoading ? (
+              <div>Loading donors...</div>
+            ) : (
+              <div className="space-y-2">
+                {donorsData?.donors?.map((donor) => {
+                  const isDonorFromLists = donorIdsFromLists?.includes(donor.id) || false;
+                  const isSelected = selectedDonors.includes(donor.id);
+
+                  return (
+                    <div key={donor.id} className="flex items-center justify-between space-x-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`donor-${donor.id}`}
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleDonor(donor.id)}
+                          disabled={isDonorFromLists}
+                        />
+                        <label
+                          htmlFor={`donor-${donor.id}`}
+                          className={`text-sm font-medium leading-none ${
+                            isDonorFromLists
+                              ? "text-muted-foreground"
+                              : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          }`}
+                        >
+                          {formatDonorName(donor)} ({donor.email})
+                        </label>
+                      </div>
+                      {isDonorFromLists && (
+                        <Badge variant="secondary" className="text-xs">
+                          From List
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+                {donorsData?.donors?.length === 0 && (
+                  <div className="text-sm text-muted-foreground">No donors found</div>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="text-sm text-muted-foreground">
+            Showing {displayedDonorCount} of {totalDonorCount} donors
+          </div>
+        </TabsContent>
+
+        <TabsContent value="lists" className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Input
+              placeholder="Search lists by name..."
+              value={listSearchTerm}
+              onChange={(e) => setListSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+            <Button variant="outline" onClick={handleSelectAllLists}>
+              Select All
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[300px] border rounded-md p-4">
+            {isListsLoading ? (
+              <div>Loading lists...</div>
+            ) : (
+              <div className="space-y-2">
+                {listsData?.lists?.map((list) => (
+                  <div key={list.id} className="flex items-center justify-between space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`list-${list.id}`}
+                        checked={selectedLists.includes(list.id)}
+                        onCheckedChange={() => handleToggleList(list.id)}
+                      />
+                      <label
+                        htmlFor={`list-${list.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {list.name}
+                        {list.description && <span className="text-muted-foreground ml-1">- {list.description}</span>}
+                      </label>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {list.memberCount} {list.memberCount === 1 ? "donor" : "donors"}
+                    </Badge>
+                  </div>
+                ))}
+                {listsData?.lists?.length === 0 && <div className="text-sm text-muted-foreground">No lists found</div>}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="text-sm text-muted-foreground">
+            Showing {displayedListCount} of {totalListCount} lists
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex justify-between items-center pt-4 border-t">
+        <div className="space-y-1">
+          <div className="text-sm font-medium">{selectedDonors.length} total donors selected</div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            {selectedLists.length > 0 && (
+              <div>
+                • {donorsFromLists} from {selectedLists.length} list{selectedLists.length !== 1 ? "s" : ""}
+              </div>
+            )}
+            {individualDonors > 0 && (
+              <div>
+                • {individualDonors} individual donor{individualDonors !== 1 ? "s" : ""}
+              </div>
+            )}
+          </div>
         </div>
-        <Button onClick={onNext} disabled={selectedDonors.length === 0}>
-          Next
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleClearAll}>
+            Clear All
+          </Button>
+          <Button onClick={onNext} disabled={selectedDonors.length === 0}>
+            Next
+          </Button>
+        </div>
       </div>
     </div>
   );
