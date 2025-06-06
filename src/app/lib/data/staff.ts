@@ -125,7 +125,7 @@ export async function listStaff(
   organizationId: string
 ): Promise<{ staff: Staff[]; totalCount: number }> {
   try {
-    const { searchTerm, isRealPerson, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const { searchTerm, isRealPerson, limit = 10, offset = 0, orderBy = "firstName", orderDirection = "asc" } = options;
 
     const conditions: SQL[] = [eq(staff.organizationId, organizationId)];
 
