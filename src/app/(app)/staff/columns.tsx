@@ -88,6 +88,50 @@ function GmailConnectButton({ staffId, hasLinkedAccount }: { staffId: string | n
   );
 }
 
+// GmailDisconnectButton component for inline use in staff table
+function GmailDisconnectButton({ staffId, hasLinkedAccount }: { staffId: string | number; hasLinkedAccount: boolean }) {
+  const [open, setOpen] = useState(false);
+  const { disconnectStaffGmail, isDisconnecting } = useStaff();
+
+  const handleDisconnect = async () => {
+    await disconnectStaffGmail(Number(staffId));
+    setOpen(false);
+  };
+
+  if (!hasLinkedAccount) {
+    return null; // Don't show button if not connected
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-700 hover:bg-orange-50">
+          <MailX className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Disconnect Gmail Account?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will disconnect the Gmail account from this staff member. They will no longer be able to send emails
+            through their connected account.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDisconnect}
+            className="bg-orange-500 hover:bg-orange-700 focus:ring-orange-500"
+            disabled={isDisconnecting}
+          >
+            {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export const columns: ColumnDef<Staff>[] = [
   {
     id: "name",
@@ -129,23 +173,31 @@ export const columns: ColumnDef<Staff>[] = [
     header: "Email Account",
     cell: ({ row }: { row: Row<Staff> }) => {
       const hasLinkedAccount = row.original.gmailToken !== null;
+      const gmailEmail = row.original.gmailToken?.email;
       return (
-        <div className="flex items-center gap-2">
-          {hasLinkedAccount ? (
-            <>
-              <Mail className="h-4 w-4 text-green-600" />
-              <span className="text-sm text-green-600">Connected</span>
-            </>
-          ) : (
-            <>
-              <MailX className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-500">Not connected</span>
-            </>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {hasLinkedAccount ? (
+              <>
+                <Mail className="h-4 w-4 text-green-600" />
+                <span className="text-sm text-green-600">Connected</span>
+              </>
+            ) : (
+              <>
+                <MailX className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-500">Not connected</span>
+              </>
+            )}
+          </div>
+          {gmailEmail && (
+            <span className="text-xs text-gray-600 truncate" title={gmailEmail}>
+              {gmailEmail}
+            </span>
           )}
         </div>
       );
     },
-    accessorFn: (row: Staff) => (row.gmailToken ? "Connected" : "Not connected"),
+    accessorFn: (row: Staff) => (row.gmailToken ? `Connected ${row.gmailToken.email}` : "Not connected"),
   },
   {
     id: "signature",
@@ -190,6 +242,7 @@ export const columns: ColumnDef<Staff>[] = [
             </Button>
           </Link>
           <GmailConnectButton staffId={row.original.id} hasLinkedAccount={hasLinkedAccount} />
+          <GmailDisconnectButton staffId={row.original.id} hasLinkedAccount={hasLinkedAccount} />
           <DeleteStaffButton staffId={row.original.id} />
         </div>
       );

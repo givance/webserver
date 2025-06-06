@@ -89,6 +89,20 @@ export function GmailConnect({
     },
   });
 
+  const disconnectGmailMutation = trpc.gmail.disconnectGmail.useMutation({
+    onSuccess: () => {
+      toast.success("Gmail account disconnected successfully");
+      onConnectionChange?.(false);
+      // Refetch connection status
+      if (context === "settings") {
+        refetchGmailStatus();
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to disconnect Gmail account");
+    },
+  });
+
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
       toast.success("Gmail account disconnected successfully");
@@ -131,6 +145,10 @@ export function GmailConnect({
     }
   };
 
+  const handleDisconnectGmail = () => {
+    disconnectGmailMutation.mutate();
+  };
+
   const handleDisconnectStaffGmail = () => {
     if (!staffId) {
       toast.error("Staff ID is required");
@@ -142,6 +160,7 @@ export function GmailConnect({
   const isLoading =
     gmailAuthMutation.isPending ||
     staffGmailAuthMutation.isPending ||
+    disconnectGmailMutation.isPending ||
     disconnectStaffGmailMutation.isPending ||
     isStatusLoading ||
     isStaffStatusLoading;
@@ -210,9 +229,15 @@ export function GmailConnect({
         ) : context === "settings" ? (
           // Settings context
           gmailConnectionStatus?.isConnected && gmailConnectionStatus.email ? (
-            <div className="flex flex-col items-start space-y-2">
-              <p className="text-green-600 font-semibold">Gmail account connected.</p>
-              <p>Email: {gmailConnectionStatus.email}</p>
+            <div className="space-y-4">
+              <div className="flex flex-col items-start space-y-2">
+                <p className="text-green-600 font-semibold">Gmail account connected.</p>
+                <p>Email: {gmailConnectionStatus.email}</p>
+              </div>
+              <Button onClick={handleDisconnectGmail} disabled={isLoading} variant="outline">
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MailX className="h-4 w-4 mr-2" />}
+                Disconnect Gmail
+              </Button>
             </div>
           ) : (
             <Button onClick={handleConnectGmail} disabled={buttonConfig.disabled} variant={buttonConfig.variant}>

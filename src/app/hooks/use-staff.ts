@@ -40,6 +40,12 @@ export function useStaff() {
     },
   });
 
+  const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
+    onSuccess: () => {
+      utils.staff.list.invalidate();
+    },
+  });
+
   /**
    * Create a new staff member
    * @param input The staff member data to create
@@ -83,6 +89,21 @@ export function useStaff() {
     }
   };
 
+  /**
+   * Disconnect Gmail account for a staff member
+   * @param staffId The ID of the staff member to disconnect Gmail from
+   * @returns true if disconnect was successful, false otherwise
+   */
+  const disconnectStaffGmail = async (staffId: number) => {
+    try {
+      await disconnectStaffGmailMutation.mutateAsync({ staffId });
+      return true;
+    } catch (error) {
+      console.error("Failed to disconnect staff Gmail:", error);
+      return false;
+    }
+  };
+
   return {
     // Query functions
     listStaff,
@@ -93,11 +114,13 @@ export function useStaff() {
     createStaff,
     updateStaff,
     deleteStaff,
+    disconnectStaffGmail,
 
     // Loading states
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isDisconnecting: disconnectStaffGmailMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,

@@ -384,6 +384,23 @@ export const gmailRouter = router({
   }),
 
   /**
+   * Disconnect Gmail account for the current user
+   */
+  disconnectGmail: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.auth.user.id;
+
+    // Delete the Gmail token for this user
+    await db.delete(gmailOAuthTokens).where(eq(gmailOAuthTokens.userId, userId));
+
+    logger.info(`Gmail account disconnected for user ${userId}`);
+
+    return {
+      success: true,
+      message: "Gmail account disconnected successfully.",
+    };
+  }),
+
+  /**
    * Save job emails as drafts in Gmail
    */
   saveToDraft: protectedProcedure

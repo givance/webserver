@@ -602,7 +602,7 @@ export default function StaffDetailPage() {
                     <div className="text-center py-8 text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                       <p>No email signature set</p>
-                      <p className="text-sm">Click "Edit Signature" to add one</p>
+                      <p className="text-sm">Click &quot;Edit Signature&quot; to add one</p>
                     </div>
                   )}
                 </div>
