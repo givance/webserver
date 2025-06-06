@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   getStaffById,
   getStaffByEmail,
+  getStaffWithGmailById,
   createStaff,
   updateStaff,
   deleteStaff,
@@ -193,6 +194,22 @@ export const staffRouter = router({
     }),
 
   setPrimary: protectedProcedure.input(staffIdSchema).mutation(async ({ input, ctx }) => {
+    // Check if staff member exists and has a Gmail account connected
+    const staffWithGmail = await getStaffWithGmailById(input.id, ctx.auth.user.organizationId);
+    if (!staffWithGmail) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+
+    if (!staffWithGmail.gmailToken) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Only staff members with connected Gmail accounts can be set as primary",
+      });
+    }
+
     const updated = await setPrimaryStaff(input.id, ctx.auth.user.organizationId);
     if (!updated) {
       throw new TRPCError({

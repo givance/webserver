@@ -57,7 +57,15 @@ export type Staff = {
 };
 
 // PrimaryStaffToggle component to handle setting/unsetting primary status
-function PrimaryStaffToggle({ staffId, isPrimary }: { staffId: string | number; isPrimary: boolean }) {
+function PrimaryStaffToggle({
+  staffId,
+  isPrimary,
+  hasGmailToken,
+}: {
+  staffId: string | number;
+  isPrimary: boolean;
+  hasGmailToken: boolean;
+}) {
   const utils = trpc.useUtils();
 
   const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
@@ -81,6 +89,11 @@ function PrimaryStaffToggle({ staffId, isPrimary }: { staffId: string | number; 
   });
 
   const handleToggle = async (checked: boolean) => {
+    if (checked && !hasGmailToken) {
+      toast.error("Only staff members with connected Gmail accounts can be set as primary");
+      return;
+    }
+
     if (checked) {
       await setPrimaryMutation.mutateAsync({ id: Number(staffId) });
     } else {
@@ -89,13 +102,14 @@ function PrimaryStaffToggle({ staffId, isPrimary }: { staffId: string | number; 
   };
 
   const isLoading = setPrimaryMutation.isPending || unsetPrimaryMutation.isPending;
+  const isDisabled = isLoading || (!isPrimary && !hasGmailToken);
 
   return (
     <div className="flex items-center gap-2">
       <Switch
         checked={isPrimary}
         onCheckedChange={handleToggle}
-        disabled={isLoading}
+        disabled={isDisabled}
         className="data-[state=checked]:bg-blue-600"
       />
       {isPrimary && (
@@ -103,6 +117,7 @@ function PrimaryStaffToggle({ staffId, isPrimary }: { staffId: string | number; 
           Primary
         </Badge>
       )}
+      {!hasGmailToken && !isPrimary && <span className="text-xs text-gray-500">Gmail required</span>}
     </div>
   );
 }
@@ -502,7 +517,11 @@ export const columns: ColumnDef<Staff>[] = [
     id: "primary",
     header: "Primary",
     cell: ({ row }: { row: Row<Staff> }) => (
-      <PrimaryStaffToggle staffId={row.original.id} isPrimary={row.original.isPrimary} />
+      <PrimaryStaffToggle
+        staffId={row.original.id}
+        isPrimary={row.original.isPrimary}
+        hasGmailToken={!!row.original.gmailToken}
+      />
     ),
     accessorFn: (row: Staff) => (row.isPrimary ? "Primary" : "Not primary"),
   },

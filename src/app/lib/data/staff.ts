@@ -27,6 +27,32 @@ export async function getStaffById(id: number, organizationId: string): Promise<
 }
 
 /**
+ * Retrieves a staff member with their Gmail token by ID and organization ID.
+ * @param id - The ID of the staff member to retrieve.
+ * @param organizationId - The ID of the organization the staff member belongs to.
+ * @returns The staff member object with Gmail token if found, otherwise undefined.
+ */
+export async function getStaffWithGmailById(id: number, organizationId: string) {
+  try {
+    const result = await db.query.staff.findFirst({
+      where: and(eq(staff.id, id), eq(staff.organizationId, organizationId)),
+      with: {
+        gmailToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+    return result;
+  } catch (error) {
+    console.error("Failed to retrieve staff member with Gmail by ID:", error);
+    throw new Error("Could not retrieve staff member with Gmail.");
+  }
+}
+
+/**
  * Retrieves a staff member by their email and organization ID.
  * @param email - The email of the staff member to retrieve.
  * @param organizationId - The ID of the organization the staff member belongs to.
@@ -156,10 +182,16 @@ export async function listStaff(
     // Build order by for relational query
     let orderByClause;
     if (orderBy) {
-      const column = staff[orderBy];
-      if (column) {
-        const direction = orderDirection === "asc" ? asc : desc;
-        orderByClause = direction(column);
+      const direction = orderDirection === "asc" ? asc : desc;
+
+      if (orderBy === "firstName") {
+        // For firstName, also order by lastName and then email for consistent sorting
+        orderByClause = [direction(staff.firstName), direction(staff.lastName), direction(staff.email)];
+      } else {
+        const column = staff[orderBy];
+        if (column) {
+          orderByClause = direction(column);
+        }
       }
     }
 
