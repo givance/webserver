@@ -104,8 +104,13 @@ export const generateBulkEmailsTask = task({
         throw new Error(`User ${userId} not found`);
       }
 
-      // Get all donor data
-      const donorData = await db.select().from(donors).where(eq(donors.organizationId, organizationId));
+      // Get all donor data with assigned staff information
+      const donorData = await db.query.donors.findMany({
+        where: eq(donors.organizationId, organizationId),
+        with: {
+          assignedStaff: true, // Include staff assignment and signature
+        },
+      });
 
       const selectedDonors = donorData.filter((donor) => selectedDonorIds.includes(donor.id));
 
@@ -219,17 +224,45 @@ export const generateBulkEmailsTask = task({
 
       triggerLogger.info(`Successfully generated ${allEmailResults.length} emails`);
 
-      // Store generated emails in database
-      const emailInserts = allEmailResults.map((email: any) => ({
-        sessionId,
-        donorId: email.donorId,
-        subject: email.subject,
-        structuredContent: email.structuredContent,
-        referenceContexts: email.referenceContexts,
-        isPreview: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
+      // Store generated emails in database with staff signatures automatically appended
+      const emailInserts = allEmailResults.map((email: any) => {
+        // Find the donor to get their assigned staff info
+        const donor = selectedDonors.find((d) => d.id === email.donorId);
+        const assignedStaff = donor?.assignedStaff;
+
+        // Create the appropriate signature
+        let signature: string;
+        if (assignedStaff?.signature) {
+          signature = assignedStaff.signature;
+        } else if (assignedStaff) {
+          // Default signature format: "Best, firstname"
+          signature = `Best,\n${assignedStaff.firstName}`;
+        } else {
+          // Fallback to user signature if no staff assigned
+          signature = user.emailSignature || `Best,\n${user.firstName}`;
+        }
+
+        // Append signature to the structured content
+        const enhancedStructuredContent = [
+          ...email.structuredContent,
+          {
+            piece: "\n\n" + signature,
+            references: [],
+            addNewlineAfter: false,
+          },
+        ];
+
+        return {
+          sessionId,
+          donorId: email.donorId,
+          subject: email.subject,
+          structuredContent: enhancedStructuredContent,
+          referenceContexts: email.referenceContexts,
+          isPreview: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      });
 
       await db.insert(generatedEmails).values(emailInserts);
 

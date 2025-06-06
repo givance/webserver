@@ -81,13 +81,13 @@ Example of the required JSON output format:
     { "piece": "Thank you for your continued support, especially your generous gift last month.", "references": ["donation-01"], "addNewlineAfter": true },
     { "piece": "Your contribution has helped us achieve our community outreach goals.", "references": ["summary-paragraph-03"], "addNewlineAfter": false },
     { "piece": "We would love for you to consider supporting our new youth initiative.", "references": ["comm-02-01"], "addNewlineAfter": true },
-    { "piece": "Please let us know if you have any questions.", "references": [], "addNewlineAfter": true },
-    { "piece": "Best regards,", "references": [], "addNewlineAfter": true },
-    { "piece": "Sarah", "references": [], "addNewlineAfter": false }
+    { "piece": "Please let us know if you have any questions.", "references": [], "addNewlineAfter": true }
   ]
 }
 
-IMPORTANT: Never include reference IDs (like [donation-01] or [comm-02-01]) in the "piece" text. The references array is used to track which context informed each piece, but the IDs should not appear in the actual email text.
+IMPORTANT: 
+- Never include reference IDs (like [donation-01] or [comm-02-01]) in the "piece" text. The references array is used to track which context informed each piece, but the IDs should not appear in the actual email text.
+- DO NOT include any signature, closing, or sign-off (like "Best regards", "Sincerely", etc.) in the email content. The system will automatically append the appropriate signature.
 
 Guidelines for the subject line:
 1. Keep it under 50 characters
@@ -151,7 +151,8 @@ If asking for a new donation:
 - make it clear what program needs support and why, if you are not asking for the general fund. 
 - explicitly mention how much impact that amount can make, for example, supporting 2 poor families, etc. if you can find that information.
 
-6. Signature (Do 1):
+6. Closing (Do NOT Include):
+DO NOT include any signature, closing, or sign-off in the email. The system will automatically append the appropriate signature based on the staff member assigned to the donor.
 
 Now, generate the email strictly in the JSON format described above.`;
 

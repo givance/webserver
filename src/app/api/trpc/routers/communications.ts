@@ -226,12 +226,14 @@ class EmailGenerationService {
       });
     }
 
-    // Fetch full donor data from database to include notes and other fields
+    // Fetch full donor data from database to include notes and assigned staff
     const donorIds = donors.map((d) => d.id);
-    const fullDonorData = await db
-      .select()
-      .from(donorsSchema)
-      .where(and(inArray(donorsSchema.id, donorIds), eq(donorsSchema.organizationId, organizationId)));
+    const fullDonorData = await db.query.donors.findMany({
+      where: and(inArray(donorsSchema.id, donorIds), eq(donorsSchema.organizationId, organizationId)),
+      with: {
+        assignedStaff: true, // Include staff assignment and signature
+      },
+    });
 
     if (fullDonorData.length !== donorIds.length) {
       throw new TRPCError({
@@ -311,7 +313,7 @@ class EmailGenerationService {
       donationHistoriesMap[donor.id] = donationHistory;
     });
 
-    // Generate emails using the email generator
+    // Generate emails using the email generator (without signatures - they'll be added below)
     const result = await generateSmartDonorEmails(
       donorInfos, // Use full donor data instead of simplified input
       processedInstruction,
@@ -326,11 +328,48 @@ class EmailGenerationService {
       organizationMemories,
       dismissedMemories,
       currentDate,
-      user?.emailSignature ?? undefined // Pass user's email signature
+      undefined // Don't pass user signature - we'll handle staff signatures below
     );
 
-    logger.info(`Successfully generated ${result.emails.length} emails for organization ${organizationId}`);
-    return result;
+    // Add staff signatures to each generated email
+    const emailsWithSignatures = result.emails.map((email) => {
+      // Find the donor to get their assigned staff info
+      const donor = fullDonorData.find((d) => d.id === email.donorId);
+      const assignedStaff = donor?.assignedStaff;
+
+      // Create the appropriate signature
+      let signature: string;
+      if (assignedStaff?.signature) {
+        signature = assignedStaff.signature;
+      } else if (assignedStaff) {
+        // Default signature format: "Best, firstname"
+        signature = `Best,\n${assignedStaff.firstName}`;
+      } else {
+        // Fallback to user signature if no staff assigned
+        signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
+      }
+
+      // Append signature to the structured content
+      const enhancedStructuredContent = [
+        ...email.structuredContent,
+        {
+          piece: "\n\n" + signature,
+          references: [],
+          addNewlineAfter: false,
+        },
+      ];
+
+      return {
+        ...email,
+        structuredContent: enhancedStructuredContent,
+      };
+    });
+
+    logger.info(`Successfully generated ${emailsWithSignatures.length} emails for organization ${organizationId}`);
+    return {
+      ...result,
+      emails: emailsWithSignatures,
+    };
   }
 }
 

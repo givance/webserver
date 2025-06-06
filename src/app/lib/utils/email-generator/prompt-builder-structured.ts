@@ -75,9 +75,9 @@ export function buildStructuredSystemPrompt(
   // Format current date if provided
   const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
 
-  // Format email signature if provided
-  const signatureContext = emailSignature ? `Email Signature to Use:\n${emailSignature}\n` : "";
-  const signatureRequirement = emailSignature ? "- Use the provided email signature for the closing of the email" : "";
+  // Note: Email signatures are handled automatically by the system, so AI should not generate them
+  const signatureContext = "";
+  const signatureRequirement = "";
 
   const systemPrompt = `You are an expert in donor communications writing personalized emails.
 
@@ -104,14 +104,15 @@ REQUIREMENTS:
 - Length: 120-150 words
 - Reference specific donation amounts and dates from the history when available
 - Use the current date context for time-sensitive references and seasonal messaging
-${signatureRequirement ? `${signatureRequirement}` : ""}
+- DO NOT include any signature or closing in the email - this will be automatically added by the system
 
 IMPORTANT INSTRUCTIONS:
 1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
 2. For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
 3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 4. DO NOT use "-", "--" or "—" in the email ever.
-5. PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
+5. DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
+6. PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 
 If the requirements or the important instructions conflicts with the task, prioritize the task.
 

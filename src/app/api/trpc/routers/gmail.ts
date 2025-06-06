@@ -595,19 +595,14 @@ export const gmailRouter = router({
               await createLinkTrackers(processedContent.linkTrackers);
             }
 
-            // Add signature to content if available
-            let finalHtmlContent = processedContent.htmlContent;
-            let finalTextContent = processedContent.textContent;
-
-            if (senderInfo.signature) {
-              // Add signature to HTML content
-              finalHtmlContent += `<br><br>${senderInfo.signature}`;
-              // Add signature to text content
-              finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
-            }
-
+            // Note: Signatures are now handled during email generation phase, not sending phase
             // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
+            const htmlEmail = createHtmlEmail(
+              email.donor.email,
+              email.subject,
+              processedContent.htmlContent,
+              processedContent.textContent
+            );
 
             // Encode email for Gmail API
             const encodedMessage = Buffer.from(htmlEmail)
@@ -769,19 +764,14 @@ export const gmailRouter = router({
           await createLinkTrackers(processedContent.linkTrackers);
         }
 
-        // Add signature to content if available
-        let finalHtmlContent = processedContent.htmlContent;
-        let finalTextContent = processedContent.textContent;
-
-        if (senderInfo.signature) {
-          // Add signature to HTML content
-          finalHtmlContent += `<br><br>${senderInfo.signature}`;
-          // Add signature to text content
-          finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
-        }
-
+        // Note: Signatures are now handled during email generation phase, not sending phase
         // Create complete HTML email with tracking pixel
-        const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
+        const htmlEmail = createHtmlEmail(
+          email.donor.email,
+          email.subject,
+          processedContent.htmlContent,
+          processedContent.textContent
+        );
 
         // Encode email for Gmail API
         const encodedMessage = Buffer.from(htmlEmail)
@@ -943,19 +933,14 @@ export const gmailRouter = router({
               await createLinkTrackers(processedContent.linkTrackers);
             }
 
-            // Add signature to content if available
-            let finalHtmlContent = processedContent.htmlContent;
-            let finalTextContent = processedContent.textContent;
-
-            if (senderInfo.signature) {
-              // Add signature to HTML content
-              finalHtmlContent += `<br><br>${senderInfo.signature}`;
-              // Add signature to text content
-              finalTextContent += `\n\n${senderInfo.signature.replace(/<[^>]*>/g, "")}`;
-            }
-
+            // Note: Signatures are now handled during email generation phase, not sending phase
             // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(email.donor.email, email.subject, finalHtmlContent, finalTextContent);
+            const htmlEmail = createHtmlEmail(
+              email.donor.email,
+              email.subject,
+              processedContent.htmlContent,
+              processedContent.textContent
+            );
 
             // Encode email for Gmail API
             const encodedMessage = Buffer.from(htmlEmail)
