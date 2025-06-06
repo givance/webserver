@@ -103,15 +103,23 @@ function SimpleGmailConnectButton({ staffId }: { staffId: string | number }) {
   };
 
   return (
-    <Button
+    <Badge
       onClick={handleConnect}
-      disabled={staffGmailAuthMutation.isPending}
-      variant="outline"
-      size="sm"
-      className="h-6 text-xs"
+      className="bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all duration-200 cursor-pointer"
+      variant="default"
     >
-      {staffGmailAuthMutation.isPending ? "..." : "Link"}
-    </Button>
+      {staffGmailAuthMutation.isPending ? (
+        <>
+          <div className="h-3 w-3 mr-1 animate-spin rounded-full border border-blue-700 border-r-transparent" />
+          Connecting...
+        </>
+      ) : (
+        <>
+          <Link2 className="h-3 w-3 mr-1" />
+          Link Gmail
+        </>
+      )}
+    </Badge>
   );
 }
 
