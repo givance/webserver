@@ -1,6 +1,6 @@
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Trash2, Mail, MailX, FileText, Link2, User, MessageSquare } from "lucide-react";
+import { ArrowUpDown, Trash2, Mail, MailX, FileText, Link2, User, MessageSquare, Edit2, Save, X } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -14,12 +14,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useStaff } from "@/app/hooks/use-staff";
 import { Badge } from "@/components/ui/badge";
@@ -153,8 +164,8 @@ function HoverDisconnectButton({ staffId, email }: { staffId: string | number; e
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Gmail Account</AlertDialogTitle>
             <AlertDialogDescription>
-              This will disconnect the Gmail account "{email}" from this staff member. They will no longer be able to
-              send emails through their connected account.
+              This will disconnect the Gmail account &quot;{email}&quot; from this staff member. They will no longer be
+              able to send emails through their connected account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -212,6 +223,186 @@ function GmailDisconnectButton({ staffId }: { staffId: string | number }) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+// SignatureEditModal component for inline signature editing
+function SignatureEditModal({
+  staffId,
+  currentSignature,
+  staffName,
+}: {
+  staffId: string | number;
+  currentSignature?: string | null;
+  staffName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [signature, setSignature] = useState(currentSignature || "");
+  const utils = trpc.useUtils();
+
+  const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
+    onSuccess: () => {
+      toast.success("Signature updated successfully");
+      setOpen(false);
+      // Invalidate the staff list to refresh the UI
+      utils.staff.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update signature");
+    },
+  });
+
+  const handleSave = async () => {
+    await updateSignatureMutation.mutateAsync({
+      id: Number(staffId),
+      signature: signature.trim() || undefined,
+    });
+  };
+
+  const handleCancel = () => {
+    setSignature(currentSignature || "");
+    setOpen(false);
+  };
+
+  // Reset signature when modal opens
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (newOpen) {
+      setSignature(currentSignature || "");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+          <Edit2 className="h-3 w-3 mr-1" />
+          Edit
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Email Signature</DialogTitle>
+          <DialogDescription>
+            Update the email signature for {staffName}. This signature will be automatically included in emails sent on
+            their behalf.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="signature">Email Signature</Label>
+            <Textarea
+              id="signature"
+              value={signature}
+              onChange={(e) => setSignature(e.target.value)}
+              placeholder="Enter email signature..."
+              rows={6}
+              className="resize-none mt-2"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleCancel}>
+            <X className="h-4 w-4 mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updateSignatureMutation.isPending}>
+            <Save className="h-4 w-4 mr-2" />
+            {updateSignatureMutation.isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// SignatureEditMenuItem component for dropdown menu use
+function SignatureEditMenuItem({
+  staffId,
+  currentSignature,
+  staffName,
+}: {
+  staffId: string | number;
+  currentSignature?: string | null;
+  staffName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [signature, setSignature] = useState(currentSignature || "");
+  const utils = trpc.useUtils();
+
+  const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
+    onSuccess: () => {
+      toast.success("Signature updated successfully");
+      setOpen(false);
+      // Invalidate the staff list to refresh the UI
+      utils.staff.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update signature");
+    },
+  });
+
+  const handleSave = async () => {
+    await updateSignatureMutation.mutateAsync({
+      id: Number(staffId),
+      signature: signature.trim() || undefined,
+    });
+  };
+
+  const handleCancel = () => {
+    setSignature(currentSignature || "");
+    setOpen(false);
+  };
+
+  // Reset signature when modal opens
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (newOpen) {
+      setSignature(currentSignature || "");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          <FileText className="h-4 w-4 mr-2" />
+          Edit Signature
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Email Signature</DialogTitle>
+          <DialogDescription>
+            Update the email signature for {staffName}. This signature will be automatically included in emails sent on
+            their behalf.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="signature-dropdown">Email Signature</Label>
+            <Textarea
+              id="signature-dropdown"
+              value={signature}
+              onChange={(e) => setSignature(e.target.value)}
+              placeholder="Enter email signature..."
+              rows={6}
+              className="resize-none mt-2"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleCancel}>
+            <X className="h-4 w-4 mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updateSignatureMutation.isPending}>
+            <Save className="h-4 w-4 mr-2" />
+            {updateSignatureMutation.isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -273,6 +464,8 @@ export const columns: ColumnDef<Staff>[] = [
     header: "Signature",
     cell: ({ row }: { row: Row<Staff> }) => {
       const hasSignature = row.original.signature && row.original.signature.trim().length > 0;
+      const staffName = `${row.original.firstName} ${row.original.lastName}`;
+
       return (
         <div className="flex items-center gap-2">
           <div
@@ -282,9 +475,24 @@ export const columns: ColumnDef<Staff>[] = [
           >
             <FileText className={`h-3 w-3 ${hasSignature ? "text-blue-600" : "text-slate-400"}`} />
           </div>
-          <span className={`text-sm ${hasSignature ? "text-blue-700" : "text-slate-500"}`}>
-            {hasSignature ? "Set" : "Not set"}
-          </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${hasSignature ? "text-blue-700" : "text-slate-500"}`}>
+                {hasSignature ? "Set" : "Not set"}
+              </span>
+              <SignatureEditModal
+                staffId={row.original.id}
+                currentSignature={row.original.signature}
+                staffName={staffName}
+              />
+            </div>
+            {hasSignature && (
+              <div className="text-xs text-slate-400 max-w-xs truncate">
+                {row.original.signature?.slice(0, 50)}
+                {row.original.signature && row.original.signature.length > 50 ? "..." : ""}
+              </div>
+            )}
+          </div>
         </div>
       );
     },
@@ -332,6 +540,12 @@ export const columns: ColumnDef<Staff>[] = [
                   <GmailDisconnectButton staffId={row.original.id} />
                 </>
               )}
+              <DropdownMenuSeparator />
+              <SignatureEditMenuItem
+                staffId={row.original.id}
+                currentSignature={row.original.signature}
+                staffName={`${row.original.firstName} ${row.original.lastName}`}
+              />
               <DropdownMenuSeparator />
               <DeleteStaffButton staffId={row.original.id} />
             </DropdownMenuContent>
