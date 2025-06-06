@@ -3,7 +3,13 @@ import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, organizations, donors as donorsSchema } from "@/app/lib/db/schema";
+import {
+  emailGenerationSessions,
+  generatedEmails,
+  organizations,
+  donors as donorsSchema,
+  staff,
+} from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { CommunicationsService } from "@/app/lib/services/communications.service";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
@@ -331,6 +337,11 @@ class EmailGenerationService {
       undefined // Don't pass user signature - we'll handle staff signatures below
     );
 
+    // Get primary staff for fallback
+    const primaryStaff = await db.query.staff.findFirst({
+      where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+    });
+
     // Add staff signatures to each generated email
     const emailsWithSignatures = result.emails.map((email) => {
       // Find the donor to get their assigned staff info
@@ -344,8 +355,14 @@ class EmailGenerationService {
       } else if (assignedStaff) {
         // Default signature format: "Best, firstname"
         signature = `Best,\n${assignedStaff.firstName}`;
+      } else if (primaryStaff?.signature) {
+        // Use primary staff signature if available
+        signature = primaryStaff.signature;
+      } else if (primaryStaff) {
+        // Default signature format for primary staff: "Best, firstname"
+        signature = `Best,\n${primaryStaff.firstName}`;
       } else {
-        // Fallback to user signature if no staff assigned
+        // Fallback to user signature if no staff assigned and no primary staff
         signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
       }
 

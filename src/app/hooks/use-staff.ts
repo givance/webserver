@@ -20,6 +20,7 @@ export function useStaff() {
   const listStaff = trpc.staff.list.useQuery;
   const getStaffById = trpc.staff.getById.useQuery;
   const getAssignedDonors = trpc.staff.getAssignedDonors.useQuery;
+  const getPrimaryStaff = trpc.staff.getPrimary.useQuery;
 
   // Mutation hooks
   const createMutation = trpc.staff.create.useMutation({
@@ -43,6 +44,20 @@ export function useStaff() {
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
       utils.staff.list.invalidate();
+    },
+  });
+
+  const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
+    onSuccess: () => {
+      utils.staff.list.invalidate();
+      utils.staff.getPrimary.invalidate();
+    },
+  });
+
+  const unsetPrimaryMutation = trpc.staff.unsetPrimary.useMutation({
+    onSuccess: () => {
+      utils.staff.list.invalidate();
+      utils.staff.getPrimary.invalidate();
     },
   });
 
@@ -104,23 +119,56 @@ export function useStaff() {
     }
   };
 
+  /**
+   * Set a staff member as primary
+   * @param id The ID of the staff member to set as primary
+   * @returns The updated staff member or null if update failed
+   */
+  const setPrimary = async (id: number) => {
+    try {
+      return await setPrimaryMutation.mutateAsync({ id });
+    } catch (error) {
+      console.error("Failed to set primary staff:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Unset a staff member as primary
+   * @param id The ID of the staff member to unset as primary
+   * @returns The updated staff member or null if update failed
+   */
+  const unsetPrimary = async (id: number) => {
+    try {
+      return await unsetPrimaryMutation.mutateAsync({ id });
+    } catch (error) {
+      console.error("Failed to unset primary staff:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     listStaff,
     getStaffById,
     getAssignedDonors,
+    getPrimaryStaff,
 
     // Mutation functions
     createStaff,
     updateStaff,
     deleteStaff,
     disconnectStaffGmail,
+    setPrimary,
+    unsetPrimary,
 
     // Loading states
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isDisconnecting: disconnectStaffGmailMutation.isPending,
+    isSettingPrimary: setPrimaryMutation.isPending,
+    isUnsettingPrimary: unsetPrimaryMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,

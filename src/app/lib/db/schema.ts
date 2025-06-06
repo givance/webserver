@@ -250,6 +250,7 @@ export const staff = pgTable("staff", {
   lastName: varchar("last_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   isRealPerson: boolean("is_real_person").default(true).notNull(),
+  isPrimary: boolean("is_primary").default(false).notNull(), // Only one staff member per organization can be primary
   signature: text("signature"), // Rich text signature for emails
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

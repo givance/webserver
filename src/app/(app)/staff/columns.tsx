@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
 import { trpc } from "@/app/lib/trpc/client";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 export type Staff = {
   id: string | number;
@@ -44,6 +45,7 @@ export type Staff = {
   lastName: string;
   email: string;
   isRealPerson: boolean;
+  isPrimary: boolean;
   signature?: string | null;
   gmailToken?: {
     id: number;
@@ -53,6 +55,57 @@ export type Staff = {
   updatedAt: string;
   organizationId: string;
 };
+
+// PrimaryStaffToggle component to handle setting/unsetting primary status
+function PrimaryStaffToggle({ staffId, isPrimary }: { staffId: string | number; isPrimary: boolean }) {
+  const utils = trpc.useUtils();
+
+  const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
+    onSuccess: () => {
+      utils.staff.list.invalidate();
+      toast.success("Staff member set as primary");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to set as primary");
+    },
+  });
+
+  const unsetPrimaryMutation = trpc.staff.unsetPrimary.useMutation({
+    onSuccess: () => {
+      utils.staff.list.invalidate();
+      toast.success("Primary status removed");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to remove primary status");
+    },
+  });
+
+  const handleToggle = async (checked: boolean) => {
+    if (checked) {
+      await setPrimaryMutation.mutateAsync({ id: Number(staffId) });
+    } else {
+      await unsetPrimaryMutation.mutateAsync({ id: Number(staffId) });
+    }
+  };
+
+  const isLoading = setPrimaryMutation.isPending || unsetPrimaryMutation.isPending;
+
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={isPrimary}
+        onCheckedChange={handleToggle}
+        disabled={isLoading}
+        className="data-[state=checked]:bg-blue-600"
+      />
+      {isPrimary && (
+        <Badge variant="default" className="bg-blue-100 text-blue-700">
+          Primary
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 // DeleteStaffButton component to handle delete with confirmation dialog
 function DeleteStaffButton({ staffId }: { staffId: string | number }) {
@@ -444,6 +497,14 @@ export const columns: ColumnDef<Staff>[] = [
       </Badge>
     ),
     accessorFn: (row: Staff) => (row.isRealPerson ? "Active" : "Inactive"),
+  },
+  {
+    id: "primary",
+    header: "Primary",
+    cell: ({ row }: { row: Row<Staff> }) => (
+      <PrimaryStaffToggle staffId={row.original.id} isPrimary={row.original.isPrimary} />
+    ),
+    accessorFn: (row: Staff) => (row.isPrimary ? "Primary" : "Not primary"),
   },
   {
     id: "gmailAccount",

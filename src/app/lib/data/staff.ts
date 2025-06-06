@@ -215,5 +215,76 @@ export async function updateStaffSignature(
   }
 }
 
+/**
+ * Sets a staff member as primary for their organization.
+ * This will automatically unset any other staff member as primary in the same organization.
+ * @param id - The ID of the staff member to set as primary.
+ * @param organizationId - The ID of the organization.
+ * @returns The updated staff member object.
+ */
+export async function setPrimaryStaff(id: number, organizationId: string): Promise<Staff | undefined> {
+  try {
+    // Use a transaction to ensure atomicity
+    return await db.transaction(async (tx) => {
+      // First, unset all other staff members as primary in this organization
+      await tx
+        .update(staff)
+        .set({ isPrimary: false, updatedAt: sql`now()` })
+        .where(and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)));
+
+      // Then set the specified staff member as primary
+      const result = await tx
+        .update(staff)
+        .set({ isPrimary: true, updatedAt: sql`now()` })
+        .where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)))
+        .returning();
+
+      return result[0];
+    });
+  } catch (error) {
+    console.error("Failed to set primary staff:", error);
+    throw new Error("Could not set primary staff member.");
+  }
+}
+
+/**
+ * Unsets a staff member as primary for their organization.
+ * @param id - The ID of the staff member to unset as primary.
+ * @param organizationId - The ID of the organization.
+ * @returns The updated staff member object.
+ */
+export async function unsetPrimaryStaff(id: number, organizationId: string): Promise<Staff | undefined> {
+  try {
+    const result = await db
+      .update(staff)
+      .set({ isPrimary: false, updatedAt: sql`now()` })
+      .where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to unset primary staff:", error);
+    throw new Error("Could not unset primary staff member.");
+  }
+}
+
+/**
+ * Gets the primary staff member for an organization.
+ * @param organizationId - The ID of the organization.
+ * @returns The primary staff member object if found, otherwise undefined.
+ */
+export async function getPrimaryStaff(organizationId: string): Promise<Staff | undefined> {
+  try {
+    const result = await db
+      .select()
+      .from(staff)
+      .where(and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)))
+      .limit(1);
+    return result[0];
+  } catch (error) {
+    console.error("Failed to get primary staff:", error);
+    throw new Error("Could not get primary staff member.");
+  }
+}
+
 // Note: Staff Gmail account management is now handled through the staffGmailRouter
 // Individual staff members authenticate their own Gmail accounts via OAuth

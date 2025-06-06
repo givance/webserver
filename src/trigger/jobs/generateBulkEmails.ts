@@ -1,8 +1,8 @@
 import { task, logger as triggerLogger } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, donors, organizations, users } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { emailGenerationSessions, generatedEmails, donors, organizations, users, staff } from "@/app/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { listDonations } from "@/app/lib/data/donations";
@@ -224,6 +224,11 @@ export const generateBulkEmailsTask = task({
 
       triggerLogger.info(`Successfully generated ${allEmailResults.length} emails`);
 
+      // Get primary staff for fallback if no staff is assigned
+      const primaryStaff = await db.query.staff.findFirst({
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+      });
+
       // Store generated emails in database with staff signatures automatically appended
       const emailInserts = allEmailResults.map((email: any) => {
         // Find the donor to get their assigned staff info
@@ -237,8 +242,14 @@ export const generateBulkEmailsTask = task({
         } else if (assignedStaff) {
           // Default signature format: "Best, firstname"
           signature = `Best,\n${assignedStaff.firstName}`;
+        } else if (primaryStaff?.signature) {
+          // Use primary staff signature if available
+          signature = primaryStaff.signature;
+        } else if (primaryStaff) {
+          // Default signature format for primary staff: "Best, firstname"
+          signature = `Best,\n${primaryStaff.firstName}`;
         } else {
-          // Fallback to user signature if no staff assigned
+          // Fallback to user signature if no staff assigned and no primary staff
           signature = user.emailSignature || `Best,\n${user.firstName}`;
         }
 

@@ -40,6 +40,7 @@ export default function StaffListPage() {
         lastName: apiStaff.lastName,
         email: apiStaff.email,
         isRealPerson: apiStaff.isRealPerson,
+        isPrimary: apiStaff.isPrimary,
         signature: apiStaff.signature || null,
         gmailToken: apiStaff.gmailToken || null,
         createdAt: apiStaff.createdAt ? new Date(apiStaff.createdAt).toISOString() : new Date().toISOString(),

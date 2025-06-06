@@ -9,6 +9,9 @@ import {
   deleteStaff,
   listStaff,
   updateStaffSignature,
+  setPrimaryStaff,
+  unsetPrimaryStaff,
+  getPrimaryStaff,
 } from "@/app/lib/data/staff";
 import { listDonors } from "@/app/lib/data/donors";
 import { staffSchemas } from "@/app/lib/validation/schemas";
@@ -26,6 +29,7 @@ const createStaffSchema = z.object({
   title: z.string().optional(),
   department: z.string().optional(),
   isRealPerson: z.boolean().default(true),
+  isPrimary: z.boolean().default(false),
 });
 
 const updateStaffSchema = z.object({
@@ -36,6 +40,7 @@ const updateStaffSchema = z.object({
   title: z.string().optional(),
   department: z.string().optional(),
   isRealPerson: z.boolean().optional(),
+  isPrimary: z.boolean().optional(),
 });
 
 const listStaffSchema = z.object({
@@ -55,6 +60,7 @@ const staffSchema = z.object({
   lastName: z.string(),
   email: z.string().email(),
   isRealPerson: z.boolean(),
+  isPrimary: z.boolean(),
   signature: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -185,6 +191,33 @@ export const staffRouter = router({
       }
       return updated;
     }),
+
+  setPrimary: protectedProcedure.input(staffIdSchema).mutation(async ({ input, ctx }) => {
+    const updated = await setPrimaryStaff(input.id, ctx.auth.user.organizationId);
+    if (!updated) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+    return updated;
+  }),
+
+  unsetPrimary: protectedProcedure.input(staffIdSchema).mutation(async ({ input, ctx }) => {
+    const updated = await unsetPrimaryStaff(input.id, ctx.auth.user.organizationId);
+    if (!updated) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+    return updated;
+  }),
+
+  getPrimary: protectedProcedure.query(async ({ ctx }) => {
+    const primaryStaff = await getPrimaryStaff(ctx.auth.user.organizationId);
+    return primaryStaff;
+  }),
 
   // Note: Staff Gmail account management is now handled through the staffGmailRouter
   // Individual staff members authenticate their own Gmail accounts via OAuth

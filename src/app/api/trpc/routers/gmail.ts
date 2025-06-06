@@ -164,9 +164,66 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
       );
       shouldUseStaffSignature = true;
     }
-    // Case 3: Donor not assigned to staff
+    // Case 3: Donor not assigned to staff - check for primary staff
     else {
-      logger.info(`Donor ${donorId} not assigned to staff, using org default`);
+      logger.info(`Donor ${donorId} not assigned to staff, checking for primary staff`);
+
+      // Try to get primary staff for the organization
+      const primaryStaffInfo = await db.query.staff.findFirst({
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+        with: {
+          gmailToken: true,
+        },
+      });
+
+      if (primaryStaffInfo?.gmailToken) {
+        logger.info(`Using primary staff Gmail account for donor ${donorId}, staff ${primaryStaffInfo.id}`);
+
+        const primaryStaffToken = primaryStaffInfo.gmailToken;
+        const primaryStaffOAuth2Client = new google.auth.OAuth2(
+          GOOGLE_CLIENT_ID,
+          GOOGLE_CLIENT_SECRET,
+          GOOGLE_REDIRECT_URI
+        );
+
+        primaryStaffOAuth2Client.setCredentials({
+          access_token: primaryStaffToken.accessToken,
+          refresh_token: primaryStaffToken.refreshToken,
+          expiry_date: primaryStaffToken.expiresAt.getTime(),
+          scope: primaryStaffToken.scope || undefined,
+          token_type: primaryStaffToken.tokenType || "Bearer",
+        });
+
+        // Refresh token if expired
+        try {
+          await primaryStaffOAuth2Client.getAccessToken();
+          gmailClient = google.gmail({ version: "v1", auth: primaryStaffOAuth2Client });
+
+          senderInfo = {
+            name: `${primaryStaffInfo.firstName} ${primaryStaffInfo.lastName}`,
+            email: primaryStaffInfo.email,
+            signature: primaryStaffInfo.signature,
+          };
+
+          logger.info(`Successfully authenticated with primary staff Gmail for donor ${donorId}`);
+        } catch (error) {
+          logger.warn(
+            `Primary staff Gmail token expired for staff ${primaryStaffInfo.id}, falling back to org default: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+          // Fall through to org default logic
+          gmailClient = null;
+          shouldUseStaffSignature = true;
+        }
+      } else if (primaryStaffInfo) {
+        logger.info(
+          `Primary staff ${primaryStaffInfo.id} exists but no linked email, using org default with primary staff signature`
+        );
+        shouldUseStaffSignature = true;
+      } else {
+        logger.info(`No primary staff found for organization ${organizationId}, using org default`);
+      }
     }
 
     // If we don't have a staff Gmail client, use organization default (fallback user)
@@ -221,6 +278,25 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
           email: fallbackUser?.email || null,
           signature: donorInfo.assignedStaff.signature,
         };
+      } else if (shouldUseStaffSignature) {
+        // Check for primary staff signature when no assigned staff
+        const primaryStaffInfo = await db.query.staff.findFirst({
+          where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+        });
+
+        if (primaryStaffInfo) {
+          senderInfo = {
+            name: `${primaryStaffInfo.firstName} ${primaryStaffInfo.lastName}`,
+            email: fallbackUser?.email || null,
+            signature: primaryStaffInfo.signature,
+          };
+        } else {
+          senderInfo = {
+            name: fallbackUser ? `${fallbackUser.firstName} ${fallbackUser.lastName}` : "Organization",
+            email: fallbackUser?.email || null,
+            signature: fallbackUser?.emailSignature || null,
+          };
+        }
       } else {
         senderInfo = {
           name: fallbackUser ? `${fallbackUser.firstName} ${fallbackUser.lastName}` : "Organization",
@@ -236,11 +312,30 @@ async function getGmailClientForDonor(donorId: number, organizationId: string, f
       );
     }
 
+    // Determine account type and staff ID based on how the gmail client was set up
+    let accountType: "staff" | "primary" | "fallback" = "fallback";
+    let staffId: number | null = null;
+
+    if (donorInfo.assignedStaff?.gmailToken) {
+      accountType = "staff";
+      staffId = donorInfo.assignedStaff.id;
+    } else {
+      // Check if we're using primary staff signature/name (indicating primary staff was used)
+      const primaryStaffInfo = await db.query.staff.findFirst({
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+      });
+
+      if (primaryStaffInfo && senderInfo.name === `${primaryStaffInfo.firstName} ${primaryStaffInfo.lastName}`) {
+        accountType = "primary";
+        staffId = primaryStaffInfo.id;
+      }
+    }
+
     return {
       gmailClient,
       senderInfo,
-      accountType: donorInfo.assignedStaff?.gmailToken ? "staff" : "fallback",
-      staffId: donorInfo.assignedStaff?.id || null,
+      accountType,
+      staffId,
     };
   } catch (error) {
     if (error instanceof TRPCError) throw error;
