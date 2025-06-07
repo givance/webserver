@@ -132,9 +132,9 @@ export default function MainLayout({
 }>) {
   const pathname = usePathname();
   const [isPeopleOpen, setIsPeopleOpen] = useState(true);
-  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
-  const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith("/settings"));
+  const [isProjectsOpen, setIsProjectsOpen] = useState(true);
+  const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
 
   return (
     <html lang="en">
@@ -143,25 +143,16 @@ export default function MainLayout({
           <SidebarProvider>
             <Sidebar className="w-64 border-r bg-white flex flex-col">
               <SidebarHeader className="flex-none">
-                <div className="flex items-center h-14 px-4 border-b gap-2">
+                <Link
+                  href="/"
+                  className="flex items-center h-14 px-4 border-b gap-2 hover:bg-gray-50 transition-colors"
+                >
                   <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="" />
                   <span className="font-semibold text-lg">Givance</span>
-                </div>
+                </Link>
               </SidebarHeader>
               <SidebarContent className="flex-1">
                 <div className="px-3 py-2 space-y-0">
-                  {/* Home - Standalone */}
-                  <SidebarMenu className="space-y-0">
-                    <SidebarMenuItem>
-                      <Link href="/" className="w-full">
-                        <SidebarMenuButton isActive={pathname === "/"}>
-                          <Home className="w-4 h-4" />
-                          <span className="text-left">Home</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-
                   {/* People Management - Collapsible */}
                   <Collapsible open={isPeopleOpen} onOpenChange={setIsPeopleOpen}>
                     <CollapsibleTrigger asChild>
