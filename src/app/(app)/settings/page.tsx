@@ -13,7 +13,7 @@ export default function SettingsPage() {
 
   // Show loading state while redirecting
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
+    <div className="container mx-auto px-6 py-6">
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Loading Settings...</h1>

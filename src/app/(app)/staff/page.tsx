@@ -59,7 +59,7 @@ export default function StaffListPage() {
   return (
     <>
       <title>Staff Management</title>
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto px-6 py-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Staff Management</h1>
           <Link href="/staff/add">

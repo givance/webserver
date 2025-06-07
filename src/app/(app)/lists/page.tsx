@@ -61,7 +61,7 @@ export default function ListsPage() {
   const pageCount = getPageCount(totalCount);
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto px-6 py-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Donor Lists</h1>

@@ -77,7 +77,7 @@ export default function IntegrationsPage() {
   return (
     <>
       <title>Integrations - Settings</title>
-      <div className="container mx-auto py-6 max-w-4xl">
+      <div className="container mx-auto px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
           <Mail className="h-6 w-6" />
           <h1 className="text-2xl font-bold">Integrations</h1>

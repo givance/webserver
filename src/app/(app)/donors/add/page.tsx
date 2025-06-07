@@ -94,7 +94,7 @@ export default function AddDonorPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto px-6 py-6">
       <div className="flex items-center mb-6">
         <Link href="/donors" className="mr-4">
           <Button variant="ghost" size="icon">

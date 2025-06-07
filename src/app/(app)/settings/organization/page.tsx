@@ -8,7 +8,7 @@ export default function OrganizationPage() {
   return (
     <>
       <title>Organization - Settings</title>
-      <div className="container mx-auto py-6 max-w-4xl">
+      <div className="container mx-auto px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
           <Building2 className="h-6 w-6" />
           <h1 className="text-2xl font-bold">Organization Settings</h1>
