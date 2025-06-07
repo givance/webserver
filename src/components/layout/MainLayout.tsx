@@ -131,9 +131,8 @@ export default function MainLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  const [isPeopleOpen, setIsPeopleOpen] = useState(true);
-  const [isProjectsOpen, setIsProjectsOpen] = useState(true);
-  const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(true);
+  const [isDonorOpen, setIsDonorOpen] = useState(true);
+  const [isCampaignOpen, setIsCampaignOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
 
   return (
@@ -153,29 +152,21 @@ export default function MainLayout({
               </SidebarHeader>
               <SidebarContent className="flex-1">
                 <div className="px-3 py-2 space-y-0">
-                  {/* People Management - Collapsible */}
-                  <Collapsible open={isPeopleOpen} onOpenChange={setIsPeopleOpen}>
+                  {/* Donor Management - Collapsible */}
+                  <Collapsible open={isDonorOpen} onOpenChange={setIsDonorOpen}>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton className="w-full justify-between">
                         <div className="flex items-center gap-3">
-                          <Users className="w-4 h-4" />
-                          <span className="text-left">People</span>
+                          <Heart className="w-4 h-4" />
+                          <span className="text-left">Donor</span>
                         </div>
                         <ChevronRight
-                          className={cn("w-4 h-4 transition-transform duration-200", isPeopleOpen && "rotate-90")}
+                          className={cn("w-4 h-4 transition-transform duration-200", isDonorOpen && "rotate-90")}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
-                        <SidebarMenuItem>
-                          <Link href="/staff" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/staff")}>
-                              <Users className="w-4 h-4" />
-                              <span className="text-left">Staff</span>
-                            </SidebarMenuButton>
-                          </Link>
-                        </SidebarMenuItem>
                         <SidebarMenuItem>
                           <Link href="/donors" className="w-full">
                             <SidebarMenuButton isActive={pathname.startsWith("/donors")}>
@@ -196,46 +187,16 @@ export default function MainLayout({
                     </CollapsibleContent>
                   </Collapsible>
 
-                  {/* Projects Management - Collapsible */}
-                  <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="w-full justify-between">
-                        <div className="flex items-center gap-3">
-                          <FolderGit2 className="w-4 h-4" />
-                          <span className="text-left">Projects</span>
-                        </div>
-                        <ChevronRight
-                          className={cn("w-4 h-4 transition-transform duration-200", isProjectsOpen && "rotate-90")}
-                        />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenu className="ml-4 space-y-0">
-                        <SidebarMenuItem>
-                          <Link href="/projects" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/projects")}>
-                              <FolderGit2 className="w-4 h-4" />
-                              <span className="text-left">Projects</span>
-                            </SidebarMenuButton>
-                          </Link>
-                        </SidebarMenuItem>
-                      </SidebarMenu>
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  {/* Communications - Collapsible */}
-                  <Collapsible open={isCommunicationsOpen} onOpenChange={setIsCommunicationsOpen}>
+                  {/* Campaign - Collapsible */}
+                  <Collapsible open={isCampaignOpen} onOpenChange={setIsCampaignOpen}>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton className="w-full justify-between">
                         <div className="flex items-center gap-3">
                           <MessageSquare className="w-4 h-4" />
-                          <span className="text-left">Communications</span>
+                          <span className="text-left">Campaign</span>
                         </div>
                         <ChevronRight
-                          className={cn(
-                            "w-4 h-4 transition-transform duration-200",
-                            isCommunicationsOpen && "rotate-90"
-                          )}
+                          className={cn("w-4 h-4 transition-transform duration-200", isCampaignOpen && "rotate-90")}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -245,7 +206,7 @@ export default function MainLayout({
                           <Link href="/communicate" className="w-full">
                             <SidebarMenuButton isActive={pathname.startsWith("/communicate")}>
                               <MessageSquare className="w-4 h-4" />
-                              <span className="text-left">Communicate</span>
+                              <span className="text-left">Create Campaign</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
@@ -253,7 +214,7 @@ export default function MainLayout({
                           <Link href="/communication-jobs" className="w-full">
                             <SidebarMenuButton isActive={pathname.startsWith("/communication-jobs")}>
                               <Briefcase className="w-4 h-4" />
-                              <span className="text-left">Communication Jobs</span>
+                              <span className="text-left">Campaign Jobs</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
@@ -276,6 +237,22 @@ export default function MainLayout({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
+                        <SidebarMenuItem>
+                          <Link href="/staff" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/staff")}>
+                              <Users className="w-4 h-4" />
+                              <span className="text-left">Staff</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/projects" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/projects")}>
+                              <FolderGit2 className="w-4 h-4" />
+                              <span className="text-left">Projects</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
                         <SidebarMenuItem>
                           <Link href="/settings/organization" className="w-full">
                             <SidebarMenuButton isActive={pathname.startsWith("/settings/organization")}>
