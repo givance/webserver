@@ -284,6 +284,7 @@ class EmailGenerationService {
           limit: 50,
           orderBy: "date",
           orderDirection: "desc",
+          includeProject: true,
         }),
       ]);
 

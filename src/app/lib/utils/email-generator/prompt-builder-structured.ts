@@ -105,6 +105,7 @@ REQUIREMENTS:
 - Reference specific donation amounts and dates from the history when available
 - Use the current date context for time-sensitive references and seasonal messaging
 - DO NOT include any signature or closing in the email - this will be automatically added by the system
+- When talking about the donor's impact, you should use their past donation history to reference the impact they've had.
 
 IMPORTANT INSTRUCTIONS:
 1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
