@@ -203,7 +203,7 @@ export default function AddListPage() {
   const isLoading = isCreating || isAddingDonors || isUploadingFiles;
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto px-6 py-6">
       <div className="mb-6">
         <Link href="/lists" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4 mr-2" />
