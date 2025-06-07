@@ -12,14 +12,30 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarGroup,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Home, Users, Heart, FolderGit2, Settings2, MessageSquare, Search, Bell, Briefcase, List } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Home,
+  Users,
+  Heart,
+  FolderGit2,
+  Settings2,
+  MessageSquare,
+  Search,
+  Bell,
+  Briefcase,
+  List,
+  ChevronRight,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb";
+import { useState } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -108,12 +124,16 @@ export default function MainLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [isPeopleOpen, setIsPeopleOpen] = useState(true);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
+  const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(false);
+
   return (
     <html lang="en">
       <body className={cn(geistSans.variable, geistMono.variable, "antialiased bg-gray-50")}>
         <div className="min-h-screen w-full flex">
           <SidebarProvider>
-            <Sidebar className="w-52 border-r bg-white flex flex-col">
+            <Sidebar className="w-64 border-r bg-white flex flex-col">
               <SidebarHeader className="flex-none">
                 <div className="flex items-center h-14 px-4 border-b gap-2">
                   <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="" />
@@ -121,8 +141,9 @@ export default function MainLayout({
                 </div>
               </SidebarHeader>
               <SidebarContent className="flex-1">
-                <div className="px-2">
-                  <SidebarMenu>
+                <div className="px-3 py-2 space-y-0">
+                  {/* Home - Standalone */}
+                  <SidebarMenu className="space-y-0">
                     <SidebarMenuItem>
                       <Link href="/" className="w-full">
                         <SidebarMenuButton isActive>
@@ -131,40 +152,118 @@ export default function MainLayout({
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <Link href="/staff" className="w-full">
-                        <SidebarMenuButton>
+                  </SidebarMenu>
+
+                  {/* People Management - Collapsible */}
+                  <Collapsible open={isPeopleOpen} onOpenChange={setIsPeopleOpen}>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="w-full justify-between">
+                        <div className="flex items-center gap-3">
                           <Users className="w-4 h-4" />
-                          <span className="text-left">Staff</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <Link href="/donors" className="w-full">
-                        <SidebarMenuButton>
-                          <Heart className="w-4 h-4" />
-                          <span className="text-left">Donors</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <Link href="/lists" className="w-full">
-                        <SidebarMenuButton>
-                          <List className="w-4 h-4" />
-                          <span className="text-left">Donor Lists</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <Link href="/projects" className="w-full">
-                        <SidebarMenuButton>
+                          <span className="text-left">People</span>
+                        </div>
+                        <ChevronRight
+                          className={cn("w-4 h-4 transition-transform duration-200", isPeopleOpen && "rotate-90")}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenu className="ml-4 space-y-0">
+                        <SidebarMenuItem>
+                          <Link href="/staff" className="w-full">
+                            <SidebarMenuButton>
+                              <Users className="w-4 h-4" />
+                              <span className="text-left">Staff</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/donors" className="w-full">
+                            <SidebarMenuButton>
+                              <Heart className="w-4 h-4" />
+                              <span className="text-left">Donors</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/lists" className="w-full">
+                            <SidebarMenuButton>
+                              <List className="w-4 h-4" />
+                              <span className="text-left">Donor Lists</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {/* Projects Management - Collapsible */}
+                  <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="w-full justify-between">
+                        <div className="flex items-center gap-3">
                           <FolderGit2 className="w-4 h-4" />
                           <span className="text-left">Projects</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                    <CommunicateMenuItem />
-                    <CommunicationJobsMenuItem />
+                        </div>
+                        <ChevronRight
+                          className={cn("w-4 h-4 transition-transform duration-200", isProjectsOpen && "rotate-90")}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenu className="ml-4 space-y-0">
+                        <SidebarMenuItem>
+                          <Link href="/projects" className="w-full">
+                            <SidebarMenuButton>
+                              <FolderGit2 className="w-4 h-4" />
+                              <span className="text-left">Projects</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {/* Communications - Collapsible */}
+                  <Collapsible open={isCommunicationsOpen} onOpenChange={setIsCommunicationsOpen}>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="w-full justify-between">
+                        <div className="flex items-center gap-3">
+                          <MessageSquare className="w-4 h-4" />
+                          <span className="text-left">Communications</span>
+                        </div>
+                        <ChevronRight
+                          className={cn(
+                            "w-4 h-4 transition-transform duration-200",
+                            isCommunicationsOpen && "rotate-90"
+                          )}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenu className="ml-4 space-y-0">
+                        <SidebarMenuItem>
+                          <Link href="/communicate" className="w-full">
+                            <SidebarMenuButton>
+                              <MessageSquare className="w-4 h-4" />
+                              <span className="text-left">Communicate</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/communication-jobs" className="w-full">
+                            <SidebarMenuButton>
+                              <Briefcase className="w-4 h-4" />
+                              <span className="text-left">Communication Jobs</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {/* Settings - Standalone */}
+                  <SidebarMenu className="space-y-0">
                     <SidebarMenuItem>
                       <Link href="/settings" className="w-full">
                         <SidebarMenuButton>
