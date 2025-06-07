@@ -32,8 +32,8 @@ The WriteInstructionStep component now supports @ mentions for projects. Users c
 7. **Backend**: Enhanced instruction is sent to the LLM for email generation
 
 ### Files Modified
-- `src/app/(app)/communicate/steps/WriteInstructionStep.tsx`: Main component updated
-- `src/app/(app)/communicate/styles.css`: Styling for mentions component
+- `src/app/(app)/campaign/steps/WriteInstructionStep.tsx`: Main component updated
+- `src/app/(app)/campaign/styles.css`: Styling for mentions component
 - `src/app/lib/utils/email-generator/mention-processor.ts`: New utility for processing mentions
 - `src/app/api/trpc/routers/communications.ts`: Backend integration for mention processing
 

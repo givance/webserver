@@ -53,19 +53,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-function CommunicateMenuItem() {
-  return (
-    <SidebarMenuItem>
-      <Link href="/communicate" className="w-full">
-        <SidebarMenuButton>
-          <MessageSquare className="w-4 h-4" />
-          <span className="text-left">Communicate</span>
-        </SidebarMenuButton>
-      </Link>
-    </SidebarMenuItem>
-  );
-}
-
 function CommunicationJobsMenuItem() {
   return (
     <SidebarMenuItem>
@@ -203,8 +190,8 @@ export default function MainLayout({
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
-                          <Link href="/communicate" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/communicate")}>
+                          <Link href="/campaign" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/campaign")}>
                               <MessageSquare className="w-4 h-4" />
                               <span className="text-left">Create Campaign</span>
                             </SidebarMenuButton>

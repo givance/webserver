@@ -374,7 +374,7 @@ function CommunicationJobsContent() {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/communicate/results/${job.id}`}>
+              <Link href={`/campaign/results/${job.id}`}>
                 <Eye className="h-4 w-4" />
               </Link>
             </Button>
@@ -436,7 +436,7 @@ function CommunicationJobsContent() {
             <h1 className="text-2xl font-bold">Communication Jobs</h1>
             <p className="text-muted-foreground">Manage and track your email generation campaigns</p>
           </div>
-          <Link href="/communicate">
+          <Link href="/campaign">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
               New Communication Job
@@ -455,7 +455,7 @@ function CommunicationJobsContent() {
             <div className="text-muted-foreground mb-4">
               No communication jobs found. Start by creating your first campaign.
             </div>
-            <Link href="/communicate">
+            <Link href="/campaign">
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Your First Job

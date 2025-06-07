@@ -92,9 +92,9 @@ export default function EmailGenerationResultsPage() {
         <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-4 p-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/communicate">
+              <Link href="/campaign">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Communicate
+                Back to Campaign
               </Link>
             </Button>
             <div className="flex-1">
@@ -122,9 +122,9 @@ export default function EmailGenerationResultsPage() {
         <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-4 p-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/communicate">
+              <Link href="/campaign">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Communicate
+                Back to Campaign
               </Link>
             </Button>
             <div className="flex-1">
@@ -145,7 +145,7 @@ export default function EmailGenerationResultsPage() {
               </p>
             </div>
             <Button asChild>
-              <Link href="/communicate">Return to Communicate</Link>
+              <Link href="/campaign">Return to Campaign</Link>
             </Button>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function EmailGenerationResultsPage() {
           <h2 className="text-lg font-medium">Session not found</h2>
           <p className="text-sm text-muted-foreground">The requested email generation session could not be found.</p>
           <Button asChild className="mt-4">
-            <Link href="/communicate">Return to Communicate</Link>
+            <Link href="/campaign">Return to Campaign</Link>
           </Button>
         </div>
       </div>
@@ -173,9 +173,9 @@ export default function EmailGenerationResultsPage() {
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center gap-4 p-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/communicate">
+            <Link href="/campaign">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Communicate
+              Back to Campaign
             </Link>
           </Button>
           <div className="flex-1">

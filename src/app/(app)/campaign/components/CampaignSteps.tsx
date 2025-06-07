@@ -11,11 +11,11 @@ import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 
 const STEPS = ["Select Donors", "Job Name", "Select Template", "Write Instructions", "Bulk Generation"] as const;
 
-interface CommunicateStepsProps {
+interface CampaignStepsProps {
   onClose: () => void;
 }
 
-export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
+export function CampaignSteps({ onClose }: CampaignStepsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
   const [jobName, setJobName] = useState("");
@@ -82,7 +82,7 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
 
   const handleBulkGenerationComplete = (sessionId: number) => {
     // Navigate to results page
-    router.push(`/communicate/results/${sessionId}`);
+    router.push(`/campaign/results/${sessionId}`);
     onClose();
   };
 
@@ -148,7 +148,7 @@ export function CommunicateSteps({ onClose }: CommunicateStepsProps) {
       <div className="w-48 border-r bg-muted/30 py-4 px-2">
         <StepIndicator steps={STEPS} currentStep={currentStep} orientation="vertical" className="mb-6" />
       </div>
-      <div className="flex-1 p-4 overflow-auto">{renderStep()}</div>
+      <div className="flex-1 px-6 py-4 overflow-auto">{renderStep()}</div>
     </div>
   );
 }

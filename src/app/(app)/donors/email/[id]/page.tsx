@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { WriteInstructionStep } from "@/app/(app)/communicate/steps/WriteInstructionStep";
+import { WriteInstructionStep } from "@/app/(app)/campaign/steps/WriteInstructionStep";
 import { useState, useEffect, useRef } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";

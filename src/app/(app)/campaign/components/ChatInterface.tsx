@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MentionsInput, Mention } from "react-mentions";
 import { cn } from "@/lib/utils";
 import { SuggestedMemories } from "./SuggestedMemories";
-import "@/app/(app)/communicate/styles.css";
+import "@/app/(app)/campaign/styles.css";
 
 // Types based on WriteInstructionStep and expected props
 export interface ChatMessage {

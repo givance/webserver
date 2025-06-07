@@ -13,7 +13,7 @@ import { useSearch } from "@/app/hooks/use-search";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
 import { PageSizeSelector } from "@/app/components/PageSizeSelector";
-import { CommunicateButton } from "@/components/communicate/CommunicateButton";
+import { CampaignButton } from "@/components/campaign/CampaignButton";
 
 export default function ProjectListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
@@ -63,7 +63,7 @@ export default function ProjectListPage() {
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold">Project Management</h1>
-            <CommunicateButton />
+            <CampaignButton />
           </div>
           <Link href="/projects/add">
             <Button>
