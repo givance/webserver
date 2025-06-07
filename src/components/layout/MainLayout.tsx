@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -124,6 +125,7 @@ export default function MainLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
   const [isPeopleOpen, setIsPeopleOpen] = useState(true);
   const [isProjectsOpen, setIsProjectsOpen] = useState(false);
   const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(false);
@@ -146,7 +148,7 @@ export default function MainLayout({
                   <SidebarMenu className="space-y-0">
                     <SidebarMenuItem>
                       <Link href="/" className="w-full">
-                        <SidebarMenuButton isActive>
+                        <SidebarMenuButton isActive={pathname === "/"}>
                           <Home className="w-4 h-4" />
                           <span className="text-left">Home</span>
                         </SidebarMenuButton>
@@ -171,7 +173,7 @@ export default function MainLayout({
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
                           <Link href="/staff" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/staff")}>
                               <Users className="w-4 h-4" />
                               <span className="text-left">Staff</span>
                             </SidebarMenuButton>
@@ -179,7 +181,7 @@ export default function MainLayout({
                         </SidebarMenuItem>
                         <SidebarMenuItem>
                           <Link href="/donors" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/donors")}>
                               <Heart className="w-4 h-4" />
                               <span className="text-left">Donors</span>
                             </SidebarMenuButton>
@@ -187,7 +189,7 @@ export default function MainLayout({
                         </SidebarMenuItem>
                         <SidebarMenuItem>
                           <Link href="/lists" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/lists")}>
                               <List className="w-4 h-4" />
                               <span className="text-left">Donor Lists</span>
                             </SidebarMenuButton>
@@ -214,7 +216,7 @@ export default function MainLayout({
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
                           <Link href="/projects" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/projects")}>
                               <FolderGit2 className="w-4 h-4" />
                               <span className="text-left">Projects</span>
                             </SidebarMenuButton>
@@ -244,7 +246,7 @@ export default function MainLayout({
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
                           <Link href="/communicate" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/communicate")}>
                               <MessageSquare className="w-4 h-4" />
                               <span className="text-left">Communicate</span>
                             </SidebarMenuButton>
@@ -252,7 +254,7 @@ export default function MainLayout({
                         </SidebarMenuItem>
                         <SidebarMenuItem>
                           <Link href="/communication-jobs" className="w-full">
-                            <SidebarMenuButton>
+                            <SidebarMenuButton isActive={pathname.startsWith("/communication-jobs")}>
                               <Briefcase className="w-4 h-4" />
                               <span className="text-left">Communication Jobs</span>
                             </SidebarMenuButton>
@@ -266,7 +268,7 @@ export default function MainLayout({
                   <SidebarMenu className="space-y-0">
                     <SidebarMenuItem>
                       <Link href="/settings" className="w-full">
-                        <SidebarMenuButton>
+                        <SidebarMenuButton isActive={pathname.startsWith("/settings")}>
                           <Settings2 className="w-4 h-4" />
                           <span className="text-left">Settings</span>
                         </SidebarMenuButton>
