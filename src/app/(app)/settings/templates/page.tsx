@@ -236,10 +236,14 @@ export default function TemplatesPage() {
   return (
     <>
       <title>Templates - Settings</title>
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto py-6 max-w-4xl">
+        <div className="flex items-center gap-3 mb-6">
+          <FileText className="h-6 w-6" />
+          <h1 className="text-2xl font-bold">Templates</h1>
+        </div>
+
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Communication Templates</h1>
             <p className="text-muted-foreground">Manage reusable communication prompts for your organization</p>
           </div>
           <Button onClick={() => setIsCreateDialogOpen(true)}>

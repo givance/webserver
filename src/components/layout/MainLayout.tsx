@@ -28,6 +28,11 @@ import {
   Briefcase,
   List,
   ChevronRight,
+  Building2,
+  GitGraph,
+  FileText,
+  Brain,
+  Mail,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -129,6 +134,7 @@ export default function MainLayout({
   const [isPeopleOpen, setIsPeopleOpen] = useState(true);
   const [isProjectsOpen, setIsProjectsOpen] = useState(false);
   const [isCommunicationsOpen, setIsCommunicationsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith("/settings"));
 
   return (
     <html lang="en">
@@ -264,17 +270,64 @@ export default function MainLayout({
                     </CollapsibleContent>
                   </Collapsible>
 
-                  {/* Settings - Standalone */}
-                  <SidebarMenu className="space-y-0">
-                    <SidebarMenuItem>
-                      <Link href="/settings" className="w-full">
-                        <SidebarMenuButton isActive={pathname.startsWith("/settings")}>
+                  {/* Settings - Collapsible */}
+                  <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="w-full justify-between">
+                        <div className="flex items-center gap-3">
                           <Settings2 className="w-4 h-4" />
                           <span className="text-left">Settings</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
+                        </div>
+                        <ChevronRight
+                          className={cn("w-4 h-4 transition-transform duration-200", isSettingsOpen && "rotate-90")}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenu className="ml-4 space-y-0">
+                        <SidebarMenuItem>
+                          <Link href="/settings/organization" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/organization")}>
+                              <Building2 className="w-4 h-4" />
+                              <span className="text-left">Organization</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/settings/donor-journey" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/donor-journey")}>
+                              <GitGraph className="w-4 h-4" />
+                              <span className="text-left">Donor Journey</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/settings/templates" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/templates")}>
+                              <FileText className="w-4 h-4" />
+                              <span className="text-left">Templates</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/settings/memories" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/memories")}>
+                              <Brain className="w-4 h-4" />
+                              <span className="text-left">Memories</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/settings/integrations" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/integrations")}>
+                              <Mail className="w-4 h-4" />
+                              <span className="text-left">Integrations</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               </SidebarContent>
               <SidebarFooter className="flex-none" />
