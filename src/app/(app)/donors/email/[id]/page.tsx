@@ -114,6 +114,8 @@ export default function DonorEmailPage() {
         onBack={() => router.push("/donors")}
         onNext={() => router.push("/donors")}
         selectedDonors={[Number(donorId)]}
+        jobName={`Email to ${formatDonorName(donor)}`}
+        onBulkGenerationComplete={() => router.push("/communication-jobs")}
       />
     </div>
   );

@@ -3,13 +3,12 @@
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
 import { useState, useCallback } from "react";
-import { BulkGenerateEmailsStep } from "../steps/BulkGenerateEmailsStep";
 import { JobNameStep } from "../steps/JobNameStep";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 
-const STEPS = ["Select Donors", "Job Name", "Select Template", "Write Instructions", "Bulk Generation"] as const;
+const STEPS = ["Select Donors", "Job Name", "Select Template", "Write Instructions"] as const;
 
 interface CampaignStepsProps {
   onClose: () => void;
@@ -81,8 +80,8 @@ export function CampaignSteps({ onClose }: CampaignStepsProps) {
   );
 
   const handleBulkGenerationComplete = (sessionId: number) => {
-    // Navigate to results page
-    router.push(`/campaign/results/${sessionId}`);
+    // Navigate to communication jobs page
+    router.push(`/communication-jobs`);
     onClose();
   };
 
@@ -125,19 +124,11 @@ export function CampaignSteps({ onClose }: CampaignStepsProps) {
             initialGeneratedEmails={persistedGeneratedEmails}
             initialReferenceContexts={persistedReferenceContexts}
             initialPreviewDonorIds={persistedPreviewDonorIds}
+            jobName={jobName}
+            templateId={selectedTemplateId || undefined}
+            onBulkGenerationComplete={handleBulkGenerationComplete}
           />
         );
-      case 4:
-        return sessionData ? (
-          <BulkGenerateEmailsStep
-            selectedDonors={selectedDonors}
-            jobName={jobName}
-            sessionData={sessionData}
-            templateId={selectedTemplateId || undefined}
-            onBack={handleBack}
-            onComplete={handleBulkGenerationComplete}
-          />
-        ) : null;
       default:
         return null;
     }
