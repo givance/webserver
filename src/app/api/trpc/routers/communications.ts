@@ -17,7 +17,7 @@ import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, count } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
@@ -639,6 +639,7 @@ export const communicationsRouter = router({
       whereClauses.push(eq(emailGenerationSessions.status, status));
     }
 
+    // Get campaigns without email counts first
     const campaigns = await db
       .select({
         id: emailGenerationSessions.id,
@@ -650,8 +651,6 @@ export const communicationsRouter = router({
         createdAt: emailGenerationSessions.createdAt,
         updatedAt: emailGenerationSessions.updatedAt,
         completedAt: emailGenerationSessions.completedAt,
-        sentEmails: sql<number>`(SELECT COUNT(*) FROM ${generatedEmails} WHERE ${generatedEmails.sessionId} = ${emailGenerationSessions.id} AND ${generatedEmails.isSent} = true)`,
-        totalEmails: sql<number>`(SELECT COUNT(*) FROM ${generatedEmails} WHERE ${generatedEmails.sessionId} = ${emailGenerationSessions.id})`,
       })
       .from(emailGenerationSessions)
       .where(and(...whereClauses))
@@ -659,16 +658,33 @@ export const communicationsRouter = router({
       .limit(limit)
       .offset(offset);
 
-    const totalCountResult = await db
-      .select({
-        count: sql<number>`count(*)`.mapWith(Number),
+    // Get email counts for each campaign separately
+    const campaignsWithCounts = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const [sentEmailsResult, totalEmailsResult] = await Promise.all([
+          db
+            .select({ count: count() })
+            .from(generatedEmails)
+            .where(and(eq(generatedEmails.sessionId, campaign.id), eq(generatedEmails.isSent, true))),
+          db.select({ count: count() }).from(generatedEmails).where(eq(generatedEmails.sessionId, campaign.id)),
+        ]);
+
+        return {
+          ...campaign,
+          sentEmails: sentEmailsResult[0]?.count ?? 0,
+          totalEmails: totalEmailsResult[0]?.count ?? 0,
+        };
       })
+    );
+
+    const totalCountResult = await db
+      .select({ count: count() })
       .from(emailGenerationSessions)
       .where(and(...whereClauses));
 
     const totalCount = totalCountResult[0]?.count ?? 0;
 
-    return { campaigns, totalCount };
+    return { campaigns: campaignsWithCounts, totalCount };
   }),
 
   deleteCampaign: protectedProcedure.input(deleteCampaignSchema).mutation(async ({ ctx, input }) => {
