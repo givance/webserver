@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
+import { useStaffMembers } from "@/app/hooks/use-staff-members";
 
 interface GeneratedEmailData {
   id: number;
@@ -75,9 +76,19 @@ export default function EmailGenerationResultsPage() {
   // Get session tracking data
   const { donorStats } = useSessionTracking(sessionId);
 
+  // Get staff members
+  const { staffMembers } = useStaffMembers();
+
   // Helper function to get donor data by ID
   const getDonorData = (donorId: number) => {
     return donorsData?.find((donor) => donor.id === donorId);
+  };
+
+  // Helper function to get staff member name
+  const getStaffName = (staffId: number | null) => {
+    if (!staffId) return "Unassigned";
+    const staff = staffMembers.find((s) => parseInt(s.id, 10) === staffId);
+    return staff ? staff.name : "Unknown Staff";
   };
 
   // Helper function to get donor tracking stats
@@ -227,6 +238,8 @@ export default function EmailGenerationResultsPage() {
                             const trackingStats = getDonorTrackingStats(email.donorId);
                             if (!donor) return null;
 
+                            const assignedStaffName = getStaffName(donor.assignedToStaffId);
+
                             return (
                               <TabsTrigger
                                 key={email.donorId}
@@ -250,9 +263,10 @@ export default function EmailGenerationResultsPage() {
                                     </Badge>
                                   )}
                                 </div>
-                                <span className="text-sm text-muted-foreground data-[state=active]:text-white/70 truncate w-full">
-                                  {donor.email}
-                                </span>
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="text-xs text-muted-foreground">{assignedStaffName}</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground/80 truncate w-full">{donor.email}</span>
                               </TabsTrigger>
                             );
                           })}
