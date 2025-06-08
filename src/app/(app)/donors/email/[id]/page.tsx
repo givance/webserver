@@ -113,10 +113,10 @@ export default function DonorEmailPage() {
           instruction={instruction}
           onInstructionChange={setInstruction}
           onBack={() => router.push(`/donors/${donorId}`)}
-          onNext={() => router.push("/donors")}
+          onNext={() => router.push("/existing-campaigns")}
           selectedDonors={[Number(donorId)]}
           campaignName={`Email to ${formatDonorName(donor)}`}
-          onBulkGenerationComplete={() => router.push("/communication-jobs")}
+          onBulkGenerationComplete={() => router.push("/existing-campaigns")}
         />
       </div>
     </div>
