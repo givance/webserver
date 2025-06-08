@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText } from "lucide-react";
+import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { trpc } from "@/app/lib/trpc/client";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ExistingCampaign {
   id: number;
@@ -203,6 +204,36 @@ function ExistingCampaignsContent() {
   const totalCount = campaignsResponse?.totalCount || 0;
   const pageCount = Math.ceil(totalCount / pageSize);
 
+  const ActionButtonWrapper = ({
+    disabled,
+    tooltipContent,
+    children,
+    className,
+  }: {
+    disabled: boolean;
+    tooltipContent: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => {
+    if (disabled) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`flex items-center ${className || ""}`}>
+              {children}
+              <HelpCircle className="ml-1 h-4 w-4 text-muted-foreground" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{tooltipContent}</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return <div className={className}>{children}</div>;
+  };
+
   const getStatusBadge = (status: ExistingCampaign["status"]) => {
     switch (status) {
       case "PENDING":
@@ -298,11 +329,7 @@ function ExistingCampaignsContent() {
     {
       accessorKey: "campaignName",
       header: "Campaign Name",
-      cell: ({ row }) => (
-        <Link href={`/campaign/results/${row.original.id}`} className="font-medium hover:underline">
-          {row.original.campaignName}
-        </Link>
-      ),
+      cell: ({ row }) => <div className="font-medium">{row.getValue("campaignName")}</div>,
     },
     {
       accessorKey: "status",
@@ -312,58 +339,90 @@ function ExistingCampaignsContent() {
     {
       accessorKey: "progress",
       header: "Progress",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Progress value={getProgressPercentage(row.original)} className="w-24" />
-          <span className="text-xs text-gray-500">
-            {row.original.completedDonors}/{row.original.totalDonors}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const campaign = row.original;
+        const percentage = getProgressPercentage(campaign);
+        return (
+          <div className="flex items-center">
+            <Progress value={percentage} className="w-40 mr-2" />
+            <span className="text-sm text-muted-foreground">
+              {campaign.completedDonors}/{campaign.totalDonors}
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: "createdAt",
       header: "Created At",
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleString(),
+      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleDateString(),
     },
     {
       id: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const campaign = row.original;
+        const isProcessing = campaign.status === "IN_PROGRESS" || campaign.status === "PENDING";
+        const isCompleted = campaign.status === "COMPLETED";
+        const hasFailed = campaign.status === "FAILED";
+        const isGmailConnected = gmailStatus?.isConnected ?? false;
+        const isDisabled = isProcessing || !isGmailConnected;
+
+        let tooltipContent = "";
+        if (isProcessing) {
+          tooltipContent = "Campaign is currently processing and cannot be modified.";
+        } else if (!isGmailConnected) {
+          tooltipContent = "Please connect your Gmail account in Settings to enable this action.";
+        }
+
         return (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleSaveToDraft(campaign)}
-              disabled={isLoadingAction || campaign.status === "COMPLETED"}
-              title="Save to Drafts"
-            >
-              <FileText className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleSendEmails(campaign)}
-              disabled={isLoadingAction || campaign.status === "COMPLETED"}
-              title="Send Emails"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/campaign/results/${campaign.id}`}>
-                <Eye className="w-4 h-4" />
+          <TooltipProvider>
+            <div className="flex items-center">
+              <Link href={`/campaign/results/${campaign.id}`} className="mr-2">
+                <Button variant="outline" size="sm">
+                  <Eye className="mr-2 h-4 w-4" />
+                  View
+                </Button>
               </Link>
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => handleDeleteCampaign(campaign)}
-              disabled={isLoadingAction}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
+              {(isCompleted || isProcessing) && (
+                <>
+                  <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent} className="mr-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSaveToDraft(campaign)}
+                      disabled={isDisabled}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Save to Drafts
+                    </Button>
+                  </ActionButtonWrapper>
+
+                  <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSendEmails(campaign)}
+                      disabled={isDisabled}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Send Emails
+                    </Button>
+                  </ActionButtonWrapper>
+                </>
+              )}
+              {hasFailed && (
+                <Button variant="outline" size="sm" onClick={() => handleRetryCampaign(campaign.id)} className="mr-2">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry
+                </Button>
+              )}
+              <Button variant="destructive" size="sm" onClick={() => handleDeleteCampaign(campaign)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </TooltipProvider>
         );
       },
     },
