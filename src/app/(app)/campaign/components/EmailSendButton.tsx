@@ -13,7 +13,7 @@ interface EmailSendButtonProps {
 }
 
 export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendButtonProps) {
-  const { getEmailStatus, sendIndividualEmail, isSendingIndividualEmail } = useCommunications();
+  const { getEmailStatus, sendIndividualEmail } = useCommunications();
   const [isLocalSending, setIsLocalSending] = useState(false);
 
   // Get email status - only query if emailId exists
@@ -25,7 +25,7 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
   const handleSendEmail = async () => {
     setIsLocalSending(true);
     try {
-      const result = await sendIndividualEmail(emailId);
+      const result = await sendIndividualEmail.mutateAsync({ emailId });
       if (result?.success) {
         toast.success(`Email sent successfully to ${donorName}`);
       } else {
@@ -39,7 +39,7 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
     }
   };
 
-  const isSending = isSendingIndividualEmail || isLocalSending;
+  const isSending = sendIndividualEmail.isPending || isLocalSending;
 
   if (isLoadingStatus) {
     return (

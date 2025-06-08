@@ -53,19 +53,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-function CommunicationJobsMenuItem() {
-  return (
-    <SidebarMenuItem>
-      <Link href="/communication-jobs" className="w-full">
-        <SidebarMenuButton>
-          <Briefcase className="w-4 h-4" />
-          <span className="text-left">Communication Jobs</span>
-        </SidebarMenuButton>
-      </Link>
-    </SidebarMenuItem>
-  );
-}
-
 function UserProfile() {
   const { user } = useUser();
 
@@ -198,10 +185,10 @@ export default function MainLayout({
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/communication-jobs" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/communication-jobs")}>
+                          <Link href="/existing-campaigns" className="w-full">
+                            <SidebarMenuButton isActive={pathname.startsWith("/existing-campaigns")}>
                               <Briefcase className="w-4 h-4" />
-                              <span className="text-left">Campaign Jobs</span>
+                              <span className="text-left">Existing Campaigns</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>

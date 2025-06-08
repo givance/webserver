@@ -76,7 +76,7 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
         onDonorsSelected(individualDonors);
       }
     }
-  }, [donorIdsFromLists, selectedLists]); // Only depend on external data
+  }, [donorIdsFromLists, selectedLists, onDonorsSelected]); // Only depend on external data
 
   const handleToggleDonor = (donorId: number) => {
     // Only allow manual donor selection if not selected via lists

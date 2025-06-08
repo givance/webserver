@@ -46,7 +46,7 @@ export function EmailEditModal({
   donorName,
   donorEmail,
 }: EmailEditModalProps) {
-  const { updateEmail, isUpdatingEmail } = useCommunications();
+  const { updateEmail } = useCommunications();
   const [subject, setSubject] = useState(initialSubject);
   const [content, setContent] = useState("");
   const [referenceContexts, setReferenceContexts] = useState(initialReferenceContexts);
@@ -98,12 +98,17 @@ export function EmailEditModal({
     }
 
     const structuredContent = plainTextToStructured(content);
-    const result = await updateEmail(emailId, subject, structuredContent, referenceContexts);
-    if (result?.success) {
+    try {
+      await updateEmail.mutateAsync({
+        emailId,
+        subject,
+        structuredContent,
+        referenceContexts,
+      });
       toast.success("Email updated successfully");
       onOpenChange(false);
-    } else {
-      toast.error("Failed to update email");
+    } catch (error) {
+      toast.error("Failed to update email.");
     }
   };
 
@@ -193,8 +198,8 @@ export function EmailEditModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isUpdatingEmail}>
-            {isUpdatingEmail ? "Saving..." : "Save Changes"}
+          <Button onClick={handleSave} disabled={updateEmail.isPending}>
+            {updateEmail.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>

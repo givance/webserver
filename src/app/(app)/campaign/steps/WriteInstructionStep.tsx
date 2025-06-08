@@ -45,7 +45,7 @@ interface WriteInstructionStepProps {
   initialGeneratedEmails?: GeneratedEmail[];
   initialReferenceContexts?: Record<number, Record<string, string>>;
   initialPreviewDonorIds?: number[];
-  jobName: string;
+  campaignName: string;
   templateId?: number;
   onBulkGenerationComplete: (sessionId: number) => void;
   ref?: React.RefObject<{ click: () => Promise<void> }>;
@@ -100,7 +100,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       initialGeneratedEmails = [],
       initialReferenceContexts = {},
       initialPreviewDonorIds = [],
-      jobName,
+      campaignName,
       templateId,
       onBulkGenerationComplete,
     },
@@ -245,7 +245,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
           });
 
           // Generate emails using the hook
-          const result = await generateEmails({
+          const result = await generateEmails.mutateAsync({
             instruction: finalInstruction,
             donors: donorData,
             organizationName: organization.name,
@@ -331,6 +331,8 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
     // Handle bulk generation
     const handleBulkGeneration = async () => {
+      if (isStartingBulkGeneration) return;
+
       if (!userId) {
         toast.error("User not authenticated");
         return;
@@ -356,8 +358,8 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       setIsStartingBulkGeneration(true);
       try {
         // Call API to start bulk generation
-        const result = await createSession({
-          jobName: jobName,
+        const response = await createSession.mutateAsync({
+          campaignName: campaignName,
           instruction: currentSessionData.finalInstruction,
           chatHistory: currentSessionData.chatHistory,
           selectedDonorIds: selectedDonors,
@@ -366,7 +368,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
           templateId: templateId,
         });
 
-        if (!result?.sessionId) {
+        if (!response?.sessionId) {
           throw new Error("Failed to create session");
         }
 
@@ -375,7 +377,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
         // Redirect after starting the generation
         setTimeout(() => {
-          onBulkGenerationComplete(result.sessionId);
+          onBulkGenerationComplete(response.sessionId);
         }, 1000);
       } catch (error) {
         console.error("Error starting bulk generation:", error);

@@ -123,7 +123,7 @@ const generateEmailsSchema = z.object({
 });
 
 const createSessionSchema = z.object({
-  jobName: z.string().min(1).max(255),
+  campaignName: z.string().min(1).max(255),
   instruction: z.string().min(1),
   chatHistory: z.array(
     z.object({
@@ -145,14 +145,14 @@ const getSessionStatusSchema = z.object({
   sessionId: z.number(),
 });
 
-const listJobsSchema = z.object({
+const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
 });
 
-const deleteJobSchema = z.object({
-  jobId: z.number(),
+const deleteCampaignSchema = z.object({
+  campaignId: z.number(),
 });
 
 const sendIndividualEmailSchema = z.object({
@@ -535,7 +535,7 @@ export const communicationsRouter = router({
           organizationId: ctx.auth.user.organizationId,
           userId: ctx.auth.user.id,
           templateId: input.templateId,
-          jobName: input.jobName,
+          jobName: input.campaignName,
           instruction: input.instruction,
           refinedInstruction: input.refinedInstruction,
           chatHistory: input.chatHistory,
@@ -611,138 +611,91 @@ export const communicationsRouter = router({
    * Gets the status of an email generation session
    */
   getSessionStatus: protectedProcedure.input(getSessionStatusSchema).query(async ({ ctx, input }) => {
-    try {
-      const [session] = await db
-        .select({
-          id: emailGenerationSessions.id,
-          organizationId: emailGenerationSessions.organizationId,
-          status: emailGenerationSessions.status,
-          totalDonors: emailGenerationSessions.totalDonors,
-          completedDonors: emailGenerationSessions.completedDonors,
-          errorMessage: emailGenerationSessions.errorMessage,
-          createdAt: emailGenerationSessions.createdAt,
-          updatedAt: emailGenerationSessions.updatedAt,
-          completedAt: emailGenerationSessions.completedAt,
-        })
-        .from(emailGenerationSessions)
-        .where(eq(emailGenerationSessions.id, input.sessionId))
-        .limit(1);
+    const { sessionId } = input;
+    const orgId = ctx.auth.user.organizationId;
 
-      if (!session || session.organizationId !== ctx.auth.user.organizationId) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Session not found",
-        });
-      }
+    const session = await db.query.emailGenerationSessions.findFirst({
+      where: and(eq(emailGenerationSessions.id, sessionId), eq(emailGenerationSessions.organizationId, orgId)),
+      columns: {
+        status: true,
+        totalDonors: true,
+        completedDonors: true,
+        id: true,
+      },
+    });
 
-      return session;
-    } catch (error) {
-      if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to get session status: ${error instanceof Error ? error.message : String(error)}`);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get session status",
-      });
+    if (!session) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
     }
+    return session;
   }),
 
-  /**
-   * Lists communication jobs (email generation sessions) for the organization
-   */
-  listJobs: protectedProcedure.input(listJobsSchema).query(async ({ ctx, input }) => {
-    try {
-      const { limit = 20, offset = 0, status } = input;
+  listCampaigns: protectedProcedure.input(listCampaignsSchema).query(async ({ ctx, input }) => {
+    const { limit = 10, offset = 0, status } = input;
+    const orgId = ctx.auth.user.organizationId;
 
-      const whereConditions = [eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId)];
-
-      if (status) {
-        whereConditions.push(eq(emailGenerationSessions.status, status));
-      }
-
-      // Get jobs with sent email counts
-      const jobs = await db
-        .select({
-          id: emailGenerationSessions.id,
-          jobName: emailGenerationSessions.jobName,
-          status: emailGenerationSessions.status,
-          totalDonors: emailGenerationSessions.totalDonors,
-          completedDonors: emailGenerationSessions.completedDonors,
-          errorMessage: emailGenerationSessions.errorMessage,
-          createdAt: emailGenerationSessions.createdAt,
-          updatedAt: emailGenerationSessions.updatedAt,
-          completedAt: emailGenerationSessions.completedAt,
-          sentEmails: sql<number>`COALESCE(COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END), 0)`,
-          totalEmails: sql<number>`COALESCE(COUNT(${generatedEmails.id}), 0)`,
-        })
-        .from(emailGenerationSessions)
-        .leftJoin(generatedEmails, eq(generatedEmails.sessionId, emailGenerationSessions.id))
-        .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0])
-        .groupBy(emailGenerationSessions.id)
-        .orderBy(desc(emailGenerationSessions.createdAt))
-        .limit(limit)
-        .offset(offset);
-
-      // Get total count for pagination
-      const [{ count }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(emailGenerationSessions)
-        .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0]);
-
-      logger.info(`Listed ${jobs.length} communication jobs for organization ${ctx.auth.user.organizationId}`);
-
-      return {
-        jobs,
-        totalCount: count,
-      };
-    } catch (error) {
-      if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to list communication jobs: ${error instanceof Error ? error.message : String(error)}`);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to list communication jobs",
-      });
+    const whereClauses = [eq(emailGenerationSessions.organizationId, orgId)];
+    if (status) {
+      whereClauses.push(eq(emailGenerationSessions.status, status));
     }
+
+    const campaigns = await db
+      .select({
+        id: emailGenerationSessions.id,
+        campaignName: emailGenerationSessions.jobName,
+        status: emailGenerationSessions.status,
+        totalDonors: emailGenerationSessions.totalDonors,
+        completedDonors: emailGenerationSessions.completedDonors,
+        errorMessage: emailGenerationSessions.errorMessage,
+        createdAt: emailGenerationSessions.createdAt,
+        updatedAt: emailGenerationSessions.updatedAt,
+        completedAt: emailGenerationSessions.completedAt,
+        sentEmails: sql<number>`(SELECT COUNT(*) FROM ${generatedEmails} WHERE ${generatedEmails.sessionId} = ${emailGenerationSessions.id} AND ${generatedEmails.isSent} = true)`,
+        totalEmails: sql<number>`(SELECT COUNT(*) FROM ${generatedEmails} WHERE ${generatedEmails.sessionId} = ${emailGenerationSessions.id})`,
+      })
+      .from(emailGenerationSessions)
+      .where(and(...whereClauses))
+      .orderBy(desc(emailGenerationSessions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalCountResult = await db
+      .select({
+        count: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(emailGenerationSessions)
+      .where(and(...whereClauses));
+
+    const totalCount = totalCountResult[0]?.count ?? 0;
+
+    return { campaigns, totalCount };
   }),
 
-  /**
-   * Deletes a communication job and its associated emails
-   */
-  deleteJob: protectedProcedure.input(deleteJobSchema).mutation(async ({ ctx, input }) => {
-    try {
-      // First verify the job exists and belongs to the user's organization
-      const [existingJob] = await db
-        .select({ id: emailGenerationSessions.id, organizationId: emailGenerationSessions.organizationId })
-        .from(emailGenerationSessions)
-        .where(eq(emailGenerationSessions.id, input.jobId))
-        .limit(1);
+  deleteCampaign: protectedProcedure.input(deleteCampaignSchema).mutation(async ({ ctx, input }) => {
+    const { campaignId } = input;
+    const orgId = ctx.auth.user.organizationId;
 
-      if (!existingJob) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Communication job not found",
-        });
-      }
+    // First, verify the job belongs to the organization
+    const campaign = await db.query.emailGenerationSessions.findFirst({
+      where: and(eq(emailGenerationSessions.id, campaignId), eq(emailGenerationSessions.organizationId, orgId)),
+      columns: { id: true },
+    });
 
-      if (existingJob.organizationId !== ctx.auth.user.organizationId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to delete this job",
-        });
-      }
-
-      // Delete session record (cascade delete will handle associated emails)
-      await db.delete(emailGenerationSessions).where(eq(emailGenerationSessions.id, input.jobId));
-
-      logger.info(`Deleted communication job ${input.jobId} for organization ${ctx.auth.user.organizationId}`);
-      return { jobId: input.jobId };
-    } catch (error) {
-      if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to delete communication job: ${error instanceof Error ? error.message : String(error)}`);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to delete communication job",
-      });
+    if (!campaign) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
     }
+
+    // Use a transaction to delete the job and associated emails
+    await db.transaction(async (tx) => {
+      // Delete associated emails first to maintain foreign key constraints
+      await tx.delete(generatedEmails).where(eq(generatedEmails.sessionId, campaignId));
+
+      // Then delete the job
+      await tx.delete(emailGenerationSessions).where(eq(emailGenerationSessions.id, campaignId));
+    });
+
+    logger.info(`Campaign ${campaignId} and associated emails deleted for organization ${orgId}`);
+    return { campaignId };
   }),
 
   /**

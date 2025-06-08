@@ -107,16 +107,18 @@ export default function DonorEmailPage() {
         </div>
       </div>
 
-      <WriteInstructionStep
-        ref={writeInstructionRef}
-        instruction={instruction}
-        onInstructionChange={setInstruction}
-        onBack={() => router.push("/donors")}
-        onNext={() => router.push("/donors")}
-        selectedDonors={[Number(donorId)]}
-        jobName={`Email to ${formatDonorName(donor)}`}
-        onBulkGenerationComplete={() => router.push("/communication-jobs")}
-      />
+      <div className="container mx-auto max-w-7xl px-4 py-8">
+        <WriteInstructionStep
+          ref={writeInstructionRef}
+          instruction={instruction}
+          onInstructionChange={setInstruction}
+          onBack={() => router.push(`/donors/${donorId}`)}
+          onNext={() => router.push("/donors")}
+          selectedDonors={[Number(donorId)]}
+          campaignName={`Email to ${formatDonorName(donor)}`}
+          onBulkGenerationComplete={() => router.push("/communication-jobs")}
+        />
+      </div>
     </div>
   );
 }

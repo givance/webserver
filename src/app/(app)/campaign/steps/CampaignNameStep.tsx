@@ -7,35 +7,41 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, ArrowRight, ArrowLeft } from "lucide-react";
 
-interface JobNameStepProps {
+interface CampaignNameStepProps {
   selectedDonors: number[];
-  jobName: string;
-  onJobNameChange: (jobName: string) => void;
+  campaignName: string;
+  onCampaignNameChange: (campaignName: string) => void;
   onBack: () => void;
   onNext: () => void;
 }
 
-export function JobNameStep({ selectedDonors, jobName, onJobNameChange, onBack, onNext }: JobNameStepProps) {
-  const [localJobName, setLocalJobName] = useState(jobName);
+export function CampaignNameStep({
+  selectedDonors,
+  campaignName,
+  onCampaignNameChange,
+  onBack,
+  onNext,
+}: CampaignNameStepProps) {
+  const [localCampaignName, setLocalCampaignName] = useState(campaignName);
   const [error, setError] = useState("");
 
   const handleNext = () => {
-    if (!localJobName.trim()) {
-      setError("Job name is required");
+    if (!localCampaignName.trim()) {
+      setError("Campaign name is required");
       return;
     }
-    if (localJobName.trim().length > 255) {
-      setError("Job name must be 255 characters or less");
+    if (localCampaignName.trim().length > 255) {
+      setError("Campaign name must be 255 characters or less");
       return;
     }
 
     setError("");
-    onJobNameChange(localJobName.trim());
+    onCampaignNameChange(localCampaignName.trim());
     onNext();
   };
 
-  const handleJobNameChange = (value: string) => {
-    setLocalJobName(value);
+  const handleCampaignNameChange = (value: string) => {
+    setLocalCampaignName(value);
     if (error) {
       setError("");
     }
@@ -44,10 +50,8 @@ export function JobNameStep({ selectedDonors, jobName, onJobNameChange, onBack, 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h3 className="text-lg font-medium">Name Your Communication Job</h3>
-        <p className="text-sm text-muted-foreground">
-          Give this communication campaign a descriptive name to help you identify it later.
-        </p>
+        <h3 className="text-lg font-medium">Name Your Campaign</h3>
+        <p className="text-sm text-muted-foreground">Give your campaign a descriptive name for easy identification.</p>
       </div>
 
       {/* Summary Card */}
@@ -70,24 +74,24 @@ export function JobNameStep({ selectedDonors, jobName, onJobNameChange, onBack, 
         </CardContent>
       </Card>
 
-      {/* Job Name Input */}
+      {/* Campaign Name Input */}
       <Card>
         <CardHeader>
-          <CardTitle>Job Name</CardTitle>
+          <CardTitle>Campaign Name</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="jobName">Communication Job Name</Label>
+            <Label htmlFor="campaignName">Campaign Name</Label>
             <Input
-              id="jobName"
-              placeholder="e.g., Holiday Thank You Campaign, Q4 Donor Outreach, etc."
-              value={localJobName}
-              onChange={(e) => handleJobNameChange(e.target.value)}
+              id="campaignName"
+              placeholder="e.g., 'End of Year Appeal 2024'"
+              value={localCampaignName}
+              onChange={(e) => handleCampaignNameChange(e.target.value)}
               className={error ? "border-red-500" : ""}
               maxLength={255}
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <p className="text-sm text-muted-foreground">{localJobName.length}/255 characters</p>
+            <p className="text-sm text-muted-foreground">{localCampaignName.length}/255 characters</p>
           </div>
 
           <div className="space-y-2">
@@ -104,7 +108,7 @@ export function JobNameStep({ selectedDonors, jobName, onJobNameChange, onBack, 
                   key={suggestion}
                   variant="outline"
                   size="sm"
-                  onClick={() => handleJobNameChange(suggestion)}
+                  onClick={() => handleCampaignNameChange(suggestion)}
                   className="text-xs"
                 >
                   {suggestion}
@@ -121,7 +125,7 @@ export function JobNameStep({ selectedDonors, jobName, onJobNameChange, onBack, 
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button onClick={handleNext} disabled={!localJobName.trim()}>
+        <Button onClick={handleNext} disabled={!localCampaignName.trim()}>
           Continue
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>

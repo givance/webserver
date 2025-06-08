@@ -521,7 +521,7 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   templateId: integer("template_id").references(() => templates.id), // Optional reference to template used
-  jobName: varchar("job_name", { length: 255 }).notNull(), // Name for the communication job
+  jobName: varchar("job_name", { length: 255 }).notNull(), // Name for the campaign
   instruction: text("instruction").notNull(),
   refinedInstruction: text("refined_instruction"),
   chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
