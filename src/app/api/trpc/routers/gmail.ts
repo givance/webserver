@@ -549,11 +549,36 @@ export const gmailRouter = router({
         // Save each email as a draft
         const draftResults = await Promise.allSettled(
           emails.map(async (email) => {
-            const textContent = convertToText(email.structuredContent as any);
+            // Generate unique tracking ID for this email (same as send)
+            const trackingId = generateTrackingId();
 
-            const emailMessage = [`To: ${email.donor.email}`, `Subject: ${email.subject}`, ``, textContent].join("\n");
+            // Create email tracker in database (same as send)
+            await createEmailTracker({
+              id: trackingId,
+              emailId: email.id,
+              donorId: email.donorId,
+              organizationId: session.organizationId,
+              sessionId: input.sessionId,
+            });
 
-            const encodedMessage = Buffer.from(emailMessage)
+            // Process email content with tracking (same as send)
+            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
+
+            // Create link trackers in database (same as send)
+            if (processedContent.linkTrackers.length > 0) {
+              await createLinkTrackers(processedContent.linkTrackers);
+            }
+
+            // Create complete HTML email with tracking pixel (same as send)
+            const htmlEmail = createHtmlEmail(
+              email.donor.email,
+              email.subject,
+              processedContent.htmlContent,
+              processedContent.textContent
+            );
+
+            // Encode email for Gmail API (same as send)
+            const encodedMessage = Buffer.from(htmlEmail)
               .toString("base64")
               .replace(/\+/g, "-")
               .replace(/\//g, "_")
@@ -572,6 +597,8 @@ export const gmailRouter = router({
               donorId: email.donorId,
               donorName: `${email.donor.firstName} ${email.donor.lastName}`,
               draftId: draft.data.id,
+              trackingId,
+              linkTrackersCreated: processedContent.linkTrackers.length,
               success: true,
             };
           })
@@ -585,8 +612,10 @@ export const gmailRouter = router({
           .filter((result): result is PromiseRejectedResult => result.status === "rejected")
           .map((result) => result.reason);
 
+        const totalLinkTrackers = successfulDrafts.reduce((sum, result) => sum + result.linkTrackersCreated, 0);
+
         logger.info(
-          `Saved ${successfulDrafts.length} drafts for session ${input.sessionId}, ${failedDrafts.length} failed`
+          `Saved ${successfulDrafts.length} tracked drafts for session ${input.sessionId}, ${failedDrafts.length} failed, ${totalLinkTrackers} link trackers created`
         );
 
         return {
@@ -594,7 +623,8 @@ export const gmailRouter = router({
           draftsCreated: successfulDrafts.length,
           totalEmails: emails.length,
           failedDrafts: failedDrafts.length,
-          message: `Successfully saved ${successfulDrafts.length} emails as drafts`,
+          linkTrackersCreated: totalLinkTrackers,
+          message: `Successfully saved ${successfulDrafts.length} emails as tracked drafts`,
         };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
