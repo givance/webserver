@@ -1,22 +1,20 @@
 "use client";
 
-import { CampaignSteps } from "@/app/(app)/campaign/components/CampaignSteps";
+import { CampaignSteps } from "./components/CampaignSteps";
 import { useRouter } from "next/navigation";
 
 export default function CampaignPage() {
   const router = useRouter();
 
   return (
-    <>
-      <title>Campaign</title>
-      <div className="h-[calc(100vh-64px)] flex flex-col">
-        <div className="flex items-center px-6 h-14 border-b">
+    <div className="container mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
           <h1 className="text-2xl font-bold">Campaign</h1>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <CampaignSteps onClose={() => router.back()} />
+          <p className="text-muted-foreground">Create a new campaign to engage with your donors.</p>
         </div>
       </div>
-    </>
+      <CampaignSteps onClose={() => router.back()} />
+    </div>
   );
 }
