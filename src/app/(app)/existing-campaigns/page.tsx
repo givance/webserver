@@ -21,6 +21,118 @@ import {
 } from "@/components/ui/dialog";
 import { trpc } from "@/app/lib/trpc/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+
+// Enhanced status badge function
+function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any) {
+  const { status, totalEmails, sentEmails, totalDonors, completedDonors } = campaign;
+
+  // If the campaign failed, show failed status
+  if (status === "FAILED") {
+    return <Badge variant="destructive">Failed</Badge>;
+  }
+
+  // If still generating emails (not all donors completed or still in progress/pending)
+  if (status === "IN_PROGRESS" || status === "PENDING" || completedDonors < totalDonors) {
+    return (
+      <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">
+        Generating ({completedDonors}/{totalDonors})
+      </Badge>
+    );
+  }
+
+  // All emails generated, check sending status
+  if (totalEmails > 0) {
+    // All emails sent
+    if (sentEmails === totalEmails) {
+      return (
+        <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
+          Completed
+        </Badge>
+      );
+    }
+
+    // Some emails sent, some not
+    if (sentEmails > 0) {
+      return (
+        <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
+          In Progress
+        </Badge>
+      );
+    }
+
+    // No emails sent yet, but all generated
+    return (
+      <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50">
+        Ready to Send
+      </Badge>
+    );
+  }
+
+  // Fallback cases
+  if (status === "COMPLETED") {
+    return (
+      <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
+        Completed
+      </Badge>
+    );
+  }
+
+  return <Badge variant="secondary">Unknown</Badge>;
+}
+
+// Enhanced status component that gets tracking stats
+function CampaignStatus({ campaign }: { campaign: ExistingCampaign }) {
+  const { data: trackingStats } = useSessionTrackingStats(campaign.id);
+  return getEnhancedStatusBadge(campaign, trackingStats);
+}
+
+// Enhanced progress component for individual campaigns
+function CampaignProgress({ campaign }: { campaign: ExistingCampaign }) {
+  const { data: trackingStats, isLoading } = useSessionTrackingStats(campaign.id);
+
+  const generated = campaign.totalEmails;
+  const sent = campaign.sentEmails;
+  const opened = trackingStats?.uniqueOpens || 0;
+
+  const sentPercentage = generated > 0 ? (sent / generated) * 100 : 0;
+  const openedPercentage = sent > 0 ? (opened / sent) * 100 : 0;
+
+  return (
+    <div className="space-y-2 min-w-[280px]">
+      <div className="grid grid-cols-3 gap-4 text-center">
+        <div>
+          <div className="text-lg font-semibold text-green-600">{generated}</div>
+          <div className="text-xs text-muted-foreground">Generated</div>
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-blue-600">{sent}</div>
+          <div className="text-xs text-muted-foreground">Sent ({sentPercentage.toFixed(0)}%)</div>
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-purple-600">{isLoading ? "..." : opened}</div>
+          <div className="text-xs text-muted-foreground">
+            Opened {sent > 0 ? `(${openedPercentage.toFixed(0)}%)` : "(0%)"}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs w-14 text-blue-600">Sent</span>
+          <Progress value={sentPercentage} className="flex-1 h-2" />
+          <span className="text-xs text-muted-foreground w-8">{sentPercentage.toFixed(0)}%</span>
+        </div>
+        {sent > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs w-14 text-purple-600">Opened</span>
+            <Progress value={openedPercentage} className="flex-1 h-2" />
+            <span className="text-xs text-muted-foreground w-8">{openedPercentage.toFixed(0)}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface ExistingCampaign {
   id: number;
@@ -34,6 +146,7 @@ interface ExistingCampaign {
   completedAt: string | null;
   sentEmails: number;
   totalEmails: number;
+  openedEmails?: number;
 }
 
 interface ConfirmationDialogProps {
@@ -57,12 +170,16 @@ function ConfirmationDialog({
 }: ConfirmationDialogProps) {
   const [sendType, setSendType] = useState<"all" | "unsent">("unsent");
 
+  // Get tracking stats for this campaign
+  const { data: trackingStats } = useSessionTrackingStats(campaign?.id || 0);
+
   if (!campaign) return null;
 
   const actionText = action === "draft" ? "save as drafts" : action === "send" ? "send" : "delete";
   const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Send Emails" : "Delete Campaign";
 
   const unsentCount = campaign.totalEmails - campaign.sentEmails;
+  const openedCount = trackingStats?.uniqueOpens || 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,7 +198,7 @@ function ConfirmationDialog({
             {action !== "delete" && (
               <>
                 <div className="flex justify-between">
-                  <span className="font-medium">Total emails:</span>
+                  <span className="font-medium">Generated emails:</span>
                   <span>{campaign.totalEmails}</span>
                 </div>
                 <div className="flex justify-between">
@@ -91,6 +208,13 @@ function ConfirmationDialog({
                 <div className="flex justify-between">
                   <span className="font-medium">Unsent emails:</span>
                   <span>{unsentCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Opened emails:</span>
+                  <span>
+                    {openedCount}
+                    {campaign.sentEmails > 0 ? ` (${((openedCount / campaign.sentEmails) * 100).toFixed(0)}%)` : ""}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Gmail account:</span>
@@ -234,30 +358,6 @@ function ExistingCampaignsContent() {
     return <div className={className}>{children}</div>;
   };
 
-  const getStatusBadge = (status: ExistingCampaign["status"]) => {
-    switch (status) {
-      case "PENDING":
-        return <Badge variant="secondary">Pending</Badge>;
-      case "IN_PROGRESS":
-        return <Badge variant="default">In Progress</Badge>;
-      case "COMPLETED":
-        return (
-          <Badge variant="outline" className="border-green-500 text-green-700">
-            Completed
-          </Badge>
-        );
-      case "FAILED":
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="secondary">Unknown</Badge>;
-    }
-  };
-
-  const getProgressPercentage = (campaign: ExistingCampaign) => {
-    if (campaign.totalDonors === 0) return 0;
-    return (campaign.completedDonors / campaign.totalDonors) * 100;
-  };
-
   const handleRetryCampaign = async (campaignId: number) => {
     // TODO: Implement retry functionality
     toast.success("Campaign retry functionality will be implemented soon");
@@ -334,22 +434,14 @@ function ExistingCampaignsContent() {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => <CampaignStatus campaign={row.original} />,
     },
     {
       accessorKey: "progress",
       header: "Progress",
       cell: ({ row }) => {
         const campaign = row.original;
-        const percentage = getProgressPercentage(campaign);
-        return (
-          <div className="flex items-center">
-            <Progress value={percentage} className="w-40 mr-2" />
-            <span className="text-sm text-muted-foreground">
-              {campaign.completedDonors}/{campaign.totalDonors}
-            </span>
-          </div>
-        );
+        return <CampaignProgress campaign={campaign} />;
       },
     },
     {
