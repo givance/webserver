@@ -9,10 +9,8 @@ import { createAzure } from "@ai-sdk/azure";
 import { env } from "@/app/lib/env";
 // import { JSDOM } from "jsdom"; // Removed JSDOM
 import * as cheerio from "cheerio"; // Added cheerio
-import pino from "pino";
+import { logger } from "@/app/lib/logger";
 // import type { TaskRunContext, TaskLogger } from "@trigger.dev/sdk/v3"; // Removed, use logger from v3 import
-
-const baseLogger = pino(); // Use separate logger for non-task specific logs
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -37,12 +35,12 @@ async function fetchHtml(url: string): Promise<string | null> {
   try {
     const response = await fetch(url, { headers: { "User-Agent": "FundraisingBot/1.0" } });
     if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) {
-      baseLogger.warn(`Failed to fetch HTML from ${url}: Status ${response.status}`);
+      logger.warn(`Failed to fetch HTML from ${url}: Status ${response.status}`);
       return null;
     }
     return await response.text();
   } catch (error) {
-    baseLogger.error(`Error fetching ${url}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Error fetching ${url}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -83,7 +81,7 @@ function extractContentAndLinks(html: string, baseUrl: string): { text: string; 
     });
     return { text, urls };
   } catch (error) {
-    baseLogger.error(
+    logger.error(
       `Error parsing HTML with Cheerio or extracting links from ${baseUrl}: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -204,7 +202,7 @@ export const crawlAndSummarizeWebsiteTask = task({
       summary = summaryText;
       triggerLogger.info("Summary generated successfully.");
     } catch (error) {
-      baseLogger.error(`AI summarization failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(`AI summarization failed: ${error instanceof Error ? error.message : String(error)}`);
       triggerLogger.error("AI Summarization failed.", {
         error: error instanceof Error ? error.message : String(error),
       });
