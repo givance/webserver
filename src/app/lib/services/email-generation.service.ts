@@ -4,7 +4,7 @@ import { db } from "@/app/lib/db";
 import { organizations, donors as donorsSchema, staff } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
-import { DonationWithDetails, listDonations } from "@/app/lib/data/donations";
+import { DonationWithDetails, listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
@@ -131,19 +131,22 @@ export class EmailGenerationService {
 
     const donorHistories = await Promise.all(historiesPromises);
 
-    // Get organization and user memories, and user data including signature
-    const [organizationMemories, userMemories, dismissedMemories, user] = await Promise.all([
+    // Fetch comprehensive donor statistics
+    logger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
+    const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
+
+    // Get organizational and user memories
+    const [organizationMemories, userMemories, user] = await Promise.all([
       getOrganizationMemories(organizationId),
-      getUserMemories(userId), // Get user memories for the current user
-      getDismissedMemories(userId), // Get dismissed memories for the current user
-      getUserById(userId), // Get user data including email signature
+      getUserMemories(userId),
+      getUserById(userId),
     ]);
 
     logger.info(
       `Generating emails for ${donorInfos.length} donors in organization ${organizationId} with instruction: "${processedInstruction}"`
     );
 
-    // Convert donor histories to the required format
+    // Convert donor histories to the format expected by the email generator
     const communicationHistories: Record<number, RawCommunicationThread[]> = {};
     const donationHistoriesMap: Record<number, DonationWithDetails[]> = {};
 
@@ -152,22 +155,20 @@ export class EmailGenerationService {
       donationHistoriesMap[donor.id] = donationHistory;
     });
 
-    // Generate emails using the email generator (without signatures - they'll be added below)
+    // Call the main email generator with all the data
     const result = await generateSmartDonorEmails(
-      donorInfos, // Use full donor data instead of simplified input
+      donorInfos,
       processedInstruction,
       input.organizationName,
       emailGeneratorOrg,
       organizationWritingInstructions,
-      previousInstruction,
-      undefined, // userFeedback
       communicationHistories,
       donationHistoriesMap,
+      donorStatistics, // Pass donor statistics
       userMemories,
       organizationMemories,
-      dismissedMemories,
       currentDate,
-      undefined // Don't pass user signature - we'll handle staff signatures below
+      user?.emailSignature
     );
 
     // Get primary staff for fallback

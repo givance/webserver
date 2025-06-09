@@ -1,7 +1,7 @@
 import { DonationWithDetails } from "../../data/donations";
 import { EmailGenerationService } from "./service";
 import { InstructionRefinementAgent } from "./instruction-agent";
-import { DonorInfo, Organization, RawCommunicationThread } from "./types";
+import { DonorInfo, Organization, RawCommunicationThread, DonorStatistics } from "./types";
 import { getOrganizationMemories } from "../../data/organizations";
 import { getUserMemories } from "../../data/users";
 
@@ -15,13 +15,11 @@ import { getUserMemories } from "../../data/users";
  * @param organizationName - Name of the organization
  * @param organization - Organization details
  * @param organizationWritingInstructions - Optional writing guidelines
- * @param previousInstruction - Optional previous instruction for context
- * @param userFeedback - Optional feedback on previous results
  * @param communicationHistories - Optional map of donor communication histories
  * @param donationHistories - Optional map of donor donation histories
+ * @param donorStatistics - Optional map of comprehensive donor statistics
  * @param userMemories - User's personal memories
  * @param organizationMemories - Organization-wide memories
- * @param dismissedMemories - Memories that have been dismissed
  * @param currentDate - Current date for time-sensitive content
  * @param emailSignature - Optional email signature
  * @returns Object containing refined instruction, reasoning, and generated emails
@@ -32,13 +30,11 @@ export async function generateSmartDonorEmails(
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
-  previousInstruction?: string,
-  userFeedback?: string,
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
   donationHistories: Record<number, DonationWithDetails[]> = {},
+  donorStatistics: Record<number, DonorStatistics> = {},
   userMemories: string[] = [],
   organizationMemories: string[] = [],
-  dismissedMemories: string[] = [],
   currentDate?: string,
   emailSignature?: string
 ): Promise<{
@@ -65,12 +61,10 @@ export async function generateSmartDonorEmails(
   // First, refine the instruction using the first agent
   const refinementResult = await instructionAgent.refineInstruction({
     userInstruction,
-    previousInstruction,
-    userFeedback,
+    organizationWritingInstructions,
     userMemories,
     organizationMemories,
-    dismissedMemories,
-    organizationWritingInstructions,
+    dismissedMemories: [], // Empty array for dismissed memories since they're not needed here
   });
 
   // Then, use the refined instruction to generate emails using the second agent
@@ -82,6 +76,7 @@ export async function generateSmartDonorEmails(
     organizationWritingInstructions,
     communicationHistories,
     donationHistories,
+    donorStatistics, // Pass donor statistics
     userMemories,
     organizationMemories,
     currentDate,

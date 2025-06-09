@@ -332,3 +332,257 @@ export async function getDonorDonationStats(
     throw new Error("Could not retrieve donor donation statistics.");
   }
 }
+
+/**
+ * Gets comprehensive donation statistics for a single donor
+ * @param donorId - The ID of the donor
+ * @param organizationId - The organization ID to filter by
+ * @returns Object containing comprehensive donation statistics
+ */
+export async function getComprehensiveDonorStats(
+  donorId: number,
+  organizationId: string
+): Promise<{
+  totalDonations: number;
+  totalAmount: number;
+  firstDonation: { date: Date; amount: number } | null;
+  lastDonation: { date: Date; amount: number } | null;
+  donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+}> {
+  try {
+    // Get total count and amount
+    const [totalStats] = await db
+      .select({
+        count: sql<number>`count(*)`,
+        total: sql<number>`coalesce(sum(${donations.amount}), 0)`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)));
+
+    // Get first donation (earliest date)
+    const [firstDonation] = await db
+      .select({
+        date: donations.date,
+        amount: donations.amount,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)))
+      .orderBy(asc(donations.date))
+      .limit(1);
+
+    // Get last donation (latest date)
+    const [lastDonation] = await db
+      .select({
+        date: donations.date,
+        amount: donations.amount,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)))
+      .orderBy(desc(donations.date))
+      .limit(1);
+
+    // Get donations by project
+    const donationsByProject = await db
+      .select({
+        projectId: donations.projectId,
+        projectName: sql<string | null>`${projects.name}`,
+        totalAmount: sql<number>`sum(${donations.amount})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .leftJoin(projects, eq(donations.projectId, projects.id))
+      .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)))
+      .groupBy(donations.projectId, projects.name);
+
+    return {
+      totalDonations: totalStats?.count || 0,
+      totalAmount: totalStats?.total || 0,
+      firstDonation: firstDonation ? { date: firstDonation.date, amount: firstDonation.amount } : null,
+      lastDonation: lastDonation ? { date: lastDonation.date, amount: lastDonation.amount } : null,
+      donationsByProject: donationsByProject.map((item) => ({
+        projectId: item.projectId,
+        projectName: item.projectName,
+        totalAmount: item.totalAmount,
+      })),
+    };
+  } catch (error) {
+    console.error("Failed to get comprehensive donor stats:", error);
+    throw new Error("Could not retrieve comprehensive donor statistics.");
+  }
+}
+
+/**
+ * Gets comprehensive donation statistics for multiple donors
+ * @param donorIds - Array of donor IDs
+ * @param organizationId - The organization ID to filter by
+ * @returns Object mapping donor IDs to their comprehensive donation stats
+ */
+export async function getMultipleComprehensiveDonorStats(
+  donorIds: number[],
+  organizationId: string
+): Promise<{
+  [donorId: number]: {
+    totalDonations: number;
+    totalAmount: number;
+    firstDonation: { date: Date; amount: number } | null;
+    lastDonation: { date: Date; amount: number } | null;
+    donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+  };
+}> {
+  try {
+    if (donorIds.length === 0) {
+      return {};
+    }
+
+    // Get total counts and amounts for all donors
+    const totalStats = await db
+      .select({
+        donorId: donations.donorId,
+        count: sql<number>`count(*)`,
+        total: sql<number>`coalesce(sum(${donations.amount}), 0)`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      )
+      .groupBy(donations.donorId);
+
+    // Get first donations (earliest date for each donor)
+    const firstDonations = await db
+      .select({
+        donorId: donations.donorId,
+        date: donations.date,
+        amount: donations.amount,
+        rank: sql<number>`row_number() over (partition by ${donations.donorId} order by ${donations.date} asc)`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      );
+
+    const firstDonationMap: { [donorId: number]: { date: Date; amount: number } } = {};
+    firstDonations.forEach((donation) => {
+      if (donation.rank === 1) {
+        firstDonationMap[donation.donorId] = { date: donation.date, amount: donation.amount };
+      }
+    });
+
+    // Get last donations (latest date for each donor)
+    const lastDonations = await db
+      .select({
+        donorId: donations.donorId,
+        date: donations.date,
+        amount: donations.amount,
+        rank: sql<number>`row_number() over (partition by ${donations.donorId} order by ${donations.date} desc)`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      );
+
+    const lastDonationMap: { [donorId: number]: { date: Date; amount: number } } = {};
+    lastDonations.forEach((donation) => {
+      if (donation.rank === 1) {
+        lastDonationMap[donation.donorId] = { date: donation.date, amount: donation.amount };
+      }
+    });
+
+    // Get donations by project for all donors
+    const donationsByProject = await db
+      .select({
+        donorId: donations.donorId,
+        projectId: donations.projectId,
+        projectName: sql<string | null>`${projects.name}`,
+        totalAmount: sql<number>`sum(${donations.amount})`,
+      })
+      .from(donations)
+      .innerJoin(donors, eq(donations.donorId, donors.id))
+      .leftJoin(projects, eq(donations.projectId, projects.id))
+      .where(
+        and(
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          eq(donors.organizationId, organizationId)
+        )
+      )
+      .groupBy(donations.donorId, donations.projectId, projects.name);
+
+    // Group donations by project for each donor
+    const donationsByProjectMap: {
+      [donorId: number]: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+    } = {};
+
+    donationsByProject.forEach((item) => {
+      if (!donationsByProjectMap[item.donorId]) {
+        donationsByProjectMap[item.donorId] = [];
+      }
+      donationsByProjectMap[item.donorId].push({
+        projectId: item.projectId,
+        projectName: item.projectName,
+        totalAmount: item.totalAmount,
+      });
+    });
+
+    // Combine all results
+    const result: {
+      [donorId: number]: {
+        totalDonations: number;
+        totalAmount: number;
+        firstDonation: { date: Date; amount: number } | null;
+        lastDonation: { date: Date; amount: number } | null;
+        donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+      };
+    } = {};
+
+    // Initialize all donors with default values
+    donorIds.forEach((donorId) => {
+      result[donorId] = {
+        totalDonations: 0,
+        totalAmount: 0,
+        firstDonation: null,
+        lastDonation: null,
+        donationsByProject: [],
+      };
+    });
+
+    // Add total stats
+    totalStats.forEach((stat) => {
+      if (result[stat.donorId]) {
+        result[stat.donorId].totalDonations = stat.count;
+        result[stat.donorId].totalAmount = stat.total;
+      }
+    });
+
+    // Add first and last donations
+    donorIds.forEach((donorId) => {
+      if (firstDonationMap[donorId]) {
+        result[donorId].firstDonation = firstDonationMap[donorId];
+      }
+      if (lastDonationMap[donorId]) {
+        result[donorId].lastDonation = lastDonationMap[donorId];
+      }
+      if (donationsByProjectMap[donorId]) {
+        result[donorId].donationsByProject = donationsByProjectMap[donorId];
+      }
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Failed to get multiple comprehensive donor stats:", error);
+    throw new Error("Could not retrieve comprehensive donor statistics.");
+  }
+}

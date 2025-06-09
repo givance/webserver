@@ -5,7 +5,7 @@ import { emailGenerationSessions, generatedEmails, donors, organizations, users,
 import { eq, and } from "drizzle-orm";
 import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
-import { listDonations } from "@/app/lib/data/donations";
+import { listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
 import type { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
@@ -159,6 +159,11 @@ export const generateBulkEmailsTask = task({
         getDismissedMemories(userId),
       ]);
 
+      // Fetch comprehensive donor statistics
+      const donorIds = selectedDonors.map((donor) => donor.id);
+      triggerLogger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
+      const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
+
       // Convert donor histories to the required format
       const communicationHistories: Record<number, RawCommunicationThread[]> = {};
       const donationHistoriesMap: Record<number, any[]> = {};
@@ -210,6 +215,7 @@ export const generateBulkEmailsTask = task({
             organization.writingInstructions ?? undefined,
             communicationHistories,
             donationHistoriesMap,
+            donorStatistics, // Pass donor statistics
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default

@@ -13,6 +13,7 @@ import {
   GeneratedEmail,
   Organization,
   RawCommunicationThread,
+  DonorStatistics,
 } from "./types";
 import { formatDonorName } from "../donor-name-formatter";
 
@@ -39,6 +40,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
     organizationWritingInstructions?: string,
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
     donationHistories: Record<number, DonationWithDetails[]> = {},
+    donorStatistics: Record<number, DonorStatistics> = {},
     personalMemories: string[] = [],
     organizationalMemories: string[] = [],
     currentDate?: string,
@@ -49,17 +51,18 @@ export class EmailGenerationService implements EmailGeneratorTool {
         donors.length
       } donors (refinedInstruction: ${refinedInstruction}, organizationName: ${organizationName}, hasOrganization: ${!!organization}, hasWritingInstructions: ${!!organizationWritingInstructions}, communicationHistoriesCount: ${
         Object.keys(communicationHistories).length
-      }, donationHistoriesCount: ${Object.keys(donationHistories).length}, currentDate: ${
-        currentDate || "not provided"
-      })`
+      }, donationHistoriesCount: ${Object.keys(donationHistories).length}, donorStatisticsCount: ${
+        Object.keys(donorStatistics).length
+      }, currentDate: ${currentDate || "not provided"})`
     );
 
     const emailPromises = donors.map(async (donor) => {
       const donorCommHistory = communicationHistories[donor.id] || [];
+      const donorStats = donorStatistics[donor.id];
       logger.info(
         `Processing donor ${donor.id} (${formatDonorName(donor)}, commHistoryCount: ${
           donorCommHistory.length
-        }, donationHistoryCount: ${donationHistories[donor.id]?.length || 0})`
+        }, donationHistoryCount: ${donationHistories[donor.id]?.length || 0}, hasStatistics: ${!!donorStats})`
       );
 
       return await this.generateDonorEmail({
@@ -70,6 +73,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         organizationWritingInstructions,
         communicationHistory: donorCommHistory,
         donationHistory: donationHistories[donor.id] || [],
+        donorStatistics: donorStats,
         personalMemories,
         organizationalMemories,
         currentDate,
@@ -118,6 +122,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationWritingInstructions,
       communicationHistory,
       donationHistory = [],
+      donorStatistics,
       personalMemories,
       organizationalMemories,
       currentDate,
@@ -129,7 +134,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
         donor.id
       }: instruction="${instruction}", organizationName="${organizationName}", hasOrganization=${!!organization}, hasWritingInstructions=${!!organizationWritingInstructions}, communicationHistoryCount=${
         communicationHistory?.length || 0
-      }, donationHistoryCount=${donationHistory.length}, currentDate=${currentDate || "not provided"}`
+      }, donationHistoryCount=${donationHistory.length}, hasStatistics=${!!donorStatistics}, currentDate=${
+        currentDate || "not provided"
+      }`
     );
 
     // Sort donations and prepare reference contexts
@@ -148,6 +155,44 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donationContexts[refId] = `Donation on ${date}: ${amount}${project}`;
     });
 
+    // Add donor statistics contexts if available
+    if (donorStatistics) {
+      const totalAmount = (donorStatistics.totalAmount / 100).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+      });
+      donationContexts["total-donations"] = `Total donations: ${donorStatistics.totalDonations}`;
+      donationContexts["total-amount"] = `Total donated: ${totalAmount}`;
+
+      if (donorStatistics.firstDonation) {
+        const firstAmount = (donorStatistics.firstDonation.amount / 100).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+        });
+        const firstDate = new Date(donorStatistics.firstDonation.date).toLocaleDateString();
+        donationContexts["first-donation"] = `First donation: ${firstAmount} on ${firstDate}`;
+      }
+
+      if (donorStatistics.lastDonation) {
+        const lastAmount = (donorStatistics.lastDonation.amount / 100).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+        });
+        const lastDate = new Date(donorStatistics.lastDonation.date).toLocaleDateString();
+        donationContexts["last-donation"] = `Most recent donation: ${lastAmount} on ${lastDate}`;
+      }
+
+      // Add project-specific donation amounts
+      donorStatistics.donationsByProject.forEach((project, index) => {
+        const projectAmount = (project.totalAmount / 100).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+        });
+        const projectName = project.projectName || "General Fund";
+        donationContexts[`project-total-${index + 1}`] = `${projectName}: ${projectAmount} total`;
+      });
+    }
+
     const promptParts = buildStructuredEmailPrompt(
       donor,
       instruction,
@@ -156,6 +201,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationWritingInstructions,
       communicationHistory as RawCommunicationThread[],
       donationHistory,
+      donorStatistics,
       personalMemories,
       organizationalMemories,
       currentDate,

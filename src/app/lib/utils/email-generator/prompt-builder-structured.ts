@@ -1,4 +1,4 @@
-import { DonorInfo, Organization, RawCommunicationThread } from "./types";
+import { DonorInfo, Organization, RawCommunicationThread, DonorStatistics } from "./types";
 import {
   formatDonationHistoryWithIds,
   formatCommunicationHistoryWithIds,
@@ -130,13 +130,57 @@ Generate a compelling, personalized email that will re-engage this donor.`;
 export function buildStructuredDonorContext(
   donor: DonorInfo,
   communicationHistoryInput: RawCommunicationThread[] = [],
-  donationHistoryInput: DonationWithDetails[] = []
+  donationHistoryInput: DonationWithDetails[] = [],
+  donorStatistics?: DonorStatistics
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
 
+  // Format donor statistics if available
+  let statisticsPrompt = "";
+  if (donorStatistics) {
+    const totalAmount = (donorStatistics.totalAmount / 100).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    });
+
+    statisticsPrompt = `\nDonor Statistics:
+- Total Donations: ${donorStatistics.totalDonations}
+- Total Amount Donated: ${totalAmount}`;
+
+    if (donorStatistics.firstDonation) {
+      const firstAmount = (donorStatistics.firstDonation.amount / 100).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+      });
+      const firstDate = new Date(donorStatistics.firstDonation.date).toLocaleDateString();
+      statisticsPrompt += `\n- First Donation: ${firstAmount} on ${firstDate}`;
+    }
+
+    if (donorStatistics.lastDonation) {
+      const lastAmount = (donorStatistics.lastDonation.amount / 100).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+      });
+      const lastDate = new Date(donorStatistics.lastDonation.date).toLocaleDateString();
+      statisticsPrompt += `\n- Most Recent Donation: ${lastAmount} on ${lastDate}`;
+    }
+
+    if (donorStatistics.donationsByProject.length > 0) {
+      statisticsPrompt += `\n- Donations by Project:`;
+      donorStatistics.donationsByProject.forEach((project) => {
+        const projectAmount = (project.totalAmount / 100).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+        });
+        const projectName = project.projectName || "General Fund";
+        statisticsPrompt += `\n  • ${projectName}: ${projectAmount}`;
+      });
+    }
+  }
+
   return `Donor: ${formatDonorName(donor)} (${donor.email})
-${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}
+${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statisticsPrompt}
 
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 
@@ -156,6 +200,7 @@ export function buildStructuredEmailPrompt(
   organizationWritingInstructions?: string,
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
+  donorStatistics?: DonorStatistics,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
   currentDate?: string,
@@ -175,7 +220,12 @@ export function buildStructuredEmailPrompt(
     emailSignature
   );
 
-  const donorContext = buildStructuredDonorContext(donor, communicationHistoryInput, donationHistoryInput);
+  const donorContext = buildStructuredDonorContext(
+    donor,
+    communicationHistoryInput,
+    donationHistoryInput,
+    donorStatistics
+  );
 
   return {
     systemPrompt,

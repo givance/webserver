@@ -31,6 +31,15 @@ export interface DonationInfo {
   } | null;
 }
 
+// Comprehensive donor statistics interface
+export interface DonorStatistics {
+  totalDonations: number;
+  totalAmount: number;
+  firstDonation: { date: Date; amount: number } | null;
+  lastDonation: { date: Date; amount: number } | null;
+  donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+}
+
 export interface DonorInfo extends DonorNameFields {
   id: number;
   email: string;
@@ -51,6 +60,7 @@ export interface GenerateEmailOptions {
   organizationWritingInstructions?: string;
   communicationHistory: RawCommunicationHistory[]; // Will be processed
   donationHistory?: DonationWithDetails[]; // Will be processed
+  donorStatistics?: DonorStatistics; // Comprehensive donor statistics
   personalMemories?: string[];
   organizationalMemories?: string[];
   currentDate?: string; // Added for today's date
@@ -115,6 +125,7 @@ export interface EmailGeneratorTool {
     organizationWritingInstructions?: string,
     communicationHistories?: Record<number, RawCommunicationThread[]>,
     donationHistories?: Record<number, DonationWithDetails[]>,
+    donorStatistics?: Record<number, DonorStatistics>, // Comprehensive donor statistics
     personalMemories?: string[],
     organizationalMemories?: string[],
     currentDate?: string, // Added for today's date
