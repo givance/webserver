@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Search, Clock, Globe, BookOpen, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
+import { AlertCircle, Search, Clock, BookOpen, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { usePersonResearch } from "@/app/hooks/use-person-research";
+import ReactMarkdown from "react-markdown";
 
 export default function ResearchPage() {
   const {
@@ -180,76 +181,54 @@ export default function ResearchPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="prose max-w-none">
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">{result.answer}</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Citations */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Sources & Citations ({result.citations.length})
-                </CardTitle>
-                <CardDescription>All sources used in this research with direct links for verification</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {result.citations.map((citation, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <h4 className="font-medium text-sm">{citation.title}</h4>
-                          <p className="text-sm text-muted-foreground">{citation.snippet}</p>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {citation.relevance}
-                            </Badge>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" asChild className="shrink-0">
-                          <a
-                            href={citation.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            Visit
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="prose prose-gray max-w-none">
+                  <ReactMarkdown
+                    components={{
+                      a: ({ href, children, ...props }) => (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          {...props}
+                        >
+                          {children}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ),
+                    }}
+                  >
+                    {result.answer}
+                  </ReactMarkdown>
                 </div>
               </CardContent>
             </Card>
 
             {/* Research Process Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Research Process Details</CardTitle>
-                <CardDescription>Detailed breakdown of each research loop and query</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {result.summaries.map((summary, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-sm">Query: {summary.query}</h4>
-                        <Badge variant="outline">{summary.sourceCount} sources</Badge>
+            {result.summaries.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Research Process Details</CardTitle>
+                  <CardDescription>Detailed breakdown of each research loop and query</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {result.summaries.map((summary, index) => (
+                      <div key={index} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-sm">Query: {summary.query}</h4>
+                          <Badge variant="outline">{summary.sourceCount} sources</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{summary.summary}</p>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(summary.timestamp).toLocaleString()}
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{summary.summary}</p>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(summary.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>
