@@ -114,46 +114,49 @@ export default function MainLayout({
       <body className={cn(geistSans.variable, geistMono.variable, "antialiased bg-gray-50")}>
         <div className="min-h-screen w-full">
           <SidebarProvider>
-            <Sidebar className="w-64 border-r bg-white flex flex-col fixed left-0 top-0 h-screen z-50">
+            <Sidebar className="w-64 border-r bg-white flex flex-col fixed left-0 top-0 h-screen z-50 overflow-hidden">
               <SidebarHeader className="flex-none">
                 <Link
                   href="/"
-                  className="flex items-center h-14 px-4 border-b gap-2 hover:bg-gray-50 transition-colors"
+                  className="flex items-center h-14 px-4 border-b gap-2 hover:bg-gray-50 transition-colors min-w-0"
                 >
-                  <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="" />
-                  <span className="font-semibold text-lg">Givance</span>
+                  <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="flex-shrink-0" />
+                  <span className="font-semibold text-lg truncate">Givance</span>
                 </Link>
               </SidebarHeader>
-              <SidebarContent className="flex-1 overflow-y-auto">
+              <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden">
                 <div className="px-3 py-2 space-y-0">
                   {/* Donor Management - Collapsible */}
                   <Collapsible open={isDonorOpen} onOpenChange={setIsDonorOpen}>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="w-full justify-between">
-                        <div className="flex items-center gap-3">
-                          <Heart className="w-4 h-4" />
-                          <span className="text-left">Donor</span>
+                      <SidebarMenuButton className="w-full justify-between min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Heart className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-left truncate">Donor</span>
                         </div>
                         <ChevronRight
-                          className={cn("w-4 h-4 transition-transform duration-200", isDonorOpen && "rotate-90")}
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 transition-transform duration-200",
+                            isDonorOpen && "rotate-90"
+                          )}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
-                          <Link href="/donors" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/donors")}>
-                              <Heart className="w-4 h-4" />
-                              <span className="text-left">Donors</span>
+                          <Link href="/donors" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/donors")} className="min-w-0">
+                              <Heart className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Donors</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/lists" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/lists")}>
-                              <List className="w-4 h-4" />
-                              <span className="text-left">Donor Lists</span>
+                          <Link href="/lists" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/lists")} className="min-w-0">
+                              <List className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Donor Lists</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
@@ -164,31 +167,37 @@ export default function MainLayout({
                   {/* Campaign - Collapsible */}
                   <Collapsible open={isCampaignOpen} onOpenChange={setIsCampaignOpen}>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="w-full justify-between">
-                        <div className="flex items-center gap-3">
-                          <MessageSquare className="w-4 h-4" />
-                          <span className="text-left">Campaign</span>
+                      <SidebarMenuButton className="w-full justify-between min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-left truncate">Campaign</span>
                         </div>
                         <ChevronRight
-                          className={cn("w-4 h-4 transition-transform duration-200", isCampaignOpen && "rotate-90")}
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 transition-transform duration-200",
+                            isCampaignOpen && "rotate-90"
+                          )}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
-                          <Link href="/campaign" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/campaign")}>
-                              <MessageSquare className="w-4 h-4" />
-                              <span className="text-left">Create Campaign</span>
+                          <Link href="/campaign" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/campaign")} className="min-w-0">
+                              <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Create Campaign</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/existing-campaigns" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/existing-campaigns")}>
-                              <Briefcase className="w-4 h-4" />
-                              <span className="text-left">Existing Campaigns</span>
+                          <Link href="/existing-campaigns" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/existing-campaigns")}
+                              className="min-w-0"
+                            >
+                              <Briefcase className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Existing Campaigns</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
@@ -199,71 +208,86 @@ export default function MainLayout({
                   {/* Settings - Collapsible */}
                   <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="w-full justify-between">
-                        <div className="flex items-center gap-3">
-                          <Settings2 className="w-4 h-4" />
-                          <span className="text-left">Settings</span>
+                      <SidebarMenuButton className="w-full justify-between min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Settings2 className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-left truncate">Settings</span>
                         </div>
                         <ChevronRight
-                          className={cn("w-4 h-4 transition-transform duration-200", isSettingsOpen && "rotate-90")}
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 transition-transform duration-200",
+                            isSettingsOpen && "rotate-90"
+                          )}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenu className="ml-4 space-y-0">
                         <SidebarMenuItem>
-                          <Link href="/staff" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/staff")}>
-                              <Users className="w-4 h-4" />
-                              <span className="text-left">Staff</span>
+                          <Link href="/staff" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/staff")} className="min-w-0">
+                              <Users className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Staff</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/projects" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/projects")}>
-                              <FolderGit2 className="w-4 h-4" />
-                              <span className="text-left">Projects</span>
+                          <Link href="/projects" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/projects")} className="min-w-0">
+                              <FolderGit2 className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Projects</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/settings/organization" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/settings/organization")}>
-                              <Building2 className="w-4 h-4" />
-                              <span className="text-left">Organization</span>
+                          <Link href="/settings/organization" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/settings/organization")}
+                              className="min-w-0"
+                            >
+                              <Building2 className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Organization</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/settings/donor-journey" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/settings/donor-journey")}>
-                              <GitGraph className="w-4 h-4" />
-                              <span className="text-left">Donor Journey</span>
+                          <Link href="/settings/donor-journey" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/settings/donor-journey")}
+                              className="min-w-0"
+                            >
+                              <GitGraph className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Donor Journey</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/settings/templates" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/settings/templates")}>
-                              <FileText className="w-4 h-4" />
-                              <span className="text-left">Templates</span>
+                          <Link href="/settings/templates" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/settings/templates")}
+                              className="min-w-0"
+                            >
+                              <FileText className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Templates</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/settings/memories" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/settings/memories")}>
-                              <Brain className="w-4 h-4" />
-                              <span className="text-left">Memories</span>
+                          <Link href="/settings/memories" className="w-full min-w-0">
+                            <SidebarMenuButton isActive={pathname.startsWith("/settings/memories")} className="min-w-0">
+                              <Brain className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Memories</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                          <Link href="/settings/integrations" className="w-full">
-                            <SidebarMenuButton isActive={pathname.startsWith("/settings/integrations")}>
-                              <Mail className="w-4 h-4" />
-                              <span className="text-left">Integrations</span>
+                          <Link href="/settings/integrations" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/settings/integrations")}
+                              className="min-w-0"
+                            >
+                              <Mail className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Integrations</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
