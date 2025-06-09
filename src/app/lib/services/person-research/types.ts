@@ -76,12 +76,32 @@ export interface GoogleSearchResult {
 }
 
 /**
+ * Crawled content from a webpage
+ */
+export interface CrawledContent {
+  url: string;
+  title: string;
+  text: string;
+  wordCount: number;
+  crawlSuccess: boolean;
+  errorMessage?: string;
+  timestamp: Date;
+}
+
+/**
+ * Enhanced search result with crawled content
+ */
+export interface EnhancedSearchResult extends GoogleSearchResult {
+  crawledContent?: CrawledContent;
+}
+
+/**
  * Processed web search result with summary
  */
 export interface WebSearchResult {
   query: string;
   summary: string;
-  sources: GoogleSearchResult[];
+  sources: EnhancedSearchResult[];
   timestamp: Date;
 }
 
@@ -92,6 +112,7 @@ export interface WebSearchBatchResult {
   results: WebSearchResult[];
   totalQueries: number;
   totalSources: number;
+  totalCrawledPages: number;
 }
 
 /**
@@ -127,6 +148,7 @@ export interface Citation {
   title: string;
   snippet: string;
   relevance: string;
+  wordCount?: number;
 }
 
 /**

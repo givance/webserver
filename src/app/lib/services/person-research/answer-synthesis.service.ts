@@ -22,7 +22,20 @@ export class AnswerSynthesisService {
   async synthesizeAnswer(input: AnswerSynthesisInput): Promise<AnswerSynthesisResult> {
     const { researchTopic, summaries } = input;
 
-    logger.info(`Synthesizing final answer from ${summaries.length} research summaries for topic: "${researchTopic}"`);
+    const totalSources = summaries.reduce((sum, summary) => sum + summary.sources.length, 0);
+    const crawledSources = summaries.reduce(
+      (sum, summary) => sum + summary.sources.filter((s) => s.crawledContent?.crawlSuccess).length,
+      0
+    );
+    const totalWords = summaries.reduce(
+      (sum, summary) =>
+        sum + summary.sources.reduce((sourceSum, source) => sourceSum + (source.crawledContent?.wordCount || 0), 0),
+      0
+    );
+
+    logger.info(
+      `Synthesizing final answer for topic "${researchTopic}" from ${summaries.length} research summaries: ${totalSources} total sources, ${crawledSources} with crawled content (${totalWords} words)`
+    );
 
     try {
       const prompt = this.buildSynthesisPrompt(researchTopic, summaries);
@@ -36,7 +49,9 @@ export class AnswerSynthesisService {
       const citations = this.extractCitations(summaries);
 
       logger.info(
-        `Generated final answer for topic "${researchTopic}" (${result.text.length} characters, ${citations.length} citations)`
+        `Generated final answer for topic "${researchTopic}": ${result.text.length} characters, ${
+          citations.length
+        } citations (${citations.filter((c) => c.wordCount).length} with crawled content)`
       );
 
       return {
@@ -62,44 +77,47 @@ export class AnswerSynthesisService {
     const summariesText = summaries
       .map((summary, index) => {
         const sourcesText = summary.sources
-          .map(
-            (source: any, sourceIndex: number) =>
-              `   Source ${sourceIndex + 1}: ${source.title} (${source.link})\n   ${source.snippet}`
-          )
-          .join("\n");
+          .map((source: any, sourceIndex: number) => {
+            let sourceText = `   Source ${sourceIndex + 1}: ${source.title} (${source.link})\n   Snippet: ${
+              source.snippet
+            }`;
+
+            if (source.crawledContent?.crawlSuccess && source.crawledContent.text) {
+              sourceText += `\n   Full Content (${source.crawledContent.wordCount} words): ${source.crawledContent.text}`;
+            } else if (source.crawledContent?.errorMessage) {
+              sourceText += `\n   Note: Content crawling failed - ${source.crawledContent.errorMessage}`;
+            }
+
+            return sourceText;
+          })
+          .join("\n\n");
 
         return `Summary ${index + 1} - Query: "${summary.query}"\n${summary.summary}\n\nSources:\n${sourcesText}\n`;
       })
       .join("\n---\n\n");
 
-    return `Generate a high-quality answer to the user's question based on the provided summaries.
+    return `Generate a high-quality, comprehensive answer based on the provided research summaries and crawled content.
 
 Instructions:
-- The current date is ${currentDate}.
-- You are the final step of a multi-step research process, don't mention that you are the final step. 
-- You have access to all the information gathered from the previous steps.
-- You have access to the user's question.
-- Generate a high-quality answer to the user's question based on the provided summaries and the user's question.
-- you MUST include all the citations from the summaries in the answer correctly.
+- Current date: ${currentDate}
+- You are synthesizing research from multiple sources including full webpage content
+- Prioritize information from crawled content when available as it's more comprehensive than snippets
+- Generate a thorough, well-structured answer that addresses the research topic comprehensively
+- Include specific facts, figures, and details from the sources
+- Maintain accuracy to the source material - only use information that's actually present
+- Structure the information logically and clearly
+- Reference sources appropriately throughout your answer
 
-User Context:
-- ${researchTopic}
+Research Topic: ${researchTopic}
 
-Summaries:
+Research Summaries and Sources:
 ${summariesText}
 
-Please provide a comprehensive, well-structured answer that synthesizes the information from all summaries. Ensure that you:
-1. Address the research topic directly and completely
-2. Include specific facts, figures, and details from the sources
-3. Maintain accuracy to the source material
-4. Structure the information logically
-5. Reference the sources appropriately throughout your answer
-
-Your answer should be informative, detailed, and directly address the research question about "${researchTopic}".`;
+Provide a comprehensive, well-structured answer that synthesizes all available information from both research summaries and crawled content. Focus on delivering a thorough response to: "${researchTopic}".`;
   }
 
   /**
-   * Extracts citations from research summaries
+   * Extracts citations from research summaries with enhanced information
    */
   private extractCitations(summaries: any[]): Citation[] {
     const citations: Citation[] = [];
@@ -107,12 +125,26 @@ Your answer should be informative, detailed, and directly address the research q
     summaries.forEach((summary) => {
       if (summary.sources && Array.isArray(summary.sources)) {
         summary.sources.forEach((source: any) => {
-          citations.push({
+          const citation: Citation = {
             url: source.link,
             title: source.title,
             snippet: source.snippet,
-            relevance: `Related to: ${summary.query}`,
-          });
+            relevance: `Related to query: ${summary.query}`,
+          };
+
+          // Add word count if crawled content is available
+          if (source.crawledContent?.crawlSuccess) {
+            citation.wordCount = source.crawledContent.wordCount;
+            // Use crawled content as snippet if it's more substantial
+            if (source.crawledContent.text && source.crawledContent.text.length > source.snippet.length) {
+              citation.snippet =
+                source.crawledContent.text.length > 300
+                  ? source.crawledContent.text.substring(0, 300) + "..."
+                  : source.crawledContent.text;
+            }
+          }
+
+          citations.push(citation);
         });
       }
     });
@@ -122,7 +154,12 @@ Your answer should be informative, detailed, and directly address the research q
       (citation, index) => citations.findIndex((c) => c.url === citation.url) === index
     );
 
-    logger.info(`Extracted ${uniqueCitations.length} unique citations from ${summaries.length} summaries`);
+    const crawledCitations = uniqueCitations.filter((c) => c.wordCount).length;
+    const totalWords = uniqueCitations.reduce((sum, c) => sum + (c.wordCount || 0), 0);
+
+    logger.debug(
+      `Extracted ${uniqueCitations.length} unique citations from ${summaries.length} summaries: ${crawledCitations} with crawled content (${totalWords} total words)`
+    );
 
     return uniqueCitations;
   }
