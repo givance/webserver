@@ -41,7 +41,7 @@ export function CampaignSteps({ onClose }: CampaignStepsProps) {
 
   const handleDonorsSelected = (donorIds: number[]) => {
     setSelectedDonors(donorIds);
-    setCurrentStep(1);
+    // Removed automatic step advancement - user must click Next button explicitly
   };
 
   const handleCampaignNameSet = (name: string) => {
