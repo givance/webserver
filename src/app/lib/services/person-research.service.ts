@@ -1,15 +1,14 @@
 import { logger } from "@/app/lib/logger";
-import { QueryGenerationService } from "./person-research/query-generation.service";
-import { WebSearchService } from "./person-research/web-search.service";
-import { ReflectionService } from "./person-research/reflection.service";
-import { AnswerSynthesisService } from "./person-research/answer-synthesis.service";
+import { AnswerSynthesisService } from "@/app/lib/services/person-research/answer-synthesis.service";
+import { QueryGenerationService } from "@/app/lib/services/person-research/query-generation.service";
+import { ReflectionService } from "@/app/lib/services/person-research/reflection.service";
 import {
   PersonResearchInput,
   PersonResearchResult,
   ResearchQuery,
   WebSearchResult,
-  ReflectionResult,
-} from "./person-research/types";
+} from "@/app/lib/services/person-research/types";
+import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
 
 /**
  * PersonResearchService - Main service for iterative web research on individuals
