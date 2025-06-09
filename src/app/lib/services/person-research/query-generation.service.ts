@@ -89,52 +89,57 @@ export class QueryGenerationService {
   ): string {
     const currentDate = getCurrentDate();
 
-    let prompt = `Your goal is to generate sophisticated and diverse web search queries for comprehensive research. These queries will be used by an advanced automated web research tool that crawls webpages and extracts full content.
+    let prompt = `Your goal is to generate natural, concise web search queries that real people would actually use. These queries will be used by an automated web research tool.
 
 Instructions:
-- Generate ${maxQueries} or fewer high-quality search queries
-- Each query should target a specific aspect of the research topic
-- Queries should be optimized for web search engines (concise but specific)
+- Generate ${maxQueries} or fewer simple, natural search queries
+- Write queries like a human would actually search (short and direct)
+- Each query should explore a different angle of the research topic
+- Keep queries brief - typically 2-5 words unless absolutely necessary to be longer
 - Avoid redundant or overly similar queries
-- Focus on finding authoritative, recent, and comprehensive sources
-- Current date: ${currentDate}`;
+- Think about how real people search, not how you think search engines work
+- Current date: ${currentDate}
+
+Examples of GOOD vs BAD queries:
+- GOOD: "John Smith CEO", BAD: "John Smith chief executive officer biography and leadership profile"
+- GOOD: "Tesla earnings 2024", BAD: "Tesla quarterly financial performance and revenue growth 2024"
+- GOOD: "climate change causes", BAD: "environmental factors contributing to global climate change phenomenon"`;
 
     if (isFollowUp && previousQueries.length > 0) {
       prompt += `
 
 FOLLOW-UP CONTEXT:
-- This is a follow-up search to address knowledge gaps from previous research
-- Previous queries were: [${previousQueries.join(", ")}]
-- Generate NEW queries that complement previous ones and explore different angles
-- Avoid duplicating or closely replicating previous query approaches
-- Focus on specific gaps or aspects not adequately covered before`;
+- You already searched: [${previousQueries.join(", ")}]
+- Now generate different, simple queries to find more info
+- Don't repeat what you already searched
+- Keep it natural and short - just like humans would search for more details`;
     } else {
       prompt += `
 
 INITIAL RESEARCH:
-- This is the initial research phase for comprehensive topic coverage
-- Generate diverse queries that cover different aspects of the topic
-- Balance broad overview queries with specific detailed queries`;
+- This is your first search on this topic
+- Generate simple queries covering different angles
+- Think like a human doing basic research - start with obvious searches`;
     }
 
     prompt += `
 
 QUERY OPTIMIZATION:
-- Make queries specific enough to find relevant content but broad enough to capture comprehensive information
-- Include relevant keywords, technical terms, and context where appropriate
-- Example transformation: "Tell me about Steve Jobs" → "Steve Jobs Apple founder biography"
+- Use natural language that humans actually type into search boxes
+- Prefer common words over technical jargon unless the jargon is essential
+- Remember: shorter is almost always better
 
 Research Topic: ${researchTopic}
 
 Format your response as a JSON object with these exact keys:
 - "rationale": Brief explanation of your query selection strategy
-- "query": Array of ${maxQueries} or fewer optimized search queries
+- "query": Array of ${maxQueries} or fewer natural search queries
 
 Example Response:
 \`\`\`json
 {
-    "rationale": "These queries target different aspects: company financial performance, product-specific metrics, and stock market data for comprehensive comparison analysis.",
-    "query": ["Apple total revenue growth fiscal year 2024", "iPhone unit sales growth fiscal year 2024", "Apple stock price performance 2024"]
+    "rationale": "These queries cover different angles: company overview, recent performance, and stock trends using natural search terms.",
+    "query": ["Apple revenue 2024", "iPhone sales 2024", "Apple stock 2024"]
 }
 \`\`\``;
 
