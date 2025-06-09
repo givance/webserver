@@ -1,19 +1,15 @@
-import { z } from "zod";
-import { google } from "googleapis";
-import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../trpc";
+import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
 import { db } from "@/app/lib/db";
-import { gmailOAuthTokens, emailGenerationSessions, generatedEmails, donors, staff, users } from "@/app/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { donors, emailGenerationSessions, generatedEmails, gmailOAuthTokens, staff, users } from "@/app/lib/db/schema";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import {
-  processEmailContentWithTracking,
-  createHtmlEmail,
-  convertStructuredContentToText as convertToText,
-} from "@/app/lib/utils/email-tracking/content-processor";
+import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
-import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
+import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
+import { google } from "googleapis";
+import { z } from "zod";
+import { protectedProcedure, router } from "../trpc";
 
 // Ensure you have these in your environment variables
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
@@ -506,8 +502,6 @@ export const gmailRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const gmail = await getGmailClient(ctx.auth.user.id);
-
         // Get session and emails
         const [session] = await db
           .select()
@@ -546,9 +540,16 @@ export const gmailRouter = router({
           });
         }
 
-        // Save each email as a draft
+        // Save each email as a draft using staff-specific accounts
         const draftResults = await Promise.allSettled(
           emails.map(async (email) => {
+            // Get Gmail client and sender info based on donor assignment
+            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
+              email.donorId,
+              ctx.auth.user.organizationId,
+              ctx.auth.user.id
+            );
+
             // Generate unique tracking ID for this email (same as send)
             const trackingId = generateTrackingId();
 
@@ -584,7 +585,7 @@ export const gmailRouter = router({
               .replace(/\//g, "_")
               .replace(/=+$/, "");
 
-            const draft = await gmail.users.drafts.create({
+            const draft = await gmailClient.users.drafts.create({
               userId: "me",
               requestBody: {
                 message: {
@@ -599,6 +600,12 @@ export const gmailRouter = router({
               draftId: draft.data.id,
               trackingId,
               linkTrackersCreated: processedContent.linkTrackers.length,
+              senderInfo: {
+                name: senderInfo.name,
+                email: senderInfo.email,
+                accountType,
+                staffId,
+              },
               success: true,
             };
           })
@@ -615,7 +622,7 @@ export const gmailRouter = router({
         const totalLinkTrackers = successfulDrafts.reduce((sum, result) => sum + result.linkTrackersCreated, 0);
 
         logger.info(
-          `Saved ${successfulDrafts.length} tracked drafts for session ${input.sessionId}, ${failedDrafts.length} failed, ${totalLinkTrackers} link trackers created`
+          `Saved ${successfulDrafts.length} tracked drafts for session ${input.sessionId}, ${failedDrafts.length} failed, ${totalLinkTrackers} link trackers created. Using appropriate staff-specific Gmail accounts based on donor assignments.`
         );
 
         return {
