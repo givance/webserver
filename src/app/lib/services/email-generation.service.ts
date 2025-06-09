@@ -168,7 +168,7 @@ export class EmailGenerationService {
       userMemories,
       organizationMemories,
       currentDate,
-      user?.emailSignature
+      user?.emailSignature || undefined
     );
 
     // Get primary staff for fallback
