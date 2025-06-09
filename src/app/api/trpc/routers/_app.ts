@@ -14,6 +14,7 @@ import { staffGmailRouter } from "./staff-gmail";
 import { emailTrackingRouter } from "./email-tracking";
 import { templatesRouter } from "./templates";
 import { listsRouter } from "./lists";
+import { personResearchRouter } from "./person-research";
 
 /**
  * Root router for the tRPC API
@@ -35,6 +36,7 @@ export const appRouter = router({
   emailTracking: emailTrackingRouter,
   templates: templatesRouter,
   lists: listsRouter,
+  personResearch: personResearchRouter,
 });
 
 // Export type definition of API
