@@ -250,7 +250,7 @@ export default function MainLayout({
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
-                        <SidebarMenuItem>
+                        {/* <SidebarMenuItem>
                           <Link href="/settings/donor-journey" className="w-full min-w-0">
                             <SidebarMenuButton
                               isActive={pathname.startsWith("/settings/donor-journey")}
@@ -260,7 +260,7 @@ export default function MainLayout({
                               <span className="text-left truncate">Donor Journey</span>
                             </SidebarMenuButton>
                           </Link>
-                        </SidebarMenuItem>
+                        </SidebarMenuItem> */}
                         <SidebarMenuItem>
                           <Link href="/settings/templates" className="w-full min-w-0">
                             <SidebarMenuButton

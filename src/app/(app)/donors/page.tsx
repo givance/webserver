@@ -188,9 +188,9 @@ export default function DonorListPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Donor Management</h1>
         <div className="flex gap-2">
-          <Button onClick={() => handleAnalyzeDonors()} disabled={isAnalyzing || isAnalyzingMutation}>
+          {/* <Button onClick={() => handleAnalyzeDonors()} disabled={isAnalyzing || isAnalyzingMutation}>
             {isAnalyzing || isAnalyzingMutation ? batchButtonText : "Analyze Page Donors"}
-          </Button>
+          </Button> */}
           <Link href="/donors/add">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
