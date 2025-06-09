@@ -203,7 +203,7 @@ export class EmailGenerationService {
       const enhancedStructuredContent = [
         ...email.structuredContent,
         {
-          piece: "\n\n" + signature,
+          piece: signature,
           references: [],
           addNewlineAfter: false,
         },

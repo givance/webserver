@@ -76,6 +76,9 @@ export function processEmailContentWithTracking(
       return `<a href="${trackingUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
     });
 
+    // Convert line breaks to HTML <br> tags
+    processedPiece = processedPiece.replace(/\n/g, "<br>");
+
     // Wrap in paragraph if it should have a newline after
     if (piece.addNewlineAfter) {
       return `<p>${processedPiece}</p>`;

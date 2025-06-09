@@ -258,7 +258,7 @@ export const generateBulkEmailsTask = task({
         const enhancedStructuredContent = [
           ...email.structuredContent,
           {
-            piece: "\n\n" + signature,
+            piece: signature,
             references: [],
             addNewlineAfter: false,
           },
