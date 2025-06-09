@@ -88,7 +88,9 @@ Instructions:
 - Don't produce more than ${maxQueries} queries.
 - Queries should be diverse, if the topic is broad, generate more than 1 query.
 - Don't generate multiple similar queries, 1 is enough.
-- Query should ensure that the most current information is gathered. The current date is ${currentDate}.`;
+
+You should make sure that the generated queries is a good query for the web search engine, for example, instead of generating "Tell me more about the founder of Apple Steve Jobs", you should generate "Steve Jobs, Apple"
+`;
 
     if (isFollowUp && previousQueries.length > 0) {
       prompt += `
