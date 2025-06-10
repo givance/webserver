@@ -13,12 +13,19 @@ import {
   Row,
   Cell,
   PaginationState,
+  VisibilityState,
 } from "@tanstack/react-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import React from "react";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -51,6 +58,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
   const isServerSidePagination =
     totalItems !== undefined &&
@@ -78,12 +86,14 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
     manualPagination: isServerSidePagination,
     pageCount: isServerSidePagination ? pageCount : undefined,
     state: {
       sorting,
       columnFilters,
       pagination: pagination,
+      columnVisibility,
     },
   });
 
@@ -191,16 +201,44 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      {searchKey && (
-        <div className="flex items-center py-4">
-          <Input
-            placeholder={searchPlaceholder}
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-            onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
-            className="max-w-sm"
-          />
-        </div>
-      )}
+      <div className="flex items-center justify-between py-4">
+        {searchKey && (
+          <div className="flex-1">
+            <Input
+              placeholder={searchPlaceholder}
+              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+              onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="ml-auto">
+              <Settings className="h-4 w-4 mr-2" />
+              View
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  >
+                    {column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {title && (
         <div className="flex items-center justify-between mb-4">
@@ -209,7 +247,7 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="rounded-md border bg-white">
+      <div className="rounded-md border bg-white overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup: HeaderGroup<TData>) => (
@@ -243,7 +281,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between space-x-2 py-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
         {isServerSidePagination && totalItems !== undefined && pageSize !== undefined && (
           <div className="text-sm text-muted-foreground">
             Showing {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
@@ -258,7 +296,7 @@ export function DataTable<TData, TValue>({
           </div>
         )}
 
-        <div className="flex items-center space-x-6">
+        <div className="flex flex-wrap gap-6">
           <div className="flex items-center space-x-2">
             <p className="text-sm font-medium">Rows per page</p>
             <select
@@ -279,12 +317,12 @@ export function DataTable<TData, TValue>({
               ))}
             </select>
           </div>
-          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+          <div className="flex items-center justify-center text-sm font-medium">
             Page {isServerSidePagination ? currentPage : table.getState().pagination.pageIndex + 1} of{" "}
             {isServerSidePagination ? pageCount : table.getPageCount()}
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isServerSidePagination && pageCount && pageCount > 1 && (
               <>
                 <Button variant="outline" size="sm" onClick={() => handleGoToPage(1)} disabled={!getCanPreviousPage()}>
@@ -292,7 +330,7 @@ export function DataTable<TData, TValue>({
                 </Button>
                 <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={!getCanPreviousPage()}>
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
                 </Button>
               </>
             )}
@@ -302,12 +340,12 @@ export function DataTable<TData, TValue>({
               </Button>
             )}
 
-            {renderPageNumbers()}
+            <div className="flex flex-wrap gap-1">{renderPageNumbers()}</div>
 
             {isServerSidePagination && pageCount && pageCount > 1 && (
               <>
                 <Button variant="outline" size="sm" onClick={handleNextPage} disabled={!getCanNextPage()}>
-                  Next
+                  <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <Button

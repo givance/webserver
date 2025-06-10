@@ -71,10 +71,10 @@ function UserProfile() {
 
 function Header() {
   return (
-    <header className="flex items-center justify-between h-14 px-6 border-b bg-white fixed top-0 left-64 right-0 z-40">
+    <header className="flex items-center justify-between h-14 px-6 border-b bg-white fixed top-0 left-0 right-0 z-40 ml-0 sm:ml-64">
       <div className="flex items-center gap-6 flex-1">
         <PageBreadcrumb />
-        <div className="relative w-96">
+        <div className="relative w-full max-w-md hidden sm:block">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input placeholder="Search or type a command (⌘ + G)" className="pl-10 bg-gray-50 border-0" />
         </div>
@@ -114,7 +114,7 @@ export default function MainLayout({
       <body className={cn(geistSans.variable, geistMono.variable, "antialiased bg-gray-50")}>
         <div className="min-h-screen w-full">
           <SidebarProvider>
-            <Sidebar className="w-64 border-r bg-white flex flex-col fixed left-0 top-0 h-screen z-50 overflow-hidden">
+            <Sidebar className="w-64 border-r bg-white flex-col fixed left-0 top-0 h-screen z-50 overflow-hidden hidden sm:flex">
               <SidebarHeader className="flex-none">
                 <Link
                   href="/"
@@ -298,9 +298,9 @@ export default function MainLayout({
               </SidebarContent>
               <SidebarFooter className="flex-none" />
             </Sidebar>
-            <div className="flex-1 flex flex-col ml-64">
+            <div className="flex-1 flex flex-col sm:ml-64">
               <Header />
-              <main className="flex-1 pt-14">
+              <main className="flex-1 pt-14 px-4 sm:px-6 md:px-8">
                 <TRPCProvider>{children}</TRPCProvider>
               </main>
             </div>

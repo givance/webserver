@@ -151,49 +151,6 @@ export const getColumns = (
     },
   },
   {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }: { row: Row<Donor> }) => (
-      <div
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-          row.original.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-        }`}
-      >
-        {row.getValue("status")}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "currentStageName",
-    header: "Stage",
-    cell: ({ row }: { row: Row<Donor> }) => {
-      const stageName = row.getValue("currentStageName") as string | null;
-      const reasoning = row.original.classificationReasoning;
-
-      if (!stageName) return <div className="text-muted-foreground text-sm">Not classified</div>;
-
-      return (
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-medium">
-            {stageName}
-          </Badge>
-          {reasoning && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-sm">
-                  <p>{reasoning}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: "assignedToStaffId",
     header: "Assigned Staff",
     cell: ({ row }: { row: Row<Donor> }) => {
@@ -228,18 +185,8 @@ export const getColumns = (
     id: "actions",
     cell: ({ row }: { row: Row<Donor> }) => {
       const donor = row.original;
-      const isAnalyzingThisDonor = isLoadingDonor(donor.id);
       return (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleAnalyze(donor.id)}
-            disabled={isAnalyzingThisDonor}
-            title={isAnalyzingThisDonor ? "Analyzing this donor..." : "Analyze this donor"}
-          >
-            <Activity className={`h-4 w-4 ${isAnalyzingThisDonor ? "animate-spin" : ""}`} />
-          </Button>
           <Link href={`/donations?donorId=${donor.id}`}>
             <Button variant="ghost" size="sm" title="View Donations">
               Donations
@@ -250,7 +197,31 @@ export const getColumns = (
               Communications
             </Button>
           </Link>
-          <DeleteDonorButton donorId={donor.id} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <Link href={`/donors/${donor.id}`}>
+                <DropdownMenuItem>View</DropdownMenuItem>
+              </Link>
+              <Link href={`/donors/${donor.id}/edit`}>
+                <DropdownMenuItem>Edit</DropdownMenuItem>
+              </Link>
+              <Link href={`/donors/email/${donor.id}`}>
+                <DropdownMenuItem>Send Email</DropdownMenuItem>
+              </Link>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild className="text-red-600 cursor-pointer">
+                <div className="flex items-center">
+                  <DeleteDonorButton donorId={donor.id} />
+                  <span className="ml-2">Delete</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       );
     },

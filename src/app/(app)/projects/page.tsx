@@ -14,6 +14,7 @@ import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
 import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import { CampaignButton } from "@/components/campaign/CampaignButton";
+import { Container } from "@/components/ui/container";
 
 export default function ProjectListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
@@ -59,45 +60,47 @@ export default function ProjectListPage() {
   return (
     <>
       <title>Project Management</title>
-      <div className="container mx-auto px-6 py-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">Project Management</h1>
-            <CampaignButton />
+      <Container>
+        <div className="py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold">Project Management</h1>
+              <CampaignButton />
+            </div>
+            <Link href="/projects/add">
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Project
+              </Button>
+            </Link>
           </div>
-          <Link href="/projects/add">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Project
-            </Button>
-          </Link>
-        </div>
 
-        <div className="flex items-center gap-4 mb-4">
-          <Input
-            placeholder="Search projects by name or description..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-          <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
-        </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+            <Input
+              placeholder="Search projects by name or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:max-w-sm"
+            />
+            <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
+          </div>
 
-        {isLoading && !listProjectsResponse ? (
-          <LoadingSkeleton />
-        ) : (
-          <DataTable
-            columns={columns}
-            data={projects}
-            searchPlaceholder="Search projects..."
-            totalItems={totalCount}
-            pageSize={pageSize}
-            pageCount={pageCount}
-            currentPage={currentPage}
-            onPageChange={setCurrentPage}
-          />
-        )}
-      </div>
+          {isLoading && !listProjectsResponse ? (
+            <LoadingSkeleton />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={projects}
+              searchPlaceholder="Search projects..."
+              totalItems={totalCount}
+              pageSize={pageSize}
+              pageCount={pageCount}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+            />
+          )}
+        </div>
+      </Container>
     </>
   );
 }

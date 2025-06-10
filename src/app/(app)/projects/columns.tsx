@@ -90,10 +90,13 @@ export const columns: ColumnDef<Project>[] = [
     cell: ({ row }: { row: Row<Project> }) => {
       const description: string = row.getValue("description");
       return (
-        <div className="max-w-[500px] truncate" title={description}>
+        <div className="max-w-[300px] truncate" title={description}>
           {description}
         </div>
       );
+    },
+    meta: {
+      enableHiding: true,
     },
   },
   {
@@ -123,7 +126,7 @@ export const columns: ColumnDef<Project>[] = [
     header: ({ column }: { column: Column<Project> }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Goal Amount
+          Goal
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -132,13 +135,16 @@ export const columns: ColumnDef<Project>[] = [
       const amount = parseFloat(row.getValue("goalAmount"));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
+    meta: {
+      enableHiding: true,
+    },
   },
   {
     accessorKey: "raisedAmount",
     header: ({ column }: { column: Column<Project> }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Raised Amount
+          Raised
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
@@ -164,6 +170,9 @@ export const columns: ColumnDef<Project>[] = [
       const date = new Date(row.getValue("startDate"));
       return date.toLocaleDateString();
     },
+    meta: {
+      enableHiding: true,
+    },
   },
   {
     accessorKey: "endDate",
@@ -172,14 +181,20 @@ export const columns: ColumnDef<Project>[] = [
       const date = new Date(row.getValue("endDate"));
       return date.toLocaleDateString();
     },
+    meta: {
+      enableHiding: true,
+    },
   },
   {
     id: "actions",
     cell: ({ row }: { row: Row<Project> }) => (
       <div className="flex items-center justify-end gap-2">
         <Link href={`/projects/${row.original.id}/donations`}>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
             Donations
+          </Button>
+          <Button variant="ghost" size="sm" className="sm:hidden">
+            View
           </Button>
         </Link>
         <DeleteProjectButton projectId={row.original.id} />
