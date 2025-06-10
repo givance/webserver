@@ -105,32 +105,26 @@ export class ReflectionService {
       })
       .join("\n\n");
 
-    return `You are an expert research assistant analyzing research completeness for the topic: "${researchTopic}".
+    return `You are analyzing research completeness for: "${researchTopic}".
 
 Instructions:
-- Evaluate whether the provided research summaries and crawled content provide sufficient information to comprehensively answer the research topic
-- Consider both the breadth and depth of information available
-- Identify specific knowledge gaps or areas needing deeper exploration
-- Generate focused follow-up queries only if significant gaps exist
-- If information is sufficient, mark as complete - avoid unnecessary additional research
+- Check if the research answers the question well enough
+- If something important is missing, identify what's needed
+- Generate simple search terms for missing info - NOT full questions
+- Keep follow-up searches short and natural like humans would actually search
 
 Requirements:
-- Follow-up queries should be self-contained and include necessary context for web search
-- Focus on technical details, recent developments, or specific aspects not adequately covered
-- Prioritize quality over quantity - better to have fewer, more targeted follow-up queries
+- Follow-up queries should be SHORT search terms, not questions
+- Think like a human typing into Google - 2-5 words max
+- Don't generate formal research questions
+- Focus on what's actually missing
 
 Output Format:
-Format your response as a JSON object with these exact keys:
-- "is_sufficient": true or false
-- "knowledge_gap": Describe what information is missing (empty string if sufficient)
-- "follow_up_queries": Array of specific questions to address gaps (empty array if sufficient)
-
-Example:
 \`\`\`json
 {
     "is_sufficient": false,
-    "knowledge_gap": "The research lacks current performance benchmarks and recent implementation examples",
-    "follow_up_queries": ["What are the latest performance benchmarks for [specific technology] in 2024?", "Recent real-world implementation examples of [specific technology]"]
+    "knowledge_gap": "Missing info about recent donations or charity work",
+    "follow_up_queries": ["Yulong Liu charity", "GreenTally donations", "cancer research donors"]
 }
 \`\`\`
 

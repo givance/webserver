@@ -92,15 +92,19 @@ export class PersonResearchService {
           }
 
           if (reflection.followUpQueries.length > 0) {
-            // Stage 4: Generate follow-up queries
+            // Stage 4: Generate follow-up queries using the query generation service
             logger.info(
-              `[Research Loop ${currentLoop}] Knowledge gap identified: "${reflection.knowledgeGap}", generating ${reflection.followUpQueries.length} follow-up queries`
+              `[Research Loop ${currentLoop}] Knowledge gap identified: "${reflection.knowledgeGap}", converting ${reflection.followUpQueries.length} follow-up queries to natural search terms`
             );
 
-            queries = reflection.followUpQueries.map((query) => ({
-              query,
-              rationale: `Follow-up research to address: ${reflection.knowledgeGap}`,
-            }));
+            const followUpQueries = await this.queryGenerationService.generateQueries({
+              researchTopic,
+              maxQueries: Math.min(reflection.followUpQueries.length, 3),
+              isFollowUp: true,
+              previousQueries: allSummaries.map((s) => s.query),
+            });
+
+            queries = followUpQueries.queries;
           } else {
             logger.info(`[Research Loop ${currentLoop}] No follow-up queries generated, ending research`);
             break;
