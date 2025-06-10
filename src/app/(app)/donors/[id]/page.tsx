@@ -319,12 +319,12 @@ export default function DonorProfilePage() {
               </div>
             )}
             {donor.address && (
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-2 md:col-span-2">
                 <span className="text-muted-foreground">Address:</span>
-                <span>
-                  {donor.address}
-                  {donor.state && `, ${donor.state}`}
-                </span>
+                <div className="flex flex-col">
+                  <span>{donor.address}</span>
+                  {donor.state && <span>{donor.state}</span>}
+                </div>
               </div>
             )}
           </div>
