@@ -73,6 +73,11 @@ export function GenerateEmailsStep({
             },
           ],
           referenceContexts: {}, // Add empty referenceContexts for sample emails
+          tokenUsage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+          },
         };
       });
 
@@ -149,6 +154,11 @@ export function GenerateEmailsStep({
             },
           ],
           referenceContexts: {}, // Add empty referenceContexts as this is a placeholder implementation
+          tokenUsage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+          },
         };
       });
 
