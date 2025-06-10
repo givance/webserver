@@ -214,3 +214,39 @@ export function getCurrentDate(): string {
     day: "numeric",
   });
 }
+
+/**
+ * Database schema for person research
+ */
+export interface PersonResearchDBRecord {
+  id: number;
+  donorId: number;
+  organizationId: string;
+  userId: string | null;
+  researchTopic: string;
+  researchData: PersonResearchResult; // The entire research result as JSON
+  isLive: boolean;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Input for saving person research to database
+ */
+export interface SavePersonResearchInput {
+  donorId: number;
+  organizationId: string;
+  userId: string;
+  researchResult: PersonResearchResult;
+  setAsLive?: boolean; // Whether to mark this as the live version (default: true)
+}
+
+/**
+ * Input for retrieving person research from database
+ */
+export interface GetPersonResearchInput {
+  donorId: number;
+  organizationId: string;
+  version?: number; // If not provided, gets the live version
+}

@@ -246,6 +246,20 @@
       "when": 1749245550802,
       "tag": "0034_daffy_absorbing_man",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1749520540465,
+      "tag": "0035_bright_aaron_stack",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1749520758263,
+      "tag": "0036_new_mongu",
+      "breakpoints": true
     }
   ]
 }

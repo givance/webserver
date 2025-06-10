@@ -2,11 +2,13 @@ import { logger } from "@/app/lib/logger";
 import { AnswerSynthesisService } from "@/app/lib/services/person-research/answer-synthesis.service";
 import { QueryGenerationService } from "@/app/lib/services/person-research/query-generation.service";
 import { ReflectionService } from "@/app/lib/services/person-research/reflection.service";
+import { PersonResearchDatabaseService } from "@/app/lib/services/person-research/database.service";
 import {
   PersonResearchInput,
   PersonResearchResult,
   ResearchQuery,
   WebSearchResult,
+  PersonResearchDBRecord,
 } from "@/app/lib/services/person-research/types";
 import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
 
@@ -27,6 +29,79 @@ export class PersonResearchService {
   private webSearchService = new WebSearchService();
   private reflectionService = new ReflectionService();
   private answerSynthesisService = new AnswerSynthesisService();
+  private databaseService = new PersonResearchDatabaseService();
+
+  /**
+   * Conducts comprehensive research on a person and saves it to the database
+   * @param input - Research parameters including topic and context
+   * @param donorId - The donor ID to associate the research with
+   * @returns Comprehensive research results with citations and database record
+   */
+  async conductAndSavePersonResearch(
+    input: PersonResearchInput,
+    donorId: number
+  ): Promise<{ result: PersonResearchResult; dbRecord: PersonResearchDBRecord }> {
+    // Conduct the research
+    const result = await this.conductPersonResearch(input);
+
+    // Save to database
+    const dbRecord = await this.databaseService.savePersonResearch({
+      donorId,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      researchResult: result,
+      setAsLive: true,
+    });
+
+    logger.info(`Successfully conducted and saved person research for donor ${donorId}, research ID: ${dbRecord.id}`);
+
+    return { result, dbRecord };
+  }
+
+  /**
+   * Retrieves person research from the database
+   * @param donorId - The donor ID
+   * @param organizationId - The organization ID
+   * @param version - Optional version number (defaults to live version)
+   * @returns The research result or null if not found
+   */
+  async getPersonResearch(
+    donorId: number,
+    organizationId: string,
+    version?: number
+  ): Promise<PersonResearchResult | null> {
+    const dbRecord = await this.databaseService.getPersonResearch({
+      donorId,
+      organizationId,
+      version,
+    });
+
+    if (!dbRecord) {
+      return null;
+    }
+
+    return dbRecord.researchData;
+  }
+
+  /**
+   * Gets all research versions for a donor
+   * @param donorId - The donor ID
+   * @param organizationId - The organization ID
+   * @returns Array of research records
+   */
+  async getAllPersonResearchVersions(donorId: number, organizationId: string): Promise<PersonResearchDBRecord[]> {
+    return this.databaseService.getAllPersonResearchVersions(donorId, organizationId);
+  }
+
+  /**
+   * Sets a specific research version as live
+   * @param researchId - The research record ID
+   * @param donorId - The donor ID
+   * @returns Updated record
+   */
+  async setResearchAsLive(researchId: number, donorId: number): Promise<PersonResearchDBRecord> {
+    return this.databaseService.setResearchAsLive(researchId, donorId);
+  }
 
   /**
    * Conducts comprehensive research on a person
