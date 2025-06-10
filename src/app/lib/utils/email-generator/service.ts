@@ -17,7 +17,6 @@ import {
   TokenUsage,
   createEmptyTokenUsage,
 } from "./types";
-import md5 from "md5";
 
 // Create Azure OpenAI client
 const azure = createAzure({
