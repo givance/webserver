@@ -216,7 +216,13 @@ export class EmailGenerationService {
       };
     });
 
+    // Log comprehensive token usage summary
     logger.info(`Successfully generated ${emailsWithSignatures.length} emails for organization ${organizationId}`);
+
+    logger.info(
+      `Token usage summary for organization ${organizationId} email generation: Instruction Refinement: ${result.tokenUsage.instructionRefinement.totalTokens} tokens (${result.tokenUsage.instructionRefinement.promptTokens} input, ${result.tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${result.tokenUsage.emailGeneration.totalTokens} tokens (${result.tokenUsage.emailGeneration.promptTokens} input, ${result.tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${result.tokenUsage.total.totalTokens} tokens (${result.tokenUsage.total.promptTokens} input, ${result.tokenUsage.total.completionTokens} output)`
+    );
+
     return {
       ...result,
       emails: emailsWithSignatures,

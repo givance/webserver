@@ -14,6 +14,8 @@ import {
   Organization,
   RawCommunicationThread,
   DonorStatistics,
+  TokenUsage,
+  createEmptyTokenUsage,
 } from "./types";
 import { formatDonorName } from "../donor-name-formatter";
 
@@ -271,7 +273,21 @@ export class EmailGenerationService implements EmailGeneratorTool {
           });
 
           validatedResponse = result.object;
+
+          // Extract token usage information
+          const tokenUsage: TokenUsage = {
+            promptTokens: result.usage?.promptTokens || 0,
+            completionTokens: result.usage?.completionTokens || 0,
+            totalTokens: result.usage?.totalTokens || 0,
+          };
+
           logger.info(`Successfully generated object for donor ${donor.id} on attempt ${attempt}`);
+          logger.info(
+            `Token usage for donor ${donor.id} email generation: ${tokenUsage.totalTokens} tokens (${tokenUsage.promptTokens} input, ${tokenUsage.completionTokens} output)`
+          );
+
+          // Store token usage for later use
+          (validatedResponse as any).tokenUsage = tokenUsage;
           break;
         } catch (error: any) {
           logger.error(
@@ -347,6 +363,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         subject: validatedResponse.subject,
         structuredContent: validatedResponse.content,
         referenceContexts,
+        tokenUsage: (validatedResponse as any).tokenUsage || createEmptyTokenUsage(),
       };
     } catch (error: any) {
       logger.error(

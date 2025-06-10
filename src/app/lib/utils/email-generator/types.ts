@@ -2,6 +2,24 @@ import { CommunicationHistory as RawCommunicationHistory } from "@/app/lib/data/
 import { DonationWithDetails } from "../../data/donations";
 import { DonorNameFields } from "../donor-name-formatter";
 
+/**
+ * Token usage information from AI API calls
+ */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+/**
+ * Aggregated token usage for different stages of email generation
+ */
+export interface EmailGenerationTokenUsage {
+  instructionRefinement: TokenUsage;
+  emailGeneration: TokenUsage;
+  total: TokenUsage;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -78,6 +96,7 @@ export interface GeneratedEmail {
   subject: string; // The email subject line
   structuredContent: EmailPiece[];
   referenceContexts: Record<string, string>; // Map of reference IDs to their context
+  tokenUsage: TokenUsage; // Add token usage tracking for individual email generation
 }
 
 // Re-exporting RawCommunicationHistory if its definition is needed by consumers of these types.
@@ -114,6 +133,7 @@ export interface InstructionRefinementResult {
   refinedInstruction: string;
   reasoning: string;
   suggestedMemories?: string[];
+  tokenUsage: TokenUsage; // Add token usage tracking for instruction refinement
 }
 
 export interface EmailGeneratorTool {
@@ -131,4 +151,37 @@ export interface EmailGeneratorTool {
     currentDate?: string, // Added for today's date
     emailSignature?: string // User's email signature
   ) => Promise<GeneratedEmail[]>;
+}
+
+/**
+ * Helper function to create empty token usage
+ */
+export function createEmptyTokenUsage(): TokenUsage {
+  return {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+  };
+}
+
+/**
+ * Helper function to add token usage together
+ */
+export function addTokenUsage(usage1: TokenUsage, usage2: TokenUsage): TokenUsage {
+  return {
+    promptTokens: usage1.promptTokens + usage2.promptTokens,
+    completionTokens: usage1.completionTokens + usage2.completionTokens,
+    totalTokens: usage1.totalTokens + usage2.totalTokens,
+  };
+}
+
+/**
+ * Helper function to create empty email generation token usage
+ */
+export function createEmptyEmailGenerationTokenUsage(): EmailGenerationTokenUsage {
+  return {
+    instructionRefinement: createEmptyTokenUsage(),
+    emailGeneration: createEmptyTokenUsage(),
+    total: createEmptyTokenUsage(),
+  };
 }

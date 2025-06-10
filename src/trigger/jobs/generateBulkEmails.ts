@@ -231,6 +231,23 @@ export const generateBulkEmailsTask = task({
 
       triggerLogger.info(`Successfully generated ${allEmailResults.length} emails`);
 
+      // Log token usage summary for bulk generation
+      const totalTokenUsage = allEmailResults.reduce(
+        (acc, email) => {
+          if (email.tokenUsage) {
+            acc.promptTokens += email.tokenUsage.promptTokens;
+            acc.completionTokens += email.tokenUsage.completionTokens;
+            acc.totalTokens += email.tokenUsage.totalTokens;
+          }
+          return acc;
+        },
+        { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+      );
+
+      triggerLogger.info(
+        `Token usage summary for bulk email generation session ${sessionId}: ${totalTokenUsage.totalTokens} tokens (${totalTokenUsage.promptTokens} input, ${totalTokenUsage.completionTokens} output) across ${allEmailResults.length} emails`
+      );
+
       // Get primary staff for fallback if no staff is assigned
       const primaryStaff = await db.query.staff.findFirst({
         where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),

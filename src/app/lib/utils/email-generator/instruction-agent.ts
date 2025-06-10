@@ -2,7 +2,13 @@ import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
-import { EmailGeneratorTool, InstructionRefinementInput, InstructionRefinementResult } from "./types";
+import {
+  EmailGeneratorTool,
+  InstructionRefinementInput,
+  InstructionRefinementResult,
+  createEmptyTokenUsage,
+  TokenUsage,
+} from "./types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -83,7 +89,7 @@ Respond in JSON format:
         `Sending prompt to OpenAI (promptLength: ${prompt.length}, model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`
       );
 
-      const { text } = await generateText({
+      const result = await generateText({
         model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         prompt,
       }).catch((error) => {
@@ -95,6 +101,15 @@ Respond in JSON format:
         console.log(error);
         throw error;
       });
+
+      const { text } = result;
+
+      // Extract token usage information
+      const tokenUsage: TokenUsage = {
+        promptTokens: result.usage?.promptTokens || 0,
+        completionTokens: result.usage?.completionTokens || 0,
+        totalTokens: result.usage?.totalTokens || 0,
+      };
 
       logger.info(
         `Received response from OpenAI (responseLength: ${text?.length || 0}, firstChars: ${text?.substring(
@@ -120,6 +135,12 @@ Respond in JSON format:
           throw new Error("AI response missing required fields");
         }
 
+        // Add token usage to the response
+        const responseWithTokenUsage = {
+          ...parsedResponse,
+          tokenUsage,
+        };
+
         logger.info(
           `Successfully parsed and validated response (refinedInstructionLength: ${
             parsedResponse.refinedInstruction.length
@@ -128,7 +149,11 @@ Respond in JSON format:
           })`
         );
 
-        return parsedResponse;
+        logger.info(
+          `Token usage for instruction refinement: ${tokenUsage.totalTokens} tokens (${tokenUsage.promptTokens} input, ${tokenUsage.completionTokens} output)`
+        );
+
+        return responseWithTokenUsage;
       } catch (parseError) {
         logger.error(
           `Failed to parse AI response for instruction refinement: ${
