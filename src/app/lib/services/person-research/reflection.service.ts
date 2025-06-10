@@ -3,7 +3,7 @@ import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { ReflectionInput, ReflectionResult } from "./types";
+import { ReflectionInput, ReflectionResult, TokenUsage, createEmptyTokenUsage } from "./types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -52,26 +52,30 @@ export class ReflectionService {
         model: azure(env.MID_MODEL),
         schema: ReflectionSchema,
         prompt,
-        temperature: 0.3, // Lower temperature for analytical tasks
+        temperature: 0.1, // Low temperature for analytical reasoning
       });
 
-      const reflectionResult: ReflectionResult = {
-        isSufficient: result.object.is_sufficient,
-        knowledgeGap: result.object.knowledge_gap,
-        followUpQueries: result.object.follow_up_queries,
+      // Capture token usage
+      const tokenUsage: TokenUsage = {
+        promptTokens: result.usage?.promptTokens || 0,
+        completionTokens: result.usage?.completionTokens || 0,
+        totalTokens: result.usage?.totalTokens || 0,
       };
 
-      if (reflectionResult.isSufficient) {
-        logger.info(`Research deemed sufficient for topic "${researchTopic}" - no follow-up needed`);
-      } else {
-        logger.info(
-          `Knowledge gap identified for topic "${researchTopic}": "${reflectionResult.knowledgeGap}" - generated ${
-            reflectionResult.followUpQueries.length
-          } follow-up queries: [${reflectionResult.followUpQueries.join(", ")}]`
-        );
-      }
+      const isSufficient = result.object.is_sufficient;
+      const knowledgeGap = result.object.knowledge_gap;
+      const followUpQueries = result.object.follow_up_queries;
 
-      return reflectionResult;
+      logger.info(
+        `Reflection analysis for topic "${researchTopic}": sufficient=${isSufficient}, gap="${knowledgeGap}", follow-ups=${followUpQueries.length}, tokens=${tokenUsage.totalTokens}`
+      );
+
+      return {
+        isSufficient,
+        knowledgeGap,
+        followUpQueries,
+        tokenUsage,
+      };
     } catch (error) {
       logger.error(
         `Reflection analysis failed for topic "${researchTopic}": ${

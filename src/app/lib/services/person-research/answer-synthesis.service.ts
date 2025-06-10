@@ -2,7 +2,14 @@ import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
-import { AnswerSynthesisInput, AnswerSynthesisResult, Citation, getCurrentDate } from "./types";
+import {
+  AnswerSynthesisInput,
+  AnswerSynthesisResult,
+  Citation,
+  getCurrentDate,
+  TokenUsage,
+  createEmptyTokenUsage,
+} from "./types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -46,17 +53,27 @@ export class AnswerSynthesisService {
         temperature: 0.2, // Very low temperature for factual synthesis
       });
 
+      // Capture token usage
+      const tokenUsage: TokenUsage = {
+        promptTokens: result.usage?.promptTokens || 0,
+        completionTokens: result.usage?.completionTokens || 0,
+        totalTokens: result.usage?.totalTokens || 0,
+      };
+
       const citations = this.extractCitations(summaries);
 
       logger.info(
         `Generated final answer for topic "${researchTopic}": ${result.text.length} characters, ${
           citations.length
-        } citations (${citations.filter((c) => c.wordCount).length} with crawled content)`
+        } citations (${citations.filter((c) => c.wordCount).length} with crawled content), ${
+          tokenUsage.totalTokens
+        } tokens`
       );
 
       return {
         answer: result.text,
         citations,
+        tokenUsage,
       };
     } catch (error) {
       logger.error(

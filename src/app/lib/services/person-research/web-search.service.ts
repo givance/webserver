@@ -10,6 +10,9 @@ import {
   WebSearchResult,
   EnhancedSearchResult,
   getCurrentDate,
+  TokenUsage,
+  createEmptyTokenUsage,
+  addTokenUsage,
 } from "./types";
 import { WebCrawlerService } from "./web-crawler.service";
 
@@ -33,9 +36,9 @@ export class WebSearchService {
   }
 
   /**
-   * Conducts parallel web searches for multiple queries with content crawling
-   * @param input - Search input with queries and research topic
-   * @returns Batch results with summaries and citations
+   * Executes parallel web searches and generates summaries for multiple queries
+   * @param input - Web search input with queries and research topic
+   * @returns Batch result with summaries for all queries
    */
   async conductParallelSearch(input: WebSearchInput): Promise<WebSearchBatchResult> {
     const { queries, researchTopic } = input;
@@ -46,24 +49,27 @@ export class WebSearchService {
         .join(", ")}]`
     );
 
+    let totalTokenUsage = createEmptyTokenUsage();
+
     try {
       // Execute all searches in parallel
       const searchPromises = queries.map(async (queryObj) => {
         try {
           const searchResults = await this.executeGoogleSearch(queryObj.query);
           const enhancedResults = await this.enhanceWithCrawledContent(searchResults, queryObj.query);
-          const summary = await this.generateSearchSummary(enhancedResults, queryObj.query, researchTopic);
+          const summaryResult = await this.generateSearchSummary(enhancedResults, queryObj.query, researchTopic);
 
           const successfulCrawls = enhancedResults.filter((r) => r.crawledContent?.crawlSuccess).length;
           logger.debug(
-            `Query "${queryObj.query}" completed: ${enhancedResults.length} results, ${successfulCrawls} successfully crawled`
+            `Query "${queryObj.query}" completed: ${enhancedResults.length} results, ${successfulCrawls} successfully crawled, ${summaryResult.tokenUsage.totalTokens} tokens`
           );
 
           return {
             query: queryObj.query,
-            summary,
+            summary: summaryResult.summary,
             sources: enhancedResults,
             timestamp: new Date(),
+            tokenUsage: summaryResult.tokenUsage,
           } as WebSearchResult;
         } catch (error) {
           logger.error(
@@ -74,6 +80,7 @@ export class WebSearchService {
             summary: `Search failed: ${error instanceof Error ? error.message : "Unknown error"}`,
             sources: [],
             timestamp: new Date(),
+            tokenUsage: createEmptyTokenUsage(),
           } as WebSearchResult;
         }
       });
@@ -87,8 +94,11 @@ export class WebSearchService {
         0
       );
 
+      // Aggregate token usage
+      totalTokenUsage = results.reduce((sum, result) => addTokenUsage(sum, result.tokenUsage), createEmptyTokenUsage());
+
       logger.info(
-        `Parallel search completed for "${researchTopic}": ${successfulResults.length}/${queries.length} successful queries, ${failedResults.length} failed, ${totalSources} total sources, ${totalCrawledPages} pages crawled`
+        `Parallel search completed for "${researchTopic}": ${successfulResults.length}/${queries.length} successful queries, ${failedResults.length} failed, ${totalSources} total sources, ${totalCrawledPages} pages crawled, ${totalTokenUsage.totalTokens} total tokens`
       );
 
       return {
@@ -96,6 +106,7 @@ export class WebSearchService {
         totalQueries: queries.length,
         totalSources,
         totalCrawledPages,
+        totalTokenUsage,
       };
     } catch (error) {
       logger.error(
@@ -194,15 +205,18 @@ export class WebSearchService {
    * @param searchResults - Enhanced search results with crawled content
    * @param query - Original search query
    * @param researchTopic - Overall research topic for context
-   * @returns AI-generated summary
+   * @returns AI-generated summary with token usage
    */
   private async generateSearchSummary(
     searchResults: EnhancedSearchResult[],
     query: string,
     researchTopic: string
-  ): Promise<string> {
+  ): Promise<{ summary: string; tokenUsage: TokenUsage }> {
     if (searchResults.length === 0) {
-      return "No search results were found for this query.";
+      return {
+        summary: "No search results were found for this query.",
+        tokenUsage: createEmptyTokenUsage(),
+      };
     }
 
     const crawledResults = searchResults.filter((result) => result.crawledContent?.crawlSuccess);
@@ -221,13 +235,28 @@ export class WebSearchService {
         temperature: 0.3,
       });
 
-      logger.debug(`Generated summary for query "${query}": ${result.text.length} characters`);
-      return result.text;
+      const tokenUsage: TokenUsage = {
+        promptTokens: result.usage?.promptTokens || 0,
+        completionTokens: result.usage?.completionTokens || 0,
+        totalTokens: result.usage?.totalTokens || 0,
+      };
+
+      logger.debug(
+        `Generated summary for query "${query}": ${result.text.length} characters, ${tokenUsage.totalTokens} tokens`
+      );
+
+      return {
+        summary: result.text,
+        tokenUsage,
+      };
     } catch (error) {
       logger.error(
         `Summary generation failed for query "${query}": ${error instanceof Error ? error.message : String(error)}`
       );
-      return this.generateBasicSummary(searchResults, query);
+      return {
+        summary: this.generateBasicSummary(searchResults, query),
+        tokenUsage: createEmptyTokenUsage(),
+      };
     }
   }
 

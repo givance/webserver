@@ -9,6 +9,11 @@ import {
   ResearchQuery,
   WebSearchResult,
   PersonResearchDBRecord,
+  ResearchTokenUsage,
+  TokenUsage,
+  createEmptyTokenUsage,
+  createEmptyResearchTokenUsage,
+  addTokenUsage,
 } from "@/app/lib/services/person-research/types";
 import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
 
@@ -117,6 +122,9 @@ export class PersonResearchService {
       `Starting person research for topic: "${researchTopic}" (organization: ${organizationId}, user: ${userId})`
     );
 
+    // Initialize token usage tracking
+    const tokenUsage = createEmptyResearchTokenUsage();
+
     try {
       const allSummaries: WebSearchResult[] = [];
       let currentLoop = 0;
@@ -131,6 +139,9 @@ export class PersonResearchService {
         isFollowUp: false,
       });
 
+      // Accumulate query generation tokens
+      tokenUsage.queryGeneration = addTokenUsage(tokenUsage.queryGeneration, initialQueries.tokenUsage);
+
       queries = initialQueries.queries;
       logger.info(`Generated ${queries.length} initial queries: ${queries.map((q) => q.query).join(", ")}`);
 
@@ -144,6 +155,9 @@ export class PersonResearchService {
           queries,
           researchTopic,
         });
+
+        // Accumulate web search summary tokens
+        tokenUsage.webSearchSummaries = addTokenUsage(tokenUsage.webSearchSummaries, searchResults.totalTokenUsage);
 
         // Add results to our collection
         allSummaries.push(...searchResults.results);
@@ -160,6 +174,9 @@ export class PersonResearchService {
             researchTopic,
             summaries: allSummaries,
           });
+
+          // Accumulate reflection tokens
+          tokenUsage.reflection = addTokenUsage(tokenUsage.reflection, reflection.tokenUsage);
 
           if (reflection.isSufficient) {
             logger.info(`[Research Loop ${currentLoop}] Research deemed sufficient, ending early`);
@@ -179,6 +196,9 @@ export class PersonResearchService {
               previousQueries: allSummaries.map((s) => s.query),
             });
 
+            // Accumulate additional query generation tokens
+            tokenUsage.queryGeneration = addTokenUsage(tokenUsage.queryGeneration, followUpQueries.tokenUsage);
+
             queries = followUpQueries.queries;
           } else {
             logger.info(`[Research Loop ${currentLoop}] No follow-up queries generated, ending research`);
@@ -197,6 +217,15 @@ export class PersonResearchService {
         summaries: allSummaries,
       });
 
+      // Accumulate answer synthesis tokens
+      tokenUsage.answerSynthesis = addTokenUsage(tokenUsage.answerSynthesis, finalAnswer.tokenUsage);
+
+      // Calculate total tokens
+      tokenUsage.total = addTokenUsage(
+        addTokenUsage(addTokenUsage(tokenUsage.queryGeneration, tokenUsage.webSearchSummaries), tokenUsage.reflection),
+        tokenUsage.answerSynthesis
+      );
+
       const result: PersonResearchResult = {
         answer: finalAnswer.answer,
         citations: finalAnswer.citations,
@@ -205,10 +234,16 @@ export class PersonResearchService {
         totalSources: allSummaries.length,
         researchTopic,
         timestamp: new Date(),
+        tokenUsage,
       };
 
+      // Log comprehensive token usage summary
       logger.info(
         `Person research completed successfully - Topic: "${researchTopic}", Loops: ${currentLoop}, Sources: ${allSummaries.length}, Citations: ${finalAnswer.citations.length}`
+      );
+
+      logger.info(
+        `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
       );
 
       return result;

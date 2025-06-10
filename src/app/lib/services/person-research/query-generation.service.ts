@@ -3,7 +3,13 @@ import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { QueryGenerationInput, QueryGenerationResult, getCurrentDate } from "./types";
+import {
+  QueryGenerationInput,
+  QueryGenerationResult,
+  getCurrentDate,
+  TokenUsage,
+  createEmptyTokenUsage,
+} from "./types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -52,6 +58,13 @@ export class QueryGenerationService {
         temperature: 0.7, // Allow some creativity in query generation
       });
 
+      // Capture token usage
+      const tokenUsage: TokenUsage = {
+        promptTokens: result.usage?.promptTokens || 0,
+        completionTokens: result.usage?.completionTokens || 0,
+        totalTokens: result.usage?.totalTokens || 0,
+      };
+
       // Convert to ResearchQuery format
       const queries = result.object.query.slice(0, maxQueries).map((query) => ({
         query,
@@ -61,12 +74,13 @@ export class QueryGenerationService {
       logger.info(
         `Generated ${queries.length} ${queryType} queries for topic "${researchTopic}": [${queries
           .map((q) => q.query)
-          .join(", ")}]`
+          .join(", ")}] (tokens: ${tokenUsage.totalTokens})`
       );
 
       return {
         queries,
         rationale: result.object.rationale,
+        tokenUsage,
       };
     } catch (error) {
       logger.error(

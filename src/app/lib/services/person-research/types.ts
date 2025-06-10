@@ -8,6 +8,26 @@ export interface PersonResearchInput {
 }
 
 /**
+ * Token usage information from AI API calls
+ */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+/**
+ * Aggregated token usage for different stages of research
+ */
+export interface ResearchTokenUsage {
+  queryGeneration: TokenUsage;
+  webSearchSummaries: TokenUsage;
+  reflection: TokenUsage;
+  answerSynthesis: TokenUsage;
+  total: TokenUsage;
+}
+
+/**
  * Result from person research service
  */
 export interface PersonResearchResult {
@@ -18,6 +38,7 @@ export interface PersonResearchResult {
   totalSources: number;
   researchTopic: string;
   timestamp: Date;
+  tokenUsage: ResearchTokenUsage;
 }
 
 /**
@@ -44,6 +65,7 @@ export interface QueryGenerationInput {
 export interface QueryGenerationResult {
   queries: ResearchQuery[];
   rationale: string;
+  tokenUsage: TokenUsage;
 }
 
 /**
@@ -103,6 +125,7 @@ export interface WebSearchResult {
   summary: string;
   sources: EnhancedSearchResult[];
   timestamp: Date;
+  tokenUsage: TokenUsage;
 }
 
 /**
@@ -113,6 +136,7 @@ export interface WebSearchBatchResult {
   totalQueries: number;
   totalSources: number;
   totalCrawledPages: number;
+  totalTokenUsage: TokenUsage;
 }
 
 /**
@@ -130,6 +154,7 @@ export interface ReflectionResult {
   isSufficient: boolean;
   knowledgeGap: string;
   followUpQueries: string[];
+  tokenUsage: TokenUsage;
 }
 
 /**
@@ -157,6 +182,7 @@ export interface Citation {
 export interface AnswerSynthesisResult {
   answer: string;
   citations: Citation[];
+  tokenUsage: TokenUsage;
 }
 
 /**
@@ -249,4 +275,39 @@ export interface GetPersonResearchInput {
   donorId: number;
   organizationId: string;
   version?: number; // If not provided, gets the live version
+}
+
+/**
+ * Helper function to create empty token usage
+ */
+export function createEmptyTokenUsage(): TokenUsage {
+  return {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+  };
+}
+
+/**
+ * Helper function to add token usage together
+ */
+export function addTokenUsage(usage1: TokenUsage, usage2: TokenUsage): TokenUsage {
+  return {
+    promptTokens: usage1.promptTokens + usage2.promptTokens,
+    completionTokens: usage1.completionTokens + usage2.completionTokens,
+    totalTokens: usage1.totalTokens + usage2.totalTokens,
+  };
+}
+
+/**
+ * Helper function to create empty research token usage
+ */
+export function createEmptyResearchTokenUsage(): ResearchTokenUsage {
+  return {
+    queryGeneration: createEmptyTokenUsage(),
+    webSearchSummaries: createEmptyTokenUsage(),
+    reflection: createEmptyTokenUsage(),
+    answerSynthesis: createEmptyTokenUsage(),
+    total: createEmptyTokenUsage(),
+  };
 }
