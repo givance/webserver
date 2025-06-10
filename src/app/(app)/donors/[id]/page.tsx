@@ -1,22 +1,23 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useDonors } from "@/app/hooks/use-donors";
-import { useDonations } from "@/app/hooks/use-donations";
 import { useCommunications } from "@/app/hooks/use-communications";
+import { useDonations } from "@/app/hooks/use-donations";
+import { useDonors } from "@/app/hooks/use-donors";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { formatCurrency } from "@/app/lib/utils/format";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Mail, Phone, Calendar, DollarSign, MessageSquare, Activity } from "lucide-react";
-import Link from "next/link";
-import { useState, useMemo } from "react";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { ColumnDef } from "@tanstack/react-table";
-import { formatCurrency } from "@/app/lib/utils/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ColumnDef } from "@tanstack/react-table";
+import { Activity, ArrowLeft, Calendar, DollarSign, Mail, MessageSquare, Phone, Search } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { DonorResearchDisplay } from "@/components/research/DonorResearchDisplay";
+import { useDonorResearchData } from "@/app/hooks/use-donor-research";
 
 type DonationRow = {
   id: number;
@@ -67,6 +68,9 @@ export default function DonorProfilePage() {
     includeLatestMessage: true,
     limit: 100, // Get all communications for now
   });
+
+  // Fetch donor research data
+  const { hasResearch, conductResearch, isConductingResearch } = useDonorResearchData(donorId);
 
   // Process donations data
   const { donations, totalDonated, donationCount } = useMemo(() => {
@@ -233,6 +237,10 @@ export default function DonorProfilePage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={conductResearch} disabled={isConductingResearch}>
+            <Search className="h-4 w-4 mr-2" />
+            {isConductingResearch ? "Researching..." : "Research"}
+          </Button>
           <Button variant="outline" asChild>
             <Link href={`/donors/email/${donorId}`}>
               <Mail className="h-4 w-4 mr-2" />
@@ -329,11 +337,12 @@ export default function DonorProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Donations and Communications Tabs */}
+      {/* Donations, Communications, and Research Tabs */}
       <Tabs defaultValue="donations" className="space-y-4">
         <TabsList>
           <TabsTrigger value="donations">Donations ({donationCount})</TabsTrigger>
           <TabsTrigger value="communications">Communications ({communicationCount})</TabsTrigger>
+          <TabsTrigger value="research">Research {hasResearch && <span className="ml-1 text-xs">✓</span>}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="donations">
@@ -392,6 +401,10 @@ export default function DonorProfilePage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="research">
+          <DonorResearchDisplay donorId={donorId} donorName={formatDonorName(donor)} />
         </TabsContent>
       </Tabs>
     </div>

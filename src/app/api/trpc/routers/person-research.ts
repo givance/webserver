@@ -3,16 +3,69 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { PersonResearchService } from "@/app/lib/services/person-research.service";
 import { logger } from "@/app/lib/logger";
+import { getDonorById } from "@/app/lib/data/donors";
+import { getOrganizationById } from "@/app/lib/data/organizations";
 
 const personResearchService = new PersonResearchService();
 
-// Input validation schema
+/**
+ * Helper function to generate research topic for a donor
+ */
+async function generateDonorResearchTopic(donorId: number, organizationId: string): Promise<string> {
+  // Get donor information
+  const donor = await getDonorById(donorId, organizationId);
+  if (!donor) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Donor not found in your organization",
+    });
+  }
+
+  // Get organization information
+  const organization = await getOrganizationById(organizationId);
+  if (!organization) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Organization not found",
+    });
+  }
+
+  // Build donor name
+  const donorName = `${donor.firstName} ${donor.lastName}`.trim();
+
+  // Build address info if available
+  const addressParts = [];
+  if (donor.address) addressParts.push(donor.address);
+  if (donor.state) addressParts.push(donor.state);
+  const addressInfo = addressParts.length > 0 ? ` living in ${addressParts.join(", ")}` : "";
+
+  // Get organization description (prefer short description, fall back to description)
+  const orgDescription = organization.shortDescription || organization.description || organization.name;
+
+  // Generate research topic
+  const researchTopic = `Why would ${donorName}${addressInfo} want to donate to a ${orgDescription}? What are their interests, values, or circumstances that would motivate them to support this cause?`;
+
+  logger.info(`Generated research topic for donor ${donorId}: "${researchTopic}"`);
+
+  return researchTopic;
+}
+
+// Input validation schemas
 const PersonResearchInputSchema = z.object({
   researchTopic: z
     .string()
     .min(3, "Research topic must be at least 3 characters")
     .max(500, "Research topic must not exceed 500 characters")
     .trim(),
+});
+
+const DonorResearchInputSchema = z.object({
+  donorId: z.number().positive("Donor ID must be a positive number"),
+});
+
+const GetDonorResearchInputSchema = z.object({
+  donorId: z.number().positive("Donor ID must be a positive number"),
+  version: z.number().positive().optional(),
 });
 
 export const personResearchRouter = router({
@@ -147,6 +200,261 @@ export const personResearchRouter = router({
         available: false,
         error: "Service temporarily unavailable",
       };
+    }
+  }),
+
+  /**
+   * Conducts comprehensive research on a specific donor
+   * Automatically generates research topic based on donor info and organization context
+   */
+  conductDonorResearch: protectedProcedure.input(DonorResearchInputSchema).mutation(async ({ ctx, input }) => {
+    const { donorId } = input;
+    const { user } = ctx.auth;
+
+    logger.info(
+      `[Donor Research API] Starting donor research - Donor ID: ${donorId}, User: ${user.id}, Organization: ${user.organizationId}`
+    );
+
+    try {
+      // Validate user has organization access
+      if (!user.organizationId) {
+        logger.warn(`[Donor Research API] User ${user.id} attempted research without organization`);
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Organization membership required for donor research",
+        });
+      }
+
+      // Generate research topic for the donor
+      const researchTopic = await generateDonorResearchTopic(donorId, user.organizationId);
+
+      logger.info(`[Donor Research API] Generated research topic for donor ${donorId}: "${researchTopic}"`);
+
+      // Conduct and save the research
+      const { result, dbRecord } = await personResearchService.conductAndSavePersonResearch(
+        {
+          researchTopic,
+          organizationId: user.organizationId,
+          userId: user.id,
+        },
+        donorId
+      );
+
+      // Log successful completion
+      logger.info(
+        `[Donor Research API] Donor research completed successfully - Donor: ${donorId}, Research ID: ${dbRecord.id}, Loops: ${result.totalLoops}, Sources: ${result.totalSources}, Citations: ${result.citations.length}`
+      );
+
+      return {
+        success: true,
+        data: {
+          researchId: dbRecord.id,
+          donorId: donorId,
+          answer: result.answer,
+          citations: result.citations,
+          metadata: {
+            researchTopic: result.researchTopic,
+            totalLoops: result.totalLoops,
+            totalSources: result.totalSources,
+            timestamp: result.timestamp,
+            summaryCount: result.summaries.length,
+            version: dbRecord.version,
+            isLive: dbRecord.isLive,
+          },
+        },
+      };
+    } catch (error) {
+      // Log the error with context
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorType = error instanceof Error ? error.constructor.name : typeof error;
+
+      logger.error(
+        `[Donor Research API] Donor research failed - Donor: ${donorId}, User: ${user.id}, Organization: ${user.organizationId}, Error: ${errorMessage}, Type: ${errorType}`
+      );
+
+      // Handle different types of errors
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Check for specific error types and provide appropriate messages
+      if (errorMessage.includes("Google Search API")) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Search service temporarily unavailable. Please try again later.",
+        });
+      }
+
+      if (errorMessage.includes("Query generation failed")) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate search queries. Please try rephrasing your research topic.",
+        });
+      }
+
+      // Generic error for any other failures
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Donor research request failed. Please try again or contact support if the issue persists.",
+      });
+    }
+  }),
+
+  /**
+   * Retrieves research results for a specific donor
+   */
+  getDonorResearch: protectedProcedure.input(GetDonorResearchInputSchema).query(async ({ ctx, input }) => {
+    const { donorId, version } = input;
+    const { user } = ctx.auth;
+
+    logger.info(
+      `[Donor Research API] Retrieving donor research - Donor ID: ${donorId}, Version: ${version || "live"}, User: ${
+        user.id
+      }, Organization: ${user.organizationId}`
+    );
+
+    try {
+      // Validate user has organization access
+      if (!user.organizationId) {
+        logger.warn(`[Donor Research API] User ${user.id} attempted to retrieve research without organization`);
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Organization membership required for donor research",
+        });
+      }
+
+      // Verify donor belongs to organization
+      const donor = await getDonorById(donorId, user.organizationId);
+      if (!donor) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Donor not found in your organization",
+        });
+      }
+
+      // Get research result
+      const result = await personResearchService.getPersonResearch(donorId, user.organizationId, version);
+
+      if (!result) {
+        logger.info(
+          `[Donor Research API] No research found for donor ${donorId}${
+            version ? ` version ${version}` : " (live version)"
+          }`
+        );
+        return null;
+      }
+
+      logger.info(
+        `[Donor Research API] Successfully retrieved donor research - Donor: ${donorId}, Citations: ${result.citations.length}, Answer Length: ${result.answer.length} chars`
+      );
+
+      return {
+        answer: result.answer,
+        citations: result.citations,
+        metadata: {
+          researchTopic: result.researchTopic,
+          totalLoops: result.totalLoops,
+          totalSources: result.totalSources,
+          timestamp: result.timestamp,
+          summaryCount: result.summaries.length,
+        },
+      };
+    } catch (error) {
+      // Log the error with context
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorType = error instanceof Error ? error.constructor.name : typeof error;
+
+      logger.error(
+        `[Donor Research API] Failed to retrieve donor research - Donor: ${donorId}, User: ${user.id}, Organization: ${user.organizationId}, Error: ${errorMessage}, Type: ${errorType}`
+      );
+
+      // Handle different types of errors
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Generic error for any other failures
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to retrieve donor research. Please try again or contact support if the issue persists.",
+      });
+    }
+  }),
+
+  /**
+   * Gets all research versions for a specific donor
+   */
+  getAllDonorResearchVersions: protectedProcedure.input(DonorResearchInputSchema).query(async ({ ctx, input }) => {
+    const { donorId } = input;
+    const { user } = ctx.auth;
+
+    logger.info(
+      `[Donor Research API] Retrieving all donor research versions - Donor ID: ${donorId}, User: ${user.id}, Organization: ${user.organizationId}`
+    );
+
+    try {
+      // Validate user has organization access
+      if (!user.organizationId) {
+        logger.warn(
+          `[Donor Research API] User ${user.id} attempted to retrieve research versions without organization`
+        );
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Organization membership required for donor research",
+        });
+      }
+
+      // Verify donor belongs to organization
+      const donor = await getDonorById(donorId, user.organizationId);
+      if (!donor) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Donor not found in your organization",
+        });
+      }
+
+      // Get all research versions
+      const versions = await personResearchService.getAllPersonResearchVersions(donorId, user.organizationId);
+
+      logger.info(
+        `[Donor Research API] Successfully retrieved ${versions.length} research versions for donor ${donorId}`
+      );
+
+      return versions.map((version) => ({
+        id: version.id,
+        version: version.version,
+        isLive: version.isLive,
+        researchTopic: version.researchTopic,
+        createdAt: version.createdAt,
+        updatedAt: version.updatedAt,
+        metadata: {
+          totalLoops: version.researchData.totalLoops,
+          totalSources: version.researchData.totalSources,
+          timestamp: version.researchData.timestamp,
+          citationCount: version.researchData.citations.length,
+          answerLength: version.researchData.answer.length,
+        },
+      }));
+    } catch (error) {
+      // Log the error with context
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorType = error instanceof Error ? error.constructor.name : typeof error;
+
+      logger.error(
+        `[Donor Research API] Failed to retrieve donor research versions - Donor: ${donorId}, User: ${user.id}, Organization: ${user.organizationId}, Error: ${errorMessage}, Type: ${errorType}`
+      );
+
+      // Handle different types of errors
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Generic error for any other failures
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "Failed to retrieve donor research versions. Please try again or contact support if the issue persists.",
+      });
     }
   }),
 });
