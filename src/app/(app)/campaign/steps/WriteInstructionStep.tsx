@@ -252,6 +252,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             organizationWritingInstructions: organization.writingInstructions ?? undefined,
             previousInstruction,
             currentDate, // Pass the current date
+            chatHistory: chatMessages, // Pass the full chat history to the refinement agent
           });
 
           if (result) {

@@ -28,6 +28,10 @@ export interface GenerateEmailsInput {
   organizationWritingInstructions?: string;
   previousInstruction?: string;
   currentDate?: string;
+  chatHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
 }
 
 /**
@@ -42,7 +46,7 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
+    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory } = input;
     const currentDate = new Date().toDateString();
 
     // Process project mentions in the instruction
@@ -170,7 +174,8 @@ export class EmailGenerationService {
       organizationMemories,
       currentDate,
       user?.emailSignature || undefined,
-      previousInstruction // Pass the previous instruction to enable stateful refinement
+      previousInstruction, // Pass the previous instruction to enable stateful refinement
+      chatHistory // Pass the chat history to the refinement agent
     );
 
     // Get primary staff for fallback

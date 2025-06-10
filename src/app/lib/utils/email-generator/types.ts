@@ -127,6 +127,10 @@ export interface InstructionRefinementInput {
   userMemories: string[];
   organizationMemories: string[];
   dismissedMemories: string[];
+  chatHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
 }
 
 export interface InstructionRefinementResult {

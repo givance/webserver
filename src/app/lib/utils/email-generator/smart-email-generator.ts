@@ -48,7 +48,8 @@ export async function generateSmartDonorEmails(
   organizationMemories: string[] = [],
   currentDate?: string,
   emailSignature?: string,
-  previousInstruction?: string
+  previousInstruction?: string,
+  chatHistory?: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -71,7 +72,7 @@ export async function generateSmartDonorEmails(
       donors.length
     } donors with instruction: "${userInstruction}" (previousInstruction: ${
       previousInstruction ? `"${previousInstruction}"` : "none"
-    })`
+    }, chatHistoryLength: ${chatHistory?.length || 0})`
   );
 
   // Initialize token usage tracking
@@ -92,6 +93,7 @@ export async function generateSmartDonorEmails(
     userMemories,
     organizationMemories,
     dismissedMemories: [], // Empty array for dismissed memories since they're not needed here
+    chatHistory,
   });
 
   // Accumulate instruction refinement tokens

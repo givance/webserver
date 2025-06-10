@@ -18,6 +18,14 @@ const generateEmailsSchema = z.object({
   organizationWritingInstructions: z.string().optional(),
   previousInstruction: z.string().optional(),
   currentDate: z.string().optional(),
+  chatHistory: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      })
+    )
+    .optional(),
 });
 
 const createSessionSchema = z.object({

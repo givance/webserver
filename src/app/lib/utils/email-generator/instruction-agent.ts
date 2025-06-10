@@ -31,12 +31,13 @@ export class InstructionRefinementAgent {
    * @returns Refined instruction, reasoning, and suggested new memories
    */
   async refineInstruction(input: InstructionRefinementInput): Promise<InstructionRefinementResult> {
-    const { userInstruction, previousInstruction, userFeedback, organizationWritingInstructions } = input;
+    const { userInstruction, previousInstruction, userFeedback, organizationWritingInstructions, chatHistory } = input;
 
     logger.info("Starting instruction refinement with:", {
       userInstruction,
       previousInstruction: previousInstruction || "none",
       userFeedback: userFeedback || "none",
+      chatHistoryLength: chatHistory?.length || 0,
       modelName: env.AZURE_OPENAI_DEPLOYMENT_NAME,
     });
 
@@ -54,6 +55,17 @@ Your refined instruction should be a combination of both the previous and curren
 ${userFeedback ? `User feedback on previous result: "${userFeedback}"` : ""}
 
 ${organizationWritingInstructions ? `Organization writing instructions: "${organizationWritingInstructions}"` : ""}
+
+${
+  chatHistory && chatHistory.length > 0
+    ? `Full conversation history:
+${chatHistory
+  .map((msg, index) => `${index + 1}. ${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
+  .join("\n")}
+
+IMPORTANT: Consider the ENTIRE conversation history above when refining the instruction. The user's latest message might reference earlier parts of the conversation, clarify previous requests, or build upon earlier instructions. Make sure to incorporate context from the full conversation, not just the most recent message.`
+    : ""
+}
 
 Current user instruction: "${userInstruction}"
 
