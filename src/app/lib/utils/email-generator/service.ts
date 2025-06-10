@@ -4,20 +4,20 @@ import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { DonationWithDetails } from "../../data/donations";
+import { formatDonorName } from "../donor-name-formatter";
 import { buildStructuredEmailPrompt } from "./prompt-builder-structured";
 import {
   DonorInfo,
+  DonorStatistics,
   EmailGeneratorTool,
-  EmailPiece,
   GenerateEmailOptions,
   GeneratedEmail,
   Organization,
   RawCommunicationThread,
-  DonorStatistics,
   TokenUsage,
   createEmptyTokenUsage,
 } from "./types";
-import { formatDonorName } from "../donor-name-formatter";
+import md5 from "md5";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -128,7 +128,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personalMemories,
       organizationalMemories,
       currentDate,
-      emailSignature,
     } = options;
 
     logger.info(
@@ -206,8 +205,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       donorStatistics,
       personalMemories,
       organizationalMemories,
-      currentDate,
-      emailSignature
+      currentDate
     );
 
     // Combine the system prompt and donor context for the AI call
@@ -274,6 +272,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
           });
 
           validatedResponse = result.object;
+
+          const openaiMetadata = result.providerMetadata?.openai;
+          console.log(openaiMetadata);
 
           // Extract token usage information
           const tokenUsage: TokenUsage = {

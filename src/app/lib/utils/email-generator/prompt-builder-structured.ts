@@ -8,86 +8,29 @@ import { DonationWithDetails } from "../../data/donations";
 import { formatDonorName } from "../donor-name-formatter";
 
 /**
- * Cache for system prompt to avoid regenerating static content
- */
-let structuredSystemPromptCache: string | null = null;
-let structuredSystemPromptCacheKey: string | null = null;
-
-/**
- * Creates a cache key for the system prompt based on static parameters
- */
-function createStructuredSystemPromptCacheKey(
-  instruction: string,
-  organizationName: string,
-  organization: Organization | null,
-  organizationWritingInstructions?: string,
-  personalMemories: string[] = [],
-  organizationalMemories: string[] = [],
-  currentDate?: string,
-  emailSignature?: string
-): string {
-  const websiteSummary = organization?.websiteSummary || "";
-  const orgDescription = organization?.description || "";
-  return JSON.stringify({
-    instruction,
-    organizationName,
-    orgDescription,
-    organizationWritingInstructions: organizationWritingInstructions || "",
-    websiteSummary,
-    personalMemories,
-    organizationalMemories,
-    currentDate: currentDate || "",
-    emailSignature: emailSignature || "",
-  });
-}
-
-/**
  * Builds the static system prompt that can be cached and reused.
  * This includes all the formatting instructions, organization info, memories, and user instruction.
  */
 export function buildStructuredSystemPrompt(
-  instruction: string,
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
-  currentDate?: string,
-  emailSignature?: string
+  currentDate?: string
 ): string {
-  const cacheKey = createStructuredSystemPromptCacheKey(
-    instruction,
-    organizationName,
-    organization,
-    organizationWritingInstructions,
-    personalMemories,
-    organizationalMemories,
-    currentDate,
-    emailSignature
-  );
-
-  if (structuredSystemPromptCache && structuredSystemPromptCacheKey === cacheKey) {
-    return structuredSystemPromptCache;
-  }
-
   const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
 
   // Format current date if provided
   const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
 
-  // Note: Email signatures are handled automatically by the system, so AI should not generate them
-  const signatureContext = "";
-  const signatureRequirement = "";
-
   const systemPrompt = `You are an expert in donor communications writing personalized emails.
 
 CONTEXT:
 Organization: ${organizationName}
-${
-  organization?.description ? `Organization Description: ${organization.description}\n` : ""
-}${dateContext}${signatureContext}${
-    organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""
-  }
+${organization?.description ? `Organization Description: ${organization.description}\n` : ""}
+${dateContext}
+${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
 
 ${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
 ${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}
@@ -114,12 +57,8 @@ IMPORTANT INSTRUCTIONS:
 - Try to be as specific as possible, avoid general statements.
 
 If the requirements or the important instructions conflicts with the task below, follow the task instruction.
- 
-TASK: ${instruction}
 `;
 
-  structuredSystemPromptCache = systemPrompt;
-  structuredSystemPromptCacheKey = cacheKey;
   return systemPrompt;
 }
 
@@ -127,6 +66,7 @@ TASK: ${instruction}
  * Builds the dynamic donor-specific context that changes for each email.
  */
 export function buildStructuredDonorContext(
+  instruction: string,
   donor: DonorInfo,
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
@@ -178,7 +118,9 @@ export function buildStructuredDonorContext(
     }
   }
 
-  return `Donor: ${formatDonorName(donor)} (${donor.email})
+  return `TASK: ${instruction}
+
+Donor: ${formatDonorName(donor)} (${donor.email})
 ${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statisticsPrompt}
 
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
@@ -202,24 +144,22 @@ export function buildStructuredEmailPrompt(
   donorStatistics?: DonorStatistics,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
-  currentDate?: string,
-  emailSignature?: string
+  currentDate?: string
 ): {
   systemPrompt: string;
   donorContext: string;
 } {
   const systemPrompt = buildStructuredSystemPrompt(
-    instruction,
     organizationName,
     organization,
     organizationWritingInstructions,
     personalMemories,
     organizationalMemories,
-    currentDate,
-    emailSignature
+    currentDate
   );
 
   const donorContext = buildStructuredDonorContext(
+    instruction,
     donor,
     communicationHistoryInput,
     donationHistoryInput,
@@ -230,12 +170,4 @@ export function buildStructuredEmailPrompt(
     systemPrompt,
     donorContext,
   };
-}
-
-/**
- * Utility function to clear the structured system prompt cache if needed (for testing or updates).
- */
-export function clearStructuredSystemPromptCache(): void {
-  structuredSystemPromptCache = null;
-  structuredSystemPromptCacheKey = null;
 }

@@ -42,7 +42,8 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction, currentDate } = input;
+    const { instruction, donors, organizationWritingInstructions, previousInstruction } = input;
+    const currentDate = new Date().toDateString();
 
     // Process project mentions in the instruction
     const processedInstruction = await processProjectMentions(instruction, organizationId);
