@@ -213,8 +213,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     // Combine the system prompt and donor context for the AI call
     const prompt = `${promptParts.systemPrompt}\n\n${promptParts.donorContext}`;
 
-    console.log(prompt);
-
     logger.info(
       `Built email prompt for donor ${donor.id}: systemPromptLength=${
         promptParts.systemPrompt.length
@@ -265,7 +263,10 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
           const result = await generateObject({
             model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
-            prompt,
+            messages: [
+              { role: "system", content: promptParts.systemPrompt },
+              { role: "user", content: promptParts.donorContext },
+            ],
             schema: emailSchema,
             schemaName: "EmailResponse",
             schemaDescription: "A personalized donor email with subject and structured content pieces",
