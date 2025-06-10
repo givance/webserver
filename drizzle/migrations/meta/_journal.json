@@ -260,6 +260,13 @@
       "when": 1749520758263,
       "tag": "0036_new_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1749521125369,
+      "tag": "0037_glorious_spectrum",
+      "breakpoints": true
     }
   ]
 }

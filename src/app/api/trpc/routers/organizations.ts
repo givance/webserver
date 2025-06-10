@@ -10,6 +10,7 @@ const updateOrganizationSchema = z.object({
   websiteUrl: z.string().url().nullable().optional(),
   websiteSummary: z.string().optional(),
   description: z.string().optional(),
+  shortDescription: z.string().optional(),
   writingInstructions: z.string().optional(),
   memory: z.array(z.string()).optional(),
 });
@@ -64,6 +65,14 @@ export const organizationsRouter = router({
   updateCurrent: protectedProcedure.input(updateOrganizationSchema).mutation(async ({ input, ctx }) => {
     const organizationsService = new OrganizationsService();
     return await organizationsService.updateOrganizationWithWebsiteCrawl(ctx.auth.user.organizationId, input);
+  }),
+
+  /**
+   * Generate a short description for the organization using AI
+   */
+  generateShortDescription: protectedProcedure.mutation(async ({ ctx }) => {
+    const organizationsService = new OrganizationsService();
+    return await organizationsService.generateShortDescription(ctx.auth.user.organizationId);
   }),
 
   /**

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/app/hooks/use-organization";
 import toast from "react-hot-toast";
-import { Loader2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Pencil, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
 
@@ -16,15 +16,17 @@ type FormData = {
   websiteUrl?: string;
   websiteSummary?: string;
   description?: string;
+  shortDescription?: string;
   writingInstructions?: string;
 };
 
 export function OrganizationSettings() {
-  const { getOrganization, updateOrganization, isUpdating } = useOrganization();
+  const { getOrganization, updateOrganization, isUpdating, generateShortDescription } = useOrganization();
   const { data: organization, isLoading, error } = getOrganization();
   const [formData, setFormData] = useState<FormData>({});
   const [isSummaryEditing, setIsSummaryEditing] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [isGeneratingShortDescription, setIsGeneratingShortDescription] = useState(false);
 
   // Update form data when organization data is loaded
   useEffect(() => {
@@ -33,6 +35,7 @@ export function OrganizationSettings() {
         websiteUrl: organization.websiteUrl || "",
         websiteSummary: organization.websiteSummary || "",
         description: organization.description || "",
+        shortDescription: organization.shortDescription || "",
         writingInstructions: organization.writingInstructions || "",
       });
     }
@@ -71,6 +74,18 @@ export function OrganizationSettings() {
       toast.success("Your organization settings have been updated successfully.");
     } else {
       toast.error("Failed to update organization settings. Please try again.");
+    }
+  };
+
+  const handleGenerateShortDescription = async () => {
+    setIsGeneratingShortDescription(true);
+    try {
+      const generatedDescription = await generateShortDescription();
+      setFormData((prev) => ({ ...prev, shortDescription: generatedDescription }));
+    } catch (error) {
+      // Error is already handled in the hook
+    } finally {
+      setIsGeneratingShortDescription(false);
     }
   };
 
@@ -182,6 +197,42 @@ export function OrganizationSettings() {
                   placeholder="Describe your organization"
                   rows={4}
                 />
+              </div>
+
+              <div className="grid gap-2">
+                <label htmlFor="shortDescription">Short Description</label>
+                <Textarea
+                  id="shortDescription"
+                  name="shortDescription"
+                  value={formData.shortDescription || ""}
+                  onChange={handleChange}
+                  placeholder="A brief description of your organization"
+                  rows={2}
+                />
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    One paragraph description suitable for marketing materials and donor communications
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateShortDescription}
+                    disabled={isGeneratingShortDescription || isUpdating}
+                    type="button"
+                  >
+                    {isGeneratingShortDescription ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-2">

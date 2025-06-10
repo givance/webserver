@@ -22,6 +22,7 @@ export interface UpdateOrganizationInput {
   websiteUrl?: string | null;
   websiteSummary?: string;
   description?: string;
+  shortDescription?: string;
   writingInstructions?: string;
   memory?: string[];
 }
@@ -307,6 +308,85 @@ export class OrganizationsService {
       },
       { organizationId, operation: "processAndUpdateDonorJourney" },
       "Failed to process donor journey"
+    );
+  }
+
+  /**
+   * Generates a short description for the organization using AI
+   * @param organizationId - The organization ID
+   * @returns The generated short description
+   */
+  async generateShortDescription(organizationId: string): Promise<string> {
+    return await wrapDatabaseOperation(
+      async () => {
+        const organization = await getOrganizationById(organizationId);
+        if (!organization) {
+          throw ErrorHandler.handleNotFoundError("Organization", organizationId, {
+            organizationId,
+            operation: "generateShortDescription",
+          });
+        }
+
+        const { env } = await import("@/app/lib/env");
+        const { createAzure } = await import("@ai-sdk/azure");
+        const { generateText } = await import("ai");
+
+        const azure = createAzure({
+          resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+          apiKey: env.AZURE_OPENAI_API_KEY,
+        });
+
+        const systemPrompt = `You are a professional copywriter specialized in creating compelling, concise organization descriptions.
+Your task is to create a short, engaging paragraph (2-4 sentences, maximum 150 words) that captures the essence of the organization.
+
+Guidelines:
+- Focus on the organization's mission, impact, and value proposition
+- Use clear, accessible language that resonates with potential donors
+- Highlight what makes the organization unique or compelling
+- Avoid jargon and overly technical language
+- Make it suitable for use in marketing materials, websites, and donor communications`;
+
+        const contextParts: string[] = [];
+
+        if (organization.description) {
+          contextParts.push(`Organization Description: ${organization.description}`);
+        }
+
+        if (organization.websiteSummary) {
+          contextParts.push(`Website Summary: ${organization.websiteSummary}`);
+        }
+
+        if (organization.name) {
+          contextParts.push(`Organization Name: ${organization.name}`);
+        }
+
+        if (contextParts.length === 0) {
+          throw ErrorHandler.createError(
+            "BAD_REQUEST",
+            "Cannot generate short description: no organization metadata available (description, website summary, or name)",
+            { organizationId, operation: "generateShortDescription" }
+          );
+        }
+
+        const prompt = `Based on the following organization information, create a compelling short description:
+
+${contextParts.join("\n\n")}
+
+Generate a short, engaging description that would work well for marketing materials and donor communications.`;
+
+        const { text } = await generateText({
+          model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+          prompt,
+          system: systemPrompt,
+          maxTokens: 200,
+          temperature: 0.7,
+        });
+
+        logger.info(`Generated short description for organization ${organizationId}: "${text}"`);
+        return text.trim();
+      },
+      { organizationId, operation: "generateShortDescription" },
+      "Failed to generate short description"
     );
   }
 }

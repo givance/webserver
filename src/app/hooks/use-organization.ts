@@ -16,6 +16,7 @@ export type UpdateOrganizationInput = {
   websiteUrl?: string;
   websiteSummary?: string;
   description?: string;
+  shortDescription?: string;
   writingInstructions?: string;
   memory?: string[];
 };
@@ -84,6 +85,12 @@ export function useOrganization() {
     onSuccess: () => {
       utils.organizations.getDonorJourney.invalidate();
       utils.organizations.getDonorJourneyText.invalidate();
+    },
+  });
+
+  const generateShortDescriptionMutation = trpc.organizations.generateShortDescription.useMutation({
+    onSuccess: () => {
+      utils.organizations.getCurrent.invalidate();
     },
   });
 
@@ -261,6 +268,18 @@ export function useOrganization() {
     [processDonorJourneyMutation]
   );
 
+  const generateShortDescription = useCallback(async () => {
+    try {
+      const result = await generateShortDescriptionMutation.mutateAsync();
+      toast.success("Short description generated successfully");
+      return result;
+    } catch (error) {
+      console.error("Failed to generate short description:", error);
+      toast.error("Failed to generate short description. Please try again.");
+      throw error;
+    }
+  }, [generateShortDescriptionMutation]);
+
   return {
     // Query functions
     getOrganization,
@@ -284,13 +303,17 @@ export function useOrganization() {
     updateMemoryItem,
     deleteMemoryItem,
 
+    // AI operations
+    generateShortDescription,
+
     // Loading states
     isUpdating:
       updateMutation.isPending ||
       moveFromUserMutation.isPending ||
       updateDonorJourneyMutation.isPending ||
       updateDonorJourneyTextMutation.isPending ||
-      processDonorJourneyMutation.isPending,
+      processDonorJourneyMutation.isPending ||
+      generateShortDescriptionMutation.isPending,
 
     // Mutation results
     updateResult: updateMutation.data,
