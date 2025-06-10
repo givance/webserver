@@ -99,21 +99,21 @@ TASK: ${instruction}
 REQUIREMENTS:
 - Write a reengagement email for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
 - Subject line: Personal, emotional, under 50 characters
-- Email structure: Opening acknowledgment → Emotional impact → Time anchor → Clear ask → Call to action → Signature
 - Tone: Warm, personal, confident
 - Length: 120-150 words
-- Reference specific donation amounts and dates from the history when available
+- If needed, reference specific donation amounts and dates from the history when available
 - Use the current date context for time-sensitive references and seasonal messaging
 - DO NOT include any signature or closing in the email - this will be automatically added by the system
 - When talking about the donor's impact, you should use their past donation history to reference the impact they've had.
 
 IMPORTANT INSTRUCTIONS:
-1. For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
-2. For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
-3. For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
-4. DO NOT use "-", "--" or "—" in the email ever.
-5. DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
-6. PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
+- For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
+- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
+- For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
+- DO NOT use "-", "--" or "—" in the email ever.
+- DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
+- PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
+- Try to be as specific as possible, avoid general statements.
 
 If the requirements or the important instructions conflicts with the task, prioritize the task.
 
