@@ -32,6 +32,7 @@ import { logger } from "../../logger";
  * @param organizationMemories - Organization-wide memories
  * @param currentDate - Current date for time-sensitive content
  * @param emailSignature - Optional email signature
+ * @param previousInstruction - Previous refined instruction to build upon
  * @returns Object containing refined instruction, reasoning, and generated emails
  */
 export async function generateSmartDonorEmails(
@@ -46,7 +47,8 @@ export async function generateSmartDonorEmails(
   userMemories: string[] = [],
   organizationMemories: string[] = [],
   currentDate?: string,
-  emailSignature?: string
+  emailSignature?: string,
+  previousInstruction?: string
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -65,7 +67,11 @@ export async function generateSmartDonorEmails(
   tokenUsage: EmailGenerationTokenUsage;
 }> {
   logger.info(
-    `Starting smart donor email generation for ${donors.length} donors with instruction: "${userInstruction}"`
+    `Starting smart donor email generation for ${
+      donors.length
+    } donors with instruction: "${userInstruction}" (previousInstruction: ${
+      previousInstruction ? `"${previousInstruction}"` : "none"
+    })`
   );
 
   // Initialize token usage tracking
@@ -81,6 +87,7 @@ export async function generateSmartDonorEmails(
   logger.info("Starting instruction refinement stage");
   const refinementResult = await instructionAgent.refineInstruction({
     userInstruction,
+    previousInstruction,
     organizationWritingInstructions,
     userMemories,
     organizationMemories,

@@ -168,7 +168,8 @@ export class EmailGenerationService {
       userMemories,
       organizationMemories,
       currentDate,
-      user?.emailSignature || undefined
+      user?.emailSignature || undefined,
+      previousInstruction // Pass the previous instruction to enable stateful refinement
     );
 
     // Get primary staff for fallback
