@@ -94,8 +94,6 @@ ${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalM
 
 ${websiteSummaryPrompt ? `Organization Summary:\n${websiteSummaryPrompt}\n` : ""}
 
-TASK: ${instruction}
-
 REQUIREMENTS:
 - Write a reengagement email for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
 - Subject line: Personal, emotional, under 50 characters
@@ -115,9 +113,10 @@ IMPORTANT INSTRUCTIONS:
 - PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 - Try to be as specific as possible, avoid general statements.
 
-If the requirements or the important instructions conflicts with the task, prioritize the task.
-
-Generate a compelling, personalized email that will re-engage this donor.`;
+If the requirements or the important instructions conflicts with the task below, follow the task instruction.
+ 
+TASK: ${instruction}
+`;
 
   structuredSystemPromptCache = systemPrompt;
   structuredSystemPromptCacheKey = cacheKey;
