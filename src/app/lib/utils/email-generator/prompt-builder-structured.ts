@@ -55,6 +55,7 @@ IMPORTANT INSTRUCTIONS:
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
 - PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 - Try to be as specific as possible, avoid general statements.
+- Do not mention small amount donations unless the user has specifically asked for it. Do not say "small" or "small amount" in the email.
 
 If the requirements or the important instructions conflicts with the task below, follow the task instruction.
 `;
