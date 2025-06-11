@@ -284,52 +284,149 @@ export class AgenticEmailGenerationService {
   }
 
   /**
-   * Builds a minimal context for the agentic flow (simplified version)
+   * Builds a complete context for the agentic flow (with real data like generateBulkEmails.ts)
    */
   private async buildMinimalContext(
     input: AgenticEmailGenerationInput,
     organizationId: string,
     userId: string
   ): Promise<AgenticFlowContext> {
-    logger.info(`Building minimal agentic context for ${input.donors.length} donors`);
+    logger.info(`Building complete agentic context for ${input.donors.length} donors`);
 
     // Load best practices from file
     const bestPractices = await this.loadBestPractices();
 
-    // Create minimal donor info
-    const donorInfos = input.donors.map((donor) => ({
+    // Get organization data
+    const { db } = await import("@/app/lib/db");
+    const { organizations } = await import("@/app/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+
+    // Get full donor data from database
+    const { donors } = await import("@/app/lib/db/schema");
+    const donorIds = input.donors.map((d) => d.id);
+    const { inArray, and } = await import("drizzle-orm");
+
+    const fullDonorData = await db.query.donors.findMany({
+      where: and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)),
+    });
+
+    // Convert to DonorInfo format including notes
+    const donorInfos = fullDonorData.map((donor) => ({
       id: donor.id,
       email: donor.email,
+      notes: donor.notes,
+      displayName: donor.displayName,
+      hisTitle: donor.hisTitle,
+      hisFirstName: donor.hisFirstName,
+      hisInitial: donor.hisInitial,
+      hisLastName: donor.hisLastName,
+      herTitle: donor.herTitle,
+      herFirstName: donor.herFirstName,
+      herInitial: donor.herInitial,
+      herLastName: donor.herLastName,
+      isCouple: donor.isCouple,
       firstName: donor.firstName,
       lastName: donor.lastName,
-      notes: null,
-      displayName: null,
-      hisTitle: null,
-      hisFirstName: null,
-      hisInitial: null,
-      hisLastName: null,
-      herTitle: null,
-      herFirstName: null,
-      herInitial: null,
-      herLastName: null,
-      isCouple: null,
     }));
+
+    // Fetch donor histories (same as generateBulkEmails.ts)
+    const { getDonorCommunicationHistory } = await import("@/app/lib/data/communications");
+    const { listDonations } = await import("@/app/lib/data/donations");
+
+    logger.info(`Fetching communication and donation histories for ${donorInfos.length} donors`);
+
+    const donorHistoriesPromises = donorInfos.map(async (donor) => {
+      const [communicationHistory, donationHistory] = await Promise.all([
+        getDonorCommunicationHistory(donor.id, { organizationId }),
+        listDonations({
+          donorId: donor.id,
+          limit: 50,
+          orderBy: "date",
+          orderDirection: "desc",
+          includeProject: true,
+        }),
+      ]);
+
+      return {
+        donor,
+        communicationHistory: communicationHistory.map((thread) => ({
+          content: thread.content?.map((message) => ({ content: message.content })) || [],
+        })),
+        donationHistory: donationHistory.donations,
+      };
+    });
+
+    const donorHistories = await Promise.all(donorHistoriesPromises);
+
+    // Get organization and user memories
+    const { getOrganizationMemories } = await import("@/app/lib/data/organizations");
+    const { getUserMemories } = await import("@/app/lib/data/users");
+
+    const [organizationMemories, userMemories] = await Promise.all([
+      getOrganizationMemories(organizationId),
+      getUserMemories(userId),
+    ]);
+
+    // Fetch person research results for donors (same as generateBulkEmails.ts)
+    logger.info(`Fetching person research results for ${donorIds.length} donors`);
+    const { PersonResearchService } = await import("@/app/lib/services/person-research.service");
+    const personResearchService = new PersonResearchService();
+    const personResearchResults: Record<number, any> = {};
+
+    await Promise.all(
+      donorIds.map(async (donorId) => {
+        try {
+          const research = await personResearchService.getPersonResearch(donorId, organizationId);
+          if (research) {
+            personResearchResults[donorId] = research;
+            logger.info(`Found person research for donor ${donorId}: "${research.researchTopic}"`);
+          }
+        } catch (error) {
+          logger.warn(
+            `Failed to fetch person research for donor ${donorId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      })
+    );
+
+    // Convert donor histories to the required format
+    const donationHistoriesMap: Record<number, any[]> = {};
+    donorHistories.forEach(({ donor, donationHistory }) => {
+      donationHistoriesMap[donor.id] = donationHistory;
+    });
+
+    // Convert organization to the email generator format
+    const emailGeneratorOrg = organization
+      ? {
+          ...organization,
+          rawWebsiteSummary: organization.websiteSummary,
+        }
+      : null;
 
     const context: AgenticFlowContext = {
       userInstruction: input.instruction,
       donors: donorInfos,
       organizationName: input.organizationName,
-      organization: null, // Simplified for now
+      organization: emailGeneratorOrg,
       organizationWritingInstructions: input.organizationWritingInstructions,
-      donationHistories: {}, // Empty for now
-      personResearchResults: {}, // Empty for now
+      donationHistories: donationHistoriesMap,
+      personResearchResults,
       bestPractices,
-      userMemories: [], // Empty for now
-      organizationMemories: [], // Empty for now
+      userMemories,
+      organizationMemories,
       currentDate: input.currentDate,
     };
 
-    logger.info(`Minimal agentic context built successfully`);
+    logger.info(`Complete agentic context built successfully`);
+    logger.info(`- Donors: ${donorInfos.length}`);
+    logger.info(`- Donation histories: ${Object.keys(donationHistoriesMap).length}`);
+    logger.info(`- Person research results: ${Object.keys(personResearchResults).length}`);
+    logger.info(`- User memories: ${userMemories.length}`);
+    logger.info(`- Organization memories: ${organizationMemories.length}`);
 
     return context;
   }
