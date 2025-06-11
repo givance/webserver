@@ -10,6 +10,8 @@ import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/da
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
 import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { PersonResearchService } from "./person-research.service";
+import { PersonResearchResult } from "./person-research/types";
 
 /**
  * Input types for email generation
@@ -140,6 +142,29 @@ export class EmailGenerationService {
     logger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
     const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
 
+    // Fetch person research results for donors
+    logger.info(`Fetching person research results for ${donorIds.length} donors`);
+    const personResearchService = new PersonResearchService();
+    const personResearchResults: Record<number, PersonResearchResult> = {};
+
+    await Promise.all(
+      donorIds.map(async (donorId) => {
+        try {
+          const research = await personResearchService.getPersonResearch(donorId, organizationId);
+          if (research) {
+            personResearchResults[donorId] = research;
+            logger.info(`Found person research for donor ${donorId}: "${research.researchTopic}"`);
+          }
+        } catch (error) {
+          logger.warn(
+            `Failed to fetch person research for donor ${donorId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      })
+    );
+
     // Get organizational and user memories
     const [organizationMemories, userMemories, user] = await Promise.all([
       getOrganizationMemories(organizationId),
@@ -170,6 +195,7 @@ export class EmailGenerationService {
       communicationHistories,
       donationHistoriesMap,
       donorStatistics, // Pass donor statistics
+      personResearchResults, // Pass person research results
       userMemories,
       organizationMemories,
       currentDate,

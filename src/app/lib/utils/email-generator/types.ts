@@ -1,6 +1,7 @@
 import { CommunicationHistory as RawCommunicationHistory } from "@/app/lib/data/communications";
 import { DonationWithDetails } from "../../data/donations";
 import { DonorNameFields } from "../donor-name-formatter";
+import { PersonResearchResult } from "../../services/person-research/types";
 
 /**
  * Token usage information from AI API calls
@@ -79,6 +80,7 @@ export interface GenerateEmailOptions {
   communicationHistory: RawCommunicationHistory[]; // Will be processed
   donationHistory?: DonationWithDetails[]; // Will be processed
   donorStatistics?: DonorStatistics; // Comprehensive donor statistics
+  personResearch?: PersonResearchResult; // Person research results for personalization
   personalMemories?: string[];
   organizationalMemories?: string[];
   currentDate?: string; // Added for today's date
@@ -150,6 +152,7 @@ export interface EmailGeneratorTool {
     communicationHistories?: Record<number, RawCommunicationThread[]>,
     donationHistories?: Record<number, DonationWithDetails[]>,
     donorStatistics?: Record<number, DonorStatistics>, // Comprehensive donor statistics
+    personResearchResults?: Record<number, PersonResearchResult>, // Person research results by donor ID
     personalMemories?: string[],
     organizationalMemories?: string[],
     currentDate?: string, // Added for today's date

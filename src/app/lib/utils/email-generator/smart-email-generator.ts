@@ -11,6 +11,7 @@ import {
   createEmptyEmailGenerationTokenUsage,
   addTokenUsage,
 } from "./types";
+import { PersonResearchResult } from "../../services/person-research/types";
 import { getOrganizationMemories } from "../../data/organizations";
 import { getUserMemories } from "../../data/users";
 import { logger } from "../../logger";
@@ -44,6 +45,7 @@ export async function generateSmartDonorEmails(
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
   donationHistories: Record<number, DonationWithDetails[]> = {},
   donorStatistics: Record<number, DonorStatistics> = {},
+  personResearchResults: Record<number, PersonResearchResult> = {},
   userMemories: string[] = [],
   organizationMemories: string[] = [],
   currentDate?: string,
@@ -112,6 +114,7 @@ export async function generateSmartDonorEmails(
     communicationHistories,
     donationHistories,
     donorStatistics, // Pass donor statistics
+    personResearchResults, // Pass person research results
     userMemories,
     organizationMemories,
     currentDate,

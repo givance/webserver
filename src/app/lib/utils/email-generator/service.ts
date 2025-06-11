@@ -17,6 +17,7 @@ import {
   TokenUsage,
   createEmptyTokenUsage,
 } from "./types";
+import { PersonResearchResult } from "../../services/person-research/types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -42,6 +43,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
     donationHistories: Record<number, DonationWithDetails[]> = {},
     donorStatistics: Record<number, DonorStatistics> = {},
+    personResearchResults: Record<number, PersonResearchResult> = {},
     personalMemories: string[] = [],
     organizationalMemories: string[] = [],
     currentDate?: string,
@@ -60,10 +62,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
     const emailPromises = donors.map(async (donor) => {
       const donorCommHistory = communicationHistories[donor.id] || [];
       const donorStats = donorStatistics[donor.id];
+      const donorResearch = personResearchResults[donor.id];
       logger.info(
         `Processing donor ${donor.id} (${formatDonorName(donor)}, commHistoryCount: ${
           donorCommHistory.length
-        }, donationHistoryCount: ${donationHistories[donor.id]?.length || 0}, hasStatistics: ${!!donorStats})`
+        }, donationHistoryCount: ${
+          donationHistories[donor.id]?.length || 0
+        }, hasStatistics: ${!!donorStats}, hasPersonResearch: ${!!donorResearch})`
       );
 
       return await this.generateDonorEmail({
@@ -75,6 +80,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         communicationHistory: donorCommHistory,
         donationHistory: donationHistories[donor.id] || [],
         donorStatistics: donorStats,
+        personResearch: donorResearch,
         personalMemories,
         organizationalMemories,
         currentDate,
@@ -124,6 +130,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       communicationHistory,
       donationHistory = [],
       donorStatistics,
+      personResearch,
       personalMemories,
       organizationalMemories,
       currentDate,
@@ -202,6 +209,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       communicationHistory as RawCommunicationThread[],
       donationHistory,
       donorStatistics,
+      personResearch,
       personalMemories,
       organizationalMemories,
       currentDate
@@ -330,6 +338,16 @@ export class EmailGenerationService implements EmailGeneratorTool {
       const referenceContexts: Record<string, string> = {
         ...donationContexts,
       };
+
+      // Add person research reference contexts if available
+      if (personResearch) {
+        referenceContexts["research-answer"] = `Person research: ${personResearch.answer}`;
+
+        personResearch.citations.forEach((citation, index) => {
+          const citationId = `research-citation-${index + 1}`;
+          referenceContexts[citationId] = `Research source: ${citation.title} - ${citation.snippet}`;
+        });
+      }
 
       // Add communication and summary contexts
       validatedResponse.content.forEach((piece) => {

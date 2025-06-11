@@ -164,6 +164,30 @@ export const generateBulkEmailsTask = task({
       triggerLogger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
       const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
 
+      // Fetch person research results for donors
+      triggerLogger.info(`Fetching person research results for ${donorIds.length} donors`);
+      const { PersonResearchService } = await import("@/app/lib/services/person-research.service");
+      const personResearchService = new PersonResearchService();
+      const personResearchResults: Record<number, any> = {};
+
+      await Promise.all(
+        donorIds.map(async (donorId) => {
+          try {
+            const research = await personResearchService.getPersonResearch(donorId, organizationId);
+            if (research) {
+              personResearchResults[donorId] = research;
+              triggerLogger.info(`Found person research for donor ${donorId}: "${research.researchTopic}"`);
+            }
+          } catch (error) {
+            triggerLogger.warn(
+              `Failed to fetch person research for donor ${donorId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          }
+        })
+      );
+
       // Convert donor histories to the required format
       const communicationHistories: Record<number, RawCommunicationThread[]> = {};
       const donationHistoriesMap: Record<number, any[]> = {};
@@ -216,6 +240,7 @@ export const generateBulkEmailsTask = task({
             communicationHistories,
             donationHistoriesMap,
             donorStatistics, // Pass donor statistics
+            personResearchResults, // Pass person research results
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default

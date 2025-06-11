@@ -6,6 +6,51 @@ import {
 } from "./context-formatters";
 import { DonationWithDetails } from "../../data/donations";
 import { formatDonorName } from "../donor-name-formatter";
+import { PersonResearchResult } from "../../services/person-research/types";
+
+/**
+ * Formats person research results with reference IDs for LLM context
+ */
+function formatPersonResearchWithIds(personResearch?: PersonResearchResult): {
+  promptString: string;
+  referenceIds: string[];
+} {
+  if (!personResearch) {
+    return { promptString: "", referenceIds: [] };
+  }
+
+  const referenceIds: string[] = [];
+  let promptString = "";
+
+  // Add the main research answer
+  const answerId = "research-answer";
+  referenceIds.push(answerId);
+  promptString += `Research Answer: ${personResearch.answer}\n`;
+
+  // Add citations with reference IDs
+  if (personResearch.citations && personResearch.citations.length > 0) {
+    promptString += "\nResearch Sources:\n";
+    personResearch.citations.forEach((citation, index) => {
+      const citationId = `research-citation-${index + 1}`;
+      referenceIds.push(citationId);
+      promptString += `- ${citation.title}: ${citation.snippet} (${citation.url})\n`;
+    });
+  }
+
+  // Add research topic and metadata
+  promptString += `\nResearch Topic: ${personResearch.researchTopic}`;
+  if (personResearch.personIdentity) {
+    promptString += `\nIdentified as: ${personResearch.personIdentity.fullName}`;
+    if (personResearch.personIdentity.profession) {
+      promptString += ` (${personResearch.personIdentity.profession})`;
+    }
+    if (personResearch.personIdentity.location) {
+      promptString += ` - ${personResearch.personIdentity.location}`;
+    }
+  }
+
+  return { promptString, referenceIds };
+}
 
 /**
  * Builds the static system prompt that can be cached and reused.
@@ -71,10 +116,12 @@ export function buildStructuredDonorContext(
   donor: DonorInfo,
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
-  donorStatistics?: DonorStatistics
+  donorStatistics?: DonorStatistics,
+  personResearch?: PersonResearchResult
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
+  const { promptString: personResearchPrompt } = formatPersonResearchWithIds(personResearch);
 
   // Format donor statistics if available
   let statisticsPrompt = "";
@@ -126,7 +173,9 @@ ${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statistic
 
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 
-${communicationHistoryPrompt ? `Past Communications:\n${communicationHistoryPrompt}\n` : ""}`;
+${communicationHistoryPrompt ? `Past Communications:\n${communicationHistoryPrompt}\n` : ""}
+
+${personResearchPrompt ? `Person Research:\n${personResearchPrompt}\n` : ""}`;
 }
 
 /**
@@ -143,6 +192,7 @@ export function buildStructuredEmailPrompt(
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
   donorStatistics?: DonorStatistics,
+  personResearch?: PersonResearchResult,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
   currentDate?: string
@@ -164,8 +214,11 @@ export function buildStructuredEmailPrompt(
     donor,
     communicationHistoryInput,
     donationHistoryInput,
-    donorStatistics
+    donorStatistics,
+    personResearch
   );
+
+  console.log(donorContext);
 
   return {
     systemPrompt,
