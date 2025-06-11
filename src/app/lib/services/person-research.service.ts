@@ -3,6 +3,7 @@ import { AnswerSynthesisService } from "@/app/lib/services/person-research/answe
 import { QueryGenerationService } from "@/app/lib/services/person-research/query-generation.service";
 import { ReflectionService } from "@/app/lib/services/person-research/reflection.service";
 import { PersonResearchDatabaseService } from "@/app/lib/services/person-research/database.service";
+import { PersonIdentificationService } from "@/app/lib/services/person-research/person-identification.service";
 import {
   PersonResearchInput,
   PersonResearchResult,
@@ -14,18 +15,22 @@ import {
   createEmptyTokenUsage,
   createEmptyResearchTokenUsage,
   addTokenUsage,
+  DonorInfo,
+  PersonIdentity,
 } from "@/app/lib/services/person-research/types";
 import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
+import { getDonorById } from "@/app/lib/data/donors";
 
 /**
  * PersonResearchService - Main service for iterative web research on individuals
  *
  * This service implements a multi-stage pipeline architecture:
- * 1. Query Generation: Generates optimized search queries from user input
- * 2. Web Research: Executes parallel web searches using Google's Search API
- * 3. Reflection & Gap Analysis: Analyzes results and identifies knowledge gaps
- * 4. Iterative Refinement: Continues research until sufficient or max loops reached
- * 5. Answer Synthesis: Combines research into comprehensive answer with citations
+ * 1. Person Identification: Extracts and verifies the person's identity
+ * 2. Query Generation: Generates optimized search queries from user input
+ * 3. Web Research: Executes parallel web searches using Google's Search API with relevance filtering
+ * 4. Reflection & Gap Analysis: Analyzes results and identifies knowledge gaps
+ * 5. Iterative Refinement: Continues research until sufficient or max loops reached
+ * 6. Answer Synthesis: Combines research into comprehensive answer with citations
  */
 export class PersonResearchService {
   private readonly MAX_RESEARCH_LOOPS = 2;
@@ -35,6 +40,7 @@ export class PersonResearchService {
   private reflectionService = new ReflectionService();
   private answerSynthesisService = new AnswerSynthesisService();
   private databaseService = new PersonResearchDatabaseService();
+  private personIdentificationService = new PersonIdentificationService();
 
   /**
    * Conducts comprehensive research on a person and saves it to the database
@@ -46,8 +52,23 @@ export class PersonResearchService {
     input: PersonResearchInput,
     donorId: number
   ): Promise<{ result: PersonResearchResult; dbRecord: PersonResearchDBRecord }> {
-    // Conduct the research
-    const result = await this.conductPersonResearch(input);
+    // Get donor information for improved person identification
+    let donorInfo: DonorInfo | null = null;
+    if (donorId && input.organizationId) {
+      const donor = await getDonorById(donorId, input.organizationId);
+      if (donor) {
+        donorInfo = {
+          fullName: `${donor.firstName} ${donor.lastName}`.trim(),
+          location: donor.address ? `${donor.address}${donor.state ? `, ${donor.state}` : ""}` : undefined,
+          notes: donor.notes || undefined,
+        };
+
+        logger.info(`Using donor information for enhanced person identification: ${donorInfo.fullName}`);
+      }
+    }
+
+    // Conduct the research with donor information
+    const result = await this.conductPersonResearch(input, donorInfo);
 
     // Save to database
     const dbRecord = await this.databaseService.savePersonResearch({
@@ -111,9 +132,10 @@ export class PersonResearchService {
   /**
    * Conducts comprehensive research on a person
    * @param input - Research parameters including topic and context
+   * @param donorInfo - Optional donor information for improved person identification
    * @returns Comprehensive research results with citations
    */
-  async conductPersonResearch(input: PersonResearchInput): Promise<PersonResearchResult> {
+  async conductPersonResearch(input: PersonResearchInput, donorInfo?: DonorInfo | null): Promise<PersonResearchResult> {
     this.validateInput(input);
 
     const { researchTopic, organizationId, userId } = input;
@@ -124,6 +146,9 @@ export class PersonResearchService {
 
     // Initialize token usage tracking
     const tokenUsage = createEmptyResearchTokenUsage();
+
+    // Track person identity for filtering relevant content
+    let personIdentity: PersonIdentity | undefined = undefined;
 
     try {
       const allSummaries: WebSearchResult[] = [];
@@ -154,7 +179,39 @@ export class PersonResearchService {
         const searchResults = await this.webSearchService.conductParallelSearch({
           queries,
           researchTopic,
+          personIdentity, // Include person identity for filtering if available
         });
+
+        // On first loop, try to extract person identity if we have donor info
+        if (currentLoop === 1 && donorInfo && !personIdentity) {
+          try {
+            // Get some initial search results to help with identification
+            const initialSearchResults = searchResults.results.flatMap((r) => r.sources).slice(0, 3); // Just use a few results
+
+            // Extract person identity
+            const { identity, tokenUsage: identityTokenUsage } =
+              await this.personIdentificationService.extractPersonIdentity(donorInfo, initialSearchResults);
+
+            personIdentity = identity;
+
+            // Add to token usage
+            tokenUsage.personIdentification = identityTokenUsage;
+
+            logger.info(
+              `[Person Identification] Extracted identity for ${donorInfo.fullName} with ${
+                personIdentity.keyIdentifiers.length
+              } key identifiers and ${personIdentity.confidence * 100}% confidence`
+            );
+            logger.info(`Person identity: ${JSON.stringify(personIdentity)}`);
+          } catch (error) {
+            logger.warn(
+              `[Person Identification] Failed to extract identity: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+            // Continue without person identity - won't filter results
+          }
+        }
 
         // Accumulate web search summary tokens
         tokenUsage.webSearchSummaries = addTokenUsage(tokenUsage.webSearchSummaries, searchResults.totalTokenUsage);
@@ -162,8 +219,12 @@ export class PersonResearchService {
         // Add results to our collection
         allSummaries.push(...searchResults.results);
 
+        const filteredMsg = searchResults.totalFilteredSources
+          ? ` (${searchResults.totalFilteredSources} sources filtered out as irrelevant)`
+          : "";
+
         logger.info(
-          `[Research Loop ${currentLoop}] Collected ${searchResults.results.length} search results (total: ${allSummaries.length})`
+          `[Research Loop ${currentLoop}] Collected ${searchResults.results.length} search results with ${searchResults.totalSources} sources${filteredMsg} (total summaries: ${allSummaries.length})`
         );
 
         // Stage 3: Reflection & Gap Analysis (except on final loop)
@@ -221,29 +282,39 @@ export class PersonResearchService {
       tokenUsage.answerSynthesis = addTokenUsage(tokenUsage.answerSynthesis, finalAnswer.tokenUsage);
 
       // Calculate total tokens
-      tokenUsage.total = addTokenUsage(
+      const baseTokens = addTokenUsage(
         addTokenUsage(addTokenUsage(tokenUsage.queryGeneration, tokenUsage.webSearchSummaries), tokenUsage.reflection),
         tokenUsage.answerSynthesis
       );
+
+      // Add person identification tokens if available
+      tokenUsage.total = tokenUsage.personIdentification
+        ? addTokenUsage(baseTokens, tokenUsage.personIdentification)
+        : baseTokens;
 
       const result: PersonResearchResult = {
         answer: finalAnswer.answer,
         citations: finalAnswer.citations,
         summaries: allSummaries,
         totalLoops: currentLoop,
-        totalSources: allSummaries.length,
+        totalSources: allSummaries.reduce((total, summary) => total + summary.sources.length, 0),
         researchTopic,
         timestamp: new Date(),
         tokenUsage,
+        personIdentity, // Include the extracted person identity
       };
 
       // Log comprehensive token usage summary
       logger.info(
-        `Person research completed successfully - Topic: "${researchTopic}", Loops: ${currentLoop}, Sources: ${allSummaries.length}, Citations: ${finalAnswer.citations.length}`
+        `Person research completed successfully - Topic: "${researchTopic}", Loops: ${currentLoop}, Sources: ${result.totalSources}, Citations: ${finalAnswer.citations.length}`
       );
 
+      const identificationLog = tokenUsage.personIdentification
+        ? `, Person Identification: ${tokenUsage.personIdentification.totalTokens} tokens (${tokenUsage.personIdentification.promptTokens} input, ${tokenUsage.personIdentification.completionTokens} output)`
+        : "";
+
       logger.info(
-        `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
+        `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output)${identificationLog}, TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
       );
 
       return result;

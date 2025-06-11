@@ -39,14 +39,17 @@ async function generateDonorResearchTopic(donorId: number, organizationId: strin
   if (donor.state) addressParts.push(donor.state);
   const addressInfo = addressParts.length > 0 ? ` living in ${addressParts.join(", ")}` : "";
 
+  // Build email info if available
+  const emailInfo = donor.email ? ` with email ${donor.email}` : "";
+
   // Include donor notes if available
   const notesInfo = donor.notes ? ` Additional information: ${donor.notes}` : "";
 
   // Get organization description (prefer short description, fall back to description)
   const orgDescription = organization.shortDescription || organization.description || organization.name;
 
-  // Generate research topic
-  const researchTopic = `Why would ${donorName}${addressInfo} want to donate to a ${orgDescription}? What are their interests, values, or circumstances that would motivate them to support this cause?${notesInfo}`;
+  // Generate research topic that includes identifying information and contextualizes it for the donation angle
+  const researchTopic = `What motivates ${donorName}${addressInfo}${emailInfo} to donate to nonprofits? Analyze their background, interests, values, and philanthropic history. What specific aspects of a ${orgDescription} would appeal to them based on their profile?${notesInfo}`;
 
   logger.info(`Generated research topic for donor ${donorId}: "${researchTopic}"`);
 

@@ -13,8 +13,10 @@ import {
   TokenUsage,
   createEmptyTokenUsage,
   addTokenUsage,
+  PersonIdentity,
 } from "./types";
 import { WebCrawlerService } from "./web-crawler.service";
+import { PersonIdentificationService } from "./person-identification.service";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -30,9 +32,11 @@ export class WebSearchService {
   private readonly MAX_RESULTS_PER_QUERY = 6; // Reduced to focus on quality over quantity
   private readonly MAX_CRAWL_URLS = 4; // Limit concurrent crawling
   private readonly webCrawler: WebCrawlerService;
+  private readonly personIdentificationService: PersonIdentificationService;
 
   constructor() {
     this.webCrawler = new WebCrawlerService();
+    this.personIdentificationService = new PersonIdentificationService();
   }
 
   /**
@@ -41,7 +45,7 @@ export class WebSearchService {
    * @returns Batch result with summaries for all queries
    */
   async conductParallelSearch(input: WebSearchInput): Promise<WebSearchBatchResult> {
-    const { queries, researchTopic } = input;
+    const { queries, researchTopic, personIdentity } = input;
 
     logger.info(
       `Starting parallel search for topic "${researchTopic}" with ${queries.length} queries: [${queries
@@ -57,19 +61,34 @@ export class WebSearchService {
         try {
           const searchResults = await this.executeGoogleSearch(queryObj.query);
           const enhancedResults = await this.enhanceWithCrawledContent(searchResults, queryObj.query);
-          const summaryResult = await this.generateSearchSummary(enhancedResults, queryObj.query, researchTopic);
 
-          const successfulCrawls = enhancedResults.filter((r) => r.crawledContent?.crawlSuccess).length;
+          // Filter results if we have a person identity to verify against
+          const filteredResults = personIdentity
+            ? await this.filterResultsByRelevance(enhancedResults, personIdentity)
+            : enhancedResults;
+
+          const summaryResult = await this.generateSearchSummary(filteredResults, queryObj.query, researchTopic);
+
+          // Add token usage from filtering process if applicable
+          if (personIdentity) {
+            totalTokenUsage = addTokenUsage(
+              totalTokenUsage,
+              summaryResult.filteringTokenUsage || createEmptyTokenUsage()
+            );
+          }
+
+          const successfulCrawls = filteredResults.filter((r) => r.crawledContent?.crawlSuccess).length;
           logger.debug(
-            `Query "${queryObj.query}" completed: ${enhancedResults.length} results, ${successfulCrawls} successfully crawled, ${summaryResult.tokenUsage.totalTokens} tokens`
+            `Query "${queryObj.query}" completed: ${filteredResults.length}/${enhancedResults.length} relevant results, ${successfulCrawls} successfully crawled, ${summaryResult.tokenUsage.totalTokens} tokens`
           );
 
           return {
             query: queryObj.query,
             summary: summaryResult.summary,
-            sources: enhancedResults,
+            sources: filteredResults,
             timestamp: new Date(),
             tokenUsage: summaryResult.tokenUsage,
+            filteredSources: enhancedResults.length - filteredResults.length,
           } as WebSearchResult;
         } catch (error) {
           logger.error(
@@ -81,6 +100,7 @@ export class WebSearchService {
             sources: [],
             timestamp: new Date(),
             tokenUsage: createEmptyTokenUsage(),
+            filteredSources: 0,
           } as WebSearchResult;
         }
       });
@@ -89,16 +109,17 @@ export class WebSearchService {
       const successfulResults = results.filter((result) => result.sources.length > 0);
       const failedResults = results.filter((result) => result.sources.length === 0);
       const totalSources = successfulResults.reduce((sum, result) => sum + result.sources.length, 0);
+      const totalFilteredSources = results.reduce((sum, result) => sum + (result.filteredSources || 0), 0);
       const totalCrawledPages = successfulResults.reduce(
         (sum, result) => sum + result.sources.filter((s) => s.crawledContent?.crawlSuccess).length,
         0
       );
 
       // Aggregate token usage
-      totalTokenUsage = results.reduce((sum, result) => addTokenUsage(sum, result.tokenUsage), createEmptyTokenUsage());
+      totalTokenUsage = results.reduce((sum, result) => addTokenUsage(sum, result.tokenUsage), totalTokenUsage);
 
       logger.info(
-        `Parallel search completed for "${researchTopic}": ${successfulResults.length}/${queries.length} successful queries, ${failedResults.length} failed, ${totalSources} total sources, ${totalCrawledPages} pages crawled, ${totalTokenUsage.totalTokens} total tokens`
+        `Parallel search completed for "${researchTopic}": ${successfulResults.length}/${queries.length} successful queries, ${failedResults.length} failed, ${totalSources} total sources (${totalFilteredSources} filtered out), ${totalCrawledPages} pages crawled, ${totalTokenUsage.totalTokens} total tokens`
       );
 
       return {
@@ -106,6 +127,7 @@ export class WebSearchService {
         totalQueries: queries.length,
         totalSources,
         totalCrawledPages,
+        totalFilteredSources,
         totalTokenUsage,
       };
     } catch (error) {
@@ -201,6 +223,73 @@ export class WebSearchService {
   }
 
   /**
+   * Filters search results by relevance to the person identity
+   * @param enhancedResults - Search results with crawled content
+   * @param personIdentity - Person identity to verify against
+   * @returns Filtered search results containing only relevant content
+   */
+  private async filterResultsByRelevance(
+    enhancedResults: EnhancedSearchResult[],
+    personIdentity: PersonIdentity
+  ): Promise<EnhancedSearchResult[]> {
+    if (!personIdentity || personIdentity.confidence < 0.3) {
+      logger.debug(
+        `Skipping content filtering - insufficient identity information (confidence: ${
+          personIdentity?.confidence || 0
+        })`
+      );
+      return enhancedResults;
+    }
+
+    logger.debug(`Filtering ${enhancedResults.length} search results for relevance to ${personIdentity.fullName}`);
+
+    let filteringTokenUsage = createEmptyTokenUsage();
+    const relevantResults: EnhancedSearchResult[] = [];
+    const filterPromises = enhancedResults.map(async (result) => {
+      // Skip verification if no crawled content - will rely on just title/snippet
+      if (!result.crawledContent?.crawlSuccess) {
+        return { result, isRelevant: true, tokenUsage: createEmptyTokenUsage() };
+      }
+
+      try {
+        const { verification, tokenUsage } = await this.personIdentificationService.verifySearchResultRelevance(
+          personIdentity,
+          result
+        );
+
+        return {
+          result,
+          isRelevant: verification.isRelevant && verification.confidence >= 0.5,
+          tokenUsage,
+        };
+      } catch (error) {
+        logger.warn(
+          `Failed to verify relevance for ${result.title} - including by default: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return { result, isRelevant: true, tokenUsage: createEmptyTokenUsage() };
+      }
+    });
+
+    const filterResults = await Promise.all(filterPromises);
+
+    for (const { result, isRelevant, tokenUsage } of filterResults) {
+      if (isRelevant) {
+        relevantResults.push(result);
+      }
+      filteringTokenUsage = addTokenUsage(filteringTokenUsage, tokenUsage);
+    }
+
+    const filteredCount = enhancedResults.length - relevantResults.length;
+    logger.info(
+      `Content filtering complete: ${relevantResults.length}/${enhancedResults.length} results kept, ${filteredCount} filtered out (${filteringTokenUsage.totalTokens} tokens used)`
+    );
+
+    return relevantResults;
+  }
+
+  /**
    * Generates a summary of search results using AI with crawled content
    * @param searchResults - Enhanced search results with crawled content
    * @param query - Original search query
@@ -211,7 +300,7 @@ export class WebSearchService {
     searchResults: EnhancedSearchResult[],
     query: string,
     researchTopic: string
-  ): Promise<{ summary: string; tokenUsage: TokenUsage }> {
+  ): Promise<{ summary: string; tokenUsage: TokenUsage; filteringTokenUsage?: TokenUsage }> {
     if (searchResults.length === 0) {
       return {
         summary: "No search results were found for this query.",
@@ -253,6 +342,7 @@ export class WebSearchService {
       logger.error(
         `Summary generation failed for query "${query}": ${error instanceof Error ? error.message : String(error)}`
       );
+
       return {
         summary: this.generateBasicSummary(searchResults, query),
         tokenUsage: createEmptyTokenUsage(),

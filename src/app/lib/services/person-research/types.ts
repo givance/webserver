@@ -24,6 +24,7 @@ export interface ResearchTokenUsage {
   webSearchSummaries: TokenUsage;
   reflection: TokenUsage;
   answerSynthesis: TokenUsage;
+  personIdentification?: TokenUsage; // Person identification token usage
   total: TokenUsage;
 }
 
@@ -39,6 +40,7 @@ export interface PersonResearchResult {
   researchTopic: string;
   timestamp: Date;
   tokenUsage: ResearchTokenUsage;
+  personIdentity?: PersonIdentity; // Optional extracted person identity
 }
 
 /**
@@ -69,11 +71,12 @@ export interface QueryGenerationResult {
 }
 
 /**
- * Web search input
+ * Input for web search operations
  */
 export interface WebSearchInput {
   queries: ResearchQuery[];
   researchTopic: string;
+  personIdentity?: PersonIdentity; // Optional person identity for relevance filtering
 }
 
 /**
@@ -118,7 +121,7 @@ export interface EnhancedSearchResult extends GoogleSearchResult {
 }
 
 /**
- * Processed web search result with summary
+ * Result of a web search including AI-generated summary
  */
 export interface WebSearchResult {
   query: string;
@@ -126,16 +129,18 @@ export interface WebSearchResult {
   sources: EnhancedSearchResult[];
   timestamp: Date;
   tokenUsage: TokenUsage;
+  filteredSources?: number; // Number of sources filtered out due to lack of relevance
 }
 
 /**
- * Web search batch result
+ * Result of a batch of web searches
  */
 export interface WebSearchBatchResult {
   results: WebSearchResult[];
   totalQueries: number;
   totalSources: number;
   totalCrawledPages: number;
+  totalFilteredSources?: number; // Total number of sources filtered out
   totalTokenUsage: TokenUsage;
 }
 
@@ -308,6 +313,45 @@ export function createEmptyResearchTokenUsage(): ResearchTokenUsage {
     webSearchSummaries: createEmptyTokenUsage(),
     reflection: createEmptyTokenUsage(),
     answerSynthesis: createEmptyTokenUsage(),
+    personIdentification: createEmptyTokenUsage(), // Initialize with empty usage
     total: createEmptyTokenUsage(),
   };
+}
+
+/**
+ * Donor information used for identity extraction
+ */
+export interface DonorInfo {
+  fullName: string;
+  location?: string;
+  notes?: string;
+}
+
+/**
+ * Extracted person identity information
+ */
+export interface PersonIdentity {
+  fullName: string;
+  probableAge?: string;
+  location?: string;
+  profession?: string;
+  education?: string;
+  organizations?: string;
+  keyIdentifiers: string[];
+  confidence: number;
+  reasoning: string;
+  extractedFrom: string;
+}
+
+/**
+ * Result of verifying a search result for relevance to a person
+ */
+export interface VerificationResult {
+  isRelevant: boolean;
+  confidence: number;
+  matchingIdentifiers: string[];
+  contradictions: string[];
+  reasoning: string;
+  sourceUrl: string;
+  sourceTitle: string;
 }
