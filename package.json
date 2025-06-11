@@ -61,6 +61,7 @@
     "@trpc/server": "^11.1.1",
     "@types/dagre": "^0.7.52",
     "@types/react-table": "^7.7.20",
+    "@types/xlsx": "^0.0.36",
     "ai": "^4.3.10",
     "axios": "^1.9.0",
     "cheerio": "^1.0.0",
@@ -105,6 +106,7 @@
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
     "winston": "^3.17.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.3"
   },
   "devDependencies": {
