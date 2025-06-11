@@ -1,6 +1,7 @@
 import { router } from "../trpc";
 import { communicationThreadsRouter } from "./communication-threads";
 import { emailCampaignsRouter } from "./email-campaigns";
+import { agenticEmailCampaignsRouter } from "./agentic-email-campaigns";
 
 /**
  * Combined communications router that includes both thread management and email campaigns
@@ -12,4 +13,7 @@ export const communicationsRouter = router({
 
   // Email campaign operations
   campaigns: emailCampaignsRouter,
+
+  // Agentic email campaign operations (experimental)
+  agenticCampaigns: agenticEmailCampaignsRouter,
 });

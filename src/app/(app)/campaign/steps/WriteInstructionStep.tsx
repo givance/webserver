@@ -86,6 +86,22 @@ interface GenerateEmailsResponse {
   suggestedMemories?: string[];
 }
 
+interface AgenticFlowResponse {
+  isAgenticFlow: true;
+  sessionId: string;
+  needsUserInput: boolean;
+  isComplete: boolean;
+  conversation: Array<{
+    role: "user" | "assistant";
+    content: string;
+    timestamp: Date | string;
+    stepType?: "question" | "confirmation" | "generation" | "complete";
+  }>;
+  canProceed?: boolean;
+}
+
+type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse;
+
 export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void> }, WriteInstructionStepProps>(
   function WriteInstructionStep(
     {
@@ -256,28 +272,53 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
           });
 
           if (result) {
-            const typedResult = result as GenerateEmailsResponse;
-            setGeneratedEmails(typedResult.emails);
-            setPreviousInstruction(typedResult.refinedInstruction);
+            const typedResult = result as EmailGenerationResult;
 
-            setReferenceContexts(
-              typedResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-                acc[email.donorId] = email.referenceContexts;
-                return acc;
-              }, {})
-            );
+            // Check if this is an agentic flow response
+            if ("isAgenticFlow" in typedResult && typedResult.isAgenticFlow) {
+              // Handle agentic flow response
+              const agenticResult = typedResult as AgenticFlowResponse;
 
-            const responseMessage = instructionToSubmit
-              ? "I've generated personalized emails using your selected template. You can review them on the left side and make any adjustments to the content or style if needed."
-              : "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
+              // Add the conversation messages to chat
+              const conversationMessages = agenticResult.conversation.map((msg) => ({
+                role: msg.role,
+                content: msg.content,
+              }));
 
-            setChatMessages((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: responseMessage,
-              },
-            ]);
+              setChatMessages((prev) => [...prev, ...conversationMessages]);
+
+              // If it needs user input, we don't generate emails yet
+              if (agenticResult.needsUserInput) {
+                // TODO: Handle agentic conversation flow
+                // For now, just show the conversation
+                console.log("Agentic flow needs user input:", agenticResult);
+                return;
+              }
+            } else {
+              // Handle traditional email generation response
+              const emailResult = typedResult as GenerateEmailsResponse;
+              setGeneratedEmails(emailResult.emails);
+              setPreviousInstruction(emailResult.refinedInstruction);
+
+              setReferenceContexts(
+                emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+                  acc[email.donorId] = email.referenceContexts;
+                  return acc;
+                }, {})
+              );
+
+              const responseMessage = instructionToSubmit
+                ? "I've generated personalized emails using your selected template. You can review them on the left side and make any adjustments to the content or style if needed."
+                : "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
+
+              setChatMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: responseMessage,
+                },
+              ]);
+            }
           } else {
             throw new Error("Failed to generate emails");
           }

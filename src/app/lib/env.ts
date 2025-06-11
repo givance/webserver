@@ -26,6 +26,10 @@ export const env = createEnv({
     AZURE_OPENAI_DEPLOYMENT_NAME: z.string().min(1),
     GOOGLE_SEARCH_API_KEY: z.string().min(1),
     GOOGLE_SEARCH_ENGINE_ID: z.string().min(1).optional(),
+    USE_AGENTIC_FLOW: z
+      .string()
+      .transform((val) => val === "true")
+      .optional(),
   },
   /*
    * Environment variables available on the client (and server).
@@ -62,6 +66,7 @@ export const env = createEnv({
     AZURE_OPENAI_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
     GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
+    USE_AGENTIC_FLOW: process.env.USE_AGENTIC_FLOW,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });

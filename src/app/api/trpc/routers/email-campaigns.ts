@@ -2,6 +2,8 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { EmailGenerationService, type GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
 import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
+import { AgenticEmailGenerationService } from "@/app/lib/services/agentic-email-generation.service";
+import { env } from "@/app/lib/env";
 
 // Input validation schemas
 const generateEmailsSchema = z.object({
@@ -85,12 +87,48 @@ const updateEmailSchema = z.object({
 export const emailCampaignsRouter = router({
   /**
    * Generates smart donor emails based on instruction and donor data
+   * Routes to agentic flow if USE_AGENTIC_FLOW is enabled, otherwise uses direct flow
    */
   generateEmails: protectedProcedure
     .input(generateEmailsSchema)
     .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
-      const emailService = new EmailGenerationService();
-      return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+      // Check if agentic flow is enabled
+      if (env.USE_AGENTIC_FLOW) {
+        // Use agentic flow - start conversation
+        const agenticService = new AgenticEmailGenerationService();
+        const agenticResult = await agenticService.startAgenticFlow(
+          {
+            instruction: input.instruction,
+            donors: input.donors,
+            organizationName: input.organizationName,
+            organizationWritingInstructions: input.organizationWritingInstructions,
+            currentDate: input.currentDate,
+          },
+          ctx.auth.user.organizationId,
+          ctx.auth.user.id
+        );
+
+        // If agentic flow is complete and doesn't need user input, proceed to generation
+        if (agenticResult.isComplete && !agenticResult.needsUserInput) {
+          // Generate final prompt and execute generation automatically
+          const finalPrompt = await agenticService.generateFinalPrompt(agenticResult.sessionId);
+          const emailResult = await agenticService.executeEmailGeneration(
+            agenticResult.sessionId,
+            finalPrompt.finalPrompt
+          );
+          return emailResult;
+        } else {
+          // Return agentic conversation state for frontend to handle
+          return {
+            isAgenticFlow: true,
+            ...agenticResult,
+          };
+        }
+      } else {
+        // Use traditional direct flow
+        const emailService = new EmailGenerationService();
+        return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+      }
     }),
 
   /**
