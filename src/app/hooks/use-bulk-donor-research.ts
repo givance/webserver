@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 export interface UseBulkDonorResearchReturn {
   // Mutations
-  startBulkResearch: (donorIds?: number[]) => Promise<void>;
+  startBulkResearch: (donorIds?: number[], limit?: number) => Promise<void>;
 
   // Queries
   researchStatistics: any;
@@ -45,9 +45,9 @@ export function useBulkDonorResearch(): UseBulkDonorResearchReturn {
     },
   });
 
-  const startBulkResearch = async (donorIds?: number[]) => {
+  const startBulkResearch = async (donorIds?: number[], limit?: number) => {
     try {
-      await startBulkResearchMutation.mutateAsync({ donorIds });
+      await startBulkResearchMutation.mutateAsync({ donorIds, limit });
     } catch (error) {
       // Error is already handled in onError
       console.error("Bulk research failed:", error);

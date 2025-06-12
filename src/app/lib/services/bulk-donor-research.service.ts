@@ -9,6 +9,7 @@ export interface StartBulkResearchInput {
   organizationId: string;
   userId: string;
   donorIds?: number[]; // Optional: if provided, research only these donors
+  limit?: number; // Optional: maximum number of donors to research
 }
 
 export interface BulkResearchJobResult {
@@ -32,7 +33,7 @@ export class BulkDonorResearchService {
    * @returns Job information
    */
   async startBulkResearch(input: StartBulkResearchInput): Promise<BulkResearchJobResult> {
-    const { organizationId, userId, donorIds } = input;
+    const { organizationId, userId, donorIds, limit } = input;
 
     try {
       // Get count of donors that need research
@@ -45,8 +46,15 @@ export class BulkDonorResearchService {
         });
       }
 
+      // Apply limit if specified
+      const actualDonorsToResearch = limit
+        ? Math.min(limit, donorsToResearchCount.unresearchedDonors)
+        : donorsToResearchCount.unresearchedDonors;
+
       logger.info(
-        `Starting bulk donor research for organization ${organizationId} - ${donorsToResearchCount.unresearchedDonors} donors to research`
+        `Starting bulk donor research for organization ${organizationId} - ${actualDonorsToResearch} donors to research${
+          limit ? ` (limited from ${donorsToResearchCount.unresearchedDonors})` : ""
+        }`
       );
 
       // Trigger the background job
@@ -54,13 +62,14 @@ export class BulkDonorResearchService {
         organizationId,
         userId,
         donorIds,
+        limit,
       });
 
       logger.info(`Bulk donor research job ${job.id} started for organization ${organizationId}`);
 
       return {
         jobId: job.id,
-        donorsToResearch: donorsToResearchCount.unresearchedDonors,
+        donorsToResearch: actualDonorsToResearch,
       };
     } catch (error) {
       logger.error(`Failed to start bulk donor research: ${error instanceof Error ? error.message : String(error)}`);

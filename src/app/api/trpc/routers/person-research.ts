@@ -476,16 +476,17 @@ export const personResearchRouter = router({
     .input(
       z.object({
         donorIds: z.array(z.number()).optional(),
+        limit: z.number().optional().describe("Maximum number of donors to research"),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { donorIds } = input;
+      const { donorIds, limit } = input;
       const { user } = ctx.auth;
 
       logger.info(
         `[Bulk Donor Research API] Starting bulk research - User: ${user.id}, Organization: ${
           user.organizationId
-        }, Donor IDs: ${donorIds ? donorIds.length : "all unresearched"}`
+        }, Donor IDs: ${donorIds ? donorIds.length : "all unresearched"}, Limit: ${limit || "none"}`
       );
 
       try {
@@ -503,6 +504,7 @@ export const personResearchRouter = router({
           organizationId: user.organizationId,
           userId: user.id,
           donorIds,
+          limit,
         });
 
         logger.info(

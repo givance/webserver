@@ -90,6 +90,7 @@ const bulkDonorResearchPayloadSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
   donorIds: z.array(z.number()).optional(), // Optional: if provided, research only these donors, otherwise research all unresearched
+  limit: z.number().optional(), // Optional: maximum number of donors to research
 });
 
 type BulkDonorResearchPayload = z.infer<typeof bulkDonorResearchPayloadSchema>;
@@ -100,9 +101,11 @@ type BulkDonorResearchPayload = z.infer<typeof bulkDonorResearchPayloadSchema>;
 export const bulkDonorResearchTask = task({
   id: "bulk-donor-research",
   run: async (payload: BulkDonorResearchPayload, { ctx }) => {
-    const { organizationId, userId, donorIds } = payload;
+    const { organizationId, userId, donorIds, limit } = payload;
 
-    triggerLogger.info(`Starting bulk donor research for organization ${organizationId}, user ${userId}`);
+    triggerLogger.info(
+      `Starting bulk donor research for organization ${organizationId}, user ${userId}, limit: ${limit || "none"}`
+    );
 
     try {
       const personResearchService = new PersonResearchService();
@@ -112,7 +115,7 @@ export const bulkDonorResearchTask = task({
 
       if (donorIds && donorIds.length > 0) {
         // Research specific donors
-        donorsToResearch = await db
+        const baseQuery = db
           .select({
             id: donors.id,
             firstName: donors.firstName,
@@ -121,9 +124,11 @@ export const bulkDonorResearchTask = task({
           })
           .from(donors)
           .where(and(eq(donors.organizationId, organizationId), inArray(donors.id, donorIds)));
+
+        donorsToResearch = limit ? await baseQuery.limit(limit) : await baseQuery;
       } else {
         // Get all donors that don't have any research conducted yet
-        donorsToResearch = await db
+        const baseQuery = db
           .select({
             id: donors.id,
             firstName: donors.firstName,
@@ -138,6 +143,8 @@ export const bulkDonorResearchTask = task({
               notExists(db.select().from(personResearch).where(eq(personResearch.donorId, donors.id)))
             )
           );
+
+        donorsToResearch = limit ? await baseQuery.limit(limit) : await baseQuery;
       }
 
       if (donorsToResearch.length === 0) {

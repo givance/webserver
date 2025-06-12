@@ -1,8 +1,15 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
 import { logger } from "@/app/lib/logger";
+import { env } from "@/app/lib/env";
 import { PersonResearchData, TokenUsage, WebSearchResult } from "./types";
 import { z } from "zod";
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 // Zod schema for PersonResearchData
 const PersonResearchDataSchema = z.object({
@@ -69,7 +76,7 @@ Based on the research above, extract the following structured information:
 Be conservative in your assessments and clearly indicate when information is inferred vs. explicitly stated.`;
 
       const result = await generateObject({
-        model: openai("gpt-4o-mini"),
+        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         schema: PersonResearchDataSchema,
         prompt,
         temperature: 0.1, // Low temperature for consistent structured extraction

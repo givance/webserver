@@ -11,9 +11,19 @@ import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Plus, Search, Info } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useBulkDonorResearch } from "@/app/hooks/use-bulk-donor-research";
 import type { Donor } from "./columns";
 import { getColumns } from "./columns";
@@ -27,6 +37,10 @@ export default function DonorListPage() {
   const { listDonors, getMultipleDonorStats, updateDonorStaff } = useDonors();
   const { staffMembers } = useStaffMembers();
   const { startBulkResearch, researchStatistics, isStartingResearch, isLoadingStatistics } = useBulkDonorResearch();
+
+  // Dialog state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [donorCount, setDonorCount] = useState<string>("");
 
   const {
     data: listDonorsResponse,
@@ -102,6 +116,16 @@ export default function DonorListPage() {
     [staffMembers, handleUpdateDonorStaff]
   );
 
+  const handleStartResearch = async () => {
+    const count = parseInt(donorCount);
+    if (count > 0) {
+      // Start research with the specified limit
+      await startBulkResearch(undefined, count);
+      setIsDialogOpen(false);
+      setDonorCount("");
+    }
+  };
+
   if (error) {
     return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading donors" />;
   }
@@ -124,19 +148,101 @@ export default function DonorListPage() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button
-            onClick={() => startBulkResearch()}
-            disabled={isStartingResearch || researchStatistics?.unresearchedDonors === 0}
-            variant="outline"
-          >
-            <Search className="w-4 h-4 mr-2" />
-            {isStartingResearch ? "Starting..." : "Research All"}
-            {researchStatistics?.unresearchedDonors > 0 && (
-              <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                {researchStatistics.unresearchedDonors}
-              </span>
-            )}
-          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={researchStatistics?.unresearchedDonors === 0} variant="outline">
+                <Search className="w-4 h-4 mr-2" />
+                Research Donors
+                {researchStatistics?.unresearchedDonors > 0 && (
+                  <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                    {researchStatistics.unresearchedDonors}
+                  </span>
+                )}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Start Donor Research</DialogTitle>
+                <DialogDescription>
+                  Choose how many donors to research. We'll start with the oldest unresearched donors first.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="donorCount" className="text-right">
+                    Number of donors
+                  </Label>
+                  <Input
+                    id="donorCount"
+                    type="number"
+                    min="1"
+                    max={researchStatistics?.unresearchedDonors || 1000}
+                    value={donorCount}
+                    onChange={(e) => setDonorCount(e.target.value)}
+                    placeholder="e.g. 100"
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDonorCount("10")}
+                    disabled={!researchStatistics || researchStatistics.unresearchedDonors < 10}
+                  >
+                    10
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDonorCount("50")}
+                    disabled={!researchStatistics || researchStatistics.unresearchedDonors < 50}
+                  >
+                    50
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDonorCount("100")}
+                    disabled={!researchStatistics || researchStatistics.unresearchedDonors < 100}
+                  >
+                    100
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDonorCount(researchStatistics?.unresearchedDonors?.toString() || "0")}
+                    disabled={!researchStatistics || researchStatistics.unresearchedDonors === 0}
+                  >
+                    All ({researchStatistics?.unresearchedDonors || 0})
+                  </Button>
+                </div>
+                {researchStatistics && (
+                  <div className="text-sm text-muted-foreground">
+                    {researchStatistics.unresearchedDonors} donors available for research
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  onClick={handleStartResearch}
+                  disabled={
+                    !donorCount ||
+                    parseInt(donorCount) <= 0 ||
+                    parseInt(donorCount) > (researchStatistics?.unresearchedDonors || 0) ||
+                    isStartingResearch
+                  }
+                >
+                  {isStartingResearch ? "Starting..." : "Start Research"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Link href="/donors/add">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
