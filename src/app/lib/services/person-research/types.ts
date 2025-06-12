@@ -72,6 +72,7 @@ export interface QueryGenerationInput {
   maxQueries: number;
   isFollowUp: boolean;
   previousQueries?: string[];
+  donorInfo?: DonorInfo; // Optional donor info for generating specific name-based queries
 }
 
 /**
@@ -339,6 +340,9 @@ export interface DonorInfo {
   fullName: string;
   location?: string;
   notes?: string;
+  email?: string; // NEW: Email for specific queries
+  address?: string; // NEW: Address for specific queries
+  state?: string; // NEW: State for specific queries when city not available
 }
 
 /**

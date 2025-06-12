@@ -67,6 +67,9 @@ export class PersonResearchService {
           fullName: `${donor.firstName} ${donor.lastName}`.trim(),
           location: donor.address ? `${donor.address}${donor.state ? `, ${donor.state}` : ""}` : undefined,
           notes: donor.notes || undefined,
+          email: donor.email || undefined,
+          address: donor.address || undefined,
+          state: donor.state || undefined,
         };
 
         logger.info(`Using donor information for enhanced person identification: ${donorInfo.fullName}`);
@@ -188,6 +191,7 @@ export class PersonResearchService {
         researchTopic,
         maxQueries: 3,
         isFollowUp: false,
+        ...(donorInfo && { donorInfo }),
       });
 
       // Accumulate query generation tokens
@@ -281,6 +285,7 @@ export class PersonResearchService {
               maxQueries: Math.min(reflection.followUpQueries.length, 3),
               isFollowUp: true,
               previousQueries: allSummaries.map((s) => s.query),
+              ...(donorInfo && { donorInfo }),
             });
 
             // Accumulate additional query generation tokens

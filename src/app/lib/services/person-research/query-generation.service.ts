@@ -9,6 +9,7 @@ import {
   getCurrentDate,
   TokenUsage,
   createEmptyTokenUsage,
+  DonorInfo,
 } from "./types";
 
 // Create Azure OpenAI client
@@ -33,7 +34,7 @@ export class QueryGenerationService {
    * @returns Generated queries with rationale
    */
   async generateQueries(input: QueryGenerationInput): Promise<QueryGenerationResult> {
-    const { researchTopic, maxQueries, isFollowUp, previousQueries = [] } = input;
+    const { researchTopic, maxQueries, isFollowUp, previousQueries = [], donorInfo } = input;
 
     const queryType = isFollowUp ? "follow-up" : "initial";
     const previousContext = isFollowUp
@@ -45,6 +46,28 @@ export class QueryGenerationService {
     );
 
     try {
+      // Start with specific queries if donor info is available and this is the initial query generation
+      const specificQueries: { query: string; rationale: string }[] = [];
+
+      if (!isFollowUp && donorInfo) {
+        // Always add full name + location query using state first, then address as fallback
+        const location = donorInfo.state || donorInfo.address;
+        if (location) {
+          specificQueries.push({
+            query: `${donorInfo.fullName} ${location}`,
+            rationale: "Direct search using full name and location for precise identification",
+          });
+        }
+
+        // Always add full name + email query if email is available
+        if (donorInfo.email) {
+          specificQueries.push({
+            query: `${donorInfo.fullName} ${donorInfo.email}`,
+            rationale: "Direct search using full name and email address for precise identification",
+          });
+        }
+      }
+
       const prompt = this.buildQueryGenerationPrompt(researchTopic, maxQueries, isFollowUp, previousQueries);
 
       logger.debug(
@@ -65,16 +88,24 @@ export class QueryGenerationService {
         totalTokens: result.usage?.totalTokens || 0,
       };
 
-      // Convert to ResearchQuery format
-      const queries = result.object.query.slice(0, maxQueries).map((query) => ({
+      // Convert AI-generated queries to ResearchQuery format
+      const aiQueries = result.object.query.map((query) => ({
         query,
         rationale: result.object.rationale,
       }));
 
+      // Combine specific queries (at the beginning) with AI-generated queries
+      const allQueries = [...specificQueries, ...aiQueries];
+
+      // Limit to maxQueries total
+      const queries = allQueries.slice(0, maxQueries);
+
       logger.info(
         `Generated ${queries.length} ${queryType} queries for topic "${researchTopic}": [${queries
           .map((q) => q.query)
-          .join(", ")}] (tokens: ${tokenUsage.totalTokens})`
+          .join(", ")}] (tokens: ${tokenUsage.totalTokens})${
+          specificQueries.length > 0 ? ` (${specificQueries.length} specific name-based queries included)` : ""
+        }`
       );
 
       return {
