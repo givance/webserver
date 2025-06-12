@@ -1,7 +1,17 @@
-import { generateText } from "ai";
+import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { logger } from "@/app/lib/logger";
 import { PersonResearchData, TokenUsage, WebSearchResult } from "./types";
+import { z } from "zod";
+
+// Zod schema for PersonResearchData
+const PersonResearchDataSchema = z.object({
+  inferredAge: z.number().nullable(),
+  employer: z.string().nullable(),
+  estimatedIncome: z.string().nullable(),
+  highPotentialDonor: z.boolean(),
+  highPotentialDonorRationale: z.string(),
+});
 
 /**
  * Service for extracting structured data from person research results
@@ -56,45 +66,23 @@ Based on the research above, extract the following structured information:
 
 5. **High Potential Donor Rationale**: Provide a detailed explanation (2-3 sentences) for why you assessed them as high or low potential, citing specific evidence from the research.
 
-Respond ONLY with a valid JSON object in this exact format:
-{
-  "inferredAge": number or null,
-  "employer": "string" or null,
-  "estimatedIncome": "string" or null,
-  "highPotentialDonor": boolean,
-  "highPotentialDonorRationale": "string"
-}
-
 Be conservative in your assessments and clearly indicate when information is inferred vs. explicitly stated.`;
 
-      const result = await generateText({
+      const result = await generateObject({
         model: openai("gpt-4o-mini"),
+        schema: PersonResearchDataSchema,
         prompt,
         temperature: 0.1, // Low temperature for consistent structured extraction
       });
 
-      // Parse the JSON response
-      let structuredData: PersonResearchData;
-      try {
-        const parsed = JSON.parse(result.text);
-        structuredData = {
-          inferredAge: parsed.inferredAge,
-          employer: parsed.employer,
-          estimatedIncome: parsed.estimatedIncome,
-          highPotentialDonor: Boolean(parsed.highPotentialDonor),
-          highPotentialDonorRationale: parsed.highPotentialDonorRationale || "No rationale provided",
-        };
-      } catch (parseError) {
-        logger.error("Failed to parse structured data JSON response", parseError);
-        // Return default values if parsing fails
-        structuredData = {
-          inferredAge: null,
-          employer: null,
-          estimatedIncome: null,
-          highPotentialDonor: false,
-          highPotentialDonorRationale: "Unable to assess due to insufficient structured data in research results.",
-        };
-      }
+      // Extract structured data from the result
+      const structuredData: PersonResearchData = {
+        inferredAge: result.object.inferredAge,
+        employer: result.object.employer,
+        estimatedIncome: result.object.estimatedIncome,
+        highPotentialDonor: result.object.highPotentialDonor,
+        highPotentialDonorRationale: result.object.highPotentialDonorRationale,
+      };
 
       const tokenUsage: TokenUsage = {
         promptTokens: result.usage.promptTokens,
