@@ -9,12 +9,12 @@ import { useSearch } from "@/app/hooks/use-search";
 import { useStaffMembers } from "@/app/hooks/use-staff-members";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
-import { Container } from "@/components/ui/container";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Input } from "@/components/ui/input";
-import { Plus } from "lucide-react";
+import { Plus, Search, Info } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo } from "react";
+import { useBulkDonorResearch } from "@/app/hooks/use-bulk-donor-research";
 import type { Donor } from "./columns";
 import { getColumns } from "./columns";
 
@@ -26,6 +26,7 @@ export default function DonorListPage() {
 
   const { listDonors, getMultipleDonorStats, updateDonorStaff } = useDonors();
   const { staffMembers } = useStaffMembers();
+  const { startBulkResearch, researchStatistics, isStartingResearch, isLoadingStatistics } = useBulkDonorResearch();
 
   const {
     data: listDonorsResponse,
@@ -110,13 +111,39 @@ export default function DonorListPage() {
   return (
     <div className="py-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Donor Management</h1>
-        <Link href="/donors/add">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Donor
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold">Donor Management</h1>
+          {researchStatistics && !isLoadingStatistics && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Info className="w-4 h-4" />
+              <span>
+                Research Progress: {researchStatistics.researchedDonors} of {researchStatistics.totalDonors} donors
+                researched ({researchStatistics.researchPercentage}%)
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => startBulkResearch()}
+            disabled={isStartingResearch || researchStatistics?.unresearchedDonors === 0}
+            variant="outline"
+          >
+            <Search className="w-4 h-4 mr-2" />
+            {isStartingResearch ? "Starting..." : "Research All"}
+            {researchStatistics?.unresearchedDonors > 0 && (
+              <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                {researchStatistics.unresearchedDonors}
+              </span>
+            )}
           </Button>
-        </Link>
+          <Link href="/donors/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Donor
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">

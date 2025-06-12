@@ -2,11 +2,13 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { PersonResearchService } from "@/app/lib/services/person-research.service";
+import { BulkDonorResearchService } from "@/app/lib/services/bulk-donor-research.service";
 import { logger } from "@/app/lib/logger";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 
 const personResearchService = new PersonResearchService();
+const bulkDonorResearchService = new BulkDonorResearchService();
 
 /**
  * Helper function to generate research topic for a donor
@@ -463,6 +465,126 @@ export const personResearchRouter = router({
         code: "INTERNAL_SERVER_ERROR",
         message:
           "Failed to retrieve donor research versions. Please try again or contact support if the issue persists.",
+      });
+    }
+  }),
+
+  /**
+   * Starts bulk research for all unresearched donors
+   */
+  startBulkDonorResearch: protectedProcedure
+    .input(
+      z.object({
+        donorIds: z.array(z.number()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { donorIds } = input;
+      const { user } = ctx.auth;
+
+      logger.info(
+        `[Bulk Donor Research API] Starting bulk research - User: ${user.id}, Organization: ${
+          user.organizationId
+        }, Donor IDs: ${donorIds ? donorIds.length : "all unresearched"}`
+      );
+
+      try {
+        // Validate user has organization access
+        if (!user.organizationId) {
+          logger.warn(`[Bulk Donor Research API] User ${user.id} attempted bulk research without organization`);
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Organization membership required for bulk donor research",
+          });
+        }
+
+        // Start the bulk research job
+        const result = await bulkDonorResearchService.startBulkResearch({
+          organizationId: user.organizationId,
+          userId: user.id,
+          donorIds,
+        });
+
+        logger.info(
+          `[Bulk Donor Research API] Bulk research job started - Job ID: ${result.jobId}, Donors to research: ${result.donorsToResearch}`
+        );
+
+        return {
+          success: true,
+          data: {
+            jobId: result.jobId,
+            donorsToResearch: result.donorsToResearch,
+            message: `Started research for ${result.donorsToResearch} donors`,
+          },
+        };
+      } catch (error) {
+        // Log the error with context
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const errorType = error instanceof Error ? error.constructor.name : typeof error;
+
+        logger.error(
+          `[Bulk Donor Research API] Bulk research failed - User: ${user.id}, Organization: ${user.organizationId}, Error: ${errorMessage}, Type: ${errorType}`
+        );
+
+        // Handle different types of errors
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        // Generic error for any other failures
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to start bulk donor research. Please try again or contact support if the issue persists.",
+        });
+      }
+    }),
+
+  /**
+   * Gets research statistics for the organization
+   */
+  getResearchStatistics: protectedProcedure.query(async ({ ctx }) => {
+    const { user } = ctx.auth;
+
+    logger.info(
+      `[Research Statistics API] Getting research statistics - User: ${user.id}, Organization: ${user.organizationId}`
+    );
+
+    try {
+      // Validate user has organization access
+      if (!user.organizationId) {
+        logger.warn(`[Research Statistics API] User ${user.id} attempted to get stats without organization`);
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Organization membership required for research statistics",
+        });
+      }
+
+      // Get research statistics
+      const stats = await bulkDonorResearchService.getResearchStatistics(user.organizationId);
+
+      logger.info(
+        `[Research Statistics API] Successfully retrieved research statistics - Total: ${stats.totalDonors}, Researched: ${stats.researchedDonors}, Unresearched: ${stats.unresearchedDonors}, Percentage: ${stats.researchPercentage}%`
+      );
+
+      return stats;
+    } catch (error) {
+      // Log the error with context
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorType = error instanceof Error ? error.constructor.name : typeof error;
+
+      logger.error(
+        `[Research Statistics API] Failed to get research statistics - User: ${user.id}, Organization: ${user.organizationId}, Error: ${errorMessage}, Type: ${errorType}`
+      );
+
+      // Handle different types of errors
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Generic error for any other failures
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get research statistics. Please try again or contact support if the issue persists.",
       });
     }
   }),
