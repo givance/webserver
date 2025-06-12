@@ -164,7 +164,7 @@ export default function DonorListPage() {
               <DialogHeader>
                 <DialogTitle>Start Donor Research</DialogTitle>
                 <DialogDescription>
-                  Choose how many donors to research. We'll start with the oldest unresearched donors first.
+                  Choose how many donors to research. We&apos;ll start with the oldest unresearched donors first.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">

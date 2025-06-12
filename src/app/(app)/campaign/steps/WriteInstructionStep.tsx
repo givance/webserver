@@ -344,6 +344,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
         generateEmails,
         onInstructionChange,
         previousInstruction,
+        chatMessages,
       ]
     );
 
