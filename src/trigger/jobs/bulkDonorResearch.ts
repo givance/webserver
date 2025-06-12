@@ -8,7 +8,7 @@ import { getDonorById } from "@/app/lib/data/donors";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 
 // Maximum number of concurrent operations
-const MAX_CONCURRENCY = 50;
+const MAX_CONCURRENCY = 15;
 
 /**
  * Process items in batches with limited concurrency
