@@ -1,6 +1,5 @@
 import { logger } from "@/app/lib/logger";
 import * as cheerio from "cheerio";
-import { JSDOM } from "jsdom";
 import { CrawledContent } from "./types";
 
 /**
@@ -210,61 +209,49 @@ export class WebCrawlerService {
         wordCount,
       };
     } catch (error) {
-      // Fallback to JSDOM if cheerio fails
-      logger.debug(
-        `Cheerio parsing failed for ${url}, trying JSDOM: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return this.extractWithJSDOM(html, url);
-    }
-  }
+      // If cheerio fails, try a simpler approach with basic text extraction
+      logger.warn(`HTML parsing failed for ${url}: ${error instanceof Error ? error.message : String(error)}`);
 
-  /**
-   * Fallback text extraction using JSDOM
-   */
-  private extractWithJSDOM(html: string, url: string): { url: string; title: string; text: string; wordCount: number } {
-    try {
-      const dom = new JSDOM(html);
-      const document = dom.window.document;
+      // Fallback: basic text extraction without DOM parsing
+      try {
+        // Remove script and style tags using regex
+        let cleanHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+        cleanHtml = cleanHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
 
-      // Remove unwanted elements
-      const unwantedSelectors = ["script", "style", "nav", "footer", "header", "aside"];
-      unwantedSelectors.forEach((selector) => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach((el) => el.remove());
-      });
+        // Extract title using regex
+        const titleMatch = cleanHtml.match(/<title[^>]*>([^<]*)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : "";
 
-      const title = document.title || document.querySelector("h1")?.textContent || "";
+        // Remove all HTML tags and extract text
+        const text = cleanHtml
+          .replace(/<[^>]*>/g, " ") // Remove all HTML tags
+          .replace(/\s+/g, " ") // Replace multiple whitespace with single space
+          .trim();
 
-      // Try to get main content
-      const mainElement =
-        document.querySelector("main") ||
-        document.querySelector("article") ||
-        document.querySelector(".content") ||
-        document.body;
+        const truncatedText =
+          text.length > this.MAX_CONTENT_LENGTH ? text.substring(0, this.MAX_CONTENT_LENGTH) + "..." : text;
 
-      let text = mainElement?.textContent || "";
-      text = text.replace(/\s+/g, " ").trim();
+        const wordCount = truncatedText.split(/\s+/).filter((word: string) => word.length > 0).length;
 
-      if (text.length > this.MAX_CONTENT_LENGTH) {
-        text = text.substring(0, this.MAX_CONTENT_LENGTH) + "...";
+        return {
+          url,
+          title,
+          text: truncatedText,
+          wordCount,
+        };
+      } catch (fallbackError) {
+        logger.warn(
+          `Fallback parsing also failed for ${url}: ${
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          }`
+        );
+        return {
+          url,
+          title: "",
+          text: "",
+          wordCount: 0,
+        };
       }
-
-      const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
-
-      return {
-        url,
-        title,
-        text,
-        wordCount,
-      };
-    } catch (error) {
-      logger.warn(`JSDOM parsing also failed for ${url}: ${error instanceof Error ? error.message : String(error)}`);
-      return {
-        url,
-        title: "",
-        text: "",
-        wordCount: 0,
-      };
     }
   }
 
