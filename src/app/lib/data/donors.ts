@@ -295,6 +295,7 @@ export async function listDonors(
     state?: string;
     gender?: "male" | "female" | null;
     assignedToStaffId?: number | null;
+    onlyResearched?: boolean;
     limit?: number;
     offset?: number;
     orderBy?: "firstName" | "lastName" | "email" | "createdAt";
@@ -308,6 +309,7 @@ export async function listDonors(
       state,
       gender,
       assignedToStaffId,
+      onlyResearched,
       limit, // No default limit - if not provided, fetch all
       offset = 0,
       orderBy,
@@ -341,6 +343,16 @@ export async function listDonors(
       whereClauses.push(isNull(donors.assignedToStaffId));
     } else if (assignedToStaffId !== undefined) {
       whereClauses.push(eq(donors.assignedToStaffId, assignedToStaffId));
+    }
+
+    // Add filter for researched donors
+    if (onlyResearched) {
+      // Only include donors that have a matching research record
+      whereClauses.push(sql`EXISTS (
+        SELECT 1 FROM ${personResearch} 
+        WHERE ${personResearch.donorId} = ${donors.id} 
+        AND ${personResearch.isLive} = true
+      )`);
     }
 
     let queryBuilder = db

@@ -23,6 +23,7 @@ export function useDonors() {
   const listDonors = (params: {
     searchTerm?: string;
     gender?: "male" | "female" | null;
+    onlyResearched?: boolean;
     limit?: number;
     offset?: number;
     orderBy?: "firstName" | "lastName" | "email" | "createdAt";

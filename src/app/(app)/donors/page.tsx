@@ -34,6 +34,9 @@ export default function DonorListPage() {
     resetOnDependency: debouncedSearchTerm,
   });
 
+  // Add state for the researched donors filter
+  const [onlyResearched, setOnlyResearched] = useState(false);
+
   const { listDonors, getMultipleDonorStats, updateDonorStaff } = useDonors();
   const { staffMembers } = useStaffMembers();
   const { startBulkResearch, researchStatistics, isStartingResearch, isLoadingStatistics } = useBulkDonorResearch();
@@ -52,6 +55,7 @@ export default function DonorListPage() {
     searchTerm: debouncedSearchTerm,
     orderBy: "firstName",
     orderDirection: "asc",
+    onlyResearched, // Add the filter parameter
   });
 
   // Get donation stats for all donors in the current page
@@ -253,12 +257,31 @@ export default function DonorListPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-        <Input
-          placeholder="Search donors by name, email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full sm:max-w-sm"
-        />
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search donors..."
+            className="w-full pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Add the checkbox for researched donors */}
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="only-researched"
+            checked={onlyResearched}
+            onChange={(e) => setOnlyResearched(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <label htmlFor="only-researched" className="text-sm font-medium">
+            Show only researched donors
+          </label>
+        </div>
+
         <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
       </div>
 
