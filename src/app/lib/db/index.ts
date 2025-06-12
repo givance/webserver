@@ -11,7 +11,7 @@ if (!process.env.DATABASE_URL) {
  * PostgreSQL connection pool.
  */
 const pool = new Pool({
-  ssl: true,
+  // ssl: true,
   connectionString: process.env.DATABASE_URL,
 });
 
