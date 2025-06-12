@@ -118,6 +118,7 @@ export const personResearchRouter = router({
         data: {
           answer: result.answer,
           citations: result.citations,
+          structuredData: result.structuredData, // NEW: Include structured data
           metadata: {
             researchTopic: result.researchTopic,
             totalLoops: result.totalLoops,
@@ -258,6 +259,7 @@ export const personResearchRouter = router({
           donorId: donorId,
           answer: result.answer,
           citations: result.citations,
+          structuredData: result.structuredData, // NEW: Include structured data
           metadata: {
             researchTopic: result.researchTopic,
             totalLoops: result.totalLoops,
@@ -357,6 +359,7 @@ export const personResearchRouter = router({
       return {
         answer: result.answer,
         citations: result.citations,
+        structuredData: result.structuredData, // NEW: Include structured data
         metadata: {
           researchTopic: result.researchTopic,
           totalLoops: result.totalLoops,

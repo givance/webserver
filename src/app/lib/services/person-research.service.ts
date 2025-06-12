@@ -4,6 +4,7 @@ import { QueryGenerationService } from "@/app/lib/services/person-research/query
 import { ReflectionService } from "@/app/lib/services/person-research/reflection.service";
 import { PersonResearchDatabaseService } from "@/app/lib/services/person-research/database.service";
 import { PersonIdentificationService } from "@/app/lib/services/person-research/person-identification.service";
+import { StructuredDataExtractionService } from "@/app/lib/services/person-research/structured-data-extraction.service";
 import {
   PersonResearchInput,
   PersonResearchResult,
@@ -17,9 +18,13 @@ import {
   addTokenUsage,
   DonorInfo,
   PersonIdentity,
+  PersonResearchData,
 } from "@/app/lib/services/person-research/types";
 import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
 import { getDonorById } from "@/app/lib/data/donors";
+import { db } from "@/app/lib/db";
+import { donors } from "@/app/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * PersonResearchService - Main service for iterative web research on individuals
@@ -41,6 +46,7 @@ export class PersonResearchService {
   private answerSynthesisService = new AnswerSynthesisService();
   private databaseService = new PersonResearchDatabaseService();
   private personIdentificationService = new PersonIdentificationService();
+  private structuredDataExtractionService = new StructuredDataExtractionService();
 
   /**
    * Conducts comprehensive research on a person and saves it to the database
@@ -78,6 +84,26 @@ export class PersonResearchService {
       researchResult: result,
       setAsLive: true,
     });
+
+    // Update donor record with high potential flag
+    try {
+      await db
+        .update(donors)
+        .set({
+          highPotentialDonor: result.structuredData.highPotentialDonor,
+          updatedAt: new Date(),
+        })
+        .where(eq(donors.id, donorId));
+
+      logger.info(`Updated donor ${donorId} with high potential flag: ${result.structuredData.highPotentialDonor}`);
+    } catch (error) {
+      logger.error(
+        `Failed to update donor ${donorId} with research results: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      // Don't throw error - research was still successful
+    }
 
     logger.info(`Successfully conducted and saved person research for donor ${donorId}, research ID: ${dbRecord.id}`);
 
@@ -281,10 +307,31 @@ export class PersonResearchService {
       // Accumulate answer synthesis tokens
       tokenUsage.answerSynthesis = addTokenUsage(tokenUsage.answerSynthesis, finalAnswer.tokenUsage);
 
-      // Calculate total tokens
+      // Stage 6: Structured Data Extraction
+      logger.info(`Extracting structured data from research results`);
+
+      const structuredDataResult = await this.structuredDataExtractionService.extractStructuredData({
+        answer: finalAnswer.answer,
+        summaries: allSummaries,
+        researchTopic,
+      });
+
+      // Accumulate structured data extraction tokens
+      tokenUsage.structuredDataExtraction = addTokenUsage(
+        tokenUsage.structuredDataExtraction,
+        structuredDataResult.tokenUsage
+      );
+
+      // Calculate total tokens including all stages
       const baseTokens = addTokenUsage(
-        addTokenUsage(addTokenUsage(tokenUsage.queryGeneration, tokenUsage.webSearchSummaries), tokenUsage.reflection),
-        tokenUsage.answerSynthesis
+        addTokenUsage(
+          addTokenUsage(
+            addTokenUsage(tokenUsage.queryGeneration, tokenUsage.webSearchSummaries),
+            tokenUsage.reflection
+          ),
+          tokenUsage.answerSynthesis
+        ),
+        tokenUsage.structuredDataExtraction
       );
 
       // Add person identification tokens if available
@@ -302,6 +349,7 @@ export class PersonResearchService {
         timestamp: new Date(),
         tokenUsage,
         personIdentity, // Include the extracted person identity
+        structuredData: structuredDataResult.structuredData, // Include the structured data
       };
 
       // Log comprehensive token usage summary
@@ -314,7 +362,7 @@ export class PersonResearchService {
         : "";
 
       logger.info(
-        `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output)${identificationLog}, TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
+        `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output), Structured Data Extraction: ${tokenUsage.structuredDataExtraction.totalTokens} tokens (${tokenUsage.structuredDataExtraction.promptTokens} input, ${tokenUsage.structuredDataExtraction.completionTokens} output)${identificationLog}, TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
       );
 
       return result;

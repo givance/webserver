@@ -210,6 +210,8 @@ export const donors = pgTable(
     currentStageName: varchar("current_stage_name", { length: 255 }),
     classificationReasoning: text("classification_reasoning"),
     predictedActions: jsonb("predicted_actions"),
+    // Research-derived fields from person research
+    highPotentialDonor: boolean("high_potential_donor").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

@@ -2,7 +2,7 @@
 
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2, Activity, Info, ChevronDown } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, Trash2, Activity, Info, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
 import {
   AlertDialog,
@@ -56,6 +56,7 @@ export type Donor = DonorNameFields & {
   classificationReasoning: string | null;
   predictedActions: PredictedAction[];
   assignedToStaffId: string | null;
+  highPotentialDonor: boolean; // NEW: High potential donor flag from research
 };
 
 // DeleteDonorButton component to handle delete with confirmation dialog
@@ -114,9 +115,23 @@ export const getColumns = (
       );
     },
     cell: ({ row }: { row: Row<Donor> }) => (
-      <Link href={`/donors/${row.original.id}`} className="font-medium">
-        {row.getValue("name")}
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href={`/donors/${row.original.id}`} className="font-medium">
+          {row.getValue("name")}
+        </Link>
+        {row.original.highPotentialDonor && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Star className="h-4 w-4 text-yellow-500 fill-current" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>High Potential Donor</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
     ),
   },
   {

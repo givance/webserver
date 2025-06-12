@@ -25,7 +25,19 @@ export interface ResearchTokenUsage {
   reflection: TokenUsage;
   answerSynthesis: TokenUsage;
   personIdentification?: TokenUsage; // Person identification token usage
+  structuredDataExtraction: TokenUsage; // NEW: Structured data extraction token usage
   total: TokenUsage;
+}
+
+/**
+ * Structured data extracted from person research
+ */
+export interface PersonResearchData {
+  inferredAge?: number | null;
+  employer?: string | null;
+  estimatedIncome?: string | null; // e.g., "$50,000-$75,000", "Not disclosed", etc.
+  highPotentialDonor: boolean;
+  highPotentialDonorRationale: string;
 }
 
 /**
@@ -41,6 +53,7 @@ export interface PersonResearchResult {
   timestamp: Date;
   tokenUsage: ResearchTokenUsage;
   personIdentity?: PersonIdentity; // Optional extracted person identity
+  structuredData: PersonResearchData; // NEW: Structured extracted data
 }
 
 /**
@@ -314,6 +327,7 @@ export function createEmptyResearchTokenUsage(): ResearchTokenUsage {
     reflection: createEmptyTokenUsage(),
     answerSynthesis: createEmptyTokenUsage(),
     personIdentification: createEmptyTokenUsage(), // Initialize with empty usage
+    structuredDataExtraction: createEmptyTokenUsage(), // Initialize with empty usage
     total: createEmptyTokenUsage(),
   };
 }

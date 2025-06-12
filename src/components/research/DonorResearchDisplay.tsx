@@ -175,6 +175,54 @@ export function DonorResearchDisplay({ donorId, donorName }: DonorResearchDispla
         </CardContent>
       </Card>
 
+      {/* Structured Data Summary */}
+      {research.structuredData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Key Insights</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {research.structuredData.inferredAge && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-muted-foreground">Estimated Age</p>
+                  <p className="text-lg font-semibold">{research.structuredData.inferredAge} years</p>
+                </div>
+              )}
+              {research.structuredData.employer && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-muted-foreground">Employer</p>
+                  <p className="text-lg font-semibold">{research.structuredData.employer}</p>
+                </div>
+              )}
+              {research.structuredData.estimatedIncome && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-muted-foreground">Estimated Income</p>
+                  <p className="text-lg font-semibold">{research.structuredData.estimatedIncome}</p>
+                </div>
+              )}
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground">Donor Potential</p>
+                <p className="text-lg font-semibold">
+                  {research.structuredData.highPotentialDonor ? (
+                    <span className="text-green-600">High Potential ✓</span>
+                  ) : (
+                    <span className="text-orange-600">Standard</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {research.structuredData.highPotentialDonorRationale && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium mb-2 text-blue-900">Assessment Rationale</h4>
+                <p className="text-sm text-blue-800">{research.structuredData.highPotentialDonorRationale}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Research Answer */}
       <Card>
         <CardHeader>

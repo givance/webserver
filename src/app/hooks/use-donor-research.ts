@@ -15,6 +15,13 @@ interface DonorResearchResult {
     snippet: string;
     relevance: string;
   }>;
+  structuredData?: {
+    inferredAge?: number | null;
+    employer?: string | null;
+    estimatedIncome?: string | null;
+    highPotentialDonor: boolean;
+    highPotentialDonorRationale: string;
+  };
   metadata: {
     researchTopic: string;
     totalLoops: number;

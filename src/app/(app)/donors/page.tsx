@@ -64,6 +64,7 @@ export default function DonorListPage() {
           classificationReasoning: apiDonor.classificationReasoning || null,
           predictedActions: [],
           assignedToStaffId: apiDonor.assignedToStaffId?.toString() || null,
+          highPotentialDonor: (apiDonor as any).highPotentialDonor || false, // NEW: High potential donor flag
           displayName: apiDonor.displayName,
           hisTitle: apiDonor.hisTitle,
           hisFirstName: apiDonor.hisFirstName,
