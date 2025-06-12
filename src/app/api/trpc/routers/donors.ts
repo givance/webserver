@@ -115,6 +115,9 @@ const baseDonorSchema = z.object({
   currentStageName: z.string().nullish(),
   classificationReasoning: z.string().nullish(),
   predictedActions: z.array(z.string()).optional(),
+  // NEW: Person research fields
+  highPotentialDonor: z.boolean().nullish(),
+  highPotentialDonorRationale: z.string().nullish(),
   createdAt: z.date().transform((d) => d.toISOString()),
   updatedAt: z.date().transform((d) => d.toISOString()),
   stageName: z.string().optional(),

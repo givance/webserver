@@ -57,6 +57,7 @@ export type Donor = DonorNameFields & {
   predictedActions: PredictedAction[];
   assignedToStaffId: string | null;
   highPotentialDonor: boolean; // NEW: High potential donor flag from research
+  highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
 };
 
 // DeleteDonorButton component to handle delete with confirmation dialog
@@ -123,10 +124,21 @@ export const getColumns = (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                <Badge
+                  variant="secondary"
+                  className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 cursor-help px-2 py-1 text-xs font-medium"
+                >
+                  <Star className="h-3 w-3 mr-1 fill-current" />
+                  High Potential
+                </Badge>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>High Potential Donor</p>
+              <TooltipContent className="max-w-xs">
+                <div>
+                  <p className="font-semibold">High Potential Donor</p>
+                  {row.original.highPotentialDonorRationale && (
+                    <p className="mt-1 text-sm">{row.original.highPotentialDonorRationale}</p>
+                  )}
+                </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

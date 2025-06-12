@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { donors, staff, organizations } from "../db/schema";
+import { donors, staff, organizations, personResearch } from "../db/schema";
 import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -13,6 +13,7 @@ export type DonorWithDetails = Omit<Donor, "predictedActions"> & {
   stageExplanation?: string;
   possibleActions?: string[];
   predictedActions?: string[];
+  highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
 };
 
 export type CommunicationDonor = Pick<
@@ -343,8 +344,43 @@ export async function listDonors(
     }
 
     let queryBuilder = db
-      .select()
+      .select({
+        // All donor fields
+        id: donors.id,
+        organizationId: donors.organizationId,
+        externalId: donors.externalId,
+        firstName: donors.firstName,
+        lastName: donors.lastName,
+        displayName: donors.displayName,
+        email: donors.email,
+        phone: donors.phone,
+        address: donors.address,
+        state: donors.state,
+        notes: donors.notes,
+        isCouple: donors.isCouple,
+        gender: donors.gender,
+        hisTitle: donors.hisTitle,
+        hisFirstName: donors.hisFirstName,
+        hisInitial: donors.hisInitial,
+        hisLastName: donors.hisLastName,
+        herTitle: donors.herTitle,
+        herFirstName: donors.herFirstName,
+        herInitial: donors.herInitial,
+        herLastName: donors.herLastName,
+        assignedToStaffId: donors.assignedToStaffId,
+        currentStageName: donors.currentStageName,
+        classificationReasoning: donors.classificationReasoning,
+        predictedActions: donors.predictedActions,
+        highPotentialDonor: donors.highPotentialDonor,
+        createdAt: donors.createdAt,
+        updatedAt: donors.updatedAt,
+        // Research rationale from the live person research record
+        highPotentialDonorRationale: sql<string | null>`
+          (${personResearch.researchData}->>'structuredData')::jsonb->>'highPotentialDonorRationale'
+        `,
+      })
       .from(donors)
+      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
       .where(and(...whereClauses));
 
     if (orderBy) {
