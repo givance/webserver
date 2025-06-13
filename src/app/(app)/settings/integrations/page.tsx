@@ -8,6 +8,7 @@ import { trpc } from "@/app/lib/trpc/client";
 import React from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { GmailConnect as GmailConnectComponent } from "@/components/ui/GmailConnect";
+import { MicrosoftConnect } from "@/components/ui/MicrosoftConnect";
 
 function GmailConnect() {
   return <GmailConnectComponent context="settings" />;
@@ -84,8 +85,16 @@ export default function IntegrationsPage() {
         </div>
 
         <div className="space-y-6">
-          <GmailConnect />
-          <SignatureSettings />
+          <div className="grid gap-8">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Email Integration</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <GmailConnect />
+                <MicrosoftConnect />
+              </div>
+            </div>
+            <SignatureSettings />
+          </div>
         </div>
       </div>
     </>

@@ -11,6 +11,8 @@ import { analysisRouter } from "./analysis";
 import { todoRouter } from "./todos";
 import { gmailRouter } from "./gmail";
 import { staffGmailRouter } from "./staff-gmail";
+import { microsoftRouter } from "./microsoft";
+import { staffMicrosoftRouter } from "./staff-microsoft";
 import { emailTrackingRouter } from "./email-tracking";
 import { templatesRouter } from "./templates";
 import { listsRouter } from "./lists";
@@ -33,6 +35,8 @@ export const appRouter = router({
   todos: todoRouter,
   gmail: gmailRouter,
   staffGmail: staffGmailRouter,
+  microsoft: microsoftRouter,
+  staffMicrosoft: staffMicrosoftRouter,
   emailTracking: emailTrackingRouter,
   templates: templatesRouter,
   lists: listsRouter,

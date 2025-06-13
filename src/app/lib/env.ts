@@ -30,6 +30,9 @@ export const env = createEnv({
       .string()
       .transform((val) => val === "true")
       .optional(),
+    MICROSOFT_CLIENT_ID: z.string().optional().default("placeholder-client-id"),
+    MICROSOFT_CLIENT_SECRET: z.string().optional().default("placeholder-client-secret"),
+    MICROSOFT_REDIRECT_URI: z.string().optional().default("http://localhost:3000/settings/microsoft/callback"),
   },
   /*
    * Environment variables available on the client (and server).
@@ -67,6 +70,9 @@ export const env = createEnv({
     GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     USE_AGENTIC_FLOW: process.env.USE_AGENTIC_FLOW,
+    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+    MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+    MICROSOFT_REDIRECT_URI: process.env.MICROSOFT_REDIRECT_URI,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });

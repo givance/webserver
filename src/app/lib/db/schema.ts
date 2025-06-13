@@ -373,6 +373,10 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
     fields: [staff.id],
     references: [staffGmailTokens.staffId],
   }),
+  microsoftToken: one(staffMicrosoftTokens, {
+    fields: [staff.id],
+    references: [staffMicrosoftTokens.staffId],
+  }),
 }));
 
 export const communicationThreadStaffRelations = relations(communicationThreadStaff, ({ one }) => ({
@@ -813,6 +817,55 @@ export const staffGmailTokens = pgTable("staff_gmail_tokens", {
 export const staffGmailTokensRelations = relations(staffGmailTokens, ({ one }) => ({
   staff: one(staff, {
     fields: [staffGmailTokens.staffId],
+    references: [staff.id],
+  }),
+}));
+
+// New table for Microsoft OAuth Tokens
+export const microsoftOAuthTokens = pgTable("microsoft_oauth_tokens", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(), // Assuming one Microsoft account per user
+  email: varchar("email", { length: 255 }).notNull(), // The Microsoft email address
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  scope: text("scope"), // Can store a string of scopes
+  tokenType: varchar("token_type", { length: 50 }), // e.g., "Bearer"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const microsoftOAuthTokensRelations = relations(microsoftOAuthTokens, ({ one, many }) => ({
+  user: one(users, {
+    fields: [microsoftOAuthTokens.userId],
+    references: [users.id],
+  }),
+  linkedStaff: many(staff),
+}));
+
+// New table for Staff Microsoft OAuth Tokens - separate from user tokens
+export const staffMicrosoftTokens = pgTable("staff_microsoft_tokens", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id")
+    .references(() => staff.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(), // One Microsoft account per staff member
+  email: varchar("email", { length: 255 }).notNull(), // The Microsoft email address
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  scope: text("scope"), // OAuth scopes granted
+  tokenType: varchar("token_type", { length: 50 }), // e.g., "Bearer"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const staffMicrosoftTokensRelations = relations(staffMicrosoftTokens, ({ one }) => ({
+  staff: one(staff, {
+    fields: [staffMicrosoftTokens.staffId],
     references: [staff.id],
   }),
 }));
