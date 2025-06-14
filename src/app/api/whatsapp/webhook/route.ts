@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
+import { WhatsAppAIService } from "@/app/lib/services/whatsapp-ai.service";
 
 /**
  * WhatsApp Webhook Handler
@@ -8,6 +9,12 @@ import { logger } from "@/app/lib/logger";
  * GET /api/whatsapp/webhook - For webhook verification
  * POST /api/whatsapp/webhook - For receiving messages
  */
+
+// Default organization ID for WhatsApp queries
+// TODO: Implement proper phone number to organization mapping
+const DEFAULT_ORGANIZATION_ID = "org_2x0w3dnWAbi8U3Zm5jE31HbAnkS"; // Replace with actual default organization ID
+
+const whatsappAI = new WhatsAppAIService();
 export async function GET(request: NextRequest) {
   // Get the query parameters
   const searchParams = request.nextUrl.searchParams;
@@ -72,8 +79,38 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Echo back the message
+            // Process text messages with AI if they appear to be donor queries
             if (message.type === "text") {
+              const messageText = message.text.body;
+              let responseText = messageText; // Default to echo
+
+              // Check if this looks like a donor query and process with AI
+              if (WhatsAppAIService.isDonorQuery(messageText)) {
+                logger.info(`[WhatsApp Webhook] Detected donor query from ${message.from}: "${messageText}"`);
+
+                try {
+                  const aiResponse = await whatsappAI.processMessage({
+                    message: messageText,
+                    organizationId: DEFAULT_ORGANIZATION_ID,
+                    fromPhoneNumber: message.from,
+                  });
+
+                  responseText = aiResponse.response;
+                  logger.info(
+                    `[WhatsApp Webhook] AI response generated (tokens: ${aiResponse.tokensUsed.totalTokens})`
+                  );
+                } catch (error) {
+                  logger.error(
+                    `[WhatsApp Webhook] AI processing failed: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                  responseText =
+                    "I'm sorry, I'm having trouble processing your request right now. Please try again later.";
+                }
+              } else {
+                logger.info(`[WhatsApp Webhook] Non-donor query, echoing message: "${messageText}"`);
+              }
+
+              // Send response back to user
               const response = await fetch(
                 `https://graph.facebook.com/v17.0/${change.value.metadata.phone_number_id}/messages`,
                 {
@@ -87,7 +124,7 @@ export async function POST(request: NextRequest) {
                     to: message.from,
                     type: "text",
                     text: {
-                      body: message.text.body,
+                      body: responseText,
                     },
                   }),
                 }
@@ -96,21 +133,21 @@ export async function POST(request: NextRequest) {
               const responseData = await response.text();
 
               if (!response.ok) {
-                logger.error("[WhatsApp Webhook] Failed to send echo message", {
+                logger.error("[WhatsApp Webhook] Failed to send response message", {
                   status: response.status,
                   statusText: response.statusText,
                   responseBody: responseData,
                   requestData: {
                     to: message.from,
-                    messageBody: message.text.body,
+                    messageBody: responseText,
                     phoneNumberId: change.value.metadata.phone_number_id,
                     hasToken: !!env.WHATSAPP_TOKEN,
                   },
                 });
               } else {
-                logger.info("[WhatsApp Webhook] Successfully echoed message back to user", {
+                logger.info("[WhatsApp Webhook] Successfully sent response back to user", {
                   to: message.from,
-                  messageBody: message.text.body,
+                  messageBody: responseText,
                   responseBody: responseData,
                 });
               }
