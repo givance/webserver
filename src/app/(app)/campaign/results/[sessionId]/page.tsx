@@ -230,47 +230,62 @@ export default function EmailGenerationResultsPage() {
                     orientation="vertical"
                     className="h-full"
                   >
-                    <div className="grid grid-cols-[300px_1fr] h-full border rounded-lg overflow-hidden">
-                      <div className="bg-muted/30 overflow-y-auto">
-                        <TabsList className="flex flex-col w-full h-full space-y-1 p-2">
-                          {sessionData.emails.map((email: GeneratedEmailData) => {
-                            const donor = getDonorData(email.donorId);
-                            const trackingStats = getDonorTrackingStats(email.donorId);
-                            if (!donor) return null;
+                    <div className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden max-h-[calc(100vh-200px)]">
+                      <div className="border-r bg-background flex flex-col h-full max-h-[calc(100vh-200px)]">
+                        <div className="p-3 border-b bg-muted/30 flex-shrink-0">
+                          <h3 className="font-medium text-sm text-muted-foreground">
+                            Recipients ({sessionData.emails.length})
+                          </h3>
+                        </div>
+                        <div className="flex-1 overflow-hidden min-h-0">
+                          <ScrollArea className="h-full">
+                            <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1">
+                              {sessionData.emails.map((email: GeneratedEmailData) => {
+                                const donor = getDonorData(email.donorId);
+                                const trackingStats = getDonorTrackingStats(email.donorId);
+                                if (!donor) return null;
 
-                            const assignedStaffName = getStaffName(donor.assignedToStaffId);
+                                const assignedStaffName = getStaffName(donor.assignedToStaffId);
 
-                            return (
-                              <TabsTrigger
-                                key={email.donorId}
-                                value={email.donorId.toString()}
-                                className={cn(
-                                  "w-full h-[80px] p-4 rounded-lg",
-                                  "flex flex-col items-start justify-center gap-1",
-                                  "text-left",
-                                  "transition-all duration-200",
-                                  "mr-2"
-                                )}
-                              >
-                                <div className="flex items-center justify-between w-full">
-                                  <span className="font-medium truncate">
-                                    {donor.firstName} {donor.lastName}
-                                  </span>
-                                  {trackingStats && trackingStats.uniqueOpens > 0 && (
-                                    <Badge variant="default" className="text-xs flex items-center gap-1">
-                                      <Eye className="h-3 w-3" />
-                                      {trackingStats.uniqueOpens}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center justify-between w-full">
-                                  <span className="text-xs text-muted-foreground">{assignedStaffName}</span>
-                                </div>
-                                <span className="text-xs text-muted-foreground/80 truncate w-full">{donor.email}</span>
-                              </TabsTrigger>
-                            );
-                          })}
-                        </TabsList>
+                                return (
+                                  <TabsTrigger
+                                    key={email.donorId}
+                                    value={email.donorId.toString()}
+                                    className={cn(
+                                      "w-full p-3 rounded-md border border-transparent",
+                                      "flex flex-col items-start justify-start gap-2",
+                                      "text-left min-h-[72px] h-auto",
+                                      "transition-all duration-200",
+                                      "hover:bg-muted/50 hover:border-border",
+                                      "data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20",
+                                      "data-[state=active]:shadow-sm"
+                                    )}
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className="font-medium text-sm truncate flex-1">
+                                        {donor.firstName} {donor.lastName}
+                                      </span>
+                                      {trackingStats && trackingStats.uniqueOpens > 0 && (
+                                        <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-2">
+                                          <Eye className="h-3 w-3" />
+                                          {trackingStats.uniqueOpens}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="w-full space-y-1">
+                                      <span className="text-xs text-muted-foreground font-medium">
+                                        {assignedStaffName}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground/80 truncate block w-full">
+                                        {donor.email}
+                                      </span>
+                                    </div>
+                                  </TabsTrigger>
+                                );
+                              })}
+                            </TabsList>
+                          </ScrollArea>
+                        </div>
                       </div>
 
                       <div className="flex flex-col">
