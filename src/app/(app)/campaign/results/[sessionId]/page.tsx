@@ -8,11 +8,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailDisplay } from "../../components/EmailDisplay";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle, Activity, Eye } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle, Activity, Eye, Search, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,9 @@ interface SessionData {
 export default function EmailGenerationResultsPage() {
   const params = useParams();
   const sessionId = parseInt(params.sessionId as string);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { getSession } = useCommunications();
   const {
@@ -94,6 +98,47 @@ export default function EmailGenerationResultsPage() {
   // Helper function to get donor tracking stats
   const getDonorTrackingStats = (donorId: number) => {
     return donorStats?.find((stats) => stats.donorId === donorId);
+  };
+
+  // Function to extract text content from structured content
+  const getEmailTextContent = (structuredContent: GeneratedEmailData["structuredContent"]) => {
+    return structuredContent
+      .map((item) => item.piece)
+      .join(" ")
+      .toLowerCase();
+  };
+
+  // Filter emails based on search term
+  const filteredEmails = useMemo(() => {
+    if (!sessionData?.emails || !searchTerm.trim()) {
+      return sessionData?.emails || [];
+    }
+
+    const searchLower = searchTerm.toLowerCase().trim();
+
+    return sessionData.emails.filter((email) => {
+      const donor = getDonorData(email.donorId);
+      if (!donor) return false;
+
+      // Search in recipient email
+      const donorEmailMatch = donor.email.toLowerCase().includes(searchLower);
+
+      // Search in subject
+      const subjectMatch = email.subject.toLowerCase().includes(searchLower);
+
+      // Search in email content
+      const contentMatch = getEmailTextContent(email.structuredContent).includes(searchLower);
+
+      // Search in donor name
+      const nameMatch = `${donor.firstName} ${donor.lastName}`.toLowerCase().includes(searchLower);
+
+      return donorEmailMatch || subjectMatch || contentMatch || nameMatch;
+    });
+  }, [sessionData?.emails, searchTerm, donorsData]);
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchTerm("");
   };
 
   if (isLoading) {
@@ -205,7 +250,8 @@ export default function EmailGenerationResultsPage() {
           <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
             <TabsTrigger value="emails" className="flex h-full items-center gap-2">
               <Mail className="h-4 w-4" />
-              Generated Emails ({sessionData.emails.length})
+              Generated Emails ({filteredEmails.length}
+              {searchTerm ? ` of ${sessionData.emails.length}` : ""})
             </TabsTrigger>
             <TabsTrigger value="chat" className="flex items-center gap-2 h-full">
               <MessageSquare className="h-4 w-4" />
@@ -223,24 +269,53 @@ export default function EmailGenerationResultsPage() {
 
           <div className="flex-1 overflow-hidden px-4 pb-4">
             <TabsContent value="emails" className="h-full mt-4">
+              {/* Search Bar */}
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search emails by recipient, subject, or content..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-10"
+                  />
+                  {searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                      onClick={clearSearch}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {searchTerm && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for "{searchTerm}"
+                  </p>
+                )}
+              </div>
+
               <div className="h-full">
-                {sessionData.emails.length > 0 ? (
+                {filteredEmails.length > 0 ? (
                   <Tabs
-                    defaultValue={sessionData.emails[0]?.donorId?.toString()}
+                    defaultValue={filteredEmails[0]?.donorId?.toString()}
                     orientation="vertical"
                     className="h-full"
+                    key={`search-${searchTerm}-${filteredEmails.length}`} // Force re-render when search changes
                   >
-                    <div className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden max-h-[calc(100vh-200px)]">
-                      <div className="border-r bg-background flex flex-col h-full max-h-[calc(100vh-200px)]">
+                    <div className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden max-h-[calc(100vh-300px)]">
+                      <div className="border-r bg-background flex flex-col h-full max-h-[calc(100vh-300px)]">
                         <div className="p-3 border-b bg-muted/30 flex-shrink-0">
                           <h3 className="font-medium text-sm text-muted-foreground">
-                            Recipients ({sessionData.emails.length})
+                            Recipients ({filteredEmails.length})
                           </h3>
                         </div>
                         <div className="flex-1 overflow-hidden min-h-0">
                           <ScrollArea className="h-full">
                             <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1">
-                              {sessionData.emails.map((email: GeneratedEmailData) => {
+                              {filteredEmails.map((email: GeneratedEmailData) => {
                                 const donor = getDonorData(email.donorId);
                                 const trackingStats = getDonorTrackingStats(email.donorId);
                                 if (!donor) return null;
@@ -289,7 +364,7 @@ export default function EmailGenerationResultsPage() {
                       </div>
 
                       <div className="flex flex-col">
-                        {sessionData.emails.map((email: GeneratedEmailData) => {
+                        {filteredEmails.map((email: GeneratedEmailData) => {
                           const donor = getDonorData(email.donorId);
                           if (!donor) return null;
 
@@ -316,6 +391,19 @@ export default function EmailGenerationResultsPage() {
                       </div>
                     </div>
                   </Tabs>
+                ) : searchTerm ? (
+                  <div className="flex items-center justify-center h-full border rounded-lg">
+                    <div className="text-center">
+                      <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium">No emails found</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        No emails match your search for "{searchTerm}"
+                      </p>
+                      <Button variant="outline" onClick={clearSearch}>
+                        Clear search
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full border rounded-lg">
                     <div className="text-center">
