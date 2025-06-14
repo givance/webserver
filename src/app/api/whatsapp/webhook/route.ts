@@ -29,12 +29,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    logger.info("Received WhatsApp webhook:", body);
+
+    // Log request metadata
+    logger.info("[WhatsApp Webhook] Request metadata:", {
+      headers: Object.fromEntries(request.headers.entries()),
+      timestamp: new Date().toISOString(),
+    });
 
     // Verify the request is from WhatsApp
     const signature = request.headers.get("x-hub-signature-256");
     if (!signature) {
-      logger.warn("Missing WhatsApp signature in webhook request");
+      logger.warn("[WhatsApp Webhook] Missing WhatsApp signature in webhook request");
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
@@ -45,7 +50,7 @@ export async function POST(request: NextRequest) {
     const { object, entry } = body;
 
     if (object !== "whatsapp_business_account") {
-      logger.warn("Invalid object type in WhatsApp webhook:", object);
+      logger.warn("[WhatsApp Webhook] Invalid object type:", object);
       return new NextResponse("Invalid object type", { status: 400 });
     }
 
@@ -55,18 +60,61 @@ export async function POST(request: NextRequest) {
       for (const change of changes) {
         if (change.value.messages) {
           for (const message of change.value.messages) {
-            // Process each message
-            logger.info("Processing WhatsApp message:", {
+            // Log detailed message information
+            logger.info("[WhatsApp Webhook] Processing message:", {
               from: message.from,
               type: message.type,
               timestamp: message.timestamp,
+              messageId: message.id,
+              metadata: {
+                businessAccountId: change.value.metadata?.business_account_id,
+                phoneNumberId: change.value.metadata?.phone_number_id,
+              },
             });
 
-            // TODO: Implement your message handling logic here
-            // For example:
-            // - Store the message in your database
-            // - Send automated responses
-            // - Forward to your chat system
+            // Echo back the message
+            if (message.type === "text") {
+              const response = await fetch(
+                `https://graph.facebook.com/v17.0/${change.value.metadata.phone_number_id}/messages`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: message.from,
+                    type: "text",
+                    text: {
+                      body: message.text.body,
+                    },
+                  }),
+                }
+              );
+
+              const responseData = await response.text();
+
+              if (!response.ok) {
+                logger.error("[WhatsApp Webhook] Failed to send echo message", {
+                  status: response.status,
+                  statusText: response.statusText,
+                  responseBody: responseData,
+                  requestData: {
+                    to: message.from,
+                    messageBody: message.text.body,
+                    phoneNumberId: change.value.metadata.phone_number_id,
+                    hasToken: !!env.WHATSAPP_TOKEN,
+                  },
+                });
+              } else {
+                logger.info("[WhatsApp Webhook] Successfully echoed message back to user", {
+                  to: message.from,
+                  messageBody: message.text.body,
+                  responseBody: responseData,
+                });
+              }
+            }
           }
         }
       }
@@ -74,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     return new NextResponse("OK", { status: 200 });
   } catch (error) {
-    logger.error("Error processing WhatsApp webhook:", error);
+    logger.error("[WhatsApp Webhook] Error processing webhook:", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

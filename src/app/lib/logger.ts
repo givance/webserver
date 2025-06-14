@@ -15,8 +15,9 @@ if (isServer) {
       isDevelopment
         ? format.combine(
             format.colorize(),
-            format.printf(({ timestamp, level, message }: any) => {
-              return `${timestamp} [${level}]: ${message}`;
+            format.printf(({ timestamp, level, message, ...meta }: any) => {
+              const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+              return `${timestamp} [${level}]: ${message}${metaStr}`;
             })
           )
         : format.json()
@@ -26,10 +27,22 @@ if (isServer) {
 } else {
   // Browser fallback
   logger = {
-    info: (message: string) => console.info(`[INFO]: ${message}`),
-    error: (message: string) => console.error(`[ERROR]: ${message}`),
-    warn: (message: string) => console.warn(`[WARN]: ${message}`),
-    debug: (message: string) => console.debug(`[DEBUG]: ${message}`),
+    info: (message: string, meta?: any) => {
+      const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+      console.info(`[INFO]: ${message}${metaStr}`);
+    },
+    error: (message: string, meta?: any) => {
+      const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+      console.error(`[ERROR]: ${message}${metaStr}`);
+    },
+    warn: (message: string, meta?: any) => {
+      const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+      console.warn(`[WARN]: ${message}${metaStr}`);
+    },
+    debug: (message: string, meta?: any) => {
+      const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+      console.debug(`[DEBUG]: ${message}${metaStr}`);
+    },
   };
 }
 
