@@ -561,7 +561,8 @@ export const microsoftRouter = router({
           donor.email,
           subject,
           processedContent.htmlContent,
-          processedContent.textContent
+          processedContent.textContent,
+          senderInfo.email || undefined
         );
 
         // Create message for Microsoft Graph API

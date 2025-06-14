@@ -624,7 +624,8 @@ export const gmailRouter = router({
               email.donor.email,
               email.subject,
               processedContent.htmlContent,
-              processedContent.textContent
+              processedContent.textContent,
+              senderInfo.email || undefined
             );
 
             // Encode email for Gmail API (same as send)
@@ -782,7 +783,8 @@ export const gmailRouter = router({
               email.donor.email,
               email.subject,
               processedContent.htmlContent,
-              processedContent.textContent
+              processedContent.textContent,
+              senderInfo.email || undefined
             );
 
             // Encode email for Gmail API
@@ -951,7 +953,8 @@ export const gmailRouter = router({
           email.donor.email,
           email.subject,
           processedContent.htmlContent,
-          processedContent.textContent
+          processedContent.textContent,
+          senderInfo.email || undefined
         );
 
         // Encode email for Gmail API
@@ -1120,7 +1123,8 @@ export const gmailRouter = router({
               email.donor.email,
               email.subject,
               processedContent.htmlContent,
-              processedContent.textContent
+              processedContent.textContent,
+              senderInfo.email || undefined
             );
 
             // Encode email for Gmail API

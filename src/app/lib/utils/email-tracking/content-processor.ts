@@ -120,7 +120,13 @@ export function convertStructuredContentToText(structuredContent: EmailPiece[]):
 /**
  * Creates a complete HTML email with proper structure
  */
-export function createHtmlEmail(to: string, subject: string, htmlContent: string, textContent: string): string {
+export function createHtmlEmail(
+  to: string,
+  subject: string,
+  htmlContent: string,
+  textContent: string,
+  from?: string
+): string {
   // Simple HTML with minimal styling to avoid quoted-printable
   const htmlBody = `<!DOCTYPE html>
 <html>
@@ -133,10 +139,22 @@ ${htmlContent}
 </body>
 </html>`;
 
-  return `MIME-Version: 1.0
+  // Build the email headers
+  let headers = `MIME-Version: 1.0
 Content-Type: text/html; charset=utf-8
 To: ${to}
-Subject: ${subject}
+Subject: ${subject}`;
+
+  // Add From header if provided to ensure correct sender
+  if (from) {
+    headers = `MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+From: ${from}
+To: ${to}
+Subject: ${subject}`;
+  }
+
+  return `${headers}
 
 ${htmlBody}`;
 }
@@ -144,9 +162,19 @@ ${htmlBody}`;
 /**
  * Creates a simple text email (fallback)
  */
-export function createTextEmail(to: string, subject: string, textContent: string): string {
-  return `To: ${to}
-Subject: ${subject}
+export function createTextEmail(to: string, subject: string, textContent: string, from?: string): string {
+  // Build the email headers
+  let headers = `To: ${to}
+Subject: ${subject}`;
+
+  // Add From header if provided to ensure correct sender
+  if (from) {
+    headers = `From: ${from}
+To: ${to}
+Subject: ${subject}`;
+  }
+
+  return `${headers}
 
 ${textContent}`;
 }
