@@ -56,24 +56,21 @@ export default function AddStaffPage() {
    * Creates a new staff member and redirects to staff list on success
    * @param values Form values from the form submission
    */
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     setError(null);
     try {
-      createStaff(values)
-        .then((result) => {
-          if (result) {
-            toast.success("Staff member created successfully");
-            router.push("/staff");
-          } else {
-            setError("Failed to create staff member");
-          }
-        })
-        .catch((err) => {
-          setError("An unexpected error occurred");
-          console.error("Error creating staff:", err);
-        });
-    } catch (err) {
-      setError("An unexpected error occurred");
+      const result = await createStaff(values);
+      if (result) {
+        toast.success("Staff member created successfully");
+        router.push("/staff");
+      } else {
+        setError("Failed to create staff member");
+        toast.error("Failed to create staff member");
+      }
+    } catch (err: any) {
+      const message = err.message || "An unexpected error occurred";
+      setError(message);
+      toast.error(message);
       console.error("Error creating staff:", err);
     }
   };

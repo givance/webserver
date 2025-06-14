@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/app/hooks/use-organization";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { Loader2, Pencil, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
@@ -62,9 +62,7 @@ export function OrganizationSettings() {
     });
 
     if (Object.keys(changedData).length === 0) {
-      toast("No changes were made to the organization settings.", {
-        icon: "ℹ️",
-      });
+      toast.info("No changes were made to the organization settings.");
       return;
     }
 

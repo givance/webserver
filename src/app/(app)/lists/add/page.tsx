@@ -17,6 +17,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
+import { toast } from "sonner";
 
 // Type for donor selection
 type SelectableDonor = {
@@ -151,6 +152,7 @@ export default function AddListPage() {
       router.push(`/lists/${newList.id}`);
     } catch (error) {
       console.error("Error creating list:", error);
+      toast.error("Failed to create list. Please try again.");
     }
   };
 

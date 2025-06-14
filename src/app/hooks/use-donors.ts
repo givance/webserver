@@ -109,18 +109,30 @@ export function useDonors() {
   const createMutation = trpc.donors.create.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
+      toast.success("Donor created successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create donor");
     },
   });
 
   const updateMutation = trpc.donors.update.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
+      toast.success("Donor updated successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update donor");
     },
   });
 
   const deleteMutation = trpc.donors.delete.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
+      toast.success("Donor deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete donor");
     },
   });
 

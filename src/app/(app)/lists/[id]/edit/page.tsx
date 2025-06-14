@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
+import { toast } from "sonner";
 
 export default function EditListPage() {
   const params = useParams();
@@ -66,6 +67,7 @@ export default function EditListPage() {
       router.push(`/lists/${listId}`);
     } catch (error) {
       console.error("Error updating list:", error);
+      toast.error("Failed to update list. Please try again.");
     }
   };
 
