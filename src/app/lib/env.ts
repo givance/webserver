@@ -33,6 +33,8 @@ export const env = createEnv({
     MICROSOFT_CLIENT_ID: z.string().optional().default("placeholder-client-id"),
     MICROSOFT_CLIENT_SECRET: z.string().optional().default("placeholder-client-secret"),
     MICROSOFT_REDIRECT_URI: z.string().optional().default("http://localhost:3000/settings/microsoft/callback"),
+    WHATSAPP_TOKEN: z.string().optional().default("placeholder-whatsapp-token"),
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional().default("placeholder-whatsapp-verify-token"),
   },
   /*
    * Environment variables available on the client (and server).
@@ -73,6 +75,8 @@ export const env = createEnv({
     MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
     MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
     MICROSOFT_REDIRECT_URI: process.env.MICROSOFT_REDIRECT_URI,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });
