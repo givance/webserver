@@ -69,7 +69,7 @@ const listDonorsSchema = z.object({
   onlyResearched: z.boolean().optional(),
   limit: z.number().min(1).optional(),
   offset: z.number().min(0).optional(),
-  orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
+  orderBy: z.enum(["firstName", "lastName", "email", "createdAt", "totalDonated"]).optional(),
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
 

@@ -26,7 +26,7 @@ export function useDonors() {
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt" | "totalDonated";
     orderDirection?: "asc" | "desc";
   }) => {
     return trpc.donors.list.useQuery(params, {

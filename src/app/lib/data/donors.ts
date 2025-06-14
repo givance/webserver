@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { donors, staff, organizations, personResearch } from "../db/schema";
+import { donors, staff, organizations, personResearch, donations } from "../db/schema";
 import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -298,7 +298,7 @@ export async function listDonors(
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
+    orderBy?: "firstName" | "lastName" | "email" | "createdAt" | "totalDonated";
     orderDirection?: "asc" | "desc";
   } = {},
   organizationId: string
@@ -355,58 +355,143 @@ export async function listDonors(
       )`);
     }
 
-    let queryBuilder = db
-      .select({
-        // All donor fields
-        id: donors.id,
-        organizationId: donors.organizationId,
-        externalId: donors.externalId,
-        firstName: donors.firstName,
-        lastName: donors.lastName,
-        displayName: donors.displayName,
-        email: donors.email,
-        phone: donors.phone,
-        address: donors.address,
-        state: donors.state,
-        notes: donors.notes,
-        isCouple: donors.isCouple,
-        gender: donors.gender,
-        hisTitle: donors.hisTitle,
-        hisFirstName: donors.hisFirstName,
-        hisInitial: donors.hisInitial,
-        hisLastName: donors.hisLastName,
-        herTitle: donors.herTitle,
-        herFirstName: donors.herFirstName,
-        herInitial: donors.herInitial,
-        herLastName: donors.herLastName,
-        assignedToStaffId: donors.assignedToStaffId,
-        currentStageName: donors.currentStageName,
-        classificationReasoning: donors.classificationReasoning,
-        predictedActions: donors.predictedActions,
-        highPotentialDonor: donors.highPotentialDonor,
-        createdAt: donors.createdAt,
-        updatedAt: donors.updatedAt,
-        // Research rationale from the live person research record
-        highPotentialDonorRationale: sql<string | null>`
-          (${personResearch.researchData}->>'structuredData')::jsonb->>'highPotentialDonorRationale'
-        `,
-      })
-      .from(donors)
-      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
-      .where(and(...whereClauses));
+    // If ordering by totalDonated, we need to join with donations table
+    const needsDonationJoin = orderBy === "totalDonated";
+
+    let queryBuilder;
+    if (needsDonationJoin) {
+      queryBuilder = db
+        .select({
+          // All donor fields
+          id: donors.id,
+          organizationId: donors.organizationId,
+          externalId: donors.externalId,
+          firstName: donors.firstName,
+          lastName: donors.lastName,
+          displayName: donors.displayName,
+          email: donors.email,
+          phone: donors.phone,
+          address: donors.address,
+          state: donors.state,
+          notes: donors.notes,
+          isCouple: donors.isCouple,
+          gender: donors.gender,
+          hisTitle: donors.hisTitle,
+          hisFirstName: donors.hisFirstName,
+          hisInitial: donors.hisInitial,
+          hisLastName: donors.hisLastName,
+          herTitle: donors.herTitle,
+          herFirstName: donors.herFirstName,
+          herInitial: donors.herInitial,
+          herLastName: donors.herLastName,
+          assignedToStaffId: donors.assignedToStaffId,
+          currentStageName: donors.currentStageName,
+          classificationReasoning: donors.classificationReasoning,
+          predictedActions: donors.predictedActions,
+          highPotentialDonor: donors.highPotentialDonor,
+          createdAt: donors.createdAt,
+          updatedAt: donors.updatedAt,
+          // Research rationale from the live person research record
+          highPotentialDonorRationale: sql<string | null>`
+            (${personResearch.researchData}->>'structuredData')::jsonb->>'highPotentialDonorRationale'
+          `,
+          // Total donated amount for sorting
+          totalDonated: sql<number>`COALESCE(SUM(${donations.amount}), 0)`,
+        })
+        .from(donors)
+        .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+        .leftJoin(donations, eq(donations.donorId, donors.id))
+        .where(and(...whereClauses))
+        .groupBy(
+          donors.id,
+          donors.organizationId,
+          donors.externalId,
+          donors.firstName,
+          donors.lastName,
+          donors.displayName,
+          donors.email,
+          donors.phone,
+          donors.address,
+          donors.state,
+          donors.notes,
+          donors.isCouple,
+          donors.gender,
+          donors.hisTitle,
+          donors.hisFirstName,
+          donors.hisInitial,
+          donors.hisLastName,
+          donors.herTitle,
+          donors.herFirstName,
+          donors.herInitial,
+          donors.herLastName,
+          donors.assignedToStaffId,
+          donors.currentStageName,
+          donors.classificationReasoning,
+          donors.predictedActions,
+          donors.highPotentialDonor,
+          donors.createdAt,
+          donors.updatedAt,
+          personResearch.researchData
+        );
+    } else {
+      queryBuilder = db
+        .select({
+          // All donor fields
+          id: donors.id,
+          organizationId: donors.organizationId,
+          externalId: donors.externalId,
+          firstName: donors.firstName,
+          lastName: donors.lastName,
+          displayName: donors.displayName,
+          email: donors.email,
+          phone: donors.phone,
+          address: donors.address,
+          state: donors.state,
+          notes: donors.notes,
+          isCouple: donors.isCouple,
+          gender: donors.gender,
+          hisTitle: donors.hisTitle,
+          hisFirstName: donors.hisFirstName,
+          hisInitial: donors.hisInitial,
+          hisLastName: donors.hisLastName,
+          herTitle: donors.herTitle,
+          herFirstName: donors.herFirstName,
+          herInitial: donors.herInitial,
+          herLastName: donors.herLastName,
+          assignedToStaffId: donors.assignedToStaffId,
+          currentStageName: donors.currentStageName,
+          classificationReasoning: donors.classificationReasoning,
+          predictedActions: donors.predictedActions,
+          highPotentialDonor: donors.highPotentialDonor,
+          createdAt: donors.createdAt,
+          updatedAt: donors.updatedAt,
+          // Research rationale from the live person research record
+          highPotentialDonorRationale: sql<string | null>`
+            (${personResearch.researchData}->>'structuredData')::jsonb->>'highPotentialDonorRationale'
+          `,
+        })
+        .from(donors)
+        .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+        .where(and(...whereClauses));
+    }
 
     if (orderBy) {
-      const columnMap: { [key in NonNullable<typeof orderBy>]: AnyColumn } = {
-        firstName: donors.firstName,
-        lastName: donors.lastName,
-        email: donors.email,
-        createdAt: donors.createdAt,
-      };
-      const selectedColumn = columnMap[orderBy];
-      if (selectedColumn) {
+      if (orderBy === "totalDonated") {
         const directionFn = orderDirection === "asc" ? asc : desc;
-        // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
-        queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
+        queryBuilder = queryBuilder.orderBy(directionFn(sql<number>`COALESCE(SUM(${donations.amount}), 0)`));
+      } else {
+        const columnMap: { [key in Exclude<typeof orderBy, "totalDonated">]: AnyColumn } = {
+          firstName: donors.firstName,
+          lastName: donors.lastName,
+          email: donors.email,
+          createdAt: donors.createdAt,
+        };
+        const selectedColumn = columnMap[orderBy];
+        if (selectedColumn) {
+          const directionFn = orderDirection === "asc" ? asc : desc;
+          // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
+          queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
+        }
       }
     }
 

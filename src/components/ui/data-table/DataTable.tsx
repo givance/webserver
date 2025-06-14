@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   currentPage?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
+  onSortingChange?: (sorting: { id: string; desc: boolean }[]) => void;
   title?: string;
   ctaButton?: React.ReactNode;
 }
@@ -53,6 +54,7 @@ export function DataTable<TData, TValue>({
   currentPage,
   onPageChange,
   onPageSizeChange,
+  onSortingChange,
   title,
   ctaButton,
 }: DataTableProps<TData, TValue>) {
@@ -67,6 +69,8 @@ export function DataTable<TData, TValue>({
     currentPage !== undefined &&
     onPageChange !== undefined;
 
+  const isServerSideSorting = onSortingChange !== undefined;
+
   const pagination = React.useMemo<PaginationState | undefined>(() => {
     if (isServerSidePagination) {
       return {
@@ -77,17 +81,38 @@ export function DataTable<TData, TValue>({
     return undefined;
   }, [isServerSidePagination, currentPage, pageSize]);
 
+  // Handle sorting changes for server-side sorting
+  const handleSortingChange = React.useCallback(
+    (updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
+      let newSorting: SortingState;
+      if (typeof updaterOrValue === "function") {
+        newSorting = updaterOrValue(sorting);
+      } else {
+        newSorting = updaterOrValue;
+      }
+
+      setSorting(newSorting);
+
+      // If server-side sorting is enabled, call the callback
+      if (isServerSideSorting && onSortingChange) {
+        onSortingChange(newSorting);
+      }
+    },
+    [sorting, isServerSideSorting, onSortingChange]
+  );
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: !isServerSidePagination ? getPaginationRowModel() : undefined,
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: handleSortingChange,
+    getSortedRowModel: !isServerSideSorting ? getSortedRowModel() : undefined,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     manualPagination: isServerSidePagination,
+    manualSorting: isServerSideSorting,
     pageCount: isServerSidePagination ? pageCount : undefined,
     state: {
       sorting,

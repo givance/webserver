@@ -30,8 +30,16 @@ import { getColumns } from "./columns";
 
 export default function DonorListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
+
+  // Add state for sorting
+  const [sortField, setSortField] = useState<"firstName" | "lastName" | "email" | "createdAt" | "totalDonated">(
+    "firstName"
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Reset pagination state when sorting or searched term changes
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
-    resetOnDependency: debouncedSearchTerm,
+    resetOnDependency: [debouncedSearchTerm, sortField, sortDirection],
   });
 
   // Add state for the researched donors filter
@@ -53,14 +61,52 @@ export default function DonorListPage() {
     limit: pageSize,
     offset: getOffset(),
     searchTerm: debouncedSearchTerm,
-    orderBy: "firstName",
-    orderDirection: "asc",
+    orderBy: sortField,
+    orderDirection: sortDirection,
     onlyResearched, // Add the filter parameter
   });
 
   // Get donation stats for all donors in the current page
   const donorIds = useMemo(() => listDonorsResponse?.donors?.map((d) => d.id) || [], [listDonorsResponse]);
   const { data: donorStats } = getMultipleDonorStats(donorIds);
+
+  // Handler for when the DataTable sorting changes
+  const handleSortingChange = useCallback(
+    (sorting: { id: string; desc: boolean }[]) => {
+      if (sorting.length > 0) {
+        const sort = sorting[0];
+        let newSortField: typeof sortField = "firstName";
+
+        // Map table column IDs to backend field names
+        switch (sort.id) {
+          case "name":
+            newSortField = "firstName";
+            break;
+          case "email":
+            newSortField = "email";
+            break;
+          case "totalDonated":
+            newSortField = "totalDonated";
+            break;
+          case "lastDonation":
+            newSortField = "createdAt"; // fallback to createdAt for last donation
+            break;
+          default:
+            newSortField = "firstName";
+        }
+
+        const newSortDirection = sort.desc ? "desc" : "asc";
+
+        // Only update if sorting actually changed
+        if (newSortField !== sortField || newSortDirection !== sortDirection) {
+          setSortField(newSortField);
+          setSortDirection(newSortDirection);
+          // Pagination will reset automatically due to dependency changes
+        }
+      }
+    },
+    [sortField, sortDirection]
+  );
 
   // Use useMemo to avoid re-calculating on every render unless dependencies change
   const { donors, totalCount } = useMemo(() => {
@@ -297,6 +343,7 @@ export default function DonorListPage() {
           pageCount={pageCount}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          onSortingChange={handleSortingChange}
         />
       )}
     </div>
