@@ -5,11 +5,23 @@ import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { EmailDisplay } from "../../components/EmailDisplay";
+import { EmailListViewer, BaseGeneratedEmail, BaseDonor, TrackingStats } from "../../components/EmailListViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle, Activity, Eye, Search, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Users,
+  MessageSquare,
+  Mail,
+  AlertCircle,
+  Activity,
+  Eye,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,8 +65,7 @@ export default function EmailGenerationResultsPage() {
   const params = useParams();
   const sessionId = parseInt(params.sessionId as string);
 
-  // Search state
-  const [searchTerm, setSearchTerm] = useState("");
+  const EMAILS_PER_PAGE = 20;
 
   const { getSession } = useCommunications();
   const {
@@ -106,47 +117,6 @@ export default function EmailGenerationResultsPage() {
     },
     [donorStats]
   );
-
-  // Function to extract text content from structured content
-  const getEmailTextContent = useCallback((structuredContent: GeneratedEmailData["structuredContent"]) => {
-    return structuredContent
-      .map((item) => item.piece)
-      .join(" ")
-      .toLowerCase();
-  }, []);
-
-  // Filter emails based on search term
-  const filteredEmails = useMemo(() => {
-    if (!sessionData?.emails || !searchTerm.trim()) {
-      return sessionData?.emails || [];
-    }
-
-    const searchLower = searchTerm.toLowerCase().trim();
-
-    return sessionData.emails.filter((email) => {
-      const donor = getDonorData(email.donorId);
-      if (!donor) return false;
-
-      // Search in recipient email
-      const donorEmailMatch = donor.email.toLowerCase().includes(searchLower);
-
-      // Search in subject
-      const subjectMatch = email.subject.toLowerCase().includes(searchLower);
-
-      // Search in email content
-      const contentMatch = getEmailTextContent(email.structuredContent).includes(searchLower);
-
-      // Search in donor name
-      const nameMatch = `${donor.firstName} ${donor.lastName}`.toLowerCase().includes(searchLower);
-
-      return donorEmailMatch || subjectMatch || contentMatch || nameMatch;
-    });
-  }, [sessionData?.emails, searchTerm, getDonorData, getEmailTextContent]);
-
-  // Clear search
-  const clearSearch = () => {
-    setSearchTerm("");
-  };
 
   if (isLoading) {
     return (
@@ -257,8 +227,7 @@ export default function EmailGenerationResultsPage() {
           <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
             <TabsTrigger value="emails" className="flex h-full items-center gap-2">
               <Mail className="h-4 w-4" />
-              Generated Emails ({filteredEmails.length}
-              {searchTerm ? ` of ${sessionData.emails.length}` : ""})
+              Generated Emails ({sessionData.emails.length})
             </TabsTrigger>
             <TabsTrigger value="chat" className="flex items-center gap-2 h-full">
               <MessageSquare className="h-4 w-4" />
@@ -276,154 +245,38 @@ export default function EmailGenerationResultsPage() {
 
           <div className="flex-1 overflow-hidden px-4 pb-4">
             <TabsContent value="emails" className="h-full mt-4">
-              {/* Search Bar */}
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search emails by recipient, subject, or content..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-10"
-                  />
-                  {searchTerm && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                      onClick={clearSearch}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                {searchTerm && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}
-                    &quot;
-                  </p>
-                )}
-              </div>
-
-              <div className="h-full">
-                {filteredEmails.length > 0 ? (
-                  <Tabs
-                    defaultValue={filteredEmails[0]?.donorId?.toString()}
-                    orientation="vertical"
-                    className="h-full"
-                    key={`search-${searchTerm}-${filteredEmails.length}`} // Force re-render when search changes
-                  >
-                    <div className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden max-h-[calc(100vh-300px)]">
-                      <div className="border-r bg-background flex flex-col h-full max-h-[calc(100vh-300px)]">
-                        <div className="p-3 border-b bg-muted/30 flex-shrink-0">
-                          <h3 className="font-medium text-sm text-muted-foreground">
-                            Recipients ({filteredEmails.length})
-                          </h3>
-                        </div>
-                        <div className="flex-1 overflow-hidden min-h-0">
-                          <ScrollArea className="h-full">
-                            <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1">
-                              {filteredEmails.map((email: GeneratedEmailData) => {
-                                const donor = getDonorData(email.donorId);
-                                const trackingStats = getDonorTrackingStats(email.donorId);
-                                if (!donor) return null;
-
-                                const assignedStaffName = getStaffName(donor.assignedToStaffId);
-
-                                return (
-                                  <TabsTrigger
-                                    key={email.donorId}
-                                    value={email.donorId.toString()}
-                                    className={cn(
-                                      "w-full p-3 rounded-md border border-transparent",
-                                      "flex flex-col items-start justify-start gap-2",
-                                      "text-left min-h-[72px] h-auto",
-                                      "transition-all duration-200",
-                                      "hover:bg-muted/50 hover:border-border",
-                                      "data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20",
-                                      "data-[state=active]:shadow-sm"
-                                    )}
-                                  >
-                                    <div className="flex items-center justify-between w-full">
-                                      <span className="font-medium text-sm truncate flex-1">
-                                        {donor.firstName} {donor.lastName}
-                                      </span>
-                                      {trackingStats && trackingStats.uniqueOpens > 0 && (
-                                        <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-2">
-                                          <Eye className="h-3 w-3" />
-                                          {trackingStats.uniqueOpens}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="w-full space-y-1">
-                                      <span className="text-xs text-muted-foreground font-medium">
-                                        {assignedStaffName}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground/80 truncate block w-full">
-                                        {donor.email}
-                                      </span>
-                                    </div>
-                                  </TabsTrigger>
-                                );
-                              })}
-                            </TabsList>
-                          </ScrollArea>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col">
-                        {filteredEmails.map((email: GeneratedEmailData) => {
-                          const donor = getDonorData(email.donorId);
-                          if (!donor) return null;
-
-                          return (
-                            <TabsContent
-                              key={email.donorId}
-                              value={email.donorId.toString()}
-                              className="flex-1 m-0 data-[state=active]:flex flex-col h-full"
-                            >
-                              <EmailDisplay
-                                key={`${email.id}-${email.donorId}-${sessionId}`}
-                                donorName={`${donor.firstName} ${donor.lastName}`}
-                                donorEmail={donor.email}
-                                subject={email.subject}
-                                content={email.structuredContent}
-                                referenceContexts={email.referenceContexts}
-                                emailId={email.id}
-                                donorId={email.donorId}
-                                sessionId={sessionId}
-                              />
-                            </TabsContent>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </Tabs>
-                ) : searchTerm ? (
-                  <div className="flex items-center justify-center h-full border rounded-lg">
-                    <div className="text-center">
-                      <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium">No emails found</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        No emails match your search for &quot;{searchTerm}&quot;
-                      </p>
-                      <Button variant="outline" onClick={clearSearch}>
-                        Clear search
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full border rounded-lg">
-                    <div className="text-center">
-                      <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium">No emails generated</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This session doesn&apos;t have any generated emails yet.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <EmailListViewer
+                emails={sessionData?.emails || []}
+                donors={
+                  donorsData?.map((donor) => ({
+                    id: donor.id,
+                    firstName: donor.firstName,
+                    lastName: donor.lastName,
+                    email: donor.email,
+                    assignedToStaffId: donor.assignedToStaffId,
+                  })) || []
+                }
+                referenceContexts={
+                  sessionData?.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+                    acc[email.donorId] = email.referenceContexts;
+                    return acc;
+                  }, {}) || {}
+                }
+                showSearch={true}
+                showPagination={true}
+                showTracking={true}
+                showStaffAssignment={true}
+                emailsPerPage={EMAILS_PER_PAGE}
+                maxHeight="calc(100vh - 400px)"
+                trackingStats={donorStats}
+                getStaffName={getStaffName}
+                sessionId={sessionId}
+                searchPlaceholder="Search emails by recipient, subject, or content..."
+                emptyStateTitle="No emails generated"
+                emptyStateDescription="This session doesn't have any generated emails yet."
+                searchEmptyStateTitle="No emails found"
+                searchEmptyStateDescription="No emails match your search criteria"
+              />
             </TabsContent>
 
             <TabsContent value="chat" className="h-full mt-4">
