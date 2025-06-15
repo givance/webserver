@@ -1,1 +1,0 @@
-ALTER TABLE "donors" ADD COLUMN "high_potential_donor" boolean DEFAULT false;

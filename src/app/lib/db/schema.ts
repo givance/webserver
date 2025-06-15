@@ -917,3 +917,37 @@ export const personResearchRelations = relations(personResearch, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/**
+ * Message role enum for WhatsApp chat
+ */
+export const whatsappMessageRoleEnum = pgEnum("whatsapp_message_role", ["user", "assistant"]);
+
+/**
+ * WhatsApp chat history table - stores conversations between staff and AI bot
+ */
+export const whatsappChatHistory = pgTable("whatsapp_chat_history_new", {
+  id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  fromPhoneNumber: varchar("from_phone_number", { length: 20 }).notNull(), // Staff WhatsApp number
+  messageId: varchar("message_id", { length: 255 }), // WhatsApp message ID if available
+  role: whatsappMessageRoleEnum("role").notNull(), // "user" for staff message, "assistant" for AI response
+  content: text("content").notNull(), // The message content
+  toolCalls: jsonb("tool_calls"), // Store AI tool calls (search queries, etc.) for context
+  toolResults: jsonb("tool_results"), // Store tool results for reference
+  tokensUsed: jsonb("tokens_used"), // Store token usage info
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Relations for WhatsApp chat history
+ */
+export const whatsappChatHistoryRelations = relations(whatsappChatHistory, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [whatsappChatHistory.organizationId],
+    references: [organizations.id],
+  }),
+}));
