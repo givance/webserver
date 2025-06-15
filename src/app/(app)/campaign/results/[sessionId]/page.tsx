@@ -83,30 +83,37 @@ export default function EmailGenerationResultsPage() {
   // Get staff members
   const { staffMembers } = useStaffMembers();
 
-  // Helper function to get donor data by ID
-  const getDonorData = (donorId: number) => {
-    return donorsData?.find((donor) => donor.id === donorId);
-  };
+  // Helper functions memoized for performance
+  const getDonorData = useCallback(
+    (donorId: number) => {
+      return donorsData?.find((donor) => donor.id === donorId);
+    },
+    [donorsData]
+  );
 
-  // Helper function to get staff member name
-  const getStaffName = (staffId: number | null) => {
-    if (!staffId) return "Unassigned";
-    const staff = staffMembers.find((s) => parseInt(s.id, 10) === staffId);
-    return staff ? staff.name : "Unknown Staff";
-  };
+  const getStaffName = useCallback(
+    (staffId: number | null) => {
+      if (!staffId) return "Unassigned";
+      const staff = staffMembers.find((s) => parseInt(s.id, 10) === staffId);
+      return staff ? staff.name : "Unknown Staff";
+    },
+    [staffMembers]
+  );
 
-  // Helper function to get donor tracking stats
-  const getDonorTrackingStats = (donorId: number) => {
-    return donorStats?.find((stats) => stats.donorId === donorId);
-  };
+  const getDonorTrackingStats = useCallback(
+    (donorId: number) => {
+      return donorStats?.find((stats) => stats.donorId === donorId);
+    },
+    [donorStats]
+  );
 
   // Function to extract text content from structured content
-  const getEmailTextContent = (structuredContent: GeneratedEmailData["structuredContent"]) => {
+  const getEmailTextContent = useCallback((structuredContent: GeneratedEmailData["structuredContent"]) => {
     return structuredContent
       .map((item) => item.piece)
       .join(" ")
       .toLowerCase();
-  };
+  }, []);
 
   // Filter emails based on search term
   const filteredEmails = useMemo(() => {
@@ -134,7 +141,7 @@ export default function EmailGenerationResultsPage() {
 
       return donorEmailMatch || subjectMatch || contentMatch || nameMatch;
     });
-  }, [sessionData?.emails, searchTerm, donorsData]);
+  }, [sessionData?.emails, searchTerm, getDonorData, getEmailTextContent]);
 
   // Clear search
   const clearSearch = () => {

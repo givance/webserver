@@ -98,6 +98,9 @@ interface TopDonorsResult {
   lastDonationDate: Date | null;
 }
 
+// Cache for system prompts to avoid regeneration
+const systemPromptCache = new Map<string, string>();
+
 /**
  * WhatsApp AI service that processes user questions about donors
  * Uses Azure OpenAI with database query tools
@@ -117,7 +120,7 @@ export class WhatsAppAIService {
   async processMessage(request: WhatsAppAIRequest): Promise<WhatsAppAIResponse> {
     const { message, organizationId, fromPhoneNumber } = request;
 
-    logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}: "${message}"`);
+    logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}`);
 
     try {
       // First, save the user's message to history
@@ -140,21 +143,7 @@ export class WhatsAppAIService {
         userPrompt = `Previous conversation:\n${historyContext}\n\nCurrent user question: ${message}`;
       }
 
-      logger.info(`[WhatsApp AI] Sending request to Azure OpenAI (model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`);
-      logger.info(`[WhatsApp AI] System prompt length: ${systemPrompt.length} chars`);
-      logger.info(`[WhatsApp AI] User prompt: ${userPrompt}`);
-      logger.info(`[WhatsApp AI] Including ${chatHistory.length} previous messages in context`);
-
-      // Log the complete LLM request
-      logger.info(`[WhatsApp AI] === LLM REQUEST ===`);
-      logger.info(`[WhatsApp AI] System Prompt: ${systemPrompt}`);
-      logger.info(`[WhatsApp AI] User Prompt: ${userPrompt}`);
-      if (chatHistory.length > 0) {
-        logger.info(`[WhatsApp AI] Conversation History:`);
-        chatHistory.forEach((msg, idx) => {
-          logger.info(`[WhatsApp AI] ${idx + 1}. ${msg.role}: ${msg.content}`);
-        });
-      }
+      logger.info(`[WhatsApp AI] Sending request to Azure OpenAI - ${chatHistory.length} messages in context`);
 
       const result = await generateText({
         model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
@@ -197,7 +186,6 @@ export class WhatsAppAIService {
             }),
             execute: async (params: any) => {
               logger.info(`[WhatsApp AI] Executing SQL query`);
-              logger.info(`[WhatsApp AI] Query: ${params.query}`);
 
               const result = await this.sqlEngine.executeRawSQL({
                 query: params.query,
@@ -210,9 +198,9 @@ export class WhatsAppAIService {
           },
         },
         temperature: 0.7,
-        maxTokens: 2000, // Increase token limit for complex responses
-        toolChoice: "auto", // Let the model decide when to use tools
-        maxSteps: 5, // Allow multiple steps if needed
+        maxTokens: 2000,
+        toolChoice: "auto",
+        maxSteps: 5,
       });
 
       const tokensUsed = {
@@ -221,34 +209,21 @@ export class WhatsAppAIService {
         totalTokens: result.usage?.totalTokens || 0,
       };
 
-      // Log the complete LLM response
-      logger.info(`[WhatsApp AI] === LLM RESPONSE ===`);
-      logger.info(`[WhatsApp AI] Response text: ${result.text}`);
-      logger.info(`[WhatsApp AI] Token usage: ${JSON.stringify(tokensUsed)}`);
-      logger.info(`[WhatsApp AI] Tools called: ${result.toolCalls?.length || 0}`);
-
-      if (result.toolCalls && result.toolCalls.length > 0) {
-        logger.info(`[WhatsApp AI] === TOOL CALLS ===`);
-        result.toolCalls.forEach((call, idx) => {
-          logger.info(`[WhatsApp AI] Tool ${idx + 1}: ${call.toolName} with args: ${JSON.stringify(call.args)}`);
-        });
-      }
-
-      if (result.toolResults && result.toolResults.length > 0) {
-        logger.info(`[WhatsApp AI] === TOOL RESULTS ===`);
-        result.toolResults.forEach((toolResult, idx) => {
-          logger.info(
-            `[WhatsApp AI] Tool ${idx + 1} (${toolResult.toolName}) result: ${JSON.stringify(toolResult.result)}`
-          );
-        });
-      }
+      // Simplified logging
+      logger.info(
+        `[WhatsApp AI] Response generated - ${tokensUsed.totalTokens} tokens used, ${
+          result.toolCalls?.length || 0
+        } tools called`
+      );
 
       // Handle empty responses - this should NOT happen if AI is working properly
       const responseText = result.text.trim();
       if (!responseText || responseText.length === 0) {
-        logger.error(`AI generated empty response despite having data - this is a critical AI failure!`);
-        logger.error(`Tool calls made: ${result.toolCalls?.length || 0}`);
-        logger.error(`Tool results received: ${result.toolResults?.length || 0}`);
+        logger.error(
+          `AI generated empty response despite having data - tool calls: ${
+            result.toolCalls?.length || 0
+          }, tool results: ${result.toolResults?.length || 0}`
+        );
         throw new Error("AI failed to generate a response - please try your question again");
       }
 
@@ -276,10 +251,16 @@ export class WhatsAppAIService {
   }
 
   /**
-   * Build the system prompt for the AI assistant
+   * Build the system prompt for the AI assistant (cached for performance)
    */
   private buildSystemPrompt(organizationId: string): string {
-    return `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors and their donations via WhatsApp.
+    // Check cache first
+    const cacheKey = `system-prompt-${organizationId}`;
+    if (systemPromptCache.has(cacheKey)) {
+      return systemPromptCache.get(cacheKey)!;
+    }
+
+    const systemPrompt = `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors and their donations via WhatsApp.
 
 🚨 CRITICAL WORKFLOW:
 1. Use the executeSQL tool to get data
@@ -333,35 +314,14 @@ ${this.sqlEngine.getSchemaDescription()}
 14. Include ALL relevant information but present it conversationally
 15. ⚠️ ANSWER THE USER'S ACTUAL QUESTION - don't just dump data, interpret it!
 
-📝 EXAMPLE SQL QUERIES:
-- Find donor by name: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND (first_name ILIKE '%Aaron%' OR last_name ILIKE '%Kirshtein%')"
-- Get donation history: "SELECT don.date, don.amount/100.0 as amount_dollars, d.first_name, d.last_name, p.name as project FROM donations don JOIN donors d ON don.donor_id = d.id JOIN projects p ON don.project_id = p.id WHERE d.organization_id = '${organizationId}' AND d.first_name ILIKE '%Aaron%' ORDER BY don.date DESC"
-- Get donor with totals: "SELECT d.*, COALESCE(SUM(don.amount), 0)/100.0 as total_donations, COUNT(don.id) as donation_count FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}' GROUP BY d.id"
-- Get statistics: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples, AVG(CASE WHEN don.amount IS NOT NULL THEN don.amount/100.0 END) as avg_donation FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}'"
-
-📋 EXAMPLE CONVERSATIONAL RESPONSES (ANALYZE, DON'T DUMP):
-When user asks "Show me Aaron Kirshtein's donations":
-GOOD: "Aaron Kirshtein donated $1,000 to General Donations on January 1, 2023."
-BETTER: "Aaron made one donation - $1,000 to General Donations back in January 2023."
-AVOID: "I found Aaron Kirshtein's donation history! He made a $1,000 donation on January 1, 2023 to the General Donations project."
-
-When user asks "What about their donation pattern like? is it seasonal?":
-GOOD: "Looking at the data, there's definitely a seasonal pattern. April and May are the strongest months with over $15,000 each, and October shows consistent activity too. It looks like they tend to give more in spring and fall."
-AVOID: "month: 2023-04-01, total_donated: 5000.0000000000000000, donation_count: 2"
-
-When user asks "How many donors do we have?":
-GOOD: "You have 245 donors total - 89 couples and 156 individuals. The average donation is $125."
-BETTER: "Your organization has 245 donors, with about a third being couples. People typically donate around $125."
-AVOID: "I found your donor statistics! You have 245 total donors in your system, including 89 couples and 156 individual donors."
-
-When user asks "Who donated the most?":
-GOOD: "Sarah Johnson is your top donor with $5,000 across 8 donations."
-BETTER: "Sarah Johnson leads with $5,000 total - she's donated 8 times!"
-AVOID: "I found your top donor! Sarah Johnson has donated the most with $5,000 total from 8 donations."
-
 Remember: 
 - You can write ANY SQL query to answer ANY question! Be creative and use the full power of SQL!
 - ALWAYS provide a human-friendly response that interprets and explains the data
 - NEVER just dump raw database results - always format them nicely for humans to read`;
+
+    // Cache the system prompt
+    systemPromptCache.set(cacheKey, systemPrompt);
+
+    return systemPrompt;
   }
 }

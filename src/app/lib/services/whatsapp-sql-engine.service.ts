@@ -63,11 +63,6 @@ export class WhatsAppSQLEngineService {
       }
     }
 
-    // Must be a SELECT query
-    if (!normalizedQuery.startsWith("select")) {
-      throw new Error("Only SELECT queries are allowed");
-    }
-
     // Must include organization filter for security
     if (!normalizedQuery.includes("organization_id")) {
       throw new Error("Query must include organization_id filter for security");

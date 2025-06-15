@@ -175,17 +175,11 @@ export class AgenticEmailGenerationOrchestrator {
         apiKey: env.AZURE_OPENAI_API_KEY,
       });
 
-      // Log the request details
+      // Log the request details (simplified)
       const systemPrompt = this.getOrchestratorSystemPrompt();
-      logger.info(`[AGENTIC LLM REQUEST] Continuing flow analysis`);
-      logger.info(`[AGENTIC LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}, Temperature: 0.3`);
-      logger.info(`[AGENTIC LLM REQUEST] System prompt length: ${systemPrompt.length} chars`);
-      logger.info(`[AGENTIC LLM REQUEST] Continue prompt length: ${continuePrompt.length} chars`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history length: ${this.conversationHistory.length} messages`);
-      logger.info(`[AGENTIC LLM REQUEST] System prompt: ${systemPrompt}`);
-      logger.info(`[AGENTIC LLM REQUEST] User response: ${userResponse}`);
-      logger.info(`[AGENTIC LLM REQUEST] Continue prompt: ${continuePrompt}`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history: ${JSON.stringify(this.conversationHistory)}`);
+      logger.info(
+        `[AGENTIC LLM REQUEST] Continuing flow analysis - ${this.conversationHistory.length} messages in context`
+      );
 
       // Build conversation messages including history
       const messages = [
@@ -259,16 +253,9 @@ export class AgenticEmailGenerationOrchestrator {
         apiKey: env.AZURE_OPENAI_API_KEY,
       });
 
-      // Log the request details
+      // Log the request details (simplified)
       const systemPrompt = this.getFinalPromptSystemPrompt();
-      logger.info(`[AGENTIC LLM REQUEST] Generating final prompt`);
-      logger.info(`[AGENTIC LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}, Temperature: 0.1`);
-      logger.info(`[AGENTIC LLM REQUEST] System prompt length: ${systemPrompt.length} chars`);
-      logger.info(`[AGENTIC LLM REQUEST] Final prompt length: ${finalPrompt.length} chars`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history length: ${this.conversationHistory.length} messages`);
-      logger.info(`[AGENTIC LLM REQUEST] System prompt: ${systemPrompt}`);
-      logger.info(`[AGENTIC LLM REQUEST] Final prompt: ${finalPrompt}`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history: ${JSON.stringify(this.conversationHistory)}`);
+      logger.info(`[AGENTIC LLM REQUEST] Generating final prompt - ${this.conversationHistory.length} messages`);
 
       // Build conversation messages including history
       const messages = [
@@ -284,14 +271,12 @@ export class AgenticEmailGenerationOrchestrator {
         temperature: 0.1,
       });
 
-      // Log the response details
-      logger.info(`[AGENTIC LLM RESPONSE] Final prompt generation complete`);
-      logger.info(`[AGENTIC LLM RESPONSE] Token usage: ${JSON.stringify(usage)}`);
-      logger.info(`[AGENTIC LLM RESPONSE] Final prompt length: ${finalResult.finalPrompt?.length || 0} chars`);
-      logger.info(`[AGENTIC LLM RESPONSE] Final prompt: ${finalResult.finalPrompt}`);
-      logger.info(`[AGENTIC LLM RESPONSE] Summary length: ${finalResult.summary?.length || 0} chars`);
-      logger.info(`[AGENTIC LLM RESPONSE] Summary: ${finalResult.summary}`);
-      logger.info(`[AGENTIC LLM RESPONSE] Estimated complexity: ${finalResult.estimatedComplexity}`);
+      // Log the response details (simplified)
+      logger.info(
+        `[AGENTIC LLM RESPONSE] Final prompt generated - complexity: ${finalResult.estimatedComplexity}, tokens: ${
+          usage?.totalTokens || 0
+        }`
+      );
 
       return {
         finalPrompt: finalResult.finalPrompt,
