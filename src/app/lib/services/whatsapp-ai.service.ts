@@ -2,16 +2,9 @@ import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
-import {
-  WhatsAppQueryToolsService,
-  FindDonorsByNameSchema,
-  GetDonorDetailsSchema,
-  GetDonationHistorySchema,
-  GetDonorStatisticsSchema,
-  GetTopDonorsSchema,
-  ExecuteFlexibleQuerySchema,
-} from "./whatsapp-query-tools.service";
+import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
 import { WhatsAppHistoryService } from "./whatsapp-history.service";
+import { z } from "zod";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -110,11 +103,11 @@ interface TopDonorsResult {
  * Uses Azure OpenAI with database query tools
  */
 export class WhatsAppAIService {
-  private queryTools: WhatsAppQueryToolsService;
+  private sqlEngine: WhatsAppSQLEngineService;
   private historyService: WhatsAppHistoryService;
 
   constructor() {
-    this.queryTools = new WhatsAppQueryToolsService();
+    this.sqlEngine = new WhatsAppSQLEngineService();
     this.historyService = new WhatsAppHistoryService();
   }
 
@@ -139,7 +132,7 @@ export class WhatsAppAIService {
       const chatHistory = await this.historyService.getChatHistory(organizationId, fromPhoneNumber, 10);
       const historyContext = this.historyService.formatHistoryForAI(chatHistory);
 
-      const systemPrompt = this.buildSystemPrompt();
+      const systemPrompt = this.buildSystemPrompt(organizationId);
       let userPrompt = `User question: ${message}`;
 
       // Include chat history if available
@@ -168,102 +161,48 @@ export class WhatsAppAIService {
         system: systemPrompt,
         prompt: userPrompt,
         tools: {
-          findDonorsByName: {
-            description:
-              "Search for donors by name (supports partial matches). Use this ONLY for initial donor searches, NOT for follow-up questions about donation details. If the user asks for donation history or dates, use getDonationHistory after finding the donor.",
-            parameters: FindDonorsByNameSchema,
-            execute: async ({ name, limit = 10 }: { name: string; limit?: number }) => {
-              logger.info(`[WhatsApp AI] Searching for donors with name: "${name}"`);
-              const result = await this.queryTools.findDonorsByName({
-                name,
-                organizationId,
-                limit,
-              });
-              logger.info(
-                `[WhatsApp AI] Found ${result.length} donors. IDs: ${result
-                  .map((d: DonorSearchResult) => d.id)
-                  .join(", ")}`
-              );
-              return result;
-            },
-          },
-          getDonorDetails: {
-            description:
-              "Get detailed information about a specific donor including contact info, donation history summary, and assigned staff.",
-            parameters: GetDonorDetailsSchema,
-            execute: async ({ donorId }: { donorId: number }) => {
-              return await this.queryTools.getDonorDetails({
-                donorId,
-                organizationId,
-              });
-            },
-          },
-          getDonationHistory: {
-            description:
-              "Get the full donation history for a specific donor, including dates, amounts, and projects. Use this when users ask about WHEN donations were made, 'what time', 'what date', 'donation history', or any follow-up questions about donation timing. This shows actual donation dates and times, not just donor info.",
-            parameters: GetDonationHistorySchema,
-            execute: async ({ donorId, limit = 50 }: { donorId: number; limit?: number }) => {
-              logger.info(`[WhatsApp AI] Getting donation history for donor ${donorId}`);
-              const result = await this.queryTools.getDonationHistory({
-                donorId,
-                organizationId,
-                limit,
-              });
-              logger.info(`[WhatsApp AI] Found ${result.length} donations for donor ${donorId}`);
-              return result;
-            },
-          },
-          getDonorStatistics: {
-            description:
-              "Get overall statistics about all donors in the organization, including totals, averages, and counts.",
-            parameters: GetDonorStatisticsSchema,
-            execute: async () => {
-              return await this.queryTools.getDonorStatistics({
+          executeSQL: {
+            description: `Execute raw SQL queries to answer ANY question about the database. 
+            
+            You have COMPLETE access to write any SELECT query against the database schema.
+            This gives you MAXIMUM FLEXIBILITY to answer any question about donors, donations, projects, or staff.
+            
+            You can write complex queries with:
+            - JOINs across multiple tables
+            - Aggregate functions (SUM, COUNT, AVG, MAX, MIN)
+            - Subqueries and CTEs
+            - Window functions
+            - Complex WHERE conditions
+            - GROUP BY and HAVING clauses
+            - ORDER BY and LIMIT
+            
+            SECURITY RULES:
+            1. ONLY SELECT queries are allowed
+            2. MUST include WHERE organization_id = '${organizationId}' for security
+            3. Amounts in donations table are in CENTS (divide by 100 for dollars)
+            
+            DATABASE SCHEMA:
+            ${this.sqlEngine.getSchemaDescription()}
+            
+            EXAMPLES:
+            - Find donor by name: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name ILIKE '%Aaron%'"
+            - Get donation history: "SELECT don.date, don.amount/100.0 as amount_dollars, d.first_name, d.last_name, p.name as project FROM donations don JOIN donors d ON don.donor_id = d.id JOIN projects p ON don.project_id = p.id WHERE d.organization_id = '${organizationId}' ORDER BY don.date DESC"
+            - Get donor stats: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples FROM donors WHERE organization_id = '${organizationId}'"
+            
+            Write the SQL query that will answer the user's question!`,
+            parameters: z.object({
+              query: z.string().describe("The raw SQL SELECT query to execute. Must include organization_id filter."),
+            }),
+            execute: async (params: any) => {
+              logger.info(`[WhatsApp AI] Executing SQL query`);
+              logger.info(`[WhatsApp AI] Query: ${params.query}`);
+
+              const result = await this.sqlEngine.executeRawSQL({
+                query: params.query,
                 organizationId,
               });
-            },
-          },
-          getTopDonors: {
-            description:
-              "Get the top donors by total donation amount. Use this when the user asks about biggest donors or top contributors.",
-            parameters: GetTopDonorsSchema,
-            execute: async ({ limit = 10 }: { limit?: number }) => {
-              return await this.queryTools.getTopDonors({
-                organizationId,
-                limit,
-              });
-            },
-          },
-          executeFlexibleQuery: {
-            description: `Execute flexible database queries for complex questions. Use this when other tools don't meet the user's needs. 
-               Supported query types:
-               - 'donor-donations-by-project': Find when a specific donor donated to a specific project (filters: donorName, projectName)
-               - 'donor-donations-by-date': Find donations by donor within a date range (filters: donorName, startDate, endDate)
-               - 'project-donations': Find all donations to a specific project (filters: projectName, startDate, endDate)
-               - 'donor-project-history': Get complete donation history of a donor across all projects (filters: donorName)
-               - 'custom-donor-search': Advanced donor search with multiple criteria (filters: name, email, phone, state, isCouple, highPotential, assignedStaff)
-               
-               Examples:
-               - "When did John Smith donate to Education project?" → type: 'donor-donations-by-project', filters: {donorName: "John Smith", projectName: "Education"}
-               - "Who donated to Healthcare in 2023?" → type: 'project-donations', filters: {projectName: "Healthcare", startDate: "2023-01-01", endDate: "2023-12-31"}`,
-            parameters: ExecuteFlexibleQuerySchema,
-            execute: async ({
-              type,
-              filters,
-              limit = 50,
-            }: {
-              type: string;
-              filters: Record<string, any>;
-              limit?: number;
-            }) => {
-              logger.info(`[WhatsApp AI] Executing flexible query: ${type} with filters: ${JSON.stringify(filters)}`);
-              const result = await this.queryTools.executeFlexibleQuery({
-                type: type as any,
-                organizationId,
-                filters,
-                limit,
-              });
-              logger.info(`[WhatsApp AI] Flexible query returned ${result.length} results`);
+
+              logger.info(`[WhatsApp AI] Query returned ${result.length} results`);
               return result;
             },
           },
@@ -304,430 +243,161 @@ export class WhatsAppAIService {
       // Handle empty responses
       const responseText = result.text.trim();
       if (!responseText || responseText.length === 0) {
-        logger.warn(`AI generated empty response, analyzing tool usage to create a meaningful response`);
+        logger.warn(`AI generated empty response, creating fallback response from tool results`);
 
-        // Check which tools were used and create a response based on that
+        // Check if we have tool results to work with
         const toolResults = result.toolResults || [];
-        const toolNames = toolResults.map((tr: any) => tr.toolName).join(", ");
-        logger.info(
-          `AI generated empty response. Tools used: ${toolNames || "none"}. Results count: ${toolResults.length}`
-        );
-
-        // If we have tool results, create a formatted response based on the specific tool used
         if (toolResults.length > 0) {
-          // Handle findDonorsByName results
-          const findDonorsResults = toolResults.find((tr) => tr.toolName === "findDonorsByName")?.result as
-            | DonorSearchResult[]
-            | undefined;
+          const executeSQLResult = toolResults.find((tr) => tr.toolName === "executeSQL")?.result;
 
-          if (findDonorsResults && Array.isArray(findDonorsResults) && findDonorsResults.length > 0) {
-            // We have donor information, create a formatted response
-            const donors = findDonorsResults;
-            const donorCount = donors.length;
+          if (executeSQLResult && Array.isArray(executeSQLResult) && executeSQLResult.length > 0) {
+            // Create a generic formatted response based on the data
+            let formattedResponse = `I found ${executeSQLResult.length} result${
+              executeSQLResult.length !== 1 ? "s" : ""
+            }:\n\n`;
 
-            let formattedResponse = `I found ${donorCount} donor${
-              donorCount !== 1 ? "s" : ""
-            } matching your search:\n\n`;
-
-            donors.forEach((donor: DonorSearchResult, index: number) => {
-              const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
-              const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
-                style: "currency",
-                currency: "USD",
-              });
-
-              formattedResponse += `${index + 1}. ${name} - ${totalAmount} total from ${donor.donationCount} donation${
-                donor.donationCount !== 1 ? "s" : ""
-              }\n`;
-              if (donor.email) formattedResponse += `   Email: ${donor.email}\n`;
-              if (donor.phone) formattedResponse += `   Phone: ${donor.phone}\n`;
-            });
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // Handle donor details results
-          const donorDetailsResult = toolResults.find((tr) => tr.toolName === "getDonorDetails")?.result as
-            | DonorDetailsResult
-            | undefined;
-          if (donorDetailsResult) {
-            const donor = donorDetailsResult;
-            const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
-            const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
-              style: "currency",
-              currency: "USD",
-            });
-
-            let formattedResponse = `Donor Information for ${name}:\n\n`;
-            formattedResponse += `Total Donations: ${totalAmount} across ${donor.donationCount} donation${
-              donor.donationCount !== 1 ? "s" : ""
-            }\n`;
-
-            if (donor.lastDonationDate) {
-              const lastDonationDate = new Date(donor.lastDonationDate);
-              formattedResponse += `Last Donation: ${lastDonationDate.toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}\n`;
-            }
-
-            formattedResponse += `\nContact Information:\n`;
-            formattedResponse += `Email: ${donor.email}\n`;
-            if (donor.phone) formattedResponse += `Phone: ${donor.phone}\n`;
-            if (donor.address) formattedResponse += `Address: ${donor.address}\n`;
-            if (donor.state) formattedResponse += `State: ${donor.state}\n`;
-
-            if (donor.assignedStaff) {
-              formattedResponse += `\nAssigned Staff: ${donor.assignedStaff.firstName} ${donor.assignedStaff.lastName}\n`;
-            }
-
-            if (donor.currentStageName) {
-              formattedResponse += `Current Stage: ${donor.currentStageName}\n`;
-            }
-
-            if (donor.highPotentialDonor) {
-              formattedResponse += `High Potential: Yes\n`;
-            }
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // Handle flexible query results
-          const flexibleQueryResults = toolResults.find((tr) => tr.toolName === "executeFlexibleQuery")?.result;
-          if (flexibleQueryResults && Array.isArray(flexibleQueryResults) && flexibleQueryResults.length > 0) {
-            let formattedResponse = "Here's what I found:\n\n";
-
-            flexibleQueryResults.forEach((result: any, index: number) => {
+            executeSQLResult.slice(0, 10).forEach((item: any, index: number) => {
               formattedResponse += `${index + 1}. `;
 
-              // Handle different result formats based on the query type
-              if (result.donorFirstName && result.donorLastName) {
-                const donorName = result.donorDisplayName || `${result.donorFirstName} ${result.donorLastName}`;
-                formattedResponse += `**${donorName}**\n`;
+              // Format based on available fields
+              if (item.firstName && item.lastName) {
+                const name = item.displayName || `${item.firstName} ${item.lastName}`;
+                formattedResponse += `${name}`;
 
-                if (result.projectName) {
-                  formattedResponse += `   Project: ${result.projectName}\n`;
-                }
-
-                if (result.donationDate) {
-                  const donationDate = new Date(result.donationDate);
-                  formattedResponse += `   Date: ${donationDate.toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}\n`;
-                }
-
-                if (result.donationAmount !== undefined) {
-                  const amount = (result.donationAmount / 100).toFixed(2);
-                  formattedResponse += `   Amount: $${amount}\n`;
-                }
-
-                if (result.donationCurrency && result.donationCurrency !== "USD") {
-                  formattedResponse += `   Currency: ${result.donationCurrency}\n`;
-                }
-
-                if (result.totalDonations !== undefined) {
-                  const total = (result.totalDonations / 100).toFixed(2);
-                  formattedResponse += `   Total Donations: $${total}\n`;
-                }
-
-                if (result.donationCount !== undefined) {
-                  formattedResponse += `   Number of Donations: ${result.donationCount}\n`;
-                }
-
-                if (result.email) {
-                  formattedResponse += `   Email: ${result.email}\n`;
-                }
-              } else {
-                // Fallback for other result formats
-                Object.entries(result).forEach(([key, value]) => {
-                  if (key.toLowerCase().includes("amount")) {
-                    const amount = ((value as number) / 100).toFixed(2);
-                    formattedResponse += `   ${key}: $${amount}\n`;
-                  } else if (value instanceof Date) {
-                    formattedResponse += `   ${key}: ${value.toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}\n`;
-                  } else if (value !== null && value !== undefined) {
-                    formattedResponse += `   ${key}: ${value}\n`;
-                  }
-                });
-              }
-
-              formattedResponse += "\n";
-            });
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // Handle donation history results
-          const donationHistoryResults = toolResults.find((tr) => tr.toolName === "getDonationHistory")?.result as
-            | DonationHistoryResult[]
-            | undefined;
-          if (donationHistoryResults && Array.isArray(donationHistoryResults) && donationHistoryResults.length > 0) {
-            const donations = donationHistoryResults;
-
-            let formattedResponse = `Donation History (${donations.length} donations):\n\n`;
-
-            donations.forEach((donation: DonationHistoryResult, index: number) => {
-              const date = new Date(donation.date);
-              const amount = (donation.amount / 100).toLocaleString("en-US", {
-                style: "currency",
-                currency: donation.currency,
-              });
-
-              formattedResponse += `${index + 1}. ${amount} on ${date.toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}\n`;
-              formattedResponse += `   Project: ${donation.projectName}\n`;
-            });
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // Handle donor statistics
-          const donorStatisticsResult = toolResults.find((tr) => tr.toolName === "getDonorStatistics")?.result as
-            | DonorStatisticsResult
-            | undefined;
-          if (donorStatisticsResult) {
-            const stats = donorStatisticsResult;
-            const totalAmount = (stats.totalDonationAmount / 100).toLocaleString("en-US", {
-              style: "currency",
-              currency: "USD",
-            });
-            const averageAmount = (stats.averageDonationAmount / 100).toLocaleString("en-US", {
-              style: "currency",
-              currency: "USD",
-            });
-
-            let formattedResponse = `Organization Donor Statistics:\n\n`;
-            formattedResponse += `Total Donors: ${stats.totalDonors}\n`;
-            formattedResponse += `Total Donations: ${stats.totalDonations}\n`;
-            formattedResponse += `Total Amount Donated: ${totalAmount}\n`;
-            formattedResponse += `Average Donation Amount: ${averageAmount}\n`;
-            formattedResponse += `High Potential Donors: ${stats.highPotentialDonors}\n`;
-            formattedResponse += `Couples: ${stats.couplesCount}\n`;
-            formattedResponse += `Individuals: ${stats.individualsCount}\n`;
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // Handle top donors
-          const topDonorsResults = toolResults.find((tr) => tr.toolName === "getTopDonors")?.result as
-            | TopDonorsResult[]
-            | undefined;
-          if (topDonorsResults && Array.isArray(topDonorsResults) && topDonorsResults.length > 0) {
-            const donors = topDonorsResults;
-
-            let formattedResponse = `Top Donors (by donation amount):\n\n`;
-
-            donors.forEach((donor: TopDonorsResult, index: number) => {
-              const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
-              const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
-                style: "currency",
-                currency: "USD",
-              });
-
-              formattedResponse += `${index + 1}. ${name} - ${totalAmount} total from ${donor.donationCount} donation${
-                donor.donationCount !== 1 ? "s" : ""
-              }\n`;
-            });
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          }
-
-          // If we got to this point, we have tool results but no specific handler for them
-          // Let's create a meaningful response by showing all tool results
-          let formattedResponse = "Here's what I found for your query:\n\n";
-
-          // Log all tool results to help debug
-          logger.info(`Tool results available: ${toolResults.map((tr) => tr.toolName).join(", ")}`);
-
-          toolResults.forEach((toolResult) => {
-            formattedResponse += `${toolResult.toolName} results:\n`;
-
-            // Format the data based on what we have
-            if (toolResult.result === null) {
-              formattedResponse += "No data found\n\n";
-            } else if (Array.isArray(toolResult.result)) {
-              if (toolResult.result.length === 0) {
-                formattedResponse += "No results found\n\n";
-              } else {
-                // Format array data
-                toolResult.result.forEach((item: any, index: number) => {
-                  formattedResponse += `${index + 1}. `;
-
-                  if (typeof item === "object") {
-                    // Handle object output
-                    if ("firstName" in item && "lastName" in item) {
-                      formattedResponse += `${item.firstName} ${item.lastName}`;
-                    }
-
-                    if ("amount" in item && typeof item.amount === "number") {
-                      const amount = (item.amount / 100).toLocaleString("en-US", {
-                        style: "currency",
-                        currency: item.currency || "USD",
-                      });
-                      formattedResponse += ` - ${amount}`;
-                    }
-
-                    if ("totalDonations" in item && typeof item.totalDonations === "number") {
-                      const totalAmount = (item.totalDonations / 100).toLocaleString("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                      });
-                      formattedResponse += ` - ${totalAmount} total`;
-                    }
-
-                    if ("email" in item) {
-                      formattedResponse += ` (${item.email})`;
-                    }
-                  } else {
-                    // Simple value
-                    formattedResponse += `${item}`;
-                  }
-
-                  formattedResponse += "\n";
-                });
-                formattedResponse += "\n";
-              }
-            } else if (typeof toolResult.result === "object") {
-              // Format object data
-              Object.entries(toolResult.result).forEach(([key, value]) => {
-                // Format numeric values that might be money
-                if (
-                  typeof value === "number" &&
-                  ["amount", "totalDonations", "totalDonationAmount", "averageDonationAmount"].some((k) =>
-                    key.includes(k)
-                  )
-                ) {
-                  const amount = (value / 100).toLocaleString("en-US", {
+                if (item.email) formattedResponse += ` (${item.email})`;
+                if (item.totalDonations) {
+                  const amount = (item.totalDonations / 100).toLocaleString("en-US", {
                     style: "currency",
                     currency: "USD",
                   });
-                  formattedResponse += `${key}: ${amount}\n`;
-                } else if (value instanceof Date) {
-                  formattedResponse += `${key}: ${value.toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}\n`;
-                } else {
-                  formattedResponse += `${key}: ${value}\n`;
+                  formattedResponse += ` - ${amount} total`;
                 }
-              });
+                if (item.donationCount) formattedResponse += ` from ${item.donationCount} donations`;
+              } else if ((item.amount || item.amount_dollars) && item.date) {
+                // Donation record - handle both amount (cents) and amount_dollars formats
+                let amount: string;
+                if (item.amount_dollars) {
+                  // If amount_dollars is provided, format it directly
+                  const amountNum = parseFloat(item.amount_dollars);
+                  amount = amountNum.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: item.currency || "USD",
+                  });
+                } else if (item.amount) {
+                  // If amount is in cents, convert to dollars
+                  amount = (item.amount / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: item.currency || "USD",
+                  });
+                } else {
+                  amount = "Unknown amount";
+                }
+
+                const date = new Date(item.date).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                });
+
+                formattedResponse += `${amount} donated on ${date}`;
+
+                // Handle donor names (multiple possible formats)
+                if (item.donorFirstName && item.donorLastName) {
+                  formattedResponse += ` by ${item.donorFirstName} ${item.donorLastName}`;
+                } else if (item.first_name && item.last_name) {
+                  formattedResponse += ` by ${item.first_name} ${item.last_name}`;
+                }
+
+                // Handle project names (multiple possible formats)
+                if (item.projectName) {
+                  formattedResponse += ` to ${item.projectName}`;
+                } else if (item.project_name) {
+                  formattedResponse += ` to ${item.project_name}`;
+                }
+              } else if (item.name) {
+                // Project or other named entity
+                formattedResponse += `${item.name}`;
+                if (item.totalDonations) {
+                  const amount = (item.totalDonations / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  });
+                  formattedResponse += ` - ${amount} raised`;
+                }
+              } else {
+                // Generic object formatting - but improve it
+                const keys = Object.keys(item).filter((k) => !k.includes("Id") && item[k] !== null);
+                const formattedPairs = keys.slice(0, 5).map((k) => {
+                  let value = item[k];
+
+                  // Format specific fields better
+                  if (k.includes("amount") && k.includes("dollars") && typeof value === "string") {
+                    const num = parseFloat(value);
+                    if (!isNaN(num)) {
+                      value = num.toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                      });
+                    }
+                  } else if (k.includes("date") && value) {
+                    try {
+                      value = new Date(value).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      });
+                    } catch (e) {
+                      // Keep original value if date parsing fails
+                    }
+                  }
+
+                  return `${k.replace(/_/g, " ")}: ${value}`;
+                });
+
+                formattedResponse += formattedPairs.join(", ");
+              }
+
               formattedResponse += "\n";
-            } else {
-              // Simple value
-              formattedResponse += `${toolResult.result}\n\n`;
+            });
+
+            if (executeSQLResult.length > 10) {
+              formattedResponse += `\n... and ${executeSQLResult.length - 10} more results.`;
             }
-          });
 
-          // Save the assistant response to history
-          await this.historyService.saveMessage({
-            organizationId,
-            fromPhoneNumber,
-            role: "assistant",
-            content: formattedResponse,
-            toolCalls: result.toolCalls,
-            toolResults: result.toolResults,
-            tokensUsed,
-          });
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
 
-          return {
-            response: formattedResponse,
-            tokensUsed,
-          };
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          } else if (executeSQLResult && Array.isArray(executeSQLResult) && executeSQLResult.length === 0) {
+            const noResultsResponse =
+              "I didn't find any results matching your query. Please try rephrasing your question or check the spelling.";
+
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: noResultsResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
+
+            return {
+              response: noResultsResponse,
+              tokensUsed,
+            };
+          }
         }
 
         // If no tools were used or no results, use the default fallback message
@@ -777,88 +447,70 @@ export class WhatsAppAIService {
   /**
    * Build the system prompt for the AI assistant
    */
-  private buildSystemPrompt(): string {
+  private buildSystemPrompt(organizationId: string): string {
     return `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors and their donations via WhatsApp.
 
-Your capabilities include:
-- Finding donors by name (partial matches supported)
-- Getting detailed donor information including contact details and donation summaries
-- Retrieving full donation histories for specific donors
-- Providing organization-wide donor statistics
-- Identifying top donors by contribution amount
-- Executing flexible database queries to answer complex questions like:
-  * "When did John Smith donate to the Education project?"
-  * "Who donated to Healthcare in 2023?"
-  * "Show me all of Sarah's donations across all projects"
-  * "Find donors who are couples and high potential"
+You have access to ONE EXTREMELY POWERFUL TOOL that gives you COMPLETE DATABASE ACCESS:
 
-CRITICAL CONTEXT AWARENESS:
-- ALWAYS pay attention to the conversation history when provided
-- When users ask follow-up questions (like "what time was that donation?"), understand they're referring to the previously mentioned donor
+THE executeSQL TOOL:
+This tool allows you to write and execute ANY SQL SELECT query against the database. You have MAXIMUM FLEXIBILITY to answer ANY question!
+
+🚀 UNLIMITED POWER:
+- Write complex JOINs across multiple tables
+- Use aggregate functions (SUM, COUNT, AVG, MAX, MIN)
+- Create subqueries and CTEs
+- Use window functions for advanced analytics
+- Apply complex WHERE conditions with AND/OR logic
+- Group and filter data with GROUP BY and HAVING
+- Sort and limit results with ORDER BY and LIMIT
+- Use CASE statements for conditional logic
+- Apply date functions and string operations
+
+🔒 SECURITY RULES (CRITICAL):
+1. ONLY SELECT queries are allowed - no INSERT, UPDATE, DELETE, DROP, etc.
+2. MUST include WHERE organization_id = '${organizationId}' in every query for security
+3. Amounts in donations table are stored in CENTS - divide by 100 for dollar amounts
+
+📊 DATABASE SCHEMA:
+${this.sqlEngine.getSchemaDescription()}
+
+💡 CONVERSATION CONTEXT AWARENESS:
+- ALWAYS pay attention to conversation history
+- When users ask follow-up questions (like "what time was that donation?"), they're referring to the previously mentioned donor
 - Use context from previous messages to determine which donor or topic the user is asking about
-- If a follow-up question asks for more details, use the appropriate tool to get that specific information
+- Build on previous queries and results
 
-IMPORTANT WORKFLOW:
-- When asked for donation history: First find the donor by name, then IMMEDIATELY use their ID to get donation history with getDonationHistory
-- For follow-up questions about timing/dates/when/what time: ALWAYS use getDonationHistory or executeFlexibleQuery, NEVER just search for donors again
-- If user asks "what time was that donation?" or "when did they donate?" and you know the donor from context, use getDonationHistory with their ID
-- For complex queries (like "when did X donate to Y project?"): Use executeFlexibleQuery with appropriate type and filters
-- NEVER repeat the same donor search when user is asking for donation details - they want dates/times/history, not donor info again
-- Always provide a final text response summarizing what you found
-- If tools return empty results, explain what you searched for and suggest alternatives
+🎯 CRITICAL INSTRUCTIONS:
+1. ALWAYS use the executeSQL tool to get data from the database
+2. Write efficient, well-structured SQL queries
+3. ALWAYS provide a complete, thorough text response after using the tool - NEVER leave your response empty!
+4. NEVER return an empty response or generic message - always analyze and summarize the data you receive
+5. Format money values properly as currency (e.g., "$1,000.00" not "1000.0000000000000000")
+6. Format dates in a readable format (e.g., "January 1, 2023" not "2023-01-01 19:55:00")
+7. If no results found, explain what you searched for and suggest alternatives
+8. Be specific with data - include names, amounts, dates, project names, counts, etc.
+9. If multiple results, present them in an organized, easy-to-read list
+10. ALWAYS write a human-friendly summary - don't just dump raw data
+11. Include ALL relevant information from your query results (donor names, amounts, dates, projects, etc.)
 
-CRITICAL: If a user asks about "time", "date", "when", "history" and you already found a donor, DO NOT search for the donor again. Use getDonationHistory or executeFlexibleQuery to get the actual donation details with dates and times.
+📝 EXAMPLE SQL QUERIES:
+- Find donor by name: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND (first_name ILIKE '%Aaron%' OR last_name ILIKE '%Kirshtein%')"
+- Get donation history: "SELECT don.date, don.amount/100.0 as amount_dollars, d.first_name, d.last_name, p.name as project FROM donations don JOIN donors d ON don.donor_id = d.id JOIN projects p ON don.project_id = p.id WHERE d.organization_id = '${organizationId}' AND d.first_name ILIKE '%Aaron%' ORDER BY don.date DESC"
+- Get donor with totals: "SELECT d.*, COALESCE(SUM(don.amount), 0)/100.0 as total_donations, COUNT(don.id) as donation_count FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}' GROUP BY d.id"
+- Get statistics: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples, AVG(CASE WHEN don.amount IS NOT NULL THEN don.amount/100.0 END) as avg_donation FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}'"
 
-FLEXIBLE QUERY USAGE:
-- Use executeFlexibleQuery when standard tools don't match the user's specific question
-- Available query types:
-  * 'donor-donations-by-project': When user asks about specific donor's donations to a specific project
-  * 'donor-donations-by-date': When user asks about donations within a date range
-  * 'project-donations': When user asks who donated to a specific project
-  * 'donor-project-history': When user wants complete history of a donor across all projects
-  * 'custom-donor-search': When user needs advanced donor filtering (couples, high potential, etc.)
-- Always include organizationId (provided automatically) and appropriate filters based on the question
+📋 EXAMPLE GOOD RESPONSES:
+When user asks "Show me Aaron Kirshtein's donations":
+GOOD: "I found Aaron Kirshtein's donation history! He made a $1,000 donation on January 1, 2023 to the General Donations project. This was his most recent donation."
+BAD: "date: 2023-01-01 19:55:00, amount_dollars: 1000.0000000000000000, first_name: Aaron"
 
-Guidelines for responses:
-1. Be friendly, professional, and concise in your responses
-2. When presenting donation amounts, format them clearly (e.g., "$1,234.56" for amounts in cents)
-3. When showing dates, use a readable format (e.g., "March 15, 2024")
-4. If a donor has privacy concerns, be respectful of sensitive information
-5. If you can't find specific information, suggest alternative searches or ask for clarification
-6. Always use the available tools to get accurate, up-to-date information from the database
-7. For donation amounts, remember they are stored in cents, so divide by 100 for display
-8. When multiple donors match a search, present them in an organized list
-9. If asked about specific donors, try to search by name first to get the donor ID, then get detailed information
-10. IMPORTANT: Always provide a response, even if no data is found. Never return an empty message.
-11. If no donors are found, clearly explain this and suggest checking the spelling or trying a partial name search
-12. After using tools, ALWAYS generate a final response text - never leave the response empty
-13. For donation history requests: find donor first, then get their donation history, then summarize the results
-14. UNDERSTAND FOLLOW-UP QUESTIONS: If the user asks "when", "what time", "how much", etc. without specifying a donor name, they're referring to the donor from the previous conversation
+When user asks "How many donors do we have?":
+GOOD: "You have 245 total donors in your system, including 89 couples and 156 individual donors. The average donation amount is $125."
+BAD: "total_donors: 245, couples: 89, individuals: 156"
 
-CONVERSATION CONTEXT EXAMPLES:
-- User: "n history of the donor Aaron Kirshtein" → Use findDonorsByName to find Aaron
-- User: "what time was that donation?" → This is a FOLLOW-UP! Use getDonationHistory for the previously mentioned donor (Aaron Kirshtein)
-- User: "how much did they give last year?" → Another FOLLOW-UP! Get donation history for the same donor
-
-CRITICAL INSTRUCTION: You MUST ALWAYS generate a complete, thorough text response after using tools. 
-NEVER return an empty response or a partial response like "Here's what I found:" without following it with actual data.
-
-- Always format your response as a complete standalone message
-- Always include specific data from the tool results (like names, amounts, dates, etc.)
-- Always format money values properly (e.g., "$1,234.56")
-- If tools provide data, you MUST summarize that data in your response with specific details
-- If no tools provide data, explain what you searched for and that no results were found
-- Empty or generic responses will cause the system to fail and frustrate users
-
-AGAIN: Your response MUST include specific data from the tool results, not just a generic message saying you found something.
-
-Example response formats:
-- For donor search: "I found 3 donors matching 'John': John Smith (john@email.com), John Doe (john.doe@email.com), Johnny Wilson (johnny@email.com)"
-- For donor details: "John Smith has donated $1,234.56 across 5 donations, last donation on March 15, 2024. Contact: john@email.com, (555) 123-4567"
-- For donation history: "Aaron Kirshtein made their donation of $1,000 on December 15, 2023 at 2:30 PM"
-- For statistics: "Your organization has 150 donors who have made 420 total donations worth $45,678.90"
-- For no results: "I couldn't find any donors matching 'Aaron Kirshtein'. Please check the spelling or try searching with just the first or last name, like 'Aaron' or 'Kirshtein'."
-
-Remember to be helpful and accurate while maintaining appropriate privacy and security standards.`;
+Remember: 
+- You can write ANY SQL query to answer ANY question! Be creative and use the full power of SQL!
+- ALWAYS provide a human-friendly response that interprets and explains the data
+- NEVER just dump raw database results - always format them nicely for humans to read`;
   }
 }
