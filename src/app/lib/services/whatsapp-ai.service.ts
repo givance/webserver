@@ -32,6 +32,77 @@ export interface WhatsAppAIResponse {
   };
 }
 
+// Type definitions for donor data
+interface DonorSearchResult {
+  id: number;
+  firstName: string;
+  lastName: string;
+  displayName: string | null;
+  email: string;
+  phone: string | null;
+  isCouple: boolean;
+  totalDonations: number;
+  donationCount: number;
+}
+
+interface DonorDetailsResult {
+  id: number;
+  firstName: string;
+  lastName: string;
+  displayName: string | null;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  state: string | null;
+  isCouple: boolean;
+  hisFirstName: string | null;
+  hisLastName: string | null;
+  herFirstName: string | null;
+  herLastName: string | null;
+  notes: string | null;
+  currentStageName: string | null;
+  highPotentialDonor: boolean | null;
+  assignedStaff: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  totalDonations: number;
+  donationCount: number;
+  lastDonationDate: Date | null;
+}
+
+interface DonationHistoryResult {
+  id: number;
+  date: Date;
+  amount: number;
+  currency: string;
+  projectName: string;
+  projectId: number;
+}
+
+interface DonorStatisticsResult {
+  totalDonors: number;
+  totalDonations: number;
+  totalDonationAmount: number;
+  averageDonationAmount: number;
+  highPotentialDonors: number;
+  couplesCount: number;
+  individualsCount: number;
+}
+
+interface TopDonorsResult {
+  id: number;
+  firstName: string;
+  lastName: string;
+  displayName: string | null;
+  email: string;
+  totalDonations: number;
+  donationCount: number;
+  lastDonationDate: Date | null;
+}
+
 /**
  * WhatsApp AI service that processes user questions about donors
  * Uses Azure OpenAI with database query tools
@@ -68,14 +139,18 @@ export class WhatsAppAIService {
             description:
               "Search for donors by name (supports partial matches). Use this when the user asks about a specific donor or wants to find donors by name.",
             parameters: FindDonorsByNameSchema,
-            execute: async ({ name, limit = 10 }) => {
+            execute: async ({ name, limit = 10 }: { name: string; limit?: number }) => {
               logger.info(`[WhatsApp AI] Searching for donors with name: "${name}"`);
               const result = await this.queryTools.findDonorsByName({
                 name,
                 organizationId,
                 limit,
               });
-              logger.info(`[WhatsApp AI] Found ${result.length} donors. IDs: ${result.map((d) => d.id).join(", ")}`);
+              logger.info(
+                `[WhatsApp AI] Found ${result.length} donors. IDs: ${result
+                  .map((d: DonorSearchResult) => d.id)
+                  .join(", ")}`
+              );
               return result;
             },
           },
@@ -83,7 +158,7 @@ export class WhatsAppAIService {
             description:
               "Get detailed information about a specific donor including contact info, donation history summary, and assigned staff.",
             parameters: GetDonorDetailsSchema,
-            execute: async ({ donorId }) => {
+            execute: async ({ donorId }: { donorId: number }) => {
               return await this.queryTools.getDonorDetails({
                 donorId,
                 organizationId,
@@ -93,7 +168,7 @@ export class WhatsAppAIService {
           getDonationHistory: {
             description: "Get the full donation history for a specific donor, including dates, amounts, and projects.",
             parameters: GetDonationHistorySchema,
-            execute: async ({ donorId, limit = 50 }) => {
+            execute: async ({ donorId, limit = 50 }: { donorId: number; limit?: number }) => {
               logger.info(`[WhatsApp AI] Getting donation history for donor ${donorId}`);
               const result = await this.queryTools.getDonationHistory({
                 donorId,
@@ -118,7 +193,7 @@ export class WhatsAppAIService {
             description:
               "Get the top donors by total donation amount. Use this when the user asks about biggest donors or top contributors.",
             parameters: GetTopDonorsSchema,
-            execute: async ({ limit = 10 }) => {
+            execute: async ({ limit = 10 }: { limit?: number }) => {
               return await this.queryTools.getTopDonors({
                 organizationId,
                 limit,
@@ -127,6 +202,8 @@ export class WhatsAppAIService {
           },
         },
         temperature: 0.7,
+        maxTokens: 1000, // Ensure there's enough room for a response
+        toolChoice: "auto", // Let the model decide when to use tools
       });
 
       const tokensUsed = {
@@ -143,7 +220,294 @@ export class WhatsAppAIService {
       // Handle empty responses
       const responseText = result.text.trim();
       if (!responseText || responseText.length === 0) {
-        logger.warn(`AI generated empty response, providing fallback message`);
+        logger.warn(`AI generated empty response, analyzing tool usage to create a meaningful response`);
+
+        // Check which tools were used and create a response based on that
+        // Log the entire result structure to help debug
+        logger.info(
+          `Result structure: ${JSON.stringify(
+            result,
+            (key, value) => {
+              // Prevent circular references and trim long values
+              if (typeof value === "string" && value.length > 100) {
+                return value.substring(0, 100) + "...";
+              }
+              return value;
+            },
+            2
+          )}`
+        );
+
+        // Get tool results directly from the result object
+        const toolResults = result.toolResults || [];
+
+        // If we have tool results, create a formatted response based on the specific tool used
+        if (toolResults.length > 0) {
+          // Handle findDonorsByName results
+          const findDonorsResults = toolResults.find((tr) => tr.toolName === "findDonorsByName")?.result as
+            | DonorSearchResult[]
+            | undefined;
+
+          if (findDonorsResults && Array.isArray(findDonorsResults) && findDonorsResults.length > 0) {
+            // We have donor information, create a formatted response
+            const donors = findDonorsResults;
+            const donorCount = donors.length;
+
+            let formattedResponse = `I found ${donorCount} donor${
+              donorCount !== 1 ? "s" : ""
+            } matching your search:\n\n`;
+
+            donors.forEach((donor: DonorSearchResult, index: number) => {
+              const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
+              const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
+                style: "currency",
+                currency: "USD",
+              });
+
+              formattedResponse += `${index + 1}. ${name} - ${totalAmount} total from ${donor.donationCount} donation${
+                donor.donationCount !== 1 ? "s" : ""
+              }\n`;
+              if (donor.email) formattedResponse += `   Email: ${donor.email}\n`;
+              if (donor.phone) formattedResponse += `   Phone: ${donor.phone}\n`;
+            });
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // Handle donor details results
+          const donorDetailsResult = toolResults.find((tr) => tr.toolName === "getDonorDetails")?.result as
+            | DonorDetailsResult
+            | undefined;
+          if (donorDetailsResult) {
+            const donor = donorDetailsResult;
+            const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
+            const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            });
+
+            let formattedResponse = `Donor Information for ${name}:\n\n`;
+            formattedResponse += `Total Donations: ${totalAmount} across ${donor.donationCount} donation${
+              donor.donationCount !== 1 ? "s" : ""
+            }\n`;
+
+            if (donor.lastDonationDate) {
+              const lastDonationDate = new Date(donor.lastDonationDate);
+              formattedResponse += `Last Donation: ${lastDonationDate.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}\n`;
+            }
+
+            formattedResponse += `\nContact Information:\n`;
+            formattedResponse += `Email: ${donor.email}\n`;
+            if (donor.phone) formattedResponse += `Phone: ${donor.phone}\n`;
+            if (donor.address) formattedResponse += `Address: ${donor.address}\n`;
+            if (donor.state) formattedResponse += `State: ${donor.state}\n`;
+
+            if (donor.assignedStaff) {
+              formattedResponse += `\nAssigned Staff: ${donor.assignedStaff.firstName} ${donor.assignedStaff.lastName}\n`;
+            }
+
+            if (donor.currentStageName) {
+              formattedResponse += `Current Stage: ${donor.currentStageName}\n`;
+            }
+
+            if (donor.highPotentialDonor) {
+              formattedResponse += `High Potential: Yes\n`;
+            }
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // Handle donation history results
+          const donationHistoryResults = toolResults.find((tr) => tr.toolName === "getDonationHistory")?.result as
+            | DonationHistoryResult[]
+            | undefined;
+          if (donationHistoryResults && Array.isArray(donationHistoryResults) && donationHistoryResults.length > 0) {
+            const donations = donationHistoryResults;
+
+            let formattedResponse = `Donation History (${donations.length} donations):\n\n`;
+
+            donations.forEach((donation: DonationHistoryResult, index: number) => {
+              const date = new Date(donation.date);
+              const amount = (donation.amount / 100).toLocaleString("en-US", {
+                style: "currency",
+                currency: donation.currency,
+              });
+
+              formattedResponse += `${index + 1}. ${amount} on ${date.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}\n`;
+              formattedResponse += `   Project: ${donation.projectName}\n`;
+            });
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // Handle donor statistics
+          const donorStatisticsResult = toolResults.find((tr) => tr.toolName === "getDonorStatistics")?.result as
+            | DonorStatisticsResult
+            | undefined;
+          if (donorStatisticsResult) {
+            const stats = donorStatisticsResult;
+            const totalAmount = (stats.totalDonationAmount / 100).toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            });
+            const averageAmount = (stats.averageDonationAmount / 100).toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            });
+
+            let formattedResponse = `Organization Donor Statistics:\n\n`;
+            formattedResponse += `Total Donors: ${stats.totalDonors}\n`;
+            formattedResponse += `Total Donations: ${stats.totalDonations}\n`;
+            formattedResponse += `Total Amount Donated: ${totalAmount}\n`;
+            formattedResponse += `Average Donation Amount: ${averageAmount}\n`;
+            formattedResponse += `High Potential Donors: ${stats.highPotentialDonors}\n`;
+            formattedResponse += `Couples: ${stats.couplesCount}\n`;
+            formattedResponse += `Individuals: ${stats.individualsCount}\n`;
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // Handle top donors
+          const topDonorsResults = toolResults.find((tr) => tr.toolName === "getTopDonors")?.result as
+            | TopDonorsResult[]
+            | undefined;
+          if (topDonorsResults && Array.isArray(topDonorsResults) && topDonorsResults.length > 0) {
+            const donors = topDonorsResults;
+
+            let formattedResponse = `Top Donors (by donation amount):\n\n`;
+
+            donors.forEach((donor: TopDonorsResult, index: number) => {
+              const name = donor.displayName || `${donor.firstName} ${donor.lastName}`;
+              const totalAmount = (donor.totalDonations / 100).toLocaleString("en-US", {
+                style: "currency",
+                currency: "USD",
+              });
+
+              formattedResponse += `${index + 1}. ${name} - ${totalAmount} total from ${donor.donationCount} donation${
+                donor.donationCount !== 1 ? "s" : ""
+              }\n`;
+            });
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // If we got to this point, we have tool results but no specific handler for them
+          // Let's create a meaningful response by showing all tool results
+          let formattedResponse = "Here's what I found for your query:\n\n";
+
+          // Log all tool results to help debug
+          logger.info(`Tool results available: ${toolResults.map((tr) => tr.toolName).join(", ")}`);
+
+          toolResults.forEach((toolResult) => {
+            formattedResponse += `${toolResult.toolName} results:\n`;
+
+            // Format the data based on what we have
+            if (toolResult.result === null) {
+              formattedResponse += "No data found\n\n";
+            } else if (Array.isArray(toolResult.result)) {
+              if (toolResult.result.length === 0) {
+                formattedResponse += "No results found\n\n";
+              } else {
+                // Format array data
+                toolResult.result.forEach((item: any, index: number) => {
+                  formattedResponse += `${index + 1}. `;
+
+                  if (typeof item === "object") {
+                    // Handle object output
+                    if ("firstName" in item && "lastName" in item) {
+                      formattedResponse += `${item.firstName} ${item.lastName}`;
+                    }
+
+                    if ("amount" in item && typeof item.amount === "number") {
+                      const amount = (item.amount / 100).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: item.currency || "USD",
+                      });
+                      formattedResponse += ` - ${amount}`;
+                    }
+
+                    if ("totalDonations" in item && typeof item.totalDonations === "number") {
+                      const totalAmount = (item.totalDonations / 100).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                      });
+                      formattedResponse += ` - ${totalAmount} total`;
+                    }
+
+                    if ("email" in item) {
+                      formattedResponse += ` (${item.email})`;
+                    }
+                  } else {
+                    // Simple value
+                    formattedResponse += `${item}`;
+                  }
+
+                  formattedResponse += "\n";
+                });
+                formattedResponse += "\n";
+              }
+            } else if (typeof toolResult.result === "object") {
+              // Format object data
+              Object.entries(toolResult.result).forEach(([key, value]) => {
+                // Format numeric values that might be money
+                if (
+                  typeof value === "number" &&
+                  ["amount", "totalDonations", "totalDonationAmount", "averageDonationAmount"].some((k) =>
+                    key.includes(k)
+                  )
+                ) {
+                  const amount = (value / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  });
+                  formattedResponse += `${key}: ${amount}\n`;
+                } else if (value instanceof Date) {
+                  formattedResponse += `${key}: ${value.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}\n`;
+                } else {
+                  formattedResponse += `${key}: ${value}\n`;
+                }
+              });
+              formattedResponse += "\n";
+            } else {
+              // Simple value
+              formattedResponse += `${toolResult.result}\n\n`;
+            }
+          });
+
+          return {
+            response: formattedResponse,
+            tokensUsed,
+          };
+        }
+
+        // If no tools were used or no results, use the default fallback message
         return {
           response:
             "I'm sorry, I couldn't find the information you're looking for. Please try rephrasing your question or check if the donor name is spelled correctly.",
@@ -203,6 +567,18 @@ Guidelines for responses:
 11. If no donors are found, clearly explain this and suggest checking the spelling or trying a partial name search
 12. After using tools, ALWAYS generate a final response text - never leave the response empty
 13. For donation history requests: find donor first, then get their donation history, then summarize the results
+
+CRITICAL INSTRUCTION: You MUST ALWAYS generate a complete, thorough text response after using tools. 
+NEVER return an empty response or a partial response like "Here's what I found:" without following it with actual data.
+
+- Always format your response as a complete standalone message
+- Always include specific data from the tool results (like names, amounts, dates, etc.)
+- Always format money values properly (e.g., "$1,234.56")
+- If tools provide data, you MUST summarize that data in your response with specific details
+- If no tools provide data, explain what you searched for and that no results were found
+- Empty or generic responses will cause the system to fail and frustrate users
+
+AGAIN: Your response MUST include specific data from the tool results, not just a generic message saying you found something.
 
 Example response formats:
 - For donor search: "I found 3 donors matching 'John': John Smith (john@email.com), John Doe (john.doe@email.com), Johnny Wilson (johnny@email.com)"

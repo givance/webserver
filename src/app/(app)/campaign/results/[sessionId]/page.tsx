@@ -13,7 +13,7 @@ import { ArrowLeft, Users, MessageSquare, Mail, AlertCircle, Activity, Eye, Sear
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
@@ -292,7 +292,8 @@ export default function EmailGenerationResultsPage() {
                 </div>
                 {searchTerm && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for "{searchTerm}"
+                    {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}
+                    &quot;
                   </p>
                 )}
               </div>
@@ -397,7 +398,7 @@ export default function EmailGenerationResultsPage() {
                       <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium">No emails found</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        No emails match your search for "{searchTerm}"
+                        No emails match your search for &quot;{searchTerm}&quot;
                       </p>
                       <Button variant="outline" onClick={clearSearch}>
                         Clear search
