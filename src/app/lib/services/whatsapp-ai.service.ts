@@ -10,6 +10,7 @@ import {
   GetDonorStatisticsSchema,
   GetTopDonorsSchema,
 } from "./whatsapp-query-tools.service";
+import { WhatsAppHistoryService } from "./whatsapp-history.service";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -109,9 +110,11 @@ interface TopDonorsResult {
  */
 export class WhatsAppAIService {
   private queryTools: WhatsAppQueryToolsService;
+  private historyService: WhatsAppHistoryService;
 
   constructor() {
     this.queryTools = new WhatsAppQueryToolsService();
+    this.historyService = new WhatsAppHistoryService();
   }
 
   /**
@@ -123,12 +126,38 @@ export class WhatsAppAIService {
     logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}: "${message}"`);
 
     try {
+      // First, save the user's message to history
+      await this.historyService.saveMessage({
+        organizationId,
+        fromPhoneNumber,
+        role: "user",
+        content: message,
+      });
+
+      // Get chat history for context
+      const chatHistory = await this.historyService.getChatHistory(organizationId, fromPhoneNumber, 10);
+      const historyContext = this.historyService.formatHistoryForAI(chatHistory);
+
       const systemPrompt = this.buildSystemPrompt();
-      const userPrompt = `User question: ${message}`;
+      let userPrompt = `User question: ${message}`;
+
+      // Include chat history if available
+      if (historyContext.length > 0) {
+        userPrompt = `Previous conversation:\n${historyContext}\n\nCurrent user question: ${message}`;
+      }
 
       logger.info(`Sending request to Azure OpenAI (model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`);
       logger.info(`System prompt length: ${systemPrompt.length} chars`);
       logger.info(`User prompt: ${userPrompt}`);
+      logger.info(`Including ${chatHistory.length} previous messages in context`);
+
+      // Debug: Log the actual conversation history being sent
+      if (chatHistory.length > 0) {
+        logger.info(`[WhatsApp AI Debug] Conversation history being sent to AI:`);
+        chatHistory.forEach((msg, idx) => {
+          logger.info(`[WhatsApp AI Debug] Message ${idx + 1} (${msg.role}): ${msg.content.substring(0, 100)}...`);
+        });
+      }
 
       const result = await generateText({
         model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
@@ -166,7 +195,8 @@ export class WhatsAppAIService {
             },
           },
           getDonationHistory: {
-            description: "Get the full donation history for a specific donor, including dates, amounts, and projects.",
+            description:
+              "Get the full donation history for a specific donor, including dates, amounts, and projects. Use this when users ask about WHEN donations were made, specific donation dates/times, or donation history details.",
             parameters: GetDonationHistorySchema,
             execute: async ({ donorId, limit = 50 }: { donorId: number; limit?: number }) => {
               logger.info(`[WhatsApp AI] Getting donation history for donor ${donorId}`);
@@ -271,6 +301,17 @@ export class WhatsAppAIService {
               if (donor.phone) formattedResponse += `   Phone: ${donor.phone}\n`;
             });
 
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
+
             return {
               response: formattedResponse,
               tokensUsed,
@@ -321,6 +362,17 @@ export class WhatsAppAIService {
               formattedResponse += `High Potential: Yes\n`;
             }
 
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
+
             return {
               response: formattedResponse,
               tokensUsed,
@@ -349,6 +401,17 @@ export class WhatsAppAIService {
                 year: "numeric",
               })}\n`;
               formattedResponse += `   Project: ${donation.projectName}\n`;
+            });
+
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
             });
 
             return {
@@ -381,6 +444,17 @@ export class WhatsAppAIService {
             formattedResponse += `Couples: ${stats.couplesCount}\n`;
             formattedResponse += `Individuals: ${stats.individualsCount}\n`;
 
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
+
             return {
               response: formattedResponse,
               tokensUsed,
@@ -406,6 +480,17 @@ export class WhatsAppAIService {
               formattedResponse += `${index + 1}. ${name} - ${totalAmount} total from ${donor.donationCount} donation${
                 donor.donationCount !== 1 ? "s" : ""
               }\n`;
+            });
+
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
             });
 
             return {
@@ -501,6 +586,17 @@ export class WhatsAppAIService {
             }
           });
 
+          // Save the assistant response to history
+          await this.historyService.saveMessage({
+            organizationId,
+            fromPhoneNumber,
+            role: "assistant",
+            content: formattedResponse,
+            toolCalls: result.toolCalls,
+            toolResults: result.toolResults,
+            tokensUsed,
+          });
+
           return {
             response: formattedResponse,
             tokensUsed,
@@ -508,12 +604,36 @@ export class WhatsAppAIService {
         }
 
         // If no tools were used or no results, use the default fallback message
+        const fallbackResponse =
+          "I'm sorry, I couldn't find the information you're looking for. Please try rephrasing your question or check if the donor name is spelled correctly.";
+
+        // Save the assistant response to history
+        await this.historyService.saveMessage({
+          organizationId,
+          fromPhoneNumber,
+          role: "assistant",
+          content: fallbackResponse,
+          toolCalls: result.toolCalls,
+          toolResults: result.toolResults,
+          tokensUsed,
+        });
+
         return {
-          response:
-            "I'm sorry, I couldn't find the information you're looking for. Please try rephrasing your question or check if the donor name is spelled correctly.",
+          response: fallbackResponse,
           tokensUsed,
         };
       }
+
+      // Save the assistant response to history
+      await this.historyService.saveMessage({
+        organizationId,
+        fromPhoneNumber,
+        role: "assistant",
+        content: responseText,
+        toolCalls: result.toolCalls,
+        toolResults: result.toolResults,
+        tokensUsed,
+      });
 
       return {
         response: responseText,
@@ -548,8 +668,15 @@ Your capabilities include:
 - Providing organization-wide donor statistics
 - Identifying top donors by contribution amount
 
+CRITICAL CONTEXT AWARENESS:
+- ALWAYS pay attention to the conversation history when provided
+- When users ask follow-up questions (like "what time was that donation?"), understand they're referring to the previously mentioned donor
+- Use context from previous messages to determine which donor or topic the user is asking about
+- If a follow-up question asks for more details, use the appropriate tool to get that specific information
+
 IMPORTANT WORKFLOW:
 - When asked for donation history: First find the donor by name, then use their ID to get donation history
+- For follow-up questions about timing/dates: Use getDonationHistory to get specific donation dates
 - Always provide a final text response summarizing what you found
 - If tools return empty results, explain what you searched for and suggest alternatives
 
@@ -567,6 +694,12 @@ Guidelines for responses:
 11. If no donors are found, clearly explain this and suggest checking the spelling or trying a partial name search
 12. After using tools, ALWAYS generate a final response text - never leave the response empty
 13. For donation history requests: find donor first, then get their donation history, then summarize the results
+14. UNDERSTAND FOLLOW-UP QUESTIONS: If the user asks "when", "what time", "how much", etc. without specifying a donor name, they're referring to the donor from the previous conversation
+
+CONVERSATION CONTEXT EXAMPLES:
+- User: "n history of the donor Aaron Kirshtein" → Use findDonorsByName to find Aaron
+- User: "what time was that donation?" → This is a FOLLOW-UP! Use getDonationHistory for the previously mentioned donor (Aaron Kirshtein)
+- User: "how much did they give last year?" → Another FOLLOW-UP! Get donation history for the same donor
 
 CRITICAL INSTRUCTION: You MUST ALWAYS generate a complete, thorough text response after using tools. 
 NEVER return an empty response or a partial response like "Here's what I found:" without following it with actual data.
@@ -583,6 +716,7 @@ AGAIN: Your response MUST include specific data from the tool results, not just 
 Example response formats:
 - For donor search: "I found 3 donors matching 'John': John Smith (john@email.com), John Doe (john.doe@email.com), Johnny Wilson (johnny@email.com)"
 - For donor details: "John Smith has donated $1,234.56 across 5 donations, last donation on March 15, 2024. Contact: john@email.com, (555) 123-4567"
+- For donation history: "Aaron Kirshtein made their donation of $1,000 on December 15, 2023 at 2:30 PM"
 - For statistics: "Your organization has 150 donors who have made 420 total donations worth $45,678.90"
 - For no results: "I couldn't find any donors matching 'Aaron Kirshtein'. Please check the spelling or try searching with just the first or last name, like 'Aaron' or 'Kirshtein'."
 
