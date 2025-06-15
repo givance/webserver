@@ -9,6 +9,7 @@ import {
   GetDonationHistorySchema,
   GetDonorStatisticsSchema,
   GetTopDonorsSchema,
+  ExecuteFlexibleQuerySchema,
 } from "./whatsapp-query-tools.service";
 import { WhatsAppHistoryService } from "./whatsapp-history.service";
 
@@ -146,16 +147,19 @@ export class WhatsAppAIService {
         userPrompt = `Previous conversation:\n${historyContext}\n\nCurrent user question: ${message}`;
       }
 
-      logger.info(`Sending request to Azure OpenAI (model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`);
-      logger.info(`System prompt length: ${systemPrompt.length} chars`);
-      logger.info(`User prompt: ${userPrompt}`);
-      logger.info(`Including ${chatHistory.length} previous messages in context`);
+      logger.info(`[WhatsApp AI] Sending request to Azure OpenAI (model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME})`);
+      logger.info(`[WhatsApp AI] System prompt length: ${systemPrompt.length} chars`);
+      logger.info(`[WhatsApp AI] User prompt: ${userPrompt}`);
+      logger.info(`[WhatsApp AI] Including ${chatHistory.length} previous messages in context`);
 
-      // Debug: Log the actual conversation history being sent
+      // Log the complete LLM request
+      logger.info(`[WhatsApp AI] === LLM REQUEST ===`);
+      logger.info(`[WhatsApp AI] System Prompt: ${systemPrompt}`);
+      logger.info(`[WhatsApp AI] User Prompt: ${userPrompt}`);
       if (chatHistory.length > 0) {
-        logger.info(`[WhatsApp AI Debug] Conversation history being sent to AI:`);
+        logger.info(`[WhatsApp AI] Conversation History:`);
         chatHistory.forEach((msg, idx) => {
-          logger.info(`[WhatsApp AI Debug] Message ${idx + 1} (${msg.role}): ${msg.content.substring(0, 100)}...`);
+          logger.info(`[WhatsApp AI] ${idx + 1}. ${msg.role}: ${msg.content}`);
         });
       }
 
@@ -166,7 +170,7 @@ export class WhatsAppAIService {
         tools: {
           findDonorsByName: {
             description:
-              "Search for donors by name (supports partial matches). Use this when the user asks about a specific donor or wants to find donors by name.",
+              "Search for donors by name (supports partial matches). Use this ONLY for initial donor searches, NOT for follow-up questions about donation details. If the user asks for donation history or dates, use getDonationHistory after finding the donor.",
             parameters: FindDonorsByNameSchema,
             execute: async ({ name, limit = 10 }: { name: string; limit?: number }) => {
               logger.info(`[WhatsApp AI] Searching for donors with name: "${name}"`);
@@ -196,7 +200,7 @@ export class WhatsAppAIService {
           },
           getDonationHistory: {
             description:
-              "Get the full donation history for a specific donor, including dates, amounts, and projects. Use this when users ask about WHEN donations were made, specific donation dates/times, or donation history details.",
+              "Get the full donation history for a specific donor, including dates, amounts, and projects. Use this when users ask about WHEN donations were made, 'what time', 'what date', 'donation history', or any follow-up questions about donation timing. This shows actual donation dates and times, not just donor info.",
             parameters: GetDonationHistorySchema,
             execute: async ({ donorId, limit = 50 }: { donorId: number; limit?: number }) => {
               logger.info(`[WhatsApp AI] Getting donation history for donor ${donorId}`);
@@ -230,6 +234,39 @@ export class WhatsAppAIService {
               });
             },
           },
+          executeFlexibleQuery: {
+            description: `Execute flexible database queries for complex questions. Use this when other tools don't meet the user's needs. 
+               Supported query types:
+               - 'donor-donations-by-project': Find when a specific donor donated to a specific project (filters: donorName, projectName)
+               - 'donor-donations-by-date': Find donations by donor within a date range (filters: donorName, startDate, endDate)
+               - 'project-donations': Find all donations to a specific project (filters: projectName, startDate, endDate)
+               - 'donor-project-history': Get complete donation history of a donor across all projects (filters: donorName)
+               - 'custom-donor-search': Advanced donor search with multiple criteria (filters: name, email, phone, state, isCouple, highPotential, assignedStaff)
+               
+               Examples:
+               - "When did John Smith donate to Education project?" → type: 'donor-donations-by-project', filters: {donorName: "John Smith", projectName: "Education"}
+               - "Who donated to Healthcare in 2023?" → type: 'project-donations', filters: {projectName: "Healthcare", startDate: "2023-01-01", endDate: "2023-12-31"}`,
+            parameters: ExecuteFlexibleQuerySchema,
+            execute: async ({
+              type,
+              filters,
+              limit = 50,
+            }: {
+              type: string;
+              filters: Record<string, any>;
+              limit?: number;
+            }) => {
+              logger.info(`[WhatsApp AI] Executing flexible query: ${type} with filters: ${JSON.stringify(filters)}`);
+              const result = await this.queryTools.executeFlexibleQuery({
+                type: type as any,
+                organizationId,
+                filters,
+                limit,
+              });
+              logger.info(`[WhatsApp AI] Flexible query returned ${result.length} results`);
+              return result;
+            },
+          },
         },
         temperature: 0.7,
         maxTokens: 1000, // Ensure there's enough room for a response
@@ -242,10 +279,27 @@ export class WhatsAppAIService {
         totalTokens: result.usage?.totalTokens || 0,
       };
 
-      logger.info(
-        `Received response from Azure OpenAI (length: ${result.text.length} chars, tokens: ${tokensUsed.totalTokens})`
-      );
-      logger.info(`Response generated successfully with tools available`);
+      // Log the complete LLM response
+      logger.info(`[WhatsApp AI] === LLM RESPONSE ===`);
+      logger.info(`[WhatsApp AI] Response text: ${result.text}`);
+      logger.info(`[WhatsApp AI] Token usage: ${JSON.stringify(tokensUsed)}`);
+      logger.info(`[WhatsApp AI] Tools called: ${result.toolCalls?.length || 0}`);
+
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        logger.info(`[WhatsApp AI] === TOOL CALLS ===`);
+        result.toolCalls.forEach((call, idx) => {
+          logger.info(`[WhatsApp AI] Tool ${idx + 1}: ${call.toolName} with args: ${JSON.stringify(call.args)}`);
+        });
+      }
+
+      if (result.toolResults && result.toolResults.length > 0) {
+        logger.info(`[WhatsApp AI] === TOOL RESULTS ===`);
+        result.toolResults.forEach((toolResult, idx) => {
+          logger.info(
+            `[WhatsApp AI] Tool ${idx + 1} (${toolResult.toolName}) result: ${JSON.stringify(toolResult.result)}`
+          );
+        });
+      }
 
       // Handle empty responses
       const responseText = result.text.trim();
@@ -253,23 +307,11 @@ export class WhatsAppAIService {
         logger.warn(`AI generated empty response, analyzing tool usage to create a meaningful response`);
 
         // Check which tools were used and create a response based on that
-        // Log the entire result structure to help debug
-        logger.info(
-          `Result structure: ${JSON.stringify(
-            result,
-            (key, value) => {
-              // Prevent circular references and trim long values
-              if (typeof value === "string" && value.length > 100) {
-                return value.substring(0, 100) + "...";
-              }
-              return value;
-            },
-            2
-          )}`
-        );
-
-        // Get tool results directly from the result object
         const toolResults = result.toolResults || [];
+        const toolNames = toolResults.map((tr: any) => tr.toolName).join(", ");
+        logger.info(
+          `AI generated empty response. Tools used: ${toolNames || "none"}. Results count: ${toolResults.length}`
+        );
 
         // If we have tool results, create a formatted response based on the specific tool used
         if (toolResults.length > 0) {
@@ -361,6 +403,91 @@ export class WhatsAppAIService {
             if (donor.highPotentialDonor) {
               formattedResponse += `High Potential: Yes\n`;
             }
+
+            // Save the assistant response to history
+            await this.historyService.saveMessage({
+              organizationId,
+              fromPhoneNumber,
+              role: "assistant",
+              content: formattedResponse,
+              toolCalls: result.toolCalls,
+              toolResults: result.toolResults,
+              tokensUsed,
+            });
+
+            return {
+              response: formattedResponse,
+              tokensUsed,
+            };
+          }
+
+          // Handle flexible query results
+          const flexibleQueryResults = toolResults.find((tr) => tr.toolName === "executeFlexibleQuery")?.result;
+          if (flexibleQueryResults && Array.isArray(flexibleQueryResults) && flexibleQueryResults.length > 0) {
+            let formattedResponse = "Here's what I found:\n\n";
+
+            flexibleQueryResults.forEach((result: any, index: number) => {
+              formattedResponse += `${index + 1}. `;
+
+              // Handle different result formats based on the query type
+              if (result.donorFirstName && result.donorLastName) {
+                const donorName = result.donorDisplayName || `${result.donorFirstName} ${result.donorLastName}`;
+                formattedResponse += `**${donorName}**\n`;
+
+                if (result.projectName) {
+                  formattedResponse += `   Project: ${result.projectName}\n`;
+                }
+
+                if (result.donationDate) {
+                  const donationDate = new Date(result.donationDate);
+                  formattedResponse += `   Date: ${donationDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}\n`;
+                }
+
+                if (result.donationAmount !== undefined) {
+                  const amount = (result.donationAmount / 100).toFixed(2);
+                  formattedResponse += `   Amount: $${amount}\n`;
+                }
+
+                if (result.donationCurrency && result.donationCurrency !== "USD") {
+                  formattedResponse += `   Currency: ${result.donationCurrency}\n`;
+                }
+
+                if (result.totalDonations !== undefined) {
+                  const total = (result.totalDonations / 100).toFixed(2);
+                  formattedResponse += `   Total Donations: $${total}\n`;
+                }
+
+                if (result.donationCount !== undefined) {
+                  formattedResponse += `   Number of Donations: ${result.donationCount}\n`;
+                }
+
+                if (result.email) {
+                  formattedResponse += `   Email: ${result.email}\n`;
+                }
+              } else {
+                // Fallback for other result formats
+                Object.entries(result).forEach(([key, value]) => {
+                  if (key.toLowerCase().includes("amount")) {
+                    const amount = ((value as number) / 100).toFixed(2);
+                    formattedResponse += `   ${key}: $${amount}\n`;
+                  } else if (value instanceof Date) {
+                    formattedResponse += `   ${key}: ${value.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}\n`;
+                  } else if (value !== null && value !== undefined) {
+                    formattedResponse += `   ${key}: ${value}\n`;
+                  }
+                });
+              }
+
+              formattedResponse += "\n";
+            });
 
             // Save the assistant response to history
             await this.historyService.saveMessage({
@@ -642,16 +769,8 @@ export class WhatsAppAIService {
     } catch (error) {
       logger.error(`Error processing WhatsApp message: ${error instanceof Error ? error.message : String(error)}`);
 
-      // Return a user-friendly error message
-      return {
-        response:
-          "I'm sorry, I encountered an error while processing your request. Please try again later or contact support if the issue persists.",
-        tokensUsed: {
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0,
-        },
-      };
+      // Re-throw the error so the webhook can handle it
+      throw error;
     }
   }
 
@@ -667,6 +786,11 @@ Your capabilities include:
 - Retrieving full donation histories for specific donors
 - Providing organization-wide donor statistics
 - Identifying top donors by contribution amount
+- Executing flexible database queries to answer complex questions like:
+  * "When did John Smith donate to the Education project?"
+  * "Who donated to Healthcare in 2023?"
+  * "Show me all of Sarah's donations across all projects"
+  * "Find donors who are couples and high potential"
 
 CRITICAL CONTEXT AWARENESS:
 - ALWAYS pay attention to the conversation history when provided
@@ -675,10 +799,25 @@ CRITICAL CONTEXT AWARENESS:
 - If a follow-up question asks for more details, use the appropriate tool to get that specific information
 
 IMPORTANT WORKFLOW:
-- When asked for donation history: First find the donor by name, then use their ID to get donation history
-- For follow-up questions about timing/dates: Use getDonationHistory to get specific donation dates
+- When asked for donation history: First find the donor by name, then IMMEDIATELY use their ID to get donation history with getDonationHistory
+- For follow-up questions about timing/dates/when/what time: ALWAYS use getDonationHistory or executeFlexibleQuery, NEVER just search for donors again
+- If user asks "what time was that donation?" or "when did they donate?" and you know the donor from context, use getDonationHistory with their ID
+- For complex queries (like "when did X donate to Y project?"): Use executeFlexibleQuery with appropriate type and filters
+- NEVER repeat the same donor search when user is asking for donation details - they want dates/times/history, not donor info again
 - Always provide a final text response summarizing what you found
 - If tools return empty results, explain what you searched for and suggest alternatives
+
+CRITICAL: If a user asks about "time", "date", "when", "history" and you already found a donor, DO NOT search for the donor again. Use getDonationHistory or executeFlexibleQuery to get the actual donation details with dates and times.
+
+FLEXIBLE QUERY USAGE:
+- Use executeFlexibleQuery when standard tools don't match the user's specific question
+- Available query types:
+  * 'donor-donations-by-project': When user asks about specific donor's donations to a specific project
+  * 'donor-donations-by-date': When user asks about donations within a date range
+  * 'project-donations': When user asks who donated to a specific project
+  * 'donor-project-history': When user wants complete history of a donor across all projects
+  * 'custom-donor-search': When user needs advanced donor filtering (couples, high potential, etc.)
+- Always include organizationId (provided automatically) and appropriate filters based on the question
 
 Guidelines for responses:
 1. Be friendly, professional, and concise in your responses
@@ -721,49 +860,5 @@ Example response formats:
 - For no results: "I couldn't find any donors matching 'Aaron Kirshtein'. Please check the spelling or try searching with just the first or last name, like 'Aaron' or 'Kirshtein'."
 
 Remember to be helpful and accurate while maintaining appropriate privacy and security standards.`;
-  }
-
-  /**
-   * Check if a message appears to be asking about donors
-   * This is a simple heuristic to determine if we should process the message with AI
-   */
-  static isDonorQuery(message: string): boolean {
-    const lowerMessage = message.toLowerCase();
-    const donorKeywords = [
-      "donor",
-      "donors",
-      "donation",
-      "donations",
-      "donate",
-      "donated",
-      "contribute",
-      "contribution",
-      "contributions",
-      "gave",
-      "give",
-      "giving",
-      "pledge",
-      "pledged",
-      "amount",
-      "total",
-      "history",
-      "statistics",
-      "stats",
-      "top",
-      "biggest",
-      "largest",
-      "most",
-      "how much",
-      "when did",
-      "last donation",
-      "find",
-      "search",
-      "look up",
-      "tell me about",
-      "show me",
-      "list",
-    ];
-
-    return donorKeywords.some((keyword) => lowerMessage.includes(keyword));
   }
 }

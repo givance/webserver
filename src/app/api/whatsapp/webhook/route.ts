@@ -79,36 +79,20 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Process text messages with AI if they appear to be donor queries
+            // Process all text messages with AI
             if (message.type === "text") {
               const messageText = message.text.body;
-              let responseText = messageText; // Default to echo
 
-              // Check if this looks like a donor query and process with AI
-              if (WhatsAppAIService.isDonorQuery(messageText)) {
-                logger.info(`[WhatsApp Webhook] Detected donor query from ${message.from}: "${messageText}"`);
+              logger.info(`[WhatsApp Webhook] Processing message from ${message.from}: "${messageText}"`);
 
-                try {
-                  const aiResponse = await whatsappAI.processMessage({
-                    message: messageText,
-                    organizationId: DEFAULT_ORGANIZATION_ID,
-                    fromPhoneNumber: message.from,
-                  });
+              const aiResponse = await whatsappAI.processMessage({
+                message: messageText,
+                organizationId: DEFAULT_ORGANIZATION_ID,
+                fromPhoneNumber: message.from,
+              });
 
-                  responseText = aiResponse.response;
-                  logger.info(
-                    `[WhatsApp Webhook] AI response generated (tokens: ${aiResponse.tokensUsed.totalTokens})`
-                  );
-                } catch (error) {
-                  logger.error(
-                    `[WhatsApp Webhook] AI processing failed: ${error instanceof Error ? error.message : String(error)}`
-                  );
-                  responseText =
-                    "I'm sorry, I'm having trouble processing your request right now. Please try again later.";
-                }
-              } else {
-                logger.info(`[WhatsApp Webhook] Non-donor query, echoing message: "${messageText}"`);
-              }
+              const responseText = aiResponse.response;
+              logger.info(`[WhatsApp Webhook] AI response generated (tokens: ${aiResponse.tokensUsed.totalTokens})`);
 
               // Send response back to user
               const response = await fetch(
