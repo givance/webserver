@@ -141,14 +141,14 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastPersistedData = useRef<string>("");
 
-    const { getDonorQuery } = useDonors();
     const { getOrganization } = useOrganization();
     const { generateEmails, createSession } = useCommunications();
     const { listProjects } = useProjects();
     const { userId } = useAuth();
 
-    // Pre-fetch donor data for all selected donors
-    const donorQueries = selectedDonors.map((id) => getDonorQuery(id));
+    // Batch fetch donor data for all selected donors
+    const { getDonorsQuery } = useDonors();
+    const { data: donorsData } = getDonorsQuery(selectedDonors);
     const { data: organization } = getOrganization();
 
     // Fetch projects for mentions
@@ -173,47 +173,52 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       }));
     }, [projectsData]);
 
-    // Generate random subset of donors for preview on component mount
-    useEffect(() => {
-      if (selectedDonors.length > 0 && previewDonorIds.length === 0) {
+    // Generate random subset of donors for preview on component mount (memoized to prevent recalculation)
+    const initialPreviewDonors = useMemo(() => {
+      if (selectedDonors.length > 0 && initialPreviewDonorIds.length === 0) {
         const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
-        const preview = shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
-        setPreviewDonorIds(preview);
+        return shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
       }
-    }, [selectedDonors, previewDonorIds.length]);
+      return initialPreviewDonorIds;
+    }, [selectedDonors, initialPreviewDonorIds]);
 
-    // Automatically persist session data whenever chat conversation or generated emails change
+    // Set preview donors only once when component mounts
+    useEffect(() => {
+      if (previewDonorIds.length === 0 && initialPreviewDonors.length > 0) {
+        setPreviewDonorIds(initialPreviewDonors);
+      }
+    }, [initialPreviewDonors, previewDonorIds.length]);
+
+    // Memoize session data to avoid unnecessary recalculations
+    const sessionData = useMemo(
+      () => ({
+        chatHistory: chatMessages,
+        finalInstruction: previousInstruction || instruction,
+        previewDonorIds,
+        generatedEmails: allGeneratedEmails,
+        referenceContexts,
+      }),
+      [chatMessages, previousInstruction, instruction, previewDonorIds, allGeneratedEmails, referenceContexts]
+    );
+
+    // Automatically persist session data whenever it changes (with throttling)
     useLayoutEffect(() => {
       if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
         const currentDataString = JSON.stringify({
-          chatHistory: chatMessages,
-          finalInstruction: previousInstruction || instruction,
-          previewDonorIds,
-          generatedEmailsCount: allGeneratedEmails.length,
-          referenceContextsKeys: Object.keys(referenceContexts),
+          chatHistory: sessionData.chatHistory,
+          finalInstruction: sessionData.finalInstruction,
+          previewDonorIds: sessionData.previewDonorIds,
+          generatedEmailsCount: sessionData.generatedEmails.length,
+          referenceContextsKeys: Object.keys(sessionData.referenceContexts),
         });
 
         // Only persist if the data has actually changed
         if (currentDataString !== lastPersistedData.current) {
           lastPersistedData.current = currentDataString;
-          onSessionDataChange({
-            chatHistory: chatMessages,
-            finalInstruction: previousInstruction || instruction,
-            previewDonorIds,
-            generatedEmails: allGeneratedEmails,
-            referenceContexts,
-          });
+          onSessionDataChange(sessionData);
         }
       }
-    }, [
-      chatMessages,
-      allGeneratedEmails,
-      referenceContexts,
-      previewDonorIds,
-      previousInstruction,
-      instruction,
-      onSessionDataChange,
-    ]);
+    }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
 
     const scrollToBottom = () => {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -246,7 +251,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
         try {
           // Prepare donor data for the API call - use only preview donors
           const donorData = previewDonorIds.map((donorId) => {
-            const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
+            const donor = donorsData?.find((d) => d.id === donorId);
             if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
             return {
@@ -345,7 +350,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       [
         instruction,
         previewDonorIds,
-        donorQueries,
+        donorsData,
         organization,
         generateEmails,
         onInstructionChange,
@@ -405,7 +410,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       try {
         // Prepare donor data for the API call
         const donorData = nextBatchDonors.map((donorId) => {
-          const donor = donorQueries.find((q) => q.data?.id === donorId)?.data;
+          const donor = donorsData?.find((d) => d.id === donorId);
           if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
           return {
@@ -481,7 +486,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       instruction,
       allGeneratedEmails,
       selectedDonors,
-      donorQueries,
+      donorsData,
       generateEmails,
       referenceContexts,
       chatMessages,
@@ -634,16 +639,17 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             <div className="flex-1 mt-2">
               <EmailListViewer
                 emails={allGeneratedEmails}
-                donors={donorQueries
-                  .map((q) => q.data)
-                  .filter((donor) => !!donor)
-                  .map((donor) => ({
-                    id: donor!.id,
-                    firstName: donor!.firstName,
-                    lastName: donor!.lastName,
-                    email: donor!.email,
-                    assignedToStaffId: donor!.assignedToStaffId,
-                  }))}
+                donors={
+                  donorsData
+                    ?.filter((donor) => !!donor)
+                    .map((donor) => ({
+                      id: donor.id,
+                      firstName: donor.firstName,
+                      lastName: donor.lastName,
+                      email: donor.email,
+                      assignedToStaffId: donor.assignedToStaffId,
+                    })) || []
+                }
                 referenceContexts={referenceContexts}
                 showSearch={false}
                 showPagination={true}
