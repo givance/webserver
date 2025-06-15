@@ -189,7 +189,9 @@ export class WhatsAppAIService {
             - Get donation history: "SELECT don.date, don.amount/100.0 as amount_dollars, d.first_name, d.last_name, p.name as project FROM donations don JOIN donors d ON don.donor_id = d.id JOIN projects p ON don.project_id = p.id WHERE d.organization_id = '${organizationId}' ORDER BY don.date DESC"
             - Get donor stats: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples FROM donors WHERE organization_id = '${organizationId}'"
             
-            Write the SQL query that will answer the user's question!`,
+            Write the SQL query that will answer the user's question!
+            
+            IMPORTANT: After executing this query, you MUST provide a complete text response analyzing and explaining the results to the user. Never leave your response empty!`,
             parameters: z.object({
               query: z.string().describe("The raw SQL SELECT query to execute. Must include organization_id filter."),
             }),
@@ -208,8 +210,9 @@ export class WhatsAppAIService {
           },
         },
         temperature: 0.7,
-        maxTokens: 1000, // Ensure there's enough room for a response
+        maxTokens: 2000, // Increase token limit for complex responses
         toolChoice: "auto", // Let the model decide when to use tools
+        maxSteps: 5, // Allow multiple steps if needed
       });
 
       const tokensUsed = {
@@ -240,185 +243,13 @@ export class WhatsAppAIService {
         });
       }
 
-      // Handle empty responses
+      // Handle empty responses - this should NOT happen if AI is working properly
       const responseText = result.text.trim();
       if (!responseText || responseText.length === 0) {
-        logger.warn(`AI generated empty response, creating fallback response from tool results`);
-
-        // Check if we have tool results to work with
-        const toolResults = result.toolResults || [];
-        if (toolResults.length > 0) {
-          const executeSQLResult = toolResults.find((tr) => tr.toolName === "executeSQL")?.result;
-
-          if (executeSQLResult && Array.isArray(executeSQLResult) && executeSQLResult.length > 0) {
-            // Create a generic formatted response based on the data
-            let formattedResponse = `I found ${executeSQLResult.length} result${
-              executeSQLResult.length !== 1 ? "s" : ""
-            }:\n\n`;
-
-            executeSQLResult.slice(0, 10).forEach((item: any, index: number) => {
-              formattedResponse += `${index + 1}. `;
-
-              // Format based on available fields
-              if (item.firstName && item.lastName) {
-                const name = item.displayName || `${item.firstName} ${item.lastName}`;
-                formattedResponse += `${name}`;
-
-                if (item.email) formattedResponse += ` (${item.email})`;
-                if (item.totalDonations) {
-                  const amount = (item.totalDonations / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                  });
-                  formattedResponse += ` - ${amount} total`;
-                }
-                if (item.donationCount) formattedResponse += ` from ${item.donationCount} donations`;
-              } else if ((item.amount || item.amount_dollars) && item.date) {
-                // Donation record - handle both amount (cents) and amount_dollars formats
-                let amount: string;
-                if (item.amount_dollars) {
-                  // If amount_dollars is provided, format it directly
-                  const amountNum = parseFloat(item.amount_dollars);
-                  amount = amountNum.toLocaleString("en-US", {
-                    style: "currency",
-                    currency: item.currency || "USD",
-                  });
-                } else if (item.amount) {
-                  // If amount is in cents, convert to dollars
-                  amount = (item.amount / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: item.currency || "USD",
-                  });
-                } else {
-                  amount = "Unknown amount";
-                }
-
-                const date = new Date(item.date).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                });
-
-                formattedResponse += `${amount} donated on ${date}`;
-
-                // Handle donor names (multiple possible formats)
-                if (item.donorFirstName && item.donorLastName) {
-                  formattedResponse += ` by ${item.donorFirstName} ${item.donorLastName}`;
-                } else if (item.first_name && item.last_name) {
-                  formattedResponse += ` by ${item.first_name} ${item.last_name}`;
-                }
-
-                // Handle project names (multiple possible formats)
-                if (item.projectName) {
-                  formattedResponse += ` to ${item.projectName}`;
-                } else if (item.project_name) {
-                  formattedResponse += ` to ${item.project_name}`;
-                }
-              } else if (item.name) {
-                // Project or other named entity
-                formattedResponse += `${item.name}`;
-                if (item.totalDonations) {
-                  const amount = (item.totalDonations / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                  });
-                  formattedResponse += ` - ${amount} raised`;
-                }
-              } else {
-                // Generic object formatting - but improve it
-                const keys = Object.keys(item).filter((k) => !k.includes("Id") && item[k] !== null);
-                const formattedPairs = keys.slice(0, 5).map((k) => {
-                  let value = item[k];
-
-                  // Format specific fields better
-                  if (k.includes("amount") && k.includes("dollars") && typeof value === "string") {
-                    const num = parseFloat(value);
-                    if (!isNaN(num)) {
-                      value = num.toLocaleString("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                      });
-                    }
-                  } else if (k.includes("date") && value) {
-                    try {
-                      value = new Date(value).toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      });
-                    } catch (e) {
-                      // Keep original value if date parsing fails
-                    }
-                  }
-
-                  return `${k.replace(/_/g, " ")}: ${value}`;
-                });
-
-                formattedResponse += formattedPairs.join(", ");
-              }
-
-              formattedResponse += "\n";
-            });
-
-            if (executeSQLResult.length > 10) {
-              formattedResponse += `\n... and ${executeSQLResult.length - 10} more results.`;
-            }
-
-            // Save the assistant response to history
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: formattedResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: formattedResponse,
-              tokensUsed,
-            };
-          } else if (executeSQLResult && Array.isArray(executeSQLResult) && executeSQLResult.length === 0) {
-            const noResultsResponse =
-              "I didn't find any results matching your query. Please try rephrasing your question or check the spelling.";
-
-            await this.historyService.saveMessage({
-              organizationId,
-              fromPhoneNumber,
-              role: "assistant",
-              content: noResultsResponse,
-              toolCalls: result.toolCalls,
-              toolResults: result.toolResults,
-              tokensUsed,
-            });
-
-            return {
-              response: noResultsResponse,
-              tokensUsed,
-            };
-          }
-        }
-
-        // If no tools were used or no results, use the default fallback message
-        const fallbackResponse =
-          "I'm sorry, I couldn't find the information you're looking for. Please try rephrasing your question or check if the donor name is spelled correctly.";
-
-        // Save the assistant response to history
-        await this.historyService.saveMessage({
-          organizationId,
-          fromPhoneNumber,
-          role: "assistant",
-          content: fallbackResponse,
-          toolCalls: result.toolCalls,
-          toolResults: result.toolResults,
-          tokensUsed,
-        });
-
-        return {
-          response: fallbackResponse,
-          tokensUsed,
-        };
+        logger.error(`AI generated empty response despite having data - this is a critical AI failure!`);
+        logger.error(`Tool calls made: ${result.toolCalls?.length || 0}`);
+        logger.error(`Tool results received: ${result.toolResults?.length || 0}`);
+        throw new Error("AI failed to generate a response - please try your question again");
       }
 
       // Save the assistant response to history
@@ -450,6 +281,11 @@ export class WhatsAppAIService {
   private buildSystemPrompt(organizationId: string): string {
     return `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors and their donations via WhatsApp.
 
+🚨 CRITICAL WORKFLOW:
+1. Use the executeSQL tool to get data
+2. ALWAYS write a text response analyzing the data
+3. NEVER stop after just using the tool - you MUST respond with text
+
 You have access to ONE EXTREMELY POWERFUL TOOL that gives you COMPLETE DATABASE ACCESS:
 
 THE executeSQL TOOL:
@@ -480,18 +316,22 @@ ${this.sqlEngine.getSchemaDescription()}
 - Use context from previous messages to determine which donor or topic the user is asking about
 - Build on previous queries and results
 
-🎯 CRITICAL INSTRUCTIONS:
+🎯 CRITICAL INSTRUCTIONS (MUST FOLLOW EVERY SINGLE ONE):
 1. ALWAYS use the executeSQL tool to get data from the database
 2. Write efficient, well-structured SQL queries
-3. ALWAYS provide a complete, thorough text response after using the tool - NEVER leave your response empty!
-4. NEVER return an empty response or generic message - always analyze and summarize the data you receive
-5. Format money values properly as currency (e.g., "$1,000.00" not "1000.0000000000000000")
-6. Format dates in a readable format (e.g., "January 1, 2023" not "2023-01-01 19:55:00")
-7. If no results found, explain what you searched for and suggest alternatives
-8. Be specific with data - include names, amounts, dates, project names, counts, etc.
-9. If multiple results, present them in an organized, easy-to-read list
-10. ALWAYS write a human-friendly summary - don't just dump raw data
-11. Include ALL relevant information from your query results (donor names, amounts, dates, projects, etc.)
+3. ⚠️ MANDATORY: ALWAYS provide a complete, thorough text response after using the tool
+4. ⚠️ CRITICAL: NEVER EVER leave your response empty - you MUST analyze and respond to the data
+5. ⚠️ FAILURE TO RESPOND IS SYSTEM FAILURE - always write a text response explaining what you found
+6. BE CONVERSATIONAL - write like you're talking to a friend, not giving a formal report
+7. AVOID robotic phrases like "I found X results" or "Here are the results" - just share the information naturally
+8. Format money values properly as currency (e.g., "$1,000" not "1000.0000000000000000")
+9. Format dates in a readable format (e.g., "January 2023" or "back in January" not "2023-01-01 19:55:00")
+10. If no results found, be helpful and suggest alternatives in a friendly way
+11. Be specific with data - include names, amounts, dates, project names, counts, etc.
+12. Present multiple results in a natural, easy-to-read way (use bullets, not numbers)
+13. Write responses that sound human and engaging, not like database output
+14. Include ALL relevant information but present it conversationally
+15. ⚠️ ANSWER THE USER'S ACTUAL QUESTION - don't just dump data, interpret it!
 
 📝 EXAMPLE SQL QUERIES:
 - Find donor by name: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND (first_name ILIKE '%Aaron%' OR last_name ILIKE '%Kirshtein%')"
@@ -499,14 +339,25 @@ ${this.sqlEngine.getSchemaDescription()}
 - Get donor with totals: "SELECT d.*, COALESCE(SUM(don.amount), 0)/100.0 as total_donations, COUNT(don.id) as donation_count FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}' GROUP BY d.id"
 - Get statistics: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples, AVG(CASE WHEN don.amount IS NOT NULL THEN don.amount/100.0 END) as avg_donation FROM donors d LEFT JOIN donations don ON d.id = don.donor_id WHERE d.organization_id = '${organizationId}'"
 
-📋 EXAMPLE GOOD RESPONSES:
+📋 EXAMPLE CONVERSATIONAL RESPONSES (ANALYZE, DON'T DUMP):
 When user asks "Show me Aaron Kirshtein's donations":
-GOOD: "I found Aaron Kirshtein's donation history! He made a $1,000 donation on January 1, 2023 to the General Donations project. This was his most recent donation."
-BAD: "date: 2023-01-01 19:55:00, amount_dollars: 1000.0000000000000000, first_name: Aaron"
+GOOD: "Aaron Kirshtein donated $1,000 to General Donations on January 1, 2023."
+BETTER: "Aaron made one donation - $1,000 to General Donations back in January 2023."
+AVOID: "I found Aaron Kirshtein's donation history! He made a $1,000 donation on January 1, 2023 to the General Donations project."
+
+When user asks "What about their donation pattern like? is it seasonal?":
+GOOD: "Looking at the data, there's definitely a seasonal pattern. April and May are the strongest months with over $15,000 each, and October shows consistent activity too. It looks like they tend to give more in spring and fall."
+AVOID: "month: 2023-04-01, total_donated: 5000.0000000000000000, donation_count: 2"
 
 When user asks "How many donors do we have?":
-GOOD: "You have 245 total donors in your system, including 89 couples and 156 individual donors. The average donation amount is $125."
-BAD: "total_donors: 245, couples: 89, individuals: 156"
+GOOD: "You have 245 donors total - 89 couples and 156 individuals. The average donation is $125."
+BETTER: "Your organization has 245 donors, with about a third being couples. People typically donate around $125."
+AVOID: "I found your donor statistics! You have 245 total donors in your system, including 89 couples and 156 individual donors."
+
+When user asks "Who donated the most?":
+GOOD: "Sarah Johnson is your top donor with $5,000 across 8 donations."
+BETTER: "Sarah Johnson leads with $5,000 total - she's donated 8 times!"
+AVOID: "I found your top donor! Sarah Johnson has donated the most with $5,000 total from 8 donations."
 
 Remember: 
 - You can write ANY SQL query to answer ANY question! Be creative and use the full power of SQL!
