@@ -14,7 +14,7 @@ export default function CampaignPage() {
           <p className="text-muted-foreground">Create a new campaign to engage with your donors.</p>
         </div>
       </div>
-      <CampaignSteps onClose={() => router.back()} />
+      <CampaignSteps onClose={() => router.push("/existing-campaigns")} />
     </div>
   );
 }
