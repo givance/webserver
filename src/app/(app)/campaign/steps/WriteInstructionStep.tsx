@@ -49,6 +49,9 @@ interface WriteInstructionStepProps {
   templateId?: number;
   onBulkGenerationComplete: (sessionId: number) => void;
   ref?: React.RefObject<{ click: () => Promise<void> }>;
+  // Edit mode props
+  editMode?: boolean;
+  existingCampaignId?: number;
 }
 
 // Configuration for preview donor count - can be changed later
@@ -121,6 +124,8 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
       campaignName,
       templateId,
       onBulkGenerationComplete,
+      editMode = false,
+      existingCampaignId,
     },
     ref
   ) {
@@ -142,7 +147,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const lastPersistedData = useRef<string>("");
 
     const { getOrganization } = useOrganization();
-    const { generateEmails, createSession } = useCommunications();
+    const { generateEmails, createSession, updateCampaign } = useCommunications();
     const { listProjects } = useProjects();
     const { userId } = useAuth();
 
@@ -520,22 +525,51 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
       setIsStartingBulkGeneration(true);
       try {
-        // Call API to start bulk generation
-        const response = await createSession.mutateAsync({
-          campaignName: campaignName,
-          instruction: currentSessionData.finalInstruction,
-          chatHistory: currentSessionData.chatHistory,
-          selectedDonorIds: selectedDonors,
-          previewDonorIds: currentSessionData.previewDonorIds,
-          refinedInstruction: currentSessionData.finalInstruction,
-          templateId: templateId,
-        });
+        let response: { sessionId: number };
+
+        if (editMode && existingCampaignId) {
+          // Update existing campaign
+          await updateCampaign.mutateAsync({
+            campaignId: existingCampaignId,
+            campaignName: campaignName,
+            instruction: currentSessionData.finalInstruction,
+            chatHistory: currentSessionData.chatHistory,
+            selectedDonorIds: selectedDonors,
+            previewDonorIds: currentSessionData.previewDonorIds,
+            refinedInstruction: currentSessionData.finalInstruction,
+            templateId: templateId,
+          });
+
+          // Create new session for the updated campaign
+          response = await createSession.mutateAsync({
+            campaignName: campaignName,
+            instruction: currentSessionData.finalInstruction,
+            chatHistory: currentSessionData.chatHistory,
+            selectedDonorIds: selectedDonors,
+            previewDonorIds: currentSessionData.previewDonorIds,
+            refinedInstruction: currentSessionData.finalInstruction,
+            templateId: templateId,
+          });
+        } else {
+          // Create new campaign session
+          response = await createSession.mutateAsync({
+            campaignName: campaignName,
+            instruction: currentSessionData.finalInstruction,
+            chatHistory: currentSessionData.chatHistory,
+            selectedDonorIds: selectedDonors,
+            previewDonorIds: currentSessionData.previewDonorIds,
+            refinedInstruction: currentSessionData.finalInstruction,
+            templateId: templateId,
+          });
+        }
 
         if (!response?.sessionId) {
           throw new Error("Failed to create session");
         }
 
-        toast.success("Campaign started! Redirecting to communication jobs...");
+        toast.success(
+          editMode ? "Campaign updated and relaunched!" : "Campaign started! Redirecting to communication jobs..."
+        );
         setShowBulkGenerationDialog(false);
 
         // Redirect after starting the generation
@@ -544,7 +578,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
         }, 1000);
       } catch (error) {
         console.error("Error starting bulk generation:", error);
-        toast.error("Failed to start bulk generation");
+        toast.error(editMode ? "Failed to update and relaunch campaign" : "Failed to start bulk generation");
       } finally {
         setIsStartingBulkGeneration(false);
       }
@@ -769,11 +803,12 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
-                Confirm Campaign Launch
+                {editMode ? "Confirm Campaign Update" : "Confirm Campaign Launch"}
               </DialogTitle>
               <DialogDescription>
-                You&apos;re about to launch a campaign to generate personalized emails for all selected donors based on
-                your current instruction.
+                {editMode
+                  ? "You're about to update and relaunch this campaign with your new instructions. This will generate additional emails for any new donors and update the campaign settings."
+                  : "You're about to launch a campaign to generate personalized emails for all selected donors based on your current instruction."}
               </DialogDescription>
             </DialogHeader>
 
@@ -811,8 +846,9 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  This will launch your campaign for all {selectedDonors.length} selected donors. You&apos;ll be
-                  redirected to the communication jobs page where you can monitor the progress.
+                  {editMode
+                    ? `This will update and relaunch your campaign for all ${selectedDonors.length} selected donors. Only new emails will be generated for donors who don't already have them. You'll be redirected to the communication jobs page where you can monitor the progress.`
+                    : `This will launch your campaign for all ${selectedDonors.length} selected donors. You'll be redirected to the communication jobs page where you can monitor the progress.`}
                 </p>
               </div>
             </div>
@@ -826,7 +862,13 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                 Cancel
               </Button>
               <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration}>
-                {isStartingBulkGeneration ? "Launching..." : "Launch Campaign"}
+                {isStartingBulkGeneration
+                  ? editMode
+                    ? "Updating..."
+                    : "Launching..."
+                  : editMode
+                  ? "Update Campaign"
+                  : "Launch Campaign"}
               </Button>
             </DialogFooter>
           </DialogContent>

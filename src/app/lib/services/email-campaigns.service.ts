@@ -38,6 +38,20 @@ export interface UpdateEmailInput {
   referenceContexts: Record<string, string>;
 }
 
+export interface UpdateCampaignInput {
+  campaignId: number;
+  campaignName?: string;
+  instruction?: string;
+  chatHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  selectedDonorIds?: number[];
+  previewDonorIds?: number[];
+  refinedInstruction?: string;
+  templateId?: number;
+}
+
 /**
  * Service for handling email campaign operations
  */
@@ -362,6 +376,95 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to update email",
+      });
+    }
+  }
+
+  /**
+   * Updates campaign data (for editing campaigns)
+   * @param input - Update parameters
+   * @param organizationId - The organization ID for authorization
+   * @returns The updated campaign
+   */
+  async updateCampaign(input: UpdateCampaignInput, organizationId: string) {
+    try {
+      // First verify the campaign exists and belongs to the user's organization
+      const [existingCampaign] = await db
+        .select({
+          id: emailGenerationSessions.id,
+          status: emailGenerationSessions.status,
+        })
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.id, input.campaignId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!existingCampaign) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign not found",
+        });
+      }
+
+      if (existingCampaign.status === "IN_PROGRESS" || existingCampaign.status === "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot edit a campaign that is currently processing",
+        });
+      }
+
+      // Build update object with only provided fields
+      const updateData: any = {
+        updatedAt: new Date(),
+      };
+
+      if (input.campaignName) {
+        updateData.jobName = input.campaignName;
+      }
+      if (input.instruction) {
+        updateData.instruction = input.instruction;
+      }
+      if (input.refinedInstruction !== undefined) {
+        updateData.refinedInstruction = input.refinedInstruction;
+      }
+      if (input.chatHistory) {
+        updateData.chatHistory = input.chatHistory;
+      }
+      if (input.selectedDonorIds) {
+        updateData.selectedDonorIds = input.selectedDonorIds;
+        updateData.totalDonors = input.selectedDonorIds.length;
+      }
+      if (input.previewDonorIds) {
+        updateData.previewDonorIds = input.previewDonorIds;
+      }
+      if (input.templateId !== undefined) {
+        updateData.templateId = input.templateId;
+      }
+
+      // Update the campaign
+      const [updatedCampaign] = await db
+        .update(emailGenerationSessions)
+        .set(updateData)
+        .where(eq(emailGenerationSessions.id, input.campaignId))
+        .returning();
+
+      logger.info(`Updated campaign ${input.campaignId} for organization ${organizationId}`);
+
+      return {
+        success: true,
+        campaign: updatedCampaign,
+        message: "Campaign updated successfully",
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to update campaign: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update campaign",
       });
     }
   }

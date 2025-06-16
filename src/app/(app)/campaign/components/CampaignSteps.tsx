@@ -14,15 +14,28 @@ type Step = (typeof STEPS)[number];
 
 interface CampaignStepsProps {
   onClose: () => void;
+  editMode?: boolean;
+  existingCampaignData?: {
+    campaignId: number;
+    campaignName: string;
+    selectedDonorIds: number[];
+    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    instruction: string;
+    templateId?: number;
+    existingGeneratedEmails?: any[];
+  };
 }
 
-export function CampaignSteps({ onClose }: CampaignStepsProps) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [selectedDonors, setSelectedDonors] = useState<number[]>([]);
-  const [campaignName, setCampaignName] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(undefined);
+export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
+  // Initialize state with existing campaign data if in edit mode
+  const [currentStep, setCurrentStep] = useState(editMode ? 3 : 0); // Go directly to Write Instructions step in edit mode
+  const [selectedDonors, setSelectedDonors] = useState<number[]>(existingCampaignData?.selectedDonorIds || []);
+  const [campaignName, setCampaignName] = useState(existingCampaignData?.campaignName || "");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(
+    existingCampaignData?.templateId || undefined
+  );
   const [templatePrompt, setTemplatePrompt] = useState<string>("");
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState(existingCampaignData?.instruction || "");
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     finalInstruction: string;
@@ -31,8 +44,10 @@ export function CampaignSteps({ onClose }: CampaignStepsProps) {
   // Add state to persist chat history and generated emails
   const [persistedChatHistory, setPersistedChatHistory] = useState<
     Array<{ role: "user" | "assistant"; content: string }>
-  >([]);
-  const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>([]);
+  >(existingCampaignData?.chatHistory || []);
+  const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>(
+    existingCampaignData?.existingGeneratedEmails || []
+  );
   const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<Record<number, Record<string, string>>>(
     {}
   );
@@ -132,6 +147,8 @@ export function CampaignSteps({ onClose }: CampaignStepsProps) {
             campaignName={campaignName}
             templateId={selectedTemplateId}
             onBulkGenerationComplete={handleBulkGenerationComplete}
+            editMode={editMode}
+            existingCampaignId={existingCampaignData?.campaignId}
           />
         );
       default:

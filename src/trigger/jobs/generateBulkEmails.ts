@@ -118,6 +118,47 @@ export const generateBulkEmailsTask = task({
         throw new Error(`Some donors not found. Expected ${selectedDonorIds.length}, found ${selectedDonors.length}`);
       }
 
+      // Check which donors already have generated emails in this session
+      const existingEmails = await db
+        .select({ donorId: generatedEmails.donorId })
+        .from(generatedEmails)
+        .where(eq(generatedEmails.sessionId, sessionId));
+
+      const donorsWithExistingEmails = new Set(existingEmails.map((email) => email.donorId));
+
+      // Filter out donors who already have generated emails (unless regenerating)
+      const donorsToGenerate = selectedDonors.filter((donor) => !donorsWithExistingEmails.has(donor.id));
+
+      if (donorsToGenerate.length === 0) {
+        triggerLogger.info(
+          `All donors already have generated emails for session ${sessionId}. Updating session status to COMPLETED.`
+        );
+
+        // Update session status to COMPLETED since all emails already exist
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "COMPLETED",
+            completedDonors: selectedDonorIds.length,
+            refinedInstruction: refinedInstruction || instruction,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+
+        return {
+          status: "success",
+          sessionId,
+          emailsGenerated: 0,
+          message: "All emails were already generated",
+          refinedInstruction: refinedInstruction || instruction,
+        };
+      }
+
+      triggerLogger.info(
+        `Generating emails for ${donorsToGenerate.length} new donors (${donorsWithExistingEmails.size} already exist)`
+      );
+
       // Convert organization to the email generator format
       const emailGeneratorOrg = {
         ...organization,
@@ -125,10 +166,10 @@ export const generateBulkEmailsTask = task({
       };
 
       // Fetch donor histories with concurrency limiting
-      triggerLogger.info(`Fetching communication and donation histories for ${selectedDonors.length} donors`);
+      triggerLogger.info(`Fetching communication and donation histories for ${donorsToGenerate.length} donors`);
 
       const donorHistories = await processConcurrently(
-        selectedDonors,
+        donorsToGenerate,
         async (donor) => {
           const [communicationHistory, donationHistory] = await Promise.all([
             getDonorCommunicationHistory(donor.id, { organizationId }),
@@ -160,7 +201,7 @@ export const generateBulkEmailsTask = task({
       ]);
 
       // Fetch comprehensive donor statistics
-      const donorIds = selectedDonors.map((donor) => donor.id);
+      const donorIds = donorsToGenerate.map((donor) => donor.id);
       triggerLogger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
       const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
 
@@ -198,7 +239,7 @@ export const generateBulkEmailsTask = task({
       });
 
       // Convert donors to the format expected by the email generator
-      const donorInfos = selectedDonors.map((donor) => ({
+      const donorInfos = donorsToGenerate.map((donor) => ({
         id: donor.id,
         email: donor.email,
         notes: donor.notes,
@@ -281,7 +322,7 @@ export const generateBulkEmailsTask = task({
       // Store generated emails in database with staff signatures automatically appended
       const emailInserts = allEmailResults.map((email: any) => {
         // Find the donor to get their assigned staff info
-        const donor = selectedDonors.find((d) => d.id === email.donorId);
+        const donor = donorsToGenerate.find((d) => d.id === email.donorId);
         const assignedStaff = donor?.assignedStaff;
 
         // Create the appropriate signature
@@ -326,12 +367,13 @@ export const generateBulkEmailsTask = task({
 
       await db.insert(generatedEmails).values(emailInserts);
 
-      // Update session status to COMPLETED
+      // Update session status to COMPLETED with total completed count including existing emails
+      const totalCompletedDonors = selectedDonorIds.length; // All selected donors now have emails
       await db
         .update(emailGenerationSessions)
         .set({
           status: "COMPLETED",
-          completedDonors: selectedDonorIds.length,
+          completedDonors: totalCompletedDonors,
           refinedInstruction: refinedInstruction || instruction,
           completedAt: new Date(),
           updatedAt: new Date(),

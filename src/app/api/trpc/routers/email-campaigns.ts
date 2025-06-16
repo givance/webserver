@@ -80,6 +80,24 @@ const updateEmailSchema = z.object({
   referenceContexts: z.record(z.string(), z.string()),
 });
 
+const updateCampaignSchema = z.object({
+  campaignId: z.number(),
+  campaignName: z.string().min(1).max(255).optional(),
+  instruction: z.string().min(1).optional(),
+  chatHistory: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      })
+    )
+    .optional(),
+  selectedDonorIds: z.array(z.number()).optional(),
+  previewDonorIds: z.array(z.number()).optional(),
+  refinedInstruction: z.string().optional(),
+  templateId: z.number().optional(),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -185,5 +203,13 @@ export const emailCampaignsRouter = router({
   updateEmail: protectedProcedure.input(updateEmailSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.updateEmail(input, ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Update campaign data (for editing campaigns)
+   */
+  updateCampaign: protectedProcedure.input(updateCampaignSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.updateCampaign(input, ctx.auth.user.organizationId);
   }),
 });

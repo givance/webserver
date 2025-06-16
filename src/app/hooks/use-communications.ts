@@ -80,6 +80,12 @@ export function useCommunications() {
   const sendIndividualEmail = trpc.gmail.sendIndividualEmail.useMutation();
   const sendBulkEmails = trpc.gmail.sendBulkEmails.useMutation();
   const updateEmail = trpc.communications.campaigns.updateEmail.useMutation();
+  const updateCampaign = trpc.communications.campaigns.updateCampaign.useMutation({
+    onSuccess: () => {
+      utils.communications.campaigns.listCampaigns.invalidate();
+      utils.communications.campaigns.getSession.invalidate();
+    },
+  });
 
   // Delete campaign mutation hook
   const deleteCampaign = trpc.communications.campaigns.deleteCampaign.useMutation({
@@ -109,5 +115,6 @@ export function useCommunications() {
     sendIndividualEmail,
     sendBulkEmails,
     updateEmail,
+    updateCampaign,
   };
 }

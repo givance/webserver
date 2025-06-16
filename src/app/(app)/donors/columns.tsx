@@ -1,9 +1,8 @@
 "use client";
 
-import { ColumnDef, Column, Row } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2, Activity, Info, ChevronDown, Star } from "lucide-react";
-import Link from "next/link";
+import { useDonors } from "@/app/hooks/use-donors";
+import { DonorNameFields } from "@/app/lib/utils/donor-name-formatter";
+import { formatCurrency } from "@/app/lib/utils/format";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,23 +12,22 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useState } from "react";
-import { useDonors } from "@/app/hooks/use-donors";
-import { formatCurrency } from "@/app/lib/utils/format";
-import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DonorNameFields } from "@/app/lib/utils/donor-name-formatter";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Column, ColumnDef, Row } from "@tanstack/react-table";
+import { ArrowUpDown, MoreHorizontal, Star, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 
 export type PredictedAction = {
   type: string;

@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle } from "lucide-react";
+import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle, Edit } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -476,6 +476,21 @@ function ExistingCampaignsContent() {
                   View
                 </Button>
               </Link>
+
+              {/* Edit Campaign Button - Allow editing if not currently processing */}
+              <ActionButtonWrapper
+                disabled={isProcessing}
+                tooltipContent={isProcessing ? "Cannot edit campaign while it's processing" : ""}
+                className="mr-2"
+              >
+                <Link href={`/campaign/edit/${campaign.id}`}>
+                  <Button variant="outline" size="sm" disabled={isProcessing}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                </Link>
+              </ActionButtonWrapper>
+
               {(isCompleted || isProcessing) && (
                 <>
                   <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent} className="mr-2">
