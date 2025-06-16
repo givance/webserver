@@ -48,8 +48,22 @@ export function useWhatsApp() {
     return trpc.whatsapp.getActivityLog.useQuery({ staffId, limit, offset }, { enabled: !!staffId });
   };
 
-  const getActivityStats = (staffId: number, days?: number) => {
-    return trpc.whatsapp.getActivityStats.useQuery({ staffId, days }, { enabled: !!staffId });
+  const getActivityStats = (staffId: number, days: number = 30) => {
+    return trpc.whatsapp.getActivityStats.useQuery(
+      { staffId, days },
+      {
+        enabled: !!staffId,
+      }
+    );
+  };
+
+  const getConversationHistory = (staffId: number, phoneNumber: string, limit: number = 20) => {
+    return trpc.whatsapp.getConversationHistory.useQuery(
+      { staffId, phoneNumber, limit },
+      {
+        enabled: !!staffId && !!phoneNumber,
+      }
+    );
   };
 
   const checkPhonePermission = (phoneNumber: string) => {
@@ -70,6 +84,7 @@ export function useWhatsApp() {
     getStaffPhoneNumbers,
     getActivityLog,
     getActivityStats,
+    getConversationHistory,
     checkPhonePermission,
   };
 }

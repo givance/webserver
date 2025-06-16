@@ -31,6 +31,12 @@ const activityStatsSchema = z.object({
   days: z.number().min(1).max(365).default(30),
 });
 
+const conversationHistorySchema = z.object({
+  staffId: z.number(),
+  phoneNumber: z.string(),
+  limit: z.number().min(1).max(100).default(20),
+});
+
 export const whatsappRouter = router({
   /**
    * Add a phone number to a staff member's WhatsApp permissions
@@ -251,4 +257,42 @@ export const whatsappRouter = router({
         return { isAllowed: false };
       }
     }),
+
+  /**
+   * Get conversation history for a staff member with a specific phone number
+   */
+  getConversationHistory: protectedProcedure.input(conversationHistorySchema).query(async ({ input, ctx }) => {
+    const { staffId, phoneNumber, limit } = input;
+    const organizationId = ctx.auth.user.organizationId;
+
+    try {
+      // Verify staff belongs to organization
+      const staff = await getStaffById(staffId, organizationId);
+      if (!staff) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Staff member not found",
+        });
+      }
+
+      // Import WhatsAppHistoryService
+      const { WhatsAppHistoryService } = await import("@/app/lib/services/whatsapp-history.service");
+      const historyService = new WhatsAppHistoryService();
+
+      const messages = await historyService.getChatHistory(organizationId, staffId, phoneNumber, limit);
+
+      return {
+        messages,
+        count: messages.length,
+      };
+    } catch (error) {
+      console.error("Error getting conversation history:", error);
+      if (error instanceof TRPCError) throw error;
+
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get conversation history",
+      });
+    }
+  }),
 });

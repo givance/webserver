@@ -61,6 +61,67 @@ type AssignedDonor = {
   currentStageName: string | null;
 };
 
+// Separate component for conversation history to respect Rules of Hooks
+function ConversationHistoryItem({
+  staffId,
+  phoneNumber,
+  phoneIndex,
+}: {
+  staffId: number;
+  phoneNumber: string;
+  phoneIndex: number;
+}) {
+  const { getConversationHistory } = useWhatsApp();
+
+  const conversationHistory = getConversationHistory(staffId, phoneNumber, 10);
+
+  return (
+    <div key={phoneIndex} className="mb-6">
+      <h4 className="font-medium mb-3 flex items-center gap-2">
+        <span>{phoneNumber}</span>
+        <Badge variant="outline" className="text-xs">
+          {conversationHistory.data?.count || 0} messages
+        </Badge>
+      </h4>
+
+      {conversationHistory.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : conversationHistory.data?.messages && conversationHistory.data.messages.length > 0 ? (
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {conversationHistory.data.messages.map((message: any, messageIndex: number) => (
+            <div
+              key={messageIndex}
+              className={`p-3 rounded-lg max-w-[80%] ${
+                message.role === "user" ? "bg-gray-100 ml-auto" : "bg-blue-100 mr-auto"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant="outline" className="text-xs">
+                  {message.role === "user" ? "User" : "AI Assistant"}
+                </Badge>
+                <div className="flex items-center gap-2">
+                  {message.tokensUsed && (
+                    <Badge variant="outline" className="text-xs">
+                      {message.tokensUsed.totalTokens} tokens
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">{new Date(message.createdAt).toLocaleString()}</span>
+                </div>
+              </div>
+              <p className="text-sm">{message.content}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4 text-muted-foreground text-sm">No conversation history with this number.</div>
+      )}
+    </div>
+  );
+}
+
 export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -73,6 +134,7 @@ export default function StaffDetailPage() {
     getStaffPhoneNumbers,
     getActivityLog,
     getActivityStats,
+    getConversationHistory,
     addPhoneNumber,
     removePhoneNumber,
     isAddingPhone,
@@ -128,6 +190,16 @@ export default function StaffDetailPage() {
   const { data: activityStats, isLoading: isStatsLoading } = getActivityStats(staffId, 30);
 
   const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
+
+  // Get conversation histories for all phone numbers (at top level)
+  const conversationHistories = React.useMemo(() => {
+    if (!phoneNumbersData?.phoneNumbers) return {};
+
+    return phoneNumbersData.phoneNumbers.reduce((acc, phoneData) => {
+      acc[phoneData.phoneNumber] = phoneData.phoneNumber;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [phoneNumbersData?.phoneNumbers]);
 
   // Initialize forms
   const form = useForm<EditStaffFormValues>({
@@ -700,6 +772,35 @@ export default function StaffDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Conversation History */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Conversation History
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">Recent WhatsApp conversations for this staff member.</p>
+              </CardHeader>
+              <CardContent>
+                {phoneNumbersData?.phoneNumbers && phoneNumbersData.phoneNumbers.length > 0 ? (
+                  phoneNumbersData.phoneNumbers.map((phoneData, phoneIndex) => (
+                    <ConversationHistoryItem
+                      key={phoneIndex}
+                      staffId={staffId}
+                      phoneNumber={phoneData.phoneNumber}
+                      phoneIndex={phoneIndex}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No phone numbers configured.</p>
+                    <p className="text-sm">Add phone numbers to see conversation history.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Activity Statistics */}
             <Card>
               <CardHeader>
@@ -722,7 +823,7 @@ export default function StaffDetailPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-blue-600">{activityStats?.messagesSent || 0}</div>
-                      <div className="text-sm text-muted-foreground">Messages Sent</div>
+                      <div className="text-sm text-muted-foreground">Responses Generated</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">{activityStats?.messagesReceived || 0}</div>
@@ -764,25 +865,124 @@ export default function StaffDetailPage() {
                   </div>
                 ) : activityLog?.activities && activityLog.activities.length > 0 ? (
                   <div className="space-y-4">
-                    {activityLog.activities.map((activity, index) => (
-                      <div key={index} className="p-4 border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <Badge variant="outline">{activity.activityType.replace("_", " ")}</Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(activity.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        {activity.data && (
-                          <div className="text-sm">
-                            <pre className="whitespace-pre-wrap bg-gray-50 p-2 rounded text-xs overflow-auto max-h-32">
-                              {typeof activity.data === "string"
-                                ? activity.data
-                                : JSON.stringify(activity.data, null, 2)}
-                            </pre>
+                    {activityLog.activities
+                      .filter((activity, index, arr) => {
+                        // Filter out ai_response_generated if there's a message_sent for the same response
+                        if (activity.activityType === "ai_response_generated") {
+                          // Look for a message_sent activity with similar timestamp (within 5 seconds) and same response
+                          const activityTime = new Date(activity.createdAt).getTime();
+                          const hasCorrespondingMessageSent = arr.some((otherActivity) => {
+                            if (otherActivity.activityType === "message_sent") {
+                              const otherTime = new Date(otherActivity.createdAt).getTime();
+                              const timeDiff = Math.abs(activityTime - otherTime);
+                              // Check if they're within 5 seconds and have the same response content
+                              return timeDiff < 5000 && activity.data?.response === otherActivity.data?.responseContent;
+                            }
+                            return false;
+                          });
+
+                          if (hasCorrespondingMessageSent) {
+                            // Skip ai_response_generated if there's a corresponding message_sent
+                            return false;
+                          }
+                        }
+                        return true;
+                      })
+                      .map((activity, index) => {
+                        // Improve activity type display names
+                        const getActivityDisplayName = (activityType: string) => {
+                          switch (activityType) {
+                            case "message_sent":
+                              return "Response Generated";
+                            case "ai_response_generated":
+                              return "Response Generated";
+                            case "message_received":
+                              return "Message Received";
+                            case "db_query_executed":
+                              return "Database Query";
+                            case "voice_transcribed":
+                              return "Voice Transcribed";
+                            case "permission_denied":
+                              return "Permission Denied";
+                            case "error_occurred":
+                              return "Error";
+                            default:
+                              return activityType.replace(/_/g, " ");
+                          }
+                        };
+
+                        const getActivityColor = (activityType: string) => {
+                          switch (activityType) {
+                            case "message_sent":
+                            case "ai_response_generated":
+                              return "bg-blue-100 text-blue-800";
+                            case "message_received":
+                              return "bg-green-100 text-green-800";
+                            case "db_query_executed":
+                              return "bg-purple-100 text-purple-800";
+                            case "voice_transcribed":
+                              return "bg-orange-100 text-orange-800";
+                            case "permission_denied":
+                              return "bg-red-100 text-red-800";
+                            case "error_occurred":
+                              return "bg-red-100 text-red-800";
+                            default:
+                              return "bg-gray-100 text-gray-800";
+                          }
+                        };
+
+                        return (
+                          <div key={index} className="p-4 border rounded-lg">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Badge className={getActivityColor(activity.activityType)}>
+                                  {getActivityDisplayName(activity.activityType)}
+                                </Badge>
+                                {activity.metadata?.tokensUsed && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {activity.metadata.tokensUsed.totalTokens} tokens
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(activity.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+
+                            {/* Summary */}
+                            <p className="text-sm text-gray-700 mb-2">{activity.summary}</p>
+
+                            {/* Message content for readability */}
+                            {activity.data?.messageContent && (
+                              <div className="bg-gray-50 p-3 rounded text-sm mb-2">
+                                <span className="font-medium text-gray-600">Message: </span>
+                                <span>{activity.data.messageContent}</span>
+                              </div>
+                            )}
+
+                            {activity.data?.responseContent && (
+                              <div className="bg-blue-50 p-3 rounded text-sm mb-2">
+                                <span className="font-medium text-blue-600">Response: </span>
+                                <span>{activity.data.responseContent}</span>
+                              </div>
+                            )}
+
+                            {activity.data?.response && (
+                              <div className="bg-blue-50 p-3 rounded text-sm mb-2">
+                                <span className="font-medium text-blue-600">AI Response: </span>
+                                <span>{activity.data.response}</span>
+                              </div>
+                            )}
+
+                            {activity.data?.query && (
+                              <div className="bg-purple-50 p-3 rounded text-sm mb-2">
+                                <span className="font-medium text-purple-600">Query: </span>
+                                <code className="text-xs">{activity.data.query}</code>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        );
+                      })}
                     {activityLog.hasMore && (
                       <div className="text-center">
                         <Button variant="outline" size="sm">

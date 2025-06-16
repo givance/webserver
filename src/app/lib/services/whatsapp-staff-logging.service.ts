@@ -128,6 +128,42 @@ export class WhatsAppStaffLoggingService {
   }
 
   /**
+   * Log AI response generation
+   */
+  async logAIResponseGenerated(
+    staffId: number,
+    organizationId: string,
+    phoneNumber: string,
+    prompt: string,
+    response: string,
+    tokensUsed: { promptTokens: number; completionTokens: number; totalTokens: number },
+    toolCalls?: any[],
+    processingTimeMs?: number
+  ): Promise<boolean> {
+    return this.logActivity({
+      staffId,
+      organizationId,
+      activityType: "ai_response_generated",
+      phoneNumber,
+      summary: `Generated AI response using ${tokensUsed.totalTokens} tokens`,
+      data: {
+        prompt: prompt.substring(0, 500), // Truncate long prompts
+        response,
+        tokensUsed,
+        toolCalls: toolCalls || [],
+        timestamp: new Date(),
+      },
+      metadata: {
+        promptLength: prompt.length,
+        responseLength: response.length,
+        toolCallCount: toolCalls?.length || 0,
+        processingTimeMs,
+        efficiency: tokensUsed.totalTokens > 0 ? response.length / tokensUsed.totalTokens : 0,
+      },
+    });
+  }
+
+  /**
    * Log a permission denied event
    */
   async logPermissionDenied(phoneNumber: string, reason: string, attemptedMessage?: string): Promise<boolean> {
@@ -175,42 +211,6 @@ export class WhatsAppStaffLoggingService {
         queryLength: query.length,
         resultCount: Array.isArray(queryResult) ? queryResult.length : 1,
         processingTimeMs,
-      },
-    });
-  }
-
-  /**
-   * Log AI response generation
-   */
-  async logAIResponseGenerated(
-    staffId: number,
-    organizationId: string,
-    phoneNumber: string,
-    prompt: string,
-    response: string,
-    tokensUsed: { promptTokens: number; completionTokens: number; totalTokens: number },
-    toolCalls?: any[],
-    processingTimeMs?: number
-  ): Promise<boolean> {
-    return this.logActivity({
-      staffId,
-      organizationId,
-      activityType: "ai_response_generated",
-      phoneNumber,
-      summary: `Generated AI response using ${tokensUsed.totalTokens} tokens`,
-      data: {
-        prompt: prompt.substring(0, 500), // Truncate long prompts
-        response,
-        tokensUsed,
-        toolCalls: toolCalls || [],
-        timestamp: new Date(),
-      },
-      metadata: {
-        promptLength: prompt.length,
-        responseLength: response.length,
-        toolCallCount: toolCalls?.length || 0,
-        processingTimeMs,
-        efficiency: tokensUsed.totalTokens > 0 ? response.length / tokensUsed.totalTokens : 0,
       },
     });
   }

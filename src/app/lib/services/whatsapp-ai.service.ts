@@ -4,6 +4,7 @@ import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
 import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
 import { WhatsAppHistoryService } from "./whatsapp-history.service";
+import { WhatsAppStaffLoggingService } from "./whatsapp-staff-logging.service";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -169,10 +170,12 @@ function markMessageProcessed(messageKey: string, messageHash: string): void {
 export class WhatsAppAIService {
   private sqlEngine: WhatsAppSQLEngineService;
   private historyService: WhatsAppHistoryService;
+  private loggingService: WhatsAppStaffLoggingService;
 
   constructor() {
     this.sqlEngine = new WhatsAppSQLEngineService();
     this.historyService = new WhatsAppHistoryService();
+    this.loggingService = new WhatsAppStaffLoggingService();
   }
 
   /**
@@ -303,10 +306,22 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
                 }
               }
 
+              const startTime = Date.now();
               const result = await this.sqlEngine.executeRawSQL({
                 query: params.query,
                 organizationId,
               });
+              const processingTime = Date.now() - startTime;
+
+              // Log the database query execution
+              await this.loggingService.logDatabaseQuery(
+                staffId,
+                organizationId,
+                fromPhoneNumber,
+                params.query,
+                result,
+                processingTime
+              );
 
               // Different logging for different operation types
               if (queryUpper.startsWith("SELECT")) {

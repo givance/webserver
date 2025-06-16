@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm"
 
 export const communicationChannel = pgEnum("communication_channel", ['email', 'phone', 'text'])
 export const gender = pgEnum("gender", ['male', 'female'])
+export const staffWhatsappActivityType = pgEnum("staff_whatsapp_activity_type", ['message_received', 'ai_response_generated', 'permission_denied', 'db_query_executed', 'voice_transcribed', 'error_occurred'])
+export const whatsappMessageRole = pgEnum("whatsapp_message_role", ['user', 'assistant'])
 
 
 export const posts = pgTable("posts", {
@@ -357,7 +359,6 @@ export const donorLists = pgTable("donor_lists", {
 			foreignColumns: [organizations.id],
 			name: "donor_lists_organization_id_organizations_id_fk"
 		}).onDelete("cascade"),
-	unique("donor_lists_name_organization_unique").on(table.organizationId, table.name),
 ]);
 
 export const donorListMembers = pgTable("donor_list_members", {
@@ -446,7 +447,6 @@ export const donors = pgTable("donors", {
 			name: "donors_organization_id_organizations_id_fk"
 		}).onDelete("cascade"),
 	unique("donors_email_organization_unique").on(table.email, table.organizationId),
-	unique("donors_external_id_organization_unique").on(table.organizationId, table.externalId),
 ]);
 
 export const todos = pgTable("todos", {
@@ -484,6 +484,85 @@ export const todos = pgTable("todos", {
 		}).onDelete("set null"),
 ]);
 
+export const staffWhatsappPhoneNumbers = pgTable("staff_whatsapp_phone_numbers", {
+	id: serial().primaryKey().notNull(),
+	staffId: integer("staff_id").notNull(),
+	phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+	isAllowed: boolean("is_allowed").default(true).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.staffId],
+			foreignColumns: [staff.id],
+			name: "staff_whatsapp_phone_numbers_staff_id_staff_id_fk"
+		}).onDelete("cascade"),
+	unique("staff_whatsapp_phone_numbers_phone_unique").on(table.phoneNumber),
+]);
+
+export const microsoftOauthTokens = pgTable("microsoft_oauth_tokens", {
+	id: serial().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	email: varchar({ length: 255 }).notNull(),
+	accessToken: text("access_token").notNull(),
+	refreshToken: text("refresh_token").notNull(),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	scope: text(),
+	tokenType: varchar("token_type", { length: 50 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "microsoft_oauth_tokens_user_id_users_id_fk"
+		}).onDelete("cascade"),
+	unique("microsoft_oauth_tokens_user_id_unique").on(table.userId),
+]);
+
+export const staffMicrosoftTokens = pgTable("staff_microsoft_tokens", {
+	id: serial().primaryKey().notNull(),
+	staffId: integer("staff_id").notNull(),
+	email: varchar({ length: 255 }).notNull(),
+	accessToken: text("access_token").notNull(),
+	refreshToken: text("refresh_token").notNull(),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	scope: text(),
+	tokenType: varchar("token_type", { length: 50 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.staffId],
+			foreignColumns: [staff.id],
+			name: "staff_microsoft_tokens_staff_id_staff_id_fk"
+		}).onDelete("cascade"),
+	unique("staff_microsoft_tokens_staff_id_unique").on(table.staffId),
+]);
+
+export const staffWhatsappActivityLog = pgTable("staff_whatsapp_activity_log", {
+	id: serial().primaryKey().notNull(),
+	staffId: integer("staff_id").notNull(),
+	organizationId: text("organization_id").notNull(),
+	activityType: text("activity_type").notNull(),
+	phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+	summary: text().notNull(),
+	data: jsonb(),
+	metadata: jsonb(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organizations.id],
+			name: "staff_whatsapp_activity_log_organization_id_organizations_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.staffId],
+			foreignColumns: [staff.id],
+			name: "staff_whatsapp_activity_log_staff_id_staff_id_fk"
+		}).onDelete("cascade"),
+]);
+
 export const personResearch = pgTable("person_research", {
 	id: serial().primaryKey().notNull(),
 	donorId: integer("donor_id").notNull(),
@@ -513,6 +592,32 @@ export const personResearch = pgTable("person_research", {
 		}).onDelete("set null"),
 ]);
 
+export const whatsappChatHistoryNew = pgTable("whatsapp_chat_history_new", {
+	id: serial().primaryKey().notNull(),
+	organizationId: text("organization_id").notNull(),
+	fromPhoneNumber: varchar("from_phone_number", { length: 20 }).notNull(),
+	messageId: varchar("message_id", { length: 255 }),
+	role: whatsappMessageRole().notNull(),
+	content: text().notNull(),
+	toolCalls: jsonb("tool_calls"),
+	toolResults: jsonb("tool_results"),
+	tokensUsed: jsonb("tokens_used"),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+	staffId: integer("staff_id"),
+}, (table) => [
+	foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organizations.id],
+			name: "whatsapp_chat_history_new_organization_id_organizations_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.staffId],
+			foreignColumns: [staff.id],
+			name: "whatsapp_chat_history_new_staff_id_staff_id_fk"
+		}).onDelete("cascade"),
+]);
+
 export const communicationThreadDonors = pgTable("communication_thread_donors", {
 	threadId: integer("thread_id").notNull(),
 	donorId: integer("donor_id").notNull(),
@@ -521,11 +626,6 @@ export const communicationThreadDonors = pgTable("communication_thread_donors", 
 			columns: [table.donorId],
 			foreignColumns: [donors.id],
 			name: "communication_thread_donors_donor_id_donors_id_fk"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.threadId],
-			foreignColumns: [communicationThreads.id],
-			name: "communication_thread_donors_thread_id_communication_threads_id_"
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.threadId, table.donorId], name: "communication_thread_donors_thread_id_donor_id_pk"}),
 ]);
@@ -538,11 +638,6 @@ export const communicationThreadStaff = pgTable("communication_thread_staff", {
 			columns: [table.staffId],
 			foreignColumns: [staff.id],
 			name: "communication_thread_staff_staff_id_staff_id_fk"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.threadId],
-			foreignColumns: [communicationThreads.id],
-			name: "communication_thread_staff_thread_id_communication_threads_id_f"
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.threadId, table.staffId], name: "communication_thread_staff_thread_id_staff_id_pk"}),
 ]);

@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { users, posts, organizations, emailGenerationSessions, templates, donors, generatedEmails, communicationContent, staff, communicationThreads, donations, projects, emailTrackers, emailOpens, linkTrackers, linkClicks, gmailOauthTokens, donorLists, donorListMembers, staffGmailTokens, todos, personResearch, communicationThreadDonors, communicationThreadStaff, organizationMemberships } from "./schema";
+import { users, posts, organizations, emailGenerationSessions, templates, donors, generatedEmails, communicationContent, staff, communicationThreads, donations, projects, emailTrackers, emailOpens, linkTrackers, linkClicks, gmailOauthTokens, donorLists, donorListMembers, staffGmailTokens, todos, staffWhatsappPhoneNumbers, microsoftOauthTokens, staffMicrosoftTokens, staffWhatsappActivityLog, personResearch, whatsappChatHistoryNew, communicationThreadDonors, communicationThreadStaff, organizationMemberships } from "./schema";
 
 export const postsRelations = relations(posts, ({one}) => ({
 	user: one(users, {
@@ -14,6 +14,7 @@ export const usersRelations = relations(users, ({many}) => ({
 	gmailOauthTokens: many(gmailOauthTokens),
 	donorLists: many(donorLists),
 	donorListMembers: many(donorListMembers),
+	microsoftOauthTokens: many(microsoftOauthTokens),
 	personResearches: many(personResearch),
 	organizationMemberships: many(organizationMemberships),
 }));
@@ -44,7 +45,9 @@ export const organizationsRelations = relations(organizations, ({many}) => ({
 	donorLists: many(donorLists),
 	donors: many(donors),
 	todos: many(todos),
+	staffWhatsappActivityLogs: many(staffWhatsappActivityLog),
 	personResearches: many(personResearch),
+	whatsappChatHistoryNews: many(whatsappChatHistoryNew),
 	organizationMemberships: many(organizationMemberships),
 }));
 
@@ -133,13 +136,15 @@ export const staffRelations = relations(staff, ({one, many}) => ({
 	staffGmailTokens: many(staffGmailTokens),
 	donors: many(donors),
 	todos: many(todos),
+	staffWhatsappPhoneNumbers: many(staffWhatsappPhoneNumbers),
+	staffMicrosoftTokens: many(staffMicrosoftTokens),
+	staffWhatsappActivityLogs: many(staffWhatsappActivityLog),
+	whatsappChatHistoryNews: many(whatsappChatHistoryNew),
 	communicationThreadStaffs: many(communicationThreadStaff),
 }));
 
 export const communicationThreadsRelations = relations(communicationThreads, ({many}) => ({
 	communicationContents: many(communicationContent),
-	communicationThreadDonors: many(communicationThreadDonors),
-	communicationThreadStaffs: many(communicationThreadStaff),
 }));
 
 export const donationsRelations = relations(donations, ({one}) => ({
@@ -260,6 +265,38 @@ export const todosRelations = relations(todos, ({one}) => ({
 	}),
 }));
 
+export const staffWhatsappPhoneNumbersRelations = relations(staffWhatsappPhoneNumbers, ({one}) => ({
+	staff: one(staff, {
+		fields: [staffWhatsappPhoneNumbers.staffId],
+		references: [staff.id]
+	}),
+}));
+
+export const microsoftOauthTokensRelations = relations(microsoftOauthTokens, ({one}) => ({
+	user: one(users, {
+		fields: [microsoftOauthTokens.userId],
+		references: [users.id]
+	}),
+}));
+
+export const staffMicrosoftTokensRelations = relations(staffMicrosoftTokens, ({one}) => ({
+	staff: one(staff, {
+		fields: [staffMicrosoftTokens.staffId],
+		references: [staff.id]
+	}),
+}));
+
+export const staffWhatsappActivityLogRelations = relations(staffWhatsappActivityLog, ({one}) => ({
+	organization: one(organizations, {
+		fields: [staffWhatsappActivityLog.organizationId],
+		references: [organizations.id]
+	}),
+	staff: one(staff, {
+		fields: [staffWhatsappActivityLog.staffId],
+		references: [staff.id]
+	}),
+}));
+
 export const personResearchRelations = relations(personResearch, ({one}) => ({
 	donor: one(donors, {
 		fields: [personResearch.donorId],
@@ -275,14 +312,21 @@ export const personResearchRelations = relations(personResearch, ({one}) => ({
 	}),
 }));
 
+export const whatsappChatHistoryNewRelations = relations(whatsappChatHistoryNew, ({one}) => ({
+	organization: one(organizations, {
+		fields: [whatsappChatHistoryNew.organizationId],
+		references: [organizations.id]
+	}),
+	staff: one(staff, {
+		fields: [whatsappChatHistoryNew.staffId],
+		references: [staff.id]
+	}),
+}));
+
 export const communicationThreadDonorsRelations = relations(communicationThreadDonors, ({one}) => ({
 	donor: one(donors, {
 		fields: [communicationThreadDonors.donorId],
 		references: [donors.id]
-	}),
-	communicationThread: one(communicationThreads, {
-		fields: [communicationThreadDonors.threadId],
-		references: [communicationThreads.id]
 	}),
 }));
 
@@ -290,10 +334,6 @@ export const communicationThreadStaffRelations = relations(communicationThreadSt
 	staff: one(staff, {
 		fields: [communicationThreadStaff.staffId],
 		references: [staff.id]
-	}),
-	communicationThread: one(communicationThreads, {
-		fields: [communicationThreadStaff.threadId],
-		references: [communicationThreads.id]
 	}),
 }));
 

@@ -288,6 +288,13 @@
       "when": 1750102509740,
       "tag": "0040_medical_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1750104241395,
+      "tag": "0041_sloppy_nekra",
+      "breakpoints": true
     }
   ]
 }
