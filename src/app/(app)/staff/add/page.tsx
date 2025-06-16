@@ -365,8 +365,8 @@ export default function AddStaffPage() {
 
                 {phoneNumbers.length === 0 && (
                   <div className="text-sm text-muted-foreground italic border-2 border-dashed border-gray-200 rounded-lg p-4 text-center">
-                    No WhatsApp phone numbers added. Click "Add Phone" to enable WhatsApp functionality for this staff
-                    member.
+                    No WhatsApp phone numbers added. Click &quot;Add Phone&quot; to enable WhatsApp functionality for
+                    this staff member.
                   </div>
                 )}
               </div>
