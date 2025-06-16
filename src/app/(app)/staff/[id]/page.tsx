@@ -1,32 +1,30 @@
 "use client";
 
-import React from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useStaff } from "@/app/hooks/use-staff";
+import { useWhatsApp } from "@/app/hooks/use-whatsapp";
+import { trpc } from "@/app/lib/trpc/client";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText, MessageSquare } from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { formatCurrency } from "@/app/lib/utils/format";
-import type { ColumnDef } from "@tanstack/react-table";
-import type { CheckedState } from "@radix-ui/react-checkbox";
-import { trpc } from "@/app/lib/trpc/client";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { GmailConnect } from "@/components/ui/GmailConnect";
-import { useWhatsApp } from "@/app/hooks/use-whatsapp";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { CheckedState } from "@radix-ui/react-checkbox";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Activity, ArrowLeft, Edit2, FileText, Mail, MessageSquare, Save, UserCheck, Users, X } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import React, { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 /**
  * Form schema for staff editing
@@ -61,67 +59,6 @@ type AssignedDonor = {
   currentStageName: string | null;
 };
 
-// Separate component for conversation history to respect Rules of Hooks
-function ConversationHistoryItem({
-  staffId,
-  phoneNumber,
-  phoneIndex,
-}: {
-  staffId: number;
-  phoneNumber: string;
-  phoneIndex: number;
-}) {
-  const { getConversationHistory } = useWhatsApp();
-
-  const conversationHistory = getConversationHistory(staffId, phoneNumber, 10);
-
-  return (
-    <div key={phoneIndex} className="mb-6">
-      <h4 className="font-medium mb-3 flex items-center gap-2">
-        <span>{phoneNumber}</span>
-        <Badge variant="outline" className="text-xs">
-          {conversationHistory.data?.count || 0} messages
-        </Badge>
-      </h4>
-
-      {conversationHistory.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : conversationHistory.data?.messages && conversationHistory.data.messages.length > 0 ? (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {conversationHistory.data.messages.map((message: any, messageIndex: number) => (
-            <div
-              key={messageIndex}
-              className={`p-3 rounded-lg max-w-[80%] ${
-                message.role === "user" ? "bg-gray-100 ml-auto" : "bg-blue-100 mr-auto"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Badge variant="outline" className="text-xs">
-                  {message.role === "user" ? "User" : "AI Assistant"}
-                </Badge>
-                <div className="flex items-center gap-2">
-                  {message.tokensUsed && (
-                    <Badge variant="outline" className="text-xs">
-                      {message.tokensUsed.totalTokens} tokens
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground">{new Date(message.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
-              <p className="text-sm">{message.content}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-4 text-muted-foreground text-sm">No conversation history with this number.</div>
-      )}
-    </div>
-  );
-}
-
 export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -134,7 +71,6 @@ export default function StaffDetailPage() {
     getStaffPhoneNumbers,
     getActivityLog,
     getActivityStats,
-    getConversationHistory,
     addPhoneNumber,
     removePhoneNumber,
     isAddingPhone,
@@ -190,16 +126,6 @@ export default function StaffDetailPage() {
   const { data: activityStats, isLoading: isStatsLoading } = getActivityStats(staffId, 30);
 
   const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
-
-  // Get conversation histories for all phone numbers (at top level)
-  const conversationHistories = React.useMemo(() => {
-    if (!phoneNumbersData?.phoneNumbers) return {};
-
-    return phoneNumbersData.phoneNumbers.reduce((acc, phoneData) => {
-      acc[phoneData.phoneNumber] = phoneData.phoneNumber;
-      return acc;
-    }, {} as Record<string, string>);
-  }, [phoneNumbersData?.phoneNumbers]);
 
   // Initialize forms
   const form = useForm<EditStaffFormValues>({
@@ -767,35 +693,6 @@ export default function StaffDetailPage() {
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp phone numbers configured.</p>
                     <p className="text-sm">Contact your administrator to set up WhatsApp access.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Conversation History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Conversation History
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">Recent WhatsApp conversations for this staff member.</p>
-              </CardHeader>
-              <CardContent>
-                {phoneNumbersData?.phoneNumbers && phoneNumbersData.phoneNumbers.length > 0 ? (
-                  phoneNumbersData.phoneNumbers.map((phoneData, phoneIndex) => (
-                    <ConversationHistoryItem
-                      key={phoneIndex}
-                      staffId={staffId}
-                      phoneNumber={phoneData.phoneNumber}
-                      phoneIndex={phoneIndex}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p>No phone numbers configured.</p>
-                    <p className="text-sm">Add phone numbers to see conversation history.</p>
                   </div>
                 )}
               </CardContent>
