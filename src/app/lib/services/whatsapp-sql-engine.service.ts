@@ -1,6 +1,8 @@
 import { db } from "@/app/lib/db";
 import { logger } from "@/app/lib/logger";
 import { sql } from "drizzle-orm";
+import * as schema from "@/app/lib/db/schema";
+import { getTableConfig } from "drizzle-orm/pg-core";
 
 /**
  * SQL Engine Service that allows AI to write and execute raw SQL queries
@@ -126,125 +128,59 @@ export class WhatsAppSQLEngineService {
    * Get the complete database schema for AI context
    */
   getSchemaDescription(): string {
-    return `
-DATABASE SCHEMA:
+    return this.generateSchemaFromTables();
+  }
 
-ORGANIZATIONS TABLE:
-- id (text, primary key) - Clerk Organization ID
-- name (text) - Organization name
-- slug (text) - URL slug
-- created_at, updated_at (timestamp)
+  /**
+   * Dynamically generate schema description from the actual schema definitions
+   */
+  private generateSchemaFromTables(): string {
+    const schemaDescription = ["DATABASE SCHEMA:\n"];
 
-DONORS TABLE:
-- id (serial, primary key)
-- organization_id (text, foreign key to organizations.id) - ALWAYS FILTER BY THIS
-- external_id (varchar) - External CRM ID
-- first_name (varchar) - Primary first name
-- last_name (varchar) - Primary last name
-- his_title (varchar) - Mr., Dr., Rabbi, etc.
-- his_first_name (varchar) - Male partner first name
-- his_initial (varchar) - Male partner initial
-- his_last_name (varchar) - Male partner last name
-- her_title (varchar) - Mrs., Ms., Dr., etc.
-- her_first_name (varchar) - Female partner first name
-- her_initial (varchar) - Female partner initial
-- her_last_name (varchar) - Female partner last name
-- display_name (varchar) - Display name for communications
-- is_couple (boolean) - Whether this is a couple record
-- email (varchar) - Primary email
-- phone (varchar) - Phone number
-- address (text) - Full address
-- state (varchar) - State/province
-- gender (enum: 'male', 'female') - For individual donors
-- notes (text) - Notes about the donor
-- assigned_to_staff_id (integer, foreign key to staff.id)
-- current_stage_name (varchar) - Current donor stage
-- high_potential_donor (boolean) - Whether flagged as high potential
-- created_at, updated_at (timestamp)
+    // Get only the core tables needed for WhatsApp queries
+    const tables = [
+      { name: "ORGANIZATIONS", table: schema.organizations },
+      { name: "DONORS", table: schema.donors },
+      { name: "DONATIONS", table: schema.donations },
+      { name: "PROJECTS", table: schema.projects },
+      { name: "STAFF", table: schema.staff },
+    ];
 
-DONATIONS TABLE:
-- id (serial, primary key)
-- donor_id (integer, foreign key to donors.id)
-- project_id (integer, foreign key to projects.id)
-- date (timestamp) - Donation date
-- amount (integer) - Amount in CENTS (multiply by 100 when inserting)
-- currency (varchar, default 'USD')
-- created_at, updated_at (timestamp)
+    for (const { name, table } of tables) {
+      try {
+        const tableConfig = getTableConfig(table);
+        schemaDescription.push(`${name} TABLE:`);
 
-PROJECTS TABLE:
-- id (serial, primary key)
-- organization_id (text, foreign key to organizations.id) - ALWAYS FILTER BY THIS
-- name (varchar) - Project name
-- description (text) - Project description
-- active (boolean) - Whether project is active
-- goal (integer) - Goal amount in cents
-- tags (text[]) - Array of tags
-- created_at, updated_at (timestamp)
+        // Extract column information
+        for (const [columnName, column] of Object.entries(tableConfig.columns)) {
+          let columnDescription = `- ${column.name}`;
 
-STAFF TABLE:
-- id (serial, primary key)
-- organization_id (text, foreign key to organizations.id) - ALWAYS FILTER BY THIS
-- first_name (varchar) - Staff first name
-- last_name (varchar) - Staff last name
-- email (varchar) - Staff email
-- is_real_person (boolean) - Whether this is a real person
-- is_primary (boolean) - Whether this is the primary staff member
-- signature (text) - Email signature
-- created_at, updated_at (timestamp)
+          // Add data type information
+          if (column.dataType) {
+            columnDescription += ` (${column.dataType}`;
 
-IMPORTANT SECURITY RULES:
-1. ALWAYS include WHERE organization_id = 'org_id' in SELECT/UPDATE queries
-2. ALWAYS include organization_id = 'org_id' in VALUES for INSERT queries
-3. SELECT, INSERT, and UPDATE queries are allowed
-4. NO DELETE, DROP, TRUNCATE, ALTER, CREATE operations allowed
-5. Amounts in donations table are stored in CENTS - multiply by 100 when inserting
-6. Use proper JOINs to get related data
-7. Use aggregate functions (SUM, COUNT, AVG, MAX, MIN) for statistics
+            // Check if it's a primary key
+            if (column.primary) {
+              columnDescription += ", primary key";
+            }
 
-ALLOWED OPERATIONS:
+            columnDescription += ")";
+          }
 
-SELECT - Query data:
-SELECT * FROM donors WHERE organization_id = 'org_id' AND (first_name ILIKE '%name%' OR last_name ILIKE '%name%')
+          schemaDescription.push(columnDescription);
+        }
 
-INSERT - Add new records:
-INSERT INTO donors (organization_id, first_name, last_name, email) VALUES ('org_id', 'John', 'Doe', 'john@example.com')
-INSERT INTO donations (donor_id, project_id, date, amount, currency) VALUES (123, 456, NOW(), 50000, 'USD')
+        schemaDescription.push(""); // Add empty line between tables
+      } catch (error) {
+        logger.warn(
+          `[SQL Engine] Could not extract schema for table ${name}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        // Continue with next table
+      }
+    }
 
-UPDATE - Modify existing records:
-UPDATE donors SET notes = 'High potential donor' WHERE organization_id = 'org_id' AND id = 123
-UPDATE donors SET phone = '555-1234' WHERE organization_id = 'org_id' AND email = 'john@example.com'
-
-COMMON QUERY PATTERNS:
-
-Find donors by name:
-SELECT * FROM donors WHERE organization_id = 'org_id' AND (first_name ILIKE '%name%' OR last_name ILIKE '%name%')
-
-Get donor with donation totals:
-SELECT d.*, 
-       COALESCE(SUM(don.amount), 0) as total_donations,
-       COUNT(don.id) as donation_count,
-       MAX(don.date) as last_donation_date
-FROM donors d
-LEFT JOIN donations don ON d.id = don.donor_id
-WHERE d.organization_id = 'org_id'
-GROUP BY d.id
-
-Get donation history:
-SELECT don.*, d.first_name, d.last_name, p.name as project_name
-FROM donations don
-JOIN donors d ON don.donor_id = d.id
-JOIN projects p ON don.project_id = p.id
-WHERE d.organization_id = 'org_id'
-ORDER BY don.date DESC
-
-Get donor statistics:
-SELECT 
-  COUNT(*) as total_donors,
-  COUNT(CASE WHEN is_couple THEN 1 END) as couples_count,
-  COUNT(CASE WHEN NOT is_couple THEN 1 END) as individuals_count,
-  COUNT(CASE WHEN high_potential_donor THEN 1 END) as high_potential_count
-FROM donors 
-WHERE organization_id = 'org_id'
-`;
+    return schemaDescription.join("\n");
   }
 }
