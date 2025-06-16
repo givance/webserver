@@ -60,8 +60,8 @@ export type Donor = DonorNameFields & {
   highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
 };
 
-// DeleteDonorButton component to handle delete with confirmation dialog
-function DeleteDonorButton({ donorId }: { donorId: string }) {
+// DeleteDonorDialog component to handle delete with confirmation dialog
+function DeleteDonorDialog({ donorId }: { donorId: string }) {
   const [open, setOpen] = useState(false);
   const { deleteDonor, isDeleting } = useDonors();
 
@@ -70,32 +70,38 @@ function DeleteDonorButton({ donorId }: { donorId: string }) {
     setOpen(false);
   };
 
+  const handleOpenDialog = (e: Event) => {
+    e.preventDefault();
+    setOpen(true);
+  };
+
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the donor and all associated records.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <DropdownMenuItem className="text-red-600 cursor-pointer" onSelect={handleOpenDialog}>
+        <Trash2 className="h-4 w-4 mr-2" />
+        Delete
+      </DropdownMenuItem>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the donor and all associated records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -241,12 +247,7 @@ export const getColumns = (
                 <DropdownMenuItem>Send Email</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild className="text-red-600 cursor-pointer">
-                <div className="flex items-center">
-                  <DeleteDonorButton donorId={donor.id} />
-                  <span className="ml-2">Delete</span>
-                </div>
-              </DropdownMenuItem>
+              <DeleteDonorDialog donorId={donor.id} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
