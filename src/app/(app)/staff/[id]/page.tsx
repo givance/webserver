@@ -26,6 +26,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import { trpc } from "@/app/lib/trpc/client";
 import { GmailConnect } from "@/components/ui/GmailConnect";
+import { useWhatsApp } from "@/app/hooks/use-whatsapp";
 
 /**
  * Form schema for staff editing
@@ -68,6 +69,15 @@ export default function StaffDetailPage() {
   const [isEditingSignature, setIsEditingSignature] = useState(false);
 
   const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
+  const {
+    getStaffPhoneNumbers,
+    getActivityLog,
+    getActivityStats,
+    addPhoneNumber,
+    removePhoneNumber,
+    isAddingPhone,
+    isRemovingPhone,
+  } = useWhatsApp();
 
   // TRPC mutations for signature and email account management
   const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
@@ -111,6 +121,13 @@ export default function StaffDetailPage() {
     isLoading: isDonorsLoading,
     error: donorsError,
   } = getAssignedDonors({ id: staffId }, { enabled: !!staffId });
+
+  // Fetch WhatsApp data
+  const { data: phoneNumbersData, isLoading: isPhoneNumbersLoading } = getStaffPhoneNumbers(staffId);
+
+  const { data: activityStats, isLoading: isStatsLoading } = getActivityStats(staffId, 30);
+
+  const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
 
   // Initialize forms
   const form = useForm<EditStaffFormValues>({
@@ -641,13 +658,45 @@ export default function StaffDetailPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                {isPhoneNumbersLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ) : phoneNumbersData?.phoneNumbers && phoneNumbersData.phoneNumbers.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      {phoneNumbersData.phoneNumbers.map((phoneData, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-green-600" />
+                            <span className="font-medium">{phoneData.phoneNumber}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {phoneData.isAllowed ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removePhoneNumber(staffId, phoneData.phoneNumber)}
+                            disabled={isRemovingPhone}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {phoneNumbersData.count} phone number{phoneNumbersData.count !== 1 ? "s" : ""} configured
+                    </p>
+                  </div>
+                ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp phone numbers configured.</p>
                     <p className="text-sm">Contact your administrator to set up WhatsApp access.</p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -656,28 +705,39 @@ export default function StaffDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
-                  WhatsApp Activity Summary
+                  WhatsApp Activity Summary (Last 30 Days)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">0</div>
-                    <div className="text-sm text-muted-foreground">Messages Sent</div>
+                {isStatsLoading ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="text-center">
+                        <Skeleton className="h-8 w-16 mx-auto mb-2" />
+                        <Skeleton className="h-4 w-20 mx-auto" />
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">0</div>
-                    <div className="text-sm text-muted-foreground">Messages Received</div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{activityStats?.messagesSent || 0}</div>
+                      <div className="text-sm text-muted-foreground">Messages Sent</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{activityStats?.messagesReceived || 0}</div>
+                      <div className="text-sm text-muted-foreground">Messages Received</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">{activityStats?.dbQueriesExecuted || 0}</div>
+                      <div className="text-sm text-muted-foreground">DB Queries</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">{activityStats?.voiceTranscribed || 0}</div>
+                      <div className="text-sm text-muted-foreground">Voice Messages</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">0</div>
-                    <div className="text-sm text-muted-foreground">DB Queries</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">0</div>
-                    <div className="text-sm text-muted-foreground">Voice Messages</div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -693,31 +753,51 @@ export default function StaffDetailPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No WhatsApp activity recorded yet.</p>
-                  <p className="text-sm">Activity will appear here once WhatsApp messages are processed.</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Conversation History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Conversation History
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Recent WhatsApp conversations handled by this staff member.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No conversation history available.</p>
-                  <p className="text-sm">Conversations will appear here once messages are exchanged.</p>
-                </div>
+                {isActivityLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                      </div>
+                    ))}
+                  </div>
+                ) : activityLog?.activities && activityLog.activities.length > 0 ? (
+                  <div className="space-y-4">
+                    {activityLog.activities.map((activity, index) => (
+                      <div key={index} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge variant="outline">{activity.activityType.replace("_", " ")}</Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(activity.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        {activity.data && (
+                          <div className="text-sm">
+                            <pre className="whitespace-pre-wrap bg-gray-50 p-2 rounded text-xs overflow-auto max-h-32">
+                              {typeof activity.data === "string"
+                                ? activity.data
+                                : JSON.stringify(activity.data, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {activityLog.hasMore && (
+                      <div className="text-center">
+                        <Button variant="outline" size="sm">
+                          Load More Activities
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No WhatsApp activity recorded yet.</p>
+                    <p className="text-sm">Activity will appear here once WhatsApp messages are processed.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
