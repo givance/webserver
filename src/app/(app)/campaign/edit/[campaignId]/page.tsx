@@ -74,7 +74,7 @@ export default function EditCampaignPage() {
           campaignName: campaignData.session.jobName,
           selectedDonorIds: campaignData.session.selectedDonorIds,
           chatHistory: campaignData.session.chatHistory,
-          instruction: campaignData.session.instruction || campaignData.session.refinedInstruction,
+          instruction: "", // Don't pre-populate instruction in edit mode - let user start fresh
           templateId: campaignData.session.templateId,
           // Include any existing generated emails for reference
           existingGeneratedEmails: campaignData.emails || [],

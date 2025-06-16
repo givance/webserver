@@ -139,7 +139,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             }}
             selectedDonors={selectedDonors}
             onSessionDataChange={handleSessionDataChange}
-            templatePrompt={templatePrompt}
+            templatePrompt={editMode ? undefined : templatePrompt}
             initialChatHistory={persistedChatHistory}
             initialGeneratedEmails={persistedGeneratedEmails}
             initialReferenceContexts={persistedReferenceContexts}
