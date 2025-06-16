@@ -844,6 +844,16 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
           </Tabs>
         </div>
 
+        {/* Navigation Buttons */}
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+          <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating}>
+            {editMode ? "Update Campaign" : "Launch Campaign"}
+          </Button>
+        </div>
+
         {/* Bulk Generation Confirmation Dialog */}
         <Dialog open={showBulkGenerationDialog} onOpenChange={setShowBulkGenerationDialog}>
           <DialogContent className="max-w-2xl">
