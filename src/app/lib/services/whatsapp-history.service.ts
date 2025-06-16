@@ -15,6 +15,7 @@ export interface WhatsAppMessage {
 
 export interface SaveMessageParams {
   organizationId: string;
+  staffId?: number; // Made optional for backward compatibility
   fromPhoneNumber: string;
   messageId?: string;
   role: "user" | "assistant";
@@ -32,20 +33,13 @@ export class WhatsAppHistoryService {
    * Save a message to the chat history
    */
   async saveMessage(params: SaveMessageParams): Promise<void> {
-    const {
-      organizationId,
-      fromPhoneNumber,
-      messageId,
-      role,
-      content,
-      toolCalls,
-      toolResults,
-      tokensUsed,
-    } = params;
+    const { organizationId, staffId, fromPhoneNumber, messageId, role, content, toolCalls, toolResults, tokensUsed } =
+      params;
 
     try {
       await db.insert(whatsappChatHistory).values({
         organizationId,
+        staffId,
         fromPhoneNumber,
         messageId,
         role,
@@ -57,17 +51,20 @@ export class WhatsAppHistoryService {
 
       logger.info(`[WhatsApp History] Saved ${role} message from ${fromPhoneNumber} to history`);
     } catch (error) {
-      logger.error(`[WhatsApp History] Failed to save message: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `[WhatsApp History] Failed to save message: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
 
   /**
-   * Get chat history for a specific phone number and organization
+   * Get chat history for a specific phone number, staff member, and organization
    * Returns messages in chronological order (oldest first)
    */
   async getChatHistory(
     organizationId: string,
+    staffId: number | undefined,
     fromPhoneNumber: string,
     limit: number = 20
   ): Promise<WhatsAppMessage[]> {
@@ -86,6 +83,7 @@ export class WhatsAppHistoryService {
         .where(
           and(
             eq(whatsappChatHistory.organizationId, organizationId),
+            staffId ? eq(whatsappChatHistory.staffId, staffId) : undefined,
             eq(whatsappChatHistory.fromPhoneNumber, fromPhoneNumber)
           )
         )
@@ -107,7 +105,9 @@ export class WhatsAppHistoryService {
         tokensUsed: msg.tokensUsed,
       }));
     } catch (error) {
-      logger.error(`[WhatsApp History] Failed to retrieve chat history: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `[WhatsApp History] Failed to retrieve chat history: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -164,23 +164,23 @@ export class WhatsAppHistoryService {
           const idsToDelete = messagesToDelete.map((msg) => msg.id);
 
           if (idsToDelete.length > 0) {
-            await db
-              .delete(whatsappChatHistory)
-              .where(
-                and(
-                  eq(whatsappChatHistory.organizationId, organizationId),
-                  eq(whatsappChatHistory.fromPhoneNumber, fromPhoneNumber),
-                  // Delete messages with IDs in the idsToDelete array
-                  // Using a simple approach since Drizzle doesn't have a direct 'in' for arrays
-                )
-              );
+            await db.delete(whatsappChatHistory).where(
+              and(
+                eq(whatsappChatHistory.organizationId, organizationId),
+                eq(whatsappChatHistory.fromPhoneNumber, fromPhoneNumber)
+                // Delete messages with IDs in the idsToDelete array
+                // Using a simple approach since Drizzle doesn't have a direct 'in' for arrays
+              )
+            );
 
             logger.info(`[WhatsApp History] Cleaned up ${idsToDelete.length} old messages for ${fromPhoneNumber}`);
           }
         }
       }
     } catch (error) {
-      logger.error(`[WhatsApp History] Failed to cleanup old history: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `[WhatsApp History] Failed to cleanup old history: ${error instanceof Error ? error.message : String(error)}`
+      );
       // Don't throw here as this is a cleanup operation that shouldn't break the main flow
     }
   }

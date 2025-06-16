@@ -16,6 +16,7 @@ const azure = createAzure({
 export interface WhatsAppAIRequest {
   message: string;
   organizationId: string;
+  staffId: number;
   fromPhoneNumber: string;
   isTranscribed?: boolean; // Flag to indicate if this message was transcribed from voice
 }
@@ -178,7 +179,7 @@ export class WhatsAppAIService {
    * Process a WhatsApp message and generate an AI response
    */
   async processMessage(request: WhatsAppAIRequest): Promise<WhatsAppAIResponse> {
-    const { message, organizationId, fromPhoneNumber, isTranscribed = false } = request;
+    const { message, organizationId, staffId, fromPhoneNumber, isTranscribed = false } = request;
 
     // Generate message key and hash for deduplication
     const messageKey = generateMessageKey(message, fromPhoneNumber, organizationId);
@@ -199,13 +200,14 @@ export class WhatsAppAIService {
       // First, save the user's message to history
       await this.historyService.saveMessage({
         organizationId,
+        staffId,
         fromPhoneNumber,
         role: "user",
         content: message,
       });
 
       // Get chat history for context
-      const chatHistory = await this.historyService.getChatHistory(organizationId, fromPhoneNumber, 10);
+      const chatHistory = await this.historyService.getChatHistory(organizationId, staffId, fromPhoneNumber, 10);
       const historyContext = this.historyService.formatHistoryForAI(chatHistory);
 
       const systemPrompt = this.buildSystemPrompt(organizationId);
@@ -383,6 +385,7 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
       // Save the assistant response to history
       await this.historyService.saveMessage({
         organizationId,
+        staffId,
         fromPhoneNumber,
         role: "assistant",
         content: responseText,

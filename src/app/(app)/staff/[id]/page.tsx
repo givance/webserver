@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText } from "lucide-react";
+import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -400,6 +400,7 @@ export default function StaffDetailPage() {
           <TabsTrigger value="info">Staff Information</TabsTrigger>
           <TabsTrigger value="signature">Email Signature</TabsTrigger>
           <TabsTrigger value="email">Email Account</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="donors">Assigned Donors ({donorCount})</TabsTrigger>
         </TabsList>
 
@@ -623,6 +624,103 @@ export default function StaffDetailPage() {
               refetchStaff();
             }}
           />
+        </TabsContent>
+
+        {/* WhatsApp Tab */}
+        <TabsContent value="whatsapp">
+          <div className="space-y-6">
+            {/* Phone Numbers Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  WhatsApp Phone Numbers
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Manage phone numbers allowed to use WhatsApp services for this staff member.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No WhatsApp phone numbers configured.</p>
+                    <p className="text-sm">Contact your administrator to set up WhatsApp access.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity Statistics */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  WhatsApp Activity Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">0</div>
+                    <div className="text-sm text-muted-foreground">Messages Sent</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">0</div>
+                    <div className="text-sm text-muted-foreground">Messages Received</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">0</div>
+                    <div className="text-sm text-muted-foreground">DB Queries</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">0</div>
+                    <div className="text-sm text-muted-foreground">Voice Messages</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity Log */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Activity Log
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Detailed log of all WhatsApp activities for this staff member.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p>No WhatsApp activity recorded yet.</p>
+                  <p className="text-sm">Activity will appear here once WhatsApp messages are processed.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Conversation History */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Conversation History
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Recent WhatsApp conversations handled by this staff member.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p>No conversation history available.</p>
+                  <p className="text-sm">Conversations will appear here once messages are exchanged.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Assigned Donors Tab */}

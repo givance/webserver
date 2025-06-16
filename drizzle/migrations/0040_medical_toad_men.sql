@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_chat_history_new" ALTER COLUMN "staff_id" DROP NOT NULL;

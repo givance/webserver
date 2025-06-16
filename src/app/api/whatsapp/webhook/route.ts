@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { WhatsAppAIService } from "@/app/lib/services/whatsapp-ai.service";
+import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp-permission.service";
+import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp-staff-logging.service";
 import OpenAI from "openai";
 
 // Create OpenAI client for transcription
@@ -16,11 +18,10 @@ const openai = new OpenAI({
  * POST /api/whatsapp/webhook - For receiving messages
  */
 
-// Default organization ID for WhatsApp queries
-// TODO: Implement proper phone number to organization mapping
-const DEFAULT_ORGANIZATION_ID = "org_2x0w3dnWAbi8U3Zm5jE31HbAnkS"; // Replace with actual default organization ID
-
+// Initialize services
 const whatsappAI = new WhatsAppAIService();
+const permissionService = new WhatsAppPermissionService();
+const loggingService = new WhatsAppStaffLoggingService();
 
 /**
  * Download audio file from WhatsApp
@@ -207,21 +208,79 @@ export async function POST(request: NextRequest) {
               },
             });
 
+            // Check permissions first
+            const permissionResult = await permissionService.checkPhonePermission(message.from);
+
+            if (!permissionResult.isAllowed) {
+              logger.warn(`[WhatsApp Webhook] Permission denied for ${message.from}: ${permissionResult.reason}`);
+
+              // Log permission denied event
+              await loggingService.logPermissionDenied(
+                message.from,
+                permissionResult.reason || "Unknown reason",
+                message.type === "text" ? message.text.body : `${message.type} message`
+              );
+
+              // Send permission denied response
+              await sendWhatsAppResponse(
+                change.value.metadata.phone_number_id,
+                message.from,
+                "Sorry, you don't have permission to use this WhatsApp service. Please contact your administrator."
+              );
+              continue; // Skip to next message
+            }
+
+            const { staffId, organizationId, staff: staffInfo } = permissionResult;
+
+            logger.info(
+              `[WhatsApp Webhook] Permission granted for ${message.from} - Staff: ${staffInfo?.firstName} ${staffInfo?.lastName} (ID: ${staffId}) in org: ${organizationId}`
+            );
+
             // Process text messages with AI
             if (message.type === "text") {
               const messageText = message.text.body;
 
               logger.info(`[WhatsApp Webhook] Processing text message from ${message.from}: "${messageText}"`);
 
+              // Log message received
+              await loggingService.logMessageReceived(
+                staffId!,
+                organizationId!,
+                message.from,
+                messageText,
+                "text",
+                message.id
+              );
+
               const aiResponse = await whatsappAI.processMessage({
                 message: messageText,
-                organizationId: DEFAULT_ORGANIZATION_ID,
+                organizationId: organizationId!,
+                staffId: staffId!,
                 fromPhoneNumber: message.from,
                 isTranscribed: false,
               });
 
               const responseText = aiResponse.response;
               logger.info(`[WhatsApp Webhook] AI response generated (tokens: ${aiResponse.tokensUsed.totalTokens})`);
+
+              // Log AI response generated
+              await loggingService.logAIResponseGenerated(
+                staffId!,
+                organizationId!,
+                message.from,
+                messageText,
+                responseText,
+                aiResponse.tokensUsed
+              );
+
+              // Log message sent
+              await loggingService.logMessageSent(
+                staffId!,
+                organizationId!,
+                message.from,
+                responseText,
+                aiResponse.tokensUsed
+              );
 
               // Send response back to user
               await sendWhatsAppResponse(change.value.metadata.phone_number_id, message.from, responseText);
@@ -242,10 +301,30 @@ export async function POST(request: NextRequest) {
 
                 logger.info(`[WhatsApp Webhook] Voice message transcribed: "${transcribedText}"`);
 
+                // Log voice transcription
+                await loggingService.logVoiceTranscribed(
+                  staffId!,
+                  organizationId!,
+                  message.from,
+                  message.audio.id,
+                  transcribedText
+                );
+
+                // Log message received (transcribed)
+                await loggingService.logMessageReceived(
+                  staffId!,
+                  organizationId!,
+                  message.from,
+                  transcribedText,
+                  "audio",
+                  message.id
+                );
+
                 // Process the transcribed text with AI
                 const aiResponse = await whatsappAI.processMessage({
                   message: transcribedText,
-                  organizationId: DEFAULT_ORGANIZATION_ID,
+                  organizationId: organizationId!,
+                  staffId: staffId!,
                   fromPhoneNumber: message.from,
                   isTranscribed: true,
                 });
@@ -255,6 +334,25 @@ export async function POST(request: NextRequest) {
                   `[WhatsApp Webhook] AI response generated for voice message (tokens: ${aiResponse.tokensUsed.totalTokens})`
                 );
 
+                // Log AI response generated
+                await loggingService.logAIResponseGenerated(
+                  staffId!,
+                  organizationId!,
+                  message.from,
+                  transcribedText,
+                  responseText,
+                  aiResponse.tokensUsed
+                );
+
+                // Log message sent
+                await loggingService.logMessageSent(
+                  staffId!,
+                  organizationId!,
+                  message.from,
+                  responseText,
+                  aiResponse.tokensUsed
+                );
+
                 // Send response back to user
                 await sendWhatsAppResponse(change.value.metadata.phone_number_id, message.from, responseText);
               } catch (error) {
@@ -262,6 +360,16 @@ export async function POST(request: NextRequest) {
                   `[WhatsApp Webhook] Error processing voice message: ${
                     error instanceof Error ? error.message : String(error)
                   }`
+                );
+
+                // Log the error
+                await loggingService.logError(
+                  staffId!,
+                  organizationId!,
+                  message.from,
+                  error instanceof Error ? error.message : String(error),
+                  error,
+                  "voice_message_processing"
                 );
 
                 // Send error message to user
