@@ -892,10 +892,14 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Final Instruction</p>
-                    <div className="p-3 bg-muted rounded-lg">
-                      <p className="text-sm">
-                        {(previousInstruction || instruction || "").trim() || "No instruction provided"}
-                      </p>
+                    <div className="bg-muted rounded-lg">
+                      <ScrollArea className="h-28 w-full">
+                        <div className="p-3">
+                          <p className="text-sm whitespace-pre-wrap">
+                            {(previousInstruction || instruction || "").trim() || "No instruction provided"}
+                          </p>
+                        </div>
+                      </ScrollArea>
                     </div>
                   </div>
                 </CardContent>
