@@ -18,7 +18,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Activity, ArrowLeft, Edit2, FileText, Mail, MessageSquare, Save, UserCheck, Users, X } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Edit2,
+  FileText,
+  Mail,
+  MessageSquare,
+  Plus,
+  Save,
+  UserCheck,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
@@ -43,8 +55,19 @@ const editSignatureSchema = z.object({
   signature: z.string().optional(),
 });
 
+/**
+ * Form schema for adding phone numbers
+ */
+const addPhoneSchema = z.object({
+  phoneNumber: z
+    .string()
+    .min(1, "Phone number is required")
+    .regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format"),
+});
+
 type EditStaffFormValues = z.infer<typeof editStaffSchema>;
 type EditSignatureFormValues = z.infer<typeof editSignatureSchema>;
+type AddPhoneFormValues = z.infer<typeof addPhoneSchema>;
 
 /**
  * Type for assigned donor display
@@ -65,6 +88,7 @@ export default function StaffDetailPage() {
   const staffId = Number(params.id);
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSignature, setIsEditingSignature] = useState(false);
+  const [isAddingPhone, setIsAddingPhone] = useState(false);
 
   const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
   const {
@@ -73,7 +97,7 @@ export default function StaffDetailPage() {
     getActivityStats,
     addPhoneNumber,
     removePhoneNumber,
-    isAddingPhone,
+    isAddingPhone: isAddingPhoneLoading,
     isRemovingPhone,
   } = useWhatsApp();
 
@@ -144,6 +168,14 @@ export default function StaffDetailPage() {
     resolver: zodResolver(editSignatureSchema),
     defaultValues: {
       signature: "",
+    },
+  });
+
+  const phoneForm = useForm<AddPhoneFormValues>({
+    // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
+    resolver: zodResolver(addPhoneSchema),
+    defaultValues: {
+      phoneNumber: "",
     },
   });
 
@@ -250,6 +282,29 @@ export default function StaffDetailPage() {
     } catch (error) {
       console.error("Error updating signature:", error);
     }
+  };
+
+  /**
+   * Handle adding a new phone number
+   */
+  const onAddPhone = async (values: AddPhoneFormValues) => {
+    try {
+      await addPhoneNumber(staffId, values.phoneNumber);
+      toast.success("Phone number added successfully");
+      phoneForm.reset();
+      setIsAddingPhone(false);
+    } catch (error) {
+      toast.error("Failed to add phone number");
+      console.error("Error adding phone number:", error);
+    }
+  };
+
+  /**
+   * Cancel adding phone number and reset form
+   */
+  const handleCancelAddPhone = () => {
+    phoneForm.reset();
+    setIsAddingPhone(false);
   };
 
   // Note: Gmail account management is now handled through the GmailConnect component
@@ -647,15 +702,67 @@ export default function StaffDetailPage() {
             {/* Phone Numbers Management */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  WhatsApp Phone Numbers
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Manage phone numbers allowed to use WhatsApp services for this staff member.
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      WhatsApp Phone Numbers
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Manage phone numbers allowed to use WhatsApp services for this staff member.
+                    </p>
+                  </div>
+                  {!isAddingPhone && (
+                    <Button variant="outline" onClick={() => setIsAddingPhone(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Phone Number
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
+                {/* Add Phone Number Form */}
+                {isAddingPhone && (
+                  <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+                    <Form {...phoneForm}>
+                      <form
+                        // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
+                        onSubmit={phoneForm.handleSubmit(onAddPhone)}
+                        className="space-y-4"
+                      >
+                        <FormField
+                          // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                          control={phoneForm.control}
+                          name="phoneNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Enter phone number (e.g., +1234567890)" type="tel" />
+                              </FormControl>
+                              <FormMessage />
+                              <p className="text-sm text-muted-foreground">
+                                Include country code (e.g., +1 for US, +44 for UK)
+                              </p>
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" onClick={handleCancelAddPhone}>
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={isAddingPhoneLoading}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            {isAddingPhoneLoading ? "Adding..." : "Add Phone Number"}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </div>
+                )}
+
                 {isPhoneNumbersLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-full" />
@@ -692,7 +799,7 @@ export default function StaffDetailPage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp phone numbers configured.</p>
-                    <p className="text-sm">Contact your administrator to set up WhatsApp access.</p>
+                    <p className="text-sm">Click "Add Phone Number" to get started.</p>
                   </div>
                 )}
               </CardContent>
