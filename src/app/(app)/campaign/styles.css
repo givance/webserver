@@ -41,8 +41,11 @@
 }
 
 .mentions-input__highlighter {
-  padding: 9px !important;
+  padding: 12px !important;
   border: 1px solid transparent !important;
+  min-height: 120px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
 }
 
 .mentions-input__mention {
@@ -51,4 +54,27 @@
   border-radius: 4px !important;
   padding: 2px 4px !important;
   font-weight: 500 !important;
+}
+
+/* Support for larger input areas */
+.mentions-input.min-h-\[200px\] .mentions-input__highlighter {
+  min-height: 200px !important;
+}
+
+.mentions-input__control {
+  font-family: inherit !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.mentions-input__input {
+  padding: 12px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  min-height: 120px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  resize: vertical !important;
 } 

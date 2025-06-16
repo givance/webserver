@@ -143,6 +143,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
     const [allGeneratedEmails, setAllGeneratedEmails] = useState<GeneratedEmail[]>(initialGeneratedEmails);
     const [isGeneratingMore, setIsGeneratingMore] = useState(false);
+    const [activeTab, setActiveTab] = useState("chat");
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastPersistedData = useRef<string>("");
 
@@ -334,6 +335,11 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                   content: responseMessage,
                 },
               ]);
+
+              // Auto-switch to preview tab after email generation
+              setTimeout(() => {
+                setActiveTab("preview");
+              }, 500);
             }
           } else {
             throw new Error("Failed to generate emails");
@@ -637,164 +643,235 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
     const canGenerateMore = remainingDonors.length > 0;
 
     return (
-      <div className="grid grid-cols-2 gap-4 h-full">
-        {/* Left side: Generated Emails with Vertical Tabs */}
-        <div className="flex flex-col h-full min-h-0">
-          <div className="mb-4">
-            <h3 className="text-lg font-medium">Generated Emails</h3>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing {allGeneratedEmails.length} of {selectedDonors.length} selected donors
-              </p>
-              {canGenerateMore && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateMore}
-                  disabled={isGeneratingMore}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  {isGeneratingMore
-                    ? "Generating..."
-                    : `Generate ${Math.min(GENERATE_MORE_COUNT, remainingDonors.length)} More`}
-                </Button>
-              )}
-            </div>
+      <div className="flex flex-col h-full space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Write Instructions & Generate Emails</h2>
+            <p className="text-muted-foreground mt-1">
+              Create personalized emails for {selectedDonors.length} selected donors
+            </p>
           </div>
-          {isGenerating ? (
-            <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
-              <div className="flex flex-col items-center gap-2">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p>Generating emails...</p>
-              </div>
-            </div>
-          ) : allGeneratedEmails.length > 0 ? (
-            <div className="flex-1 mt-2">
-              <EmailListViewer
-                emails={allGeneratedEmails}
-                donors={
-                  donorsData
-                    ?.filter((donor) => !!donor)
-                    .map((donor) => ({
-                      id: donor.id,
-                      firstName: donor.firstName,
-                      lastName: donor.lastName,
-                      email: donor.email,
-                      assignedToStaffId: donor.assignedToStaffId,
-                    })) || []
-                }
-                referenceContexts={referenceContexts}
-                showSearch={false}
-                showPagination={true}
-                showTracking={false}
-                showStaffAssignment={false}
-                emailsPerPage={EMAILS_PER_PAGE}
-                maxHeight="calc(100vh - 400px)"
-                emptyStateTitle="No emails generated yet"
-                emptyStateDescription={
-                  templatePrompt ? "Generating emails from template..." : "No emails generated yet"
-                }
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center flex-1 text-muted-foreground border rounded-lg">
-              {templatePrompt ? "Generating emails from template..." : "No emails generated yet"}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onBack}>
+              Back
+            </Button>
+            <Button onClick={handleNextClick} disabled={allGeneratedEmails.length === 0} variant="default">
+              Launch Campaign
+            </Button>
+          </div>
         </div>
 
-        {/* Right side: Chat Interface */}
-        <div className="flex flex-col h-full min-h-0">
-          <div className="mb-4">
-            <h3 className="text-lg font-medium">Chat Interface</h3>
-            <p className="text-sm text-muted-foreground">&nbsp;</p>
-          </div>
-          <div className="flex flex-col flex-1 border rounded-lg overflow-hidden min-h-0">
-            {/* Chat Messages */}
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="p-4 space-y-4">
-                {templatePrompt && hasAutoGeneratedFromTemplate && chatMessages.length === 0 && (
-                  <div className="flex flex-col space-y-2">
-                    <div className="rounded-lg px-3 py-2 bg-blue-50 border border-blue-200">
-                      <p className="text-sm text-blue-800">ℹ️ Using template to generate emails automatically...</p>
-                    </div>
-                  </div>
-                )}
-                {chatMessages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={cn("flex flex-col space-y-2", {
-                      "items-end": message.role === "user",
-                    })}
-                  >
-                    <div
-                      className={cn("rounded-lg px-3 py-2 max-w-[80%]", {
-                        "bg-primary text-primary-foreground": message.role === "user",
-                        "bg-muted": message.role === "assistant",
-                      })}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                    {message.role === "assistant" &&
-                      suggestedMemories.length > 0 &&
-                      index === chatMessages.length - 1 && (
-                        <div className="w-full mt-4">
-                          <SuggestedMemories memories={suggestedMemories} />
-                        </div>
-                      )}
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-            </ScrollArea>
+        {/* Main Content with Tabs */}
+        <div className="flex-1 min-h-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="chat" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Chat & Generate
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Email Preview ({allGeneratedEmails.length})
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Input Area */}
-            <div className="p-4 border-t bg-background">
-              <div className="space-y-4">
-                <div className="relative">
-                  <MentionsInput
-                    value={instruction}
-                    onChange={handleMentionChange}
-                    placeholder={
-                      isLoadingProjects
-                        ? "Loading projects... Type @ to mention projects once loaded"
-                        : projectMentions.length > 0
-                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                        : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
-                    }
-                    className="mentions-input"
-                    onKeyDown={handleKeyDown}
-                  >
-                    <Mention
-                      trigger="@"
-                      data={projectMentions}
-                      markup="@[__display__](__id__)"
-                      displayTransform={(id, display) => `@${display}`}
-                      appendSpaceOnAdd={true}
-                    />
-                  </MentionsInput>
-                </div>
-                <div className="flex justify-between pt-4">
-                  <Button variant="outline" onClick={onBack}>
-                    Back
-                  </Button>
-                  <div className="space-x-2">
-                    <Button
-                      onClick={() => handleSubmitInstruction()}
-                      disabled={isGenerating || !instruction.trim()}
-                      variant="default"
-                    >
-                      {isGenerating ? "Generating..." : "Generate Emails"}
-                    </Button>
-                    <Button onClick={handleNextClick} disabled={allGeneratedEmails.length === 0} variant="default">
-                      Launch Campaign
-                    </Button>
-                  </div>
-                </div>
+            {/* Chat Tab */}
+            <TabsContent value="chat" className="flex-1 min-h-0 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 h-full">
+                {/* Left: Campaign Overview Stats */}
+                <Card className="h-full flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Chat & Generate Emails
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Write instructions for email generation or continue your conversation with the AI.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col min-h-0 p-0">
+                    <div className="flex flex-col flex-1 min-h-0">
+                      {/* Chat Messages */}
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-6 space-y-4">
+                          {templatePrompt && hasAutoGeneratedFromTemplate && chatMessages.length === 0 && (
+                            <div className="flex flex-col space-y-2">
+                              <div className="rounded-lg px-4 py-3 bg-blue-50 border border-blue-200">
+                                <p className="text-sm text-blue-800">
+                                  ℹ️ Using template to generate emails automatically...
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {chatMessages.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">
+                              <p>Start by writing instructions for email generation below.</p>
+                            </div>
+                          ) : (
+                            chatMessages.map((message, index) => (
+                              <div
+                                key={index}
+                                className={cn("flex flex-col space-y-2", {
+                                  "items-end": message.role === "user",
+                                })}
+                              >
+                                <div
+                                  className={cn("rounded-lg px-4 py-3 max-w-[80%]", {
+                                    "bg-primary text-primary-foreground": message.role === "user",
+                                    "bg-muted": message.role === "assistant",
+                                  })}
+                                >
+                                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                </div>
+                                {message.role === "assistant" &&
+                                  suggestedMemories.length > 0 &&
+                                  index === chatMessages.length - 1 && (
+                                    <div className="w-full mt-4">
+                                      <SuggestedMemories memories={suggestedMemories} />
+                                    </div>
+                                  )}
+                              </div>
+                            ))
+                          )}
+                          <div ref={chatEndRef} />
+                        </div>
+                      </ScrollArea>
+
+                      {/* Input Area */}
+                      <div className="p-6 border-t bg-background">
+                        <div className="space-y-4">
+                          <div className="relative">
+                            <MentionsInput
+                              value={instruction}
+                              onChange={handleMentionChange}
+                              placeholder={
+                                isLoadingProjects
+                                  ? "Loading projects... Type @ to mention projects once loaded"
+                                  : projectMentions.length > 0
+                                  ? `Enter your instructions for email generation or continue the conversation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                                  : "Enter your instructions for email generation or continue the conversation... Press Cmd/Ctrl + Enter to send."
+                              }
+                              className="mentions-input min-h-[120px]"
+                              onKeyDown={handleKeyDown}
+                            >
+                              <Mention
+                                trigger="@"
+                                data={projectMentions}
+                                markup="@[__display__](__id__)"
+                                displayTransform={(id, display) => `@${display}`}
+                                appendSpaceOnAdd={true}
+                              />
+                            </MentionsInput>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button
+                              onClick={() => handleSubmitInstruction()}
+                              disabled={isGenerating || !instruction.trim()}
+                              variant="default"
+                            >
+                              {isGenerating ? "Generating..." : "Generate Emails"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+
+            {/* Preview Tab */}
+            <TabsContent value="preview" className="flex-1 min-h-0 mt-6">
+              <Card className="h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Plus className="h-5 w-5" />
+                        Generated Emails Preview
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Review and preview the generated emails before launching the campaign.
+                      </p>
+                    </div>
+                    {canGenerateMore && (
+                      <Button
+                        variant="outline"
+                        onClick={handleGenerateMore}
+                        disabled={isGeneratingMore}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {isGeneratingMore
+                          ? "Generating..."
+                          : `Generate ${Math.min(GENERATE_MORE_COUNT, remainingDonors.length)} More`}
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 min-h-0 p-0">
+                  {isGenerating ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                        <div className="text-center">
+                          <p className="font-medium">Generating personalized emails...</p>
+                          <p className="text-sm">This may take a few moments</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : allGeneratedEmails.length > 0 ? (
+                    <div className="h-full p-6">
+                      <EmailListViewer
+                        emails={allGeneratedEmails}
+                        donors={
+                          donorsData
+                            ?.filter((donor) => !!donor)
+                            .map((donor) => ({
+                              id: donor.id,
+                              firstName: donor.firstName,
+                              lastName: donor.lastName,
+                              email: donor.email,
+                              assignedToStaffId: donor.assignedToStaffId,
+                            })) || []
+                        }
+                        referenceContexts={referenceContexts}
+                        showSearch={true}
+                        showPagination={true}
+                        showTracking={false}
+                        showStaffAssignment={false}
+                        emailsPerPage={EMAILS_PER_PAGE}
+                        maxHeight="calc(100vh - 500px)"
+                        emptyStateTitle="No emails generated yet"
+                        emptyStateDescription={
+                          templatePrompt
+                            ? "Generating emails from template..."
+                            : "Switch to the Chat & Generate tab to generate emails"
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <div className="text-center space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
+                          <Mail className="h-8 w-8" />
+                        </div>
+                        <div>
+                          <p className="font-medium">No emails generated yet</p>
+                          <p className="text-sm">
+                            {templatePrompt
+                              ? "Generating emails from template..."
+                              : "Switch to the Chat & Generate tab to get started"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Bulk Generation Confirmation Dialog */}
