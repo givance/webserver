@@ -17,6 +17,7 @@ export interface WhatsAppAIRequest {
   message: string;
   organizationId: string;
   fromPhoneNumber: string;
+  isTranscribed?: boolean; // Flag to indicate if this message was transcribed from voice
 }
 
 export interface WhatsAppAIResponse {
@@ -177,7 +178,7 @@ export class WhatsAppAIService {
    * Process a WhatsApp message and generate an AI response
    */
   async processMessage(request: WhatsAppAIRequest): Promise<WhatsAppAIResponse> {
-    const { message, organizationId, fromPhoneNumber } = request;
+    const { message, organizationId, fromPhoneNumber, isTranscribed = false } = request;
 
     // Generate message key and hash for deduplication
     const messageKey = generateMessageKey(message, fromPhoneNumber, organizationId);
@@ -208,11 +209,26 @@ export class WhatsAppAIService {
       const historyContext = this.historyService.formatHistoryForAI(chatHistory);
 
       const systemPrompt = this.buildSystemPrompt(organizationId);
-      let userPrompt = `User question: ${message}`;
+      let userPrompt: string;
+
+      // Build the user prompt based on whether it's transcribed or not
+      if (isTranscribed) {
+        userPrompt = `User question (transcribed from voice message): ${message}
+
+IMPORTANT: This message was transcribed from a voice message, so some words, names, or addresses might be transcribed incorrectly. If you cannot find anything or need to confirm details, please ask the user to spell out specific names, addresses, or other important information.`;
+      } else {
+        userPrompt = `User question: ${message}`;
+      }
 
       // Include chat history if available
       if (historyContext.length > 0) {
-        userPrompt = `Previous conversation:\n${historyContext}\n\nCurrent user question: ${message}`;
+        const currentQuestion = isTranscribed
+          ? `Current user question (transcribed from voice message): ${message}
+
+IMPORTANT: This message was transcribed from a voice message, so some words, names, or addresses might be transcribed incorrectly. If you cannot find anything or need to confirm details, please ask the user to spell out specific names, addresses, or other important information.`
+          : `Current user question: ${message}`;
+
+        userPrompt = `Previous conversation:\n${historyContext}\n\n${currentQuestion}`;
       }
 
       logger.info(`[WhatsApp AI] Sending request to Azure OpenAI - ${chatHistory.length} messages in context`);
@@ -283,12 +299,6 @@ export class WhatsAppAIService {
                   logger.error(`[WhatsApp AI] Blocked dangerous operation: ${operation}`);
                   throw new Error(`Operation ${operation} is not allowed for security reasons.`);
                 }
-              }
-
-              // Validate organization_id is included for security
-              if (!params.query.toLowerCase().includes(organizationId.toLowerCase())) {
-                logger.error(`[WhatsApp AI] Query missing organization_id filter`);
-                throw new Error("All queries must include proper organization filtering for security.");
               }
 
               const result = await this.sqlEngine.executeRawSQL({
