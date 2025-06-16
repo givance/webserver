@@ -40,8 +40,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useOrganization } from "@clerk/nextjs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,6 +71,22 @@ function UserProfile() {
 }
 
 function Header() {
+  const { organization } = useOrganization();
+  const [previousOrgId, setPreviousOrgId] = useState<string | null>(null);
+
+  // Listen for organization changes and force page refresh
+  useEffect(() => {
+    if (organization?.id) {
+      // If we have a previous org ID and it's different from current, refresh the page
+      if (previousOrgId && previousOrgId !== organization.id) {
+        window.location.href = "/";
+        return;
+      }
+      // Set the current org ID as the previous one for next comparison
+      setPreviousOrgId(organization.id);
+    }
+  }, [organization?.id, previousOrgId]);
+
   return (
     <header className="flex items-center justify-between h-14 px-6 border-b bg-white fixed top-0 left-0 right-0 z-40 ml-0 sm:ml-64">
       <div className="flex items-center gap-6 flex-1">
@@ -87,6 +104,8 @@ function Header() {
           afterCreateOrganizationUrl="/"
           afterLeaveOrganizationUrl="/"
           afterSelectOrganizationUrl="/"
+          afterSelectPersonalUrl="/"
+          skipInvitationScreen={true}
           appearance={{
             elements: {
               rootBox: "flex items-center gap-2",
