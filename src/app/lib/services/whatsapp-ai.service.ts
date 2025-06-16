@@ -5,6 +5,7 @@ import { generateText } from "ai";
 import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
 import { WhatsAppHistoryService } from "./whatsapp-history.service";
 import { z } from "zod";
+import crypto from "crypto";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -101,6 +102,64 @@ interface TopDonorsResult {
 // Cache for system prompts to avoid regeneration
 const systemPromptCache = new Map<string, string>();
 
+// Message deduplication cache to prevent duplicate logging on retries
+interface ProcessedMessage {
+  timestamp: number;
+  messageHash: string;
+}
+
+// Track processed messages to avoid duplicate logging (5 minute window)
+const processedMessages = new Map<string, ProcessedMessage>();
+const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Clean up old entries from the processed messages cache
+ */
+function cleanupProcessedMessages(): void {
+  const now = Date.now();
+  const cutoff = now - DEDUP_WINDOW_MS;
+
+  for (const [key, value] of processedMessages.entries()) {
+    if (value.timestamp < cutoff) {
+      processedMessages.delete(key);
+    }
+  }
+}
+
+/**
+ * Generate a unique key for message deduplication
+ */
+function generateMessageKey(message: string, fromPhoneNumber: string, organizationId: string): string {
+  const messageHash = crypto.createHash("md5").update(message.trim().toLowerCase()).digest("hex");
+  return `${fromPhoneNumber}:${organizationId}:${messageHash}`;
+}
+
+/**
+ * Check if this message was recently processed (within deduplication window)
+ */
+function isRecentlyProcessed(messageKey: string, messageHash: string): boolean {
+  cleanupProcessedMessages();
+
+  const existing = processedMessages.get(messageKey);
+  if (!existing) {
+    return false;
+  }
+
+  // Check if it's the same message hash and within the time window
+  const now = Date.now();
+  return existing.messageHash === messageHash && now - existing.timestamp < DEDUP_WINDOW_MS;
+}
+
+/**
+ * Mark a message as processed
+ */
+function markMessageProcessed(messageKey: string, messageHash: string): void {
+  processedMessages.set(messageKey, {
+    timestamp: Date.now(),
+    messageHash,
+  });
+}
+
 /**
  * WhatsApp AI service that processes user questions about donors
  * Uses Azure OpenAI with database query tools
@@ -120,7 +179,20 @@ export class WhatsAppAIService {
   async processMessage(request: WhatsAppAIRequest): Promise<WhatsAppAIResponse> {
     const { message, organizationId, fromPhoneNumber } = request;
 
-    logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}`);
+    // Generate message key and hash for deduplication
+    const messageKey = generateMessageKey(message, fromPhoneNumber, organizationId);
+    const messageHash = crypto.createHash("md5").update(message.trim().toLowerCase()).digest("hex");
+
+    // Check if this is a retry of a recently processed message
+    const isRetry = isRecentlyProcessed(messageKey, messageHash);
+
+    // Only log if this is not a recent retry
+    if (!isRetry) {
+      logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}`);
+      markMessageProcessed(messageKey, messageHash);
+    } else {
+      logger.debug(`Skipping duplicate log for retry from ${fromPhoneNumber} (message already processed recently)`);
+    }
 
     try {
       // First, save the user's message to history
