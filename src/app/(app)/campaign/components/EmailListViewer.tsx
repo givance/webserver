@@ -49,6 +49,7 @@ export interface EmailListViewerProps {
   showPagination?: boolean;
   showTracking?: boolean;
   showStaffAssignment?: boolean;
+  showSendButton?: boolean; // Control whether to show send buttons in EmailDisplay
   emailsPerPage?: number;
   maxHeight?: string;
 
@@ -76,6 +77,7 @@ export function EmailListViewer({
   showPagination = true,
   showTracking = false,
   showStaffAssignment = false,
+  showSendButton = true,
   emailsPerPage = 20,
   maxHeight = "calc(100vh - 400px)",
   trackingStats = [],
@@ -320,6 +322,7 @@ export function EmailListViewer({
                           emailId={email.id}
                           donorId={email.donorId}
                           sessionId={sessionId}
+                          showSendButton={showSendButton}
                         />
                       </ScrollArea>
                     </TabsContent>

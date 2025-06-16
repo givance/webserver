@@ -61,6 +61,7 @@ export function ReviewAndSendStep({ generatedEmails, onBack, onFinish }: ReviewA
                 subject={email.subject}
                 content={email.structuredContent}
                 referenceContexts={{}} // You might want to pass actual reference contexts here
+                showSendButton={false}
               />
             );
           })}

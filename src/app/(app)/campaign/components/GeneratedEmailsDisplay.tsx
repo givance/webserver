@@ -108,6 +108,7 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
                   subject={email.subject}
                   content={email.structuredContent}
                   referenceContexts={referenceContexts[email.donorId] || {}}
+                  showSendButton={false}
                 />
               </TabsContent>
             );

@@ -24,6 +24,7 @@ interface EmailDisplayProps {
   emailId?: number;
   donorId?: number;
   sessionId?: number;
+  showSendButton?: boolean; // Control whether to show the send button
 }
 
 interface ReferencesDisplayProps {
@@ -75,6 +76,7 @@ export function EmailDisplay({
   emailId,
   donorId,
   sessionId,
+  showSendButton = true,
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { getEmailStatus } = useCommunications();
@@ -119,7 +121,7 @@ export function EmailDisplay({
       </Card>
 
       {/* Email Send Button */}
-      {emailId && <EmailSendButton emailId={emailId} donorName={donorName} donorEmail={donorEmail} />}
+      {emailId && showSendButton && <EmailSendButton emailId={emailId} donorName={donorName} donorEmail={donorEmail} />}
 
       {/* Email Tracking Status */}
       {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}

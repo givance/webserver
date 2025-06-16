@@ -207,6 +207,7 @@ export function GenerateEmailsStep({
                         subject={email.subject}
                         content={email.structuredContent}
                         referenceContexts={{}}
+                        showSendButton={false}
                       />
                     </div>
                   );

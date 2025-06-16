@@ -656,9 +656,6 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             <Button variant="outline" onClick={onBack}>
               Back
             </Button>
-            <Button onClick={handleNextClick} disabled={allGeneratedEmails.length === 0} variant="default">
-              Launch Campaign
-            </Button>
           </div>
         </div>
 
@@ -841,6 +838,7 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                         showPagination={true}
                         showTracking={false}
                         showStaffAssignment={false}
+                        showSendButton={false}
                         emailsPerPage={EMAILS_PER_PAGE}
                         maxHeight="calc(100vh - 500px)"
                         emptyStateTitle="No emails generated yet"
