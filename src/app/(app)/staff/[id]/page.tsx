@@ -1,32 +1,42 @@
 "use client";
 
-import React from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useStaff } from "@/app/hooks/use-staff";
+import { useWhatsApp } from "@/app/hooks/use-whatsapp";
+import { trpc } from "@/app/lib/trpc/client";
+import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { ArrowLeft, Mail, Users, Edit2, Save, X, UserCheck, Activity, FileText, MessageSquare } from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { formatCurrency } from "@/app/lib/utils/format";
-import type { ColumnDef } from "@tanstack/react-table";
-import type { CheckedState } from "@radix-ui/react-checkbox";
-import { trpc } from "@/app/lib/trpc/client";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { GmailConnect } from "@/components/ui/GmailConnect";
-import { useWhatsApp } from "@/app/hooks/use-whatsapp";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { CheckedState } from "@radix-ui/react-checkbox";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  Activity,
+  ArrowLeft,
+  Edit2,
+  FileText,
+  Mail,
+  MessageSquare,
+  Plus,
+  Save,
+  UserCheck,
+  Users,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import React, { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 /**
  * Form schema for staff editing
@@ -45,8 +55,19 @@ const editSignatureSchema = z.object({
   signature: z.string().optional(),
 });
 
+/**
+ * Form schema for adding phone numbers
+ */
+const addPhoneSchema = z.object({
+  phoneNumber: z
+    .string()
+    .min(1, "Phone number is required")
+    .regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format"),
+});
+
 type EditStaffFormValues = z.infer<typeof editStaffSchema>;
 type EditSignatureFormValues = z.infer<typeof editSignatureSchema>;
+type AddPhoneFormValues = z.infer<typeof addPhoneSchema>;
 
 /**
  * Type for assigned donor display
@@ -61,83 +82,22 @@ type AssignedDonor = {
   currentStageName: string | null;
 };
 
-// Separate component for conversation history to respect Rules of Hooks
-function ConversationHistoryItem({
-  staffId,
-  phoneNumber,
-  phoneIndex,
-}: {
-  staffId: number;
-  phoneNumber: string;
-  phoneIndex: number;
-}) {
-  const { getConversationHistory } = useWhatsApp();
-
-  const conversationHistory = getConversationHistory(staffId, phoneNumber, 10);
-
-  return (
-    <div key={phoneIndex} className="mb-6">
-      <h4 className="font-medium mb-3 flex items-center gap-2">
-        <span>{phoneNumber}</span>
-        <Badge variant="outline" className="text-xs">
-          {conversationHistory.data?.count || 0} messages
-        </Badge>
-      </h4>
-
-      {conversationHistory.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : conversationHistory.data?.messages && conversationHistory.data.messages.length > 0 ? (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {conversationHistory.data.messages.map((message: any, messageIndex: number) => (
-            <div
-              key={messageIndex}
-              className={`p-3 rounded-lg max-w-[80%] ${
-                message.role === "user" ? "bg-gray-100 ml-auto" : "bg-blue-100 mr-auto"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Badge variant="outline" className="text-xs">
-                  {message.role === "user" ? "User" : "AI Assistant"}
-                </Badge>
-                <div className="flex items-center gap-2">
-                  {message.tokensUsed && (
-                    <Badge variant="outline" className="text-xs">
-                      {message.tokensUsed.totalTokens} tokens
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground">{new Date(message.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
-              <p className="text-sm">{message.content}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-4 text-muted-foreground text-sm">No conversation history with this number.</div>
-      )}
-    </div>
-  );
-}
-
 export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
   const staffId = Number(params.id);
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSignature, setIsEditingSignature] = useState(false);
+  const [isAddingPhone, setIsAddingPhone] = useState(false);
 
   const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
   const {
     getStaffPhoneNumbers,
     getActivityLog,
     getActivityStats,
-    getConversationHistory,
     addPhoneNumber,
     removePhoneNumber,
-    isAddingPhone,
+    isAddingPhone: isAddingPhoneLoading,
     isRemovingPhone,
   } = useWhatsApp();
 
@@ -191,16 +151,6 @@ export default function StaffDetailPage() {
 
   const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
 
-  // Get conversation histories for all phone numbers (at top level)
-  const conversationHistories = React.useMemo(() => {
-    if (!phoneNumbersData?.phoneNumbers) return {};
-
-    return phoneNumbersData.phoneNumbers.reduce((acc, phoneData) => {
-      acc[phoneData.phoneNumber] = phoneData.phoneNumber;
-      return acc;
-    }, {} as Record<string, string>);
-  }, [phoneNumbersData?.phoneNumbers]);
-
   // Initialize forms
   const form = useForm<EditStaffFormValues>({
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
@@ -218,6 +168,14 @@ export default function StaffDetailPage() {
     resolver: zodResolver(editSignatureSchema),
     defaultValues: {
       signature: "",
+    },
+  });
+
+  const phoneForm = useForm<AddPhoneFormValues>({
+    // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
+    resolver: zodResolver(addPhoneSchema),
+    defaultValues: {
+      phoneNumber: "",
     },
   });
 
@@ -324,6 +282,29 @@ export default function StaffDetailPage() {
     } catch (error) {
       console.error("Error updating signature:", error);
     }
+  };
+
+  /**
+   * Handle adding a new phone number
+   */
+  const onAddPhone = async (values: AddPhoneFormValues) => {
+    try {
+      await addPhoneNumber(staffId, values.phoneNumber);
+      toast.success("Phone number added successfully");
+      phoneForm.reset();
+      setIsAddingPhone(false);
+    } catch (error) {
+      toast.error("Failed to add phone number");
+      console.error("Error adding phone number:", error);
+    }
+  };
+
+  /**
+   * Cancel adding phone number and reset form
+   */
+  const handleCancelAddPhone = () => {
+    phoneForm.reset();
+    setIsAddingPhone(false);
   };
 
   // Note: Gmail account management is now handled through the GmailConnect component
@@ -721,15 +702,67 @@ export default function StaffDetailPage() {
             {/* Phone Numbers Management */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  WhatsApp Phone Numbers
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Manage phone numbers allowed to use WhatsApp services for this staff member.
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      WhatsApp Phone Numbers
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Manage phone numbers allowed to use WhatsApp services for this staff member.
+                    </p>
+                  </div>
+                  {!isAddingPhone && (
+                    <Button variant="outline" onClick={() => setIsAddingPhone(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Phone Number
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
+                {/* Add Phone Number Form */}
+                {isAddingPhone && (
+                  <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+                    <Form {...phoneForm}>
+                      <form
+                        // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
+                        onSubmit={phoneForm.handleSubmit(onAddPhone)}
+                        className="space-y-4"
+                      >
+                        <FormField
+                          // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                          control={phoneForm.control}
+                          name="phoneNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Enter phone number (e.g., +1234567890)" type="tel" />
+                              </FormControl>
+                              <FormMessage />
+                              <p className="text-sm text-muted-foreground">
+                                Include country code (e.g., +1 for US, +44 for UK)
+                              </p>
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" onClick={handleCancelAddPhone}>
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={isAddingPhoneLoading}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            {isAddingPhoneLoading ? "Adding..." : "Add Phone Number"}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </div>
+                )}
+
                 {isPhoneNumbersLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-full" />
@@ -766,36 +799,7 @@ export default function StaffDetailPage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp phone numbers configured.</p>
-                    <p className="text-sm">Contact your administrator to set up WhatsApp access.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Conversation History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Conversation History
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">Recent WhatsApp conversations for this staff member.</p>
-              </CardHeader>
-              <CardContent>
-                {phoneNumbersData?.phoneNumbers && phoneNumbersData.phoneNumbers.length > 0 ? (
-                  phoneNumbersData.phoneNumbers.map((phoneData, phoneIndex) => (
-                    <ConversationHistoryItem
-                      key={phoneIndex}
-                      staffId={staffId}
-                      phoneNumber={phoneData.phoneNumber}
-                      phoneIndex={phoneIndex}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p>No phone numbers configured.</p>
-                    <p className="text-sm">Add phone numbers to see conversation history.</p>
+                    <p className="text-sm">Click "Add Phone Number" to get started.</p>
                   </div>
                 )}
               </CardContent>
