@@ -629,7 +629,7 @@ export const gmailRouter = router({
             );
 
             // Encode email for Gmail API (same as send)
-            const encodedMessage = Buffer.from(htmlEmail)
+            const encodedMessage = Buffer.from(htmlEmail, "utf8")
               .toString("base64")
               .replace(/\+/g, "-")
               .replace(/\//g, "_")
@@ -788,7 +788,7 @@ export const gmailRouter = router({
             );
 
             // Encode email for Gmail API
-            const encodedMessage = Buffer.from(htmlEmail)
+            const encodedMessage = Buffer.from(htmlEmail, "utf8")
               .toString("base64")
               .replace(/\+/g, "-")
               .replace(/\//g, "_")
@@ -958,7 +958,7 @@ export const gmailRouter = router({
         );
 
         // Encode email for Gmail API
-        const encodedMessage = Buffer.from(htmlEmail)
+        const encodedMessage = Buffer.from(htmlEmail, "utf8")
           .toString("base64")
           .replace(/\+/g, "-")
           .replace(/\//g, "_")
@@ -1128,7 +1128,7 @@ export const gmailRouter = router({
             );
 
             // Encode email for Gmail API
-            const encodedMessage = Buffer.from(htmlEmail)
+            const encodedMessage = Buffer.from(htmlEmail, "utf8")
               .toString("base64")
               .replace(/\+/g, "-")
               .replace(/\//g, "_")
