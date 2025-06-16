@@ -644,21 +644,6 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
 
     return (
       <div className="flex flex-col h-full space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Write Instructions & Generate Emails</h2>
-            <p className="text-muted-foreground mt-1">
-              Create personalized emails for {selectedDonors.length} selected donors
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={onBack}>
-              Back
-            </Button>
-          </div>
-        </div>
-
         {/* Main Content with Tabs */}
         <div className="flex-1 min-h-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
@@ -674,19 +659,10 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             </TabsList>
 
             {/* Chat Tab */}
-            <TabsContent value="chat" className="flex-1 min-h-0 mt-6">
+            <TabsContent value="chat" className="flex-1 min-h-0 mt-3">
               <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 h-full">
-                {/* Left: Campaign Overview Stats */}
+                {/* Simplified Chat Interface */}
                 <Card className="h-full flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Chat & Generate Emails
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Write instructions for email generation or continue your conversation with the AI.
-                    </p>
-                  </CardHeader>
                   <CardContent className="flex-1 flex flex-col min-h-0 p-0">
                     <div className="flex flex-col flex-1 min-h-0">
                       {/* Chat Messages */}
@@ -779,20 +755,12 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
             </TabsContent>
 
             {/* Preview Tab */}
-            <TabsContent value="preview" className="flex-1 min-h-0 mt-6">
+            <TabsContent value="preview" className="flex-1 min-h-0 mt-3">
               <Card className="h-full flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Plus className="h-5 w-5" />
-                        Generated Emails Preview
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Review and preview the generated emails before launching the campaign.
-                      </p>
-                    </div>
-                    {canGenerateMore && (
+                {/* Only show header if we need the Generate More button */}
+                {canGenerateMore && (
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-end">
                       <Button
                         variant="outline"
                         onClick={handleGenerateMore}
@@ -804,9 +772,9 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                           ? "Generating..."
                           : `Generate ${Math.min(GENERATE_MORE_COUNT, remainingDonors.length)} More`}
                       </Button>
-                    )}
-                  </div>
-                </CardHeader>
+                    </div>
+                  </CardHeader>
+                )}
                 <CardContent className="flex-1 min-h-0 p-0">
                   {isGenerating ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -839,8 +807,9 @@ export const WriteInstructionStep = React.forwardRef<{ click: () => Promise<void
                         showTracking={false}
                         showStaffAssignment={false}
                         showSendButton={false}
+                        showEditButton={false}
                         emailsPerPage={EMAILS_PER_PAGE}
-                        maxHeight="calc(100vh - 500px)"
+                        maxHeight="calc(100vh - 280px)"
                         emptyStateTitle="No emails generated yet"
                         emptyStateDescription={
                           templatePrompt

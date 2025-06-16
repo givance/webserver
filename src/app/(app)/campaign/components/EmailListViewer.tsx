@@ -50,6 +50,7 @@ export interface EmailListViewerProps {
   showTracking?: boolean;
   showStaffAssignment?: boolean;
   showSendButton?: boolean; // Control whether to show send buttons in EmailDisplay
+  showEditButton?: boolean; // Control whether to show edit buttons in EmailDisplay
   emailsPerPage?: number;
   maxHeight?: string;
 
@@ -78,6 +79,7 @@ export function EmailListViewer({
   showTracking = false,
   showStaffAssignment = false,
   showSendButton = true,
+  showEditButton = false,
   emailsPerPage = 20,
   maxHeight = "calc(100vh - 400px)",
   trackingStats = [],
@@ -165,65 +167,33 @@ export function EmailListViewer({
 
   return (
     <div className="h-full flex flex-col space-y-4">
-      {/* Search Bar */}
+      {/* Search Bar - Made smaller and less intrusive */}
       {showSearch && (
         <div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="relative max-w-sm">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-10 pr-10"
+              className="pl-7 pr-8 h-8 text-sm"
             />
             {searchTerm && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                className="absolute right-0 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
                 onClick={clearSearch}
               >
-                <X className="h-4 w-4" />
+                <X className="h-3 w-3" />
               </Button>
             )}
           </div>
           {searchTerm && (
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-1">
               {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}&quot;
             </p>
           )}
-        </div>
-      )}
-
-      {/* Pagination Info */}
-      {showPagination && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredEmails.length)} of {filteredEmails.length} emails
-          </p>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       )}
 
@@ -298,6 +268,40 @@ export function EmailListViewer({
                     </TabsList>
                   </ScrollArea>
                 </div>
+
+                {/* Pagination moved to bottom of left panel */}
+                {showPagination && totalPages > 1 && (
+                  <div className="p-3 border-t bg-muted/30 flex-shrink-0">
+                    <div className="flex flex-col space-y-2">
+                      <p className="text-xs text-muted-foreground text-center">
+                        {startIndex + 1}-{Math.min(endIndex, filteredEmails.length)} of {filteredEmails.length}
+                      </p>
+                      <div className="flex items-center justify-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          disabled={currentPage === 1}
+                          className="h-7 px-2"
+                        >
+                          <ChevronLeft className="h-3 w-3" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {currentPage} / {totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                          disabled={currentPage === totalPages}
+                          className="h-7 px-2"
+                        >
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col h-full" style={{ maxHeight: maxHeight }}>
@@ -323,6 +327,7 @@ export function EmailListViewer({
                           donorId={email.donorId}
                           sessionId={sessionId}
                           showSendButton={showSendButton}
+                          showEditButton={showEditButton}
                         />
                       </ScrollArea>
                     </TabsContent>

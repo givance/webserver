@@ -25,6 +25,7 @@ interface EmailDisplayProps {
   donorId?: number;
   sessionId?: number;
   showSendButton?: boolean; // Control whether to show the send button
+  showEditButton?: boolean; // Control whether to show the edit button
 }
 
 interface ReferencesDisplayProps {
@@ -77,6 +78,7 @@ export function EmailDisplay({
   donorId,
   sessionId,
   showSendButton = true,
+  showEditButton = true,
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { getEmailStatus } = useCommunications();
@@ -95,7 +97,7 @@ export function EmailDisplay({
               </CardTitle>
               <div className="text-sm font-medium mt-2">Subject: {subject}</div>
             </div>
-            {emailId && !emailStatus?.isSent && (
+            {emailId && !emailStatus?.isSent && showEditButton && (
               <Button
                 variant="outline"
                 size="sm"
