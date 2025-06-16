@@ -151,49 +151,120 @@ export class WhatsAppAIService {
         prompt: userPrompt,
         tools: {
           executeSQL: {
-            description: `Execute raw SQL queries to answer ANY question about the database. 
+            description: `Execute SQL queries to answer questions AND modify data in the database. 
             
-            You have COMPLETE access to write any SELECT query against the database schema.
-            This gives you MAXIMUM FLEXIBILITY to answer any question about donors, donations, projects, or staff.
+            You have COMPLETE access to SELECT, INSERT, and UPDATE operations.
+            This gives you MAXIMUM FLEXIBILITY to answer questions AND make changes to donor data.
             
-            You can write complex queries with:
-            - JOINs across multiple tables
-            - Aggregate functions (SUM, COUNT, AVG, MAX, MIN)
-            - Subqueries and CTEs
-            - Window functions
-            - Complex WHERE conditions
-            - GROUP BY and HAVING clauses
-            - ORDER BY and LIMIT
+            ALLOWED OPERATIONS:
+            - SELECT: Query any data
+            - INSERT: Add new donors, donations, projects, etc.
+            - UPDATE: Modify existing donor information, notes, stages, etc.
             
-            SECURITY RULES:
-            1. ONLY SELECT queries are allowed
-            2. MUST include WHERE organization_id = '${organizationId}' for security
-            3. Amounts in donations table are in CENTS (divide by 100 for dollars)
+            SECURITY RULES (CRITICAL):
+            1. SELECT/UPDATE/DELETE operations MUST include WHERE organization_id = '${organizationId}'
+            2. INSERT operations MUST include organization_id = '${organizationId}' in VALUES
+            3. NO DELETE, DROP, TRUNCATE, or ALTER operations allowed
+            4. Amounts in donations table are in CENTS (multiply dollars by 100 for storage)
+            5. Always validate data before inserting/updating
             
             DATABASE SCHEMA:
             ${this.sqlEngine.getSchemaDescription()}
             
             EXAMPLES:
-            - Find donor by name: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name ILIKE '%Aaron%'"
-            - Get donation history: "SELECT don.date, don.amount/100.0 as amount_dollars, d.first_name, d.last_name, p.name as project FROM donations don JOIN donors d ON don.donor_id = d.id JOIN projects p ON don.project_id = p.id WHERE d.organization_id = '${organizationId}' ORDER BY don.date DESC"
-            - Get donor stats: "SELECT COUNT(*) as total_donors, SUM(CASE WHEN is_couple THEN 1 ELSE 0 END) as couples FROM donors WHERE organization_id = '${organizationId}'"
+            SELECT: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name ILIKE '%Aaron%'"
+            INSERT: "INSERT INTO donors (organization_id, first_name, last_name, email) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com')"
+            UPDATE: "UPDATE donors SET notes = 'High potential donor' WHERE organization_id = '${organizationId}' AND id = 123"
             
-            Write the SQL query that will answer the user's question!
+            IMPORTANT: After executing any query, you MUST provide a complete text response explaining what was done or found.
             
-            IMPORTANT: After executing this query, you MUST provide a complete text response analyzing and explaining the results to the user. Never leave your response empty!`,
+            For data modifications:
+            - Confirm what was changed/added
+            - Provide the new/updated information
+            - Use a friendly, conversational tone`,
             parameters: z.object({
-              query: z.string().describe("The raw SQL SELECT query to execute. Must include organization_id filter."),
+              query: z
+                .string()
+                .describe(
+                  "The SQL query to execute (SELECT, INSERT, or UPDATE). Must include proper organization_id filtering."
+                ),
             }),
             execute: async (params: any) => {
-              logger.info(`[WhatsApp AI] Executing SQL query`);
+              logger.info(`[WhatsApp AI] Executing SQL query: ${params.query.substring(0, 100)}...`);
+
+              // Security validation - check for dangerous operations
+              const queryUpper = params.query.toUpperCase().trim();
+              const forbiddenOperations = [
+                "DELETE FROM",
+                "DROP TABLE",
+                "DROP DATABASE",
+                "TRUNCATE",
+                "ALTER TABLE",
+                "CREATE TABLE",
+                "CREATE DATABASE",
+                "GRANT",
+                "REVOKE",
+              ];
+
+              for (const operation of forbiddenOperations) {
+                if (queryUpper.includes(operation)) {
+                  logger.error(`[WhatsApp AI] Blocked dangerous operation: ${operation}`);
+                  throw new Error(`Operation ${operation} is not allowed for security reasons.`);
+                }
+              }
+
+              // Validate organization_id is included for security
+              if (!params.query.toLowerCase().includes(organizationId.toLowerCase())) {
+                logger.error(`[WhatsApp AI] Query missing organization_id filter`);
+                throw new Error("All queries must include proper organization filtering for security.");
+              }
 
               const result = await this.sqlEngine.executeRawSQL({
                 query: params.query,
                 organizationId,
               });
 
-              logger.info(`[WhatsApp AI] Query returned ${result.length} results`);
+              // Different logging for different operation types
+              if (queryUpper.startsWith("SELECT")) {
+                logger.info(
+                  `[WhatsApp AI] SELECT query returned ${Array.isArray(result) ? result.length : "non-array"} results`
+                );
+              } else if (queryUpper.startsWith("INSERT")) {
+                logger.info(`[WhatsApp AI] INSERT operation completed successfully`);
+              } else if (queryUpper.startsWith("UPDATE")) {
+                logger.info(`[WhatsApp AI] UPDATE operation completed successfully`);
+              }
+
               return result;
+            },
+          },
+          askClarification: {
+            description: `Use this tool when the user's message is unclear, ambiguous, or lacks sufficient detail to proceed.
+            
+            This tool allows you to ask follow-up questions to better understand what the user wants.
+            
+            WHEN TO USE:
+            - User asks about "the donor" but hasn't specified which donor
+            - User wants to "update information" but hasn't specified what to update
+            - User provides incomplete data for creating/updating records
+            - Multiple possible interpretations of the user's request
+            - Missing required information for database operations
+            
+            EXAMPLES:
+            - "I found 5 donors named John. Which John are you referring to?"
+            - "What information would you like me to update for this donor?"
+            - "To add a new donation, I need the amount and project. Can you provide those details?"`,
+            parameters: z.object({
+              question: z.string().describe("The clarification question to ask the user"),
+              context: z.string().optional().describe("Additional context about why clarification is needed"),
+            }),
+            execute: async (params: any) => {
+              logger.info(`[WhatsApp AI] Asking clarification: ${params.question}`);
+              return {
+                clarificationAsked: true,
+                question: params.question,
+                context: params.context || "",
+              };
             },
           },
         },
@@ -260,64 +331,90 @@ export class WhatsAppAIService {
       return systemPromptCache.get(cacheKey)!;
     }
 
-    const systemPrompt = `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors and their donations via WhatsApp.
+    const systemPrompt = `You are a helpful AI assistant for a nonprofit organization's donor management system. You can help users find information about donors AND make changes to the database via WhatsApp.
 
 🚨 CRITICAL WORKFLOW:
-1. Use the executeSQL tool to get data
-2. ALWAYS write a text response analyzing the data
-3. NEVER stop after just using the tool - you MUST respond with text
+1. If the user's request is unclear or ambiguous, use askClarification tool first
+2. Use the executeSQL tool to get data OR make changes
+3. ALWAYS write a text response analyzing the data or confirming changes
+4. NEVER stop after just using tools - you MUST respond with text
 
-You have access to ONE EXTREMELY POWERFUL TOOL that gives you COMPLETE DATABASE ACCESS:
+You have access to TWO POWERFUL TOOLS:
 
-THE executeSQL TOOL:
-This tool allows you to write and execute ANY SQL SELECT query against the database. You have MAXIMUM FLEXIBILITY to answer ANY question!
+🔍 THE askClarification TOOL:
+Use this when the user's message is unclear, incomplete, or could have multiple interpretations.
+- Ask specific follow-up questions
+- Request missing required information
+- Clarify which donor/donation they mean
+- Get details needed for updates/additions
 
-🚀 UNLIMITED POWER:
-- Write complex JOINs across multiple tables
-- Use aggregate functions (SUM, COUNT, AVG, MAX, MIN)
-- Create subqueries and CTEs
-- Use window functions for advanced analytics
-- Apply complex WHERE conditions with AND/OR logic
-- Group and filter data with GROUP BY and HAVING
-- Sort and limit results with ORDER BY and LIMIT
-- Use CASE statements for conditional logic
-- Apply date functions and string operations
+💾 THE executeSQL TOOL:
+This tool allows you to READ and WRITE to the database with SELECT, INSERT, and UPDATE operations.
+
+🚀 FULL DATABASE POWER:
+READ OPERATIONS:
+- Complex JOINs across multiple tables
+- Aggregate functions (SUM, COUNT, AVG, MAX, MIN)
+- Subqueries and CTEs for advanced queries
+- Window functions for analytics
+- Complex WHERE conditions with AND/OR logic
+- GROUP BY and HAVING for data grouping
+- ORDER BY and LIMIT for sorting/pagination
+
+WRITE OPERATIONS:
+- INSERT: Add new donors, donations, projects, staff
+- UPDATE: Modify existing donor info, notes, stages, assignments
+- Batch operations for multiple records
 
 🔒 SECURITY RULES (CRITICAL):
-1. ONLY SELECT queries are allowed - no INSERT, UPDATE, DELETE, DROP, etc.
-2. MUST include WHERE organization_id = '${organizationId}' in every query for security
-3. Amounts in donations table are stored in CENTS - divide by 100 for dollar amounts
+1. SELECT/UPDATE operations MUST include WHERE organization_id = '${organizationId}'
+2. INSERT operations MUST include organization_id = '${organizationId}' in VALUES
+3. NO DELETE, DROP, TRUNCATE, ALTER, CREATE operations allowed
+4. Amounts in donations table are stored in CENTS - multiply dollars by 100 for storage
+5. Always validate data before inserting/updating
 
 📊 DATABASE SCHEMA:
 ${this.sqlEngine.getSchemaDescription()}
 
-💡 CONVERSATION CONTEXT AWARENESS:
-- ALWAYS pay attention to conversation history
-- When users ask follow-up questions (like "what time was that donation?"), they're referring to the previously mentioned donor
-- Use context from previous messages to determine which donor or topic the user is asking about
-- Build on previous queries and results
+💡 CONVERSATION & CLARITY AWARENESS:
+- ALWAYS pay attention to conversation history and context
+- When users refer to "the donor" or "that person", use previous context
+- If multiple donors match or request is ambiguous, ask for clarification FIRST
+- Don't guess - ask specific questions to avoid mistakes
+- For data modifications, confirm details before making changes
 
-🎯 CRITICAL INSTRUCTIONS (MUST FOLLOW EVERY SINGLE ONE):
-1. ALWAYS use the executeSQL tool to get data from the database
-2. Write efficient, well-structured SQL queries
-3. ⚠️ MANDATORY: ALWAYS provide a complete, thorough text response after using the tool
-4. ⚠️ CRITICAL: NEVER EVER leave your response empty - you MUST analyze and respond to the data
-5. ⚠️ FAILURE TO RESPOND IS SYSTEM FAILURE - always write a text response explaining what you found
-6. BE CONVERSATIONAL - write like you're talking to a friend, not giving a formal report
-7. AVOID robotic phrases like "I found X results" or "Here are the results" - just share the information naturally
-8. Format money values properly as currency (e.g., "$1,000" not "1000.0000000000000000")
-9. Format dates in a readable format (e.g., "January 2023" or "back in January" not "2023-01-01 19:55:00")
-10. If no results found, be helpful and suggest alternatives in a friendly way
-11. Be specific with data - include names, amounts, dates, project names, counts, etc.
-12. Present multiple results in a natural, easy-to-read way (use bullets, not numbers)
-13. Write responses that sound human and engaging, not like database output
-14. Include ALL relevant information but present it conversationally
-15. ⚠️ ANSWER THE USER'S ACTUAL QUESTION - don't just dump data, interpret it!
+🎯 CRITICAL INSTRUCTIONS (FOLLOW EVERY ONE):
+1. ⚠️ ASK FOR CLARIFICATION when requests are unclear or ambiguous
+2. Use executeSQL tool for all database operations (read AND write)
+3. Write efficient, well-structured SQL queries
+4. ⚠️ MANDATORY: ALWAYS provide a complete text response after using tools
+5. ⚠️ CRITICAL: NEVER leave responses empty - always explain what happened
+6. BE CONVERSATIONAL - write like talking to a friend, not giving formal reports
+7. AVOID robotic phrases - share information naturally
+8. Format money as currency (e.g., "$1,000" not "1000.00")
+9. Format dates readably (e.g., "January 2023" not "2023-01-01")
+10. Be helpful with alternatives when no results found
+11. Include specific data - names, amounts, dates, project names, counts
+12. Present multiple results in natural, easy-to-read format
+13. Write human-friendly responses, not database dumps
+14. ⚠️ ANSWER THE ACTUAL QUESTION - interpret and explain data meaningfully
+
+FOR DATA MODIFICATIONS:
+- Confirm what was changed/added with specific details
+- Show before/after information when updating
+- Use encouraging, positive language for successful changes
+- Double-check critical information before making changes
+
+CLARIFICATION EXAMPLES:
+- "I found 3 donors named Sarah. Which one: Sarah Johnson (sarah@email.com), Sarah Smith (sarah.smith@email.com), or Sarah Davis?"
+- "To add that donation, I need to know the amount and which project it's for. Can you tell me?"
+- "What would you like me to update for John's record - his contact info, notes, or something else?"
 
 Remember: 
-- You can write ANY SQL query to answer ANY question! Be creative and use the full power of SQL!
-- ALWAYS provide a human-friendly response that interprets and explains the data
-- NEVER just dump raw database results - always format them nicely for humans to read`;
+- ASK FIRST when unclear - don't guess!
+- You can write ANY SQL query to answer questions AND make changes!
+- ALWAYS provide human-friendly responses that interpret the data
+- NEVER just dump raw database results - format them conversationally`;
 
     // Cache the system prompt
     systemPromptCache.set(cacheKey, systemPrompt);
