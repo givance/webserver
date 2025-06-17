@@ -24,8 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 import { Column, ColumnDef, Row } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal, Star, Trash2 } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, Star, Trash2, Edit, Save, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -56,7 +57,80 @@ export type Donor = DonorNameFields & {
   assignedToStaffId: string | null;
   highPotentialDonor: boolean; // NEW: High potential donor flag from research
   highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
+  notes?: string | null; // Notes about the donor
 };
+
+// NotesEditCell component for inline notes editing
+function NotesEditCell({ donor }: { donor: Donor }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [notesValue, setNotesValue] = useState(donor.notes || "");
+  const { updateDonor } = useDonors();
+
+  const handleStartEdit = () => {
+    setNotesValue(donor.notes || "");
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setNotesValue(donor.notes || "");
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateDonor({
+        id: parseInt(donor.id),
+        notes: notesValue.trim() || undefined,
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update notes:", error);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="w-full max-w-[300px]">
+        <Textarea
+          value={notesValue}
+          onChange={(e) => setNotesValue(e.target.value)}
+          placeholder="Add notes..."
+          className="min-h-[60px] text-sm"
+          autoFocus
+        />
+        <div className="flex gap-1 mt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSave}
+            className="h-6 px-2 text-green-600 hover:text-green-700"
+          >
+            <Save className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            className="h-6 px-2 text-red-600 hover:text-red-700"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[300px] group cursor-pointer" onClick={handleStartEdit}>
+      <div className="flex items-start justify-between">
+        <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
+          {donor.notes || "Click to add notes..."}
+        </p>
+        <Edit className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-2 mt-0.5 flex-shrink-0" />
+      </div>
+    </div>
+  );
+}
 
 // DeleteDonorDialog component to handle delete with confirmation dialog
 function DeleteDonorDialog({ donorId }: { donorId: string }) {
@@ -157,6 +231,11 @@ export const getColumns = (
   {
     accessorKey: "phone",
     header: "Phone",
+  },
+  {
+    accessorKey: "notes",
+    header: "Notes",
+    cell: ({ row }: { row: Row<Donor> }) => <NotesEditCell donor={row.original} />,
   },
   {
     accessorKey: "totalDonated",

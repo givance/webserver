@@ -11,11 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ColumnDef } from "@tanstack/react-table";
-import { Activity, ArrowLeft, Calendar, DollarSign, Mail, MessageSquare, Phone, Search } from "lucide-react";
+import { Activity, ArrowLeft, Calendar, DollarSign, Mail, MessageSquare, Phone, Search, Edit, Save, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DonorResearchDisplay } from "@/components/research/DonorResearchDisplay";
 import { useDonorResearchData } from "@/app/hooks/use-donor-research";
 
@@ -43,9 +44,13 @@ export default function DonorProfilePage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  
+  // Notes editing state
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState("");
 
   // Fetch donor data
-  const { getDonorQuery } = useDonors();
+  const { getDonorQuery, updateDonor } = useDonors();
   const { data: donor, isLoading: isDonorLoading, error: donorError } = getDonorQuery(donorId);
 
   // Fetch donor donations
@@ -71,6 +76,37 @@ export default function DonorProfilePage() {
 
   // Fetch donor research data
   const { hasResearch, conductResearch, isConductingResearch } = useDonorResearchData(donorId);
+
+  // Initialize notes value when donor loads
+  useEffect(() => {
+    if (donor?.notes) {
+      setNotesValue(donor.notes);
+    }
+  }, [donor?.notes]);
+
+  // Handle notes editing
+  const handleStartEditingNotes = () => {
+    setNotesValue(donor?.notes || "");
+    setIsEditingNotes(true);
+  };
+
+  const handleCancelEditingNotes = () => {
+    setNotesValue(donor?.notes || "");
+    setIsEditingNotes(false);
+  };
+
+  const handleSaveNotes = async () => {
+    try {
+      await updateDonor({
+        id: donorId,
+        notes: notesValue.trim() || undefined,
+      });
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error("Failed to update notes:", error);
+      // TODO: Add toast notification for error
+    }
+  };
 
   // Process donations data
   const { donations, totalDonated, donationCount } = useMemo(() => {
@@ -328,12 +364,53 @@ export default function DonorProfilePage() {
               </div>
             )}
           </div>
-          {donor.notes && (
-            <div className="mt-4">
-              <h4 className="font-medium mb-2">Notes</h4>
-              <p className="text-muted-foreground">{donor.notes}</p>
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium">Notes</h4>
+              {!isEditingNotes ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleStartEditingNotes}
+                  className="h-8 px-2"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSaveNotes}
+                    className="h-8 px-2 text-green-600 hover:text-green-700"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEditingNotes}
+                    className="h-8 px-2 text-red-600 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+            {isEditingNotes ? (
+              <Textarea
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                placeholder="Add notes about this donor..."
+                className="min-h-[100px]"
+                autoFocus
+              />
+            ) : (
+              <p className="text-muted-foreground min-h-[24px]">
+                {donor.notes || "No notes added yet."}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
