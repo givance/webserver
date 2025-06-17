@@ -2,7 +2,7 @@
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { WriteInstructionStep } from "@/app/(app)/campaign/steps/WriteInstructionStep";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ export default function DonorEmailPage() {
   const donorId = params.id as string;
   const [instruction, setInstruction] = useState("");
   const [autoDraft, setAutoDraft] = useState(searchParams.get("autoDraft") === "true");
-  const writeInstructionRef = useRef<{ click: () => Promise<void> }>(null);
+  const [shouldAutoGenerate, setShouldAutoGenerate] = useState(false);
 
   const { getDonorQuery } = useDonors();
   const { getOrganization } = useOrganization();
@@ -66,11 +66,7 @@ export default function DonorEmailPage() {
     if (emailAction?.instruction && organization) {
       setInstruction(emailAction.instruction);
       if (autoDraft) {
-        // We need to wait for the instruction to be set in state before submitting
-        const timer = setTimeout(() => {
-          writeInstructionRef.current?.click();
-        }, 100);
-        return () => clearTimeout(timer);
+        setShouldAutoGenerate(true);
       }
     }
   }, [emailAction, autoDraft, organization]);
@@ -109,7 +105,6 @@ export default function DonorEmailPage() {
 
       <div className="container mx-auto max-w-7xl px-4 py-8">
         <WriteInstructionStep
-          ref={writeInstructionRef}
           instruction={instruction}
           onInstructionChange={setInstruction}
           onBack={() => router.push(`/donors/${donorId}`)}

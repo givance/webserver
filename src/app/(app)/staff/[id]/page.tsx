@@ -799,7 +799,7 @@ export default function StaffDetailPage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp phone numbers configured.</p>
-                    <p className="text-sm">Click "Add Phone Number" to get started.</p>
+                    <p className="text-sm">Click &quot;Add Phone Number&quot; to get started.</p>
                   </div>
                 )}
               </CardContent>
