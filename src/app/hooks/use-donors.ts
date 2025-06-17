@@ -119,6 +119,7 @@ export function useDonors() {
   const updateMutation = trpc.donors.update.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
       toast.success("Donor updated successfully");
     },
     onError: (error) => {
@@ -129,6 +130,7 @@ export function useDonors() {
   const deleteMutation = trpc.donors.delete.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
       toast.success("Donor deleted successfully");
     },
     onError: (error) => {
@@ -150,6 +152,7 @@ export function useDonors() {
         );
       }
       utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
       logger.info("Invalidating queries with root key ['donors'] to refetch donor data.");
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
@@ -167,6 +170,7 @@ export function useDonors() {
     onSuccess: (data, variables) => {
       toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
       utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
       logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
