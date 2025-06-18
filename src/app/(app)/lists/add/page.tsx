@@ -324,18 +324,22 @@ export default function AddListPage() {
                   </div>
                 )}
 
-                {/* Toggle donor selection */}
-                <div className="flex items-center space-x-2 pt-4 border-t">
-                  <Switch
-                    id="showDonorSelection"
-                    checked={showDonorSelection}
-                    onCheckedChange={setShowDonorSelection}
-                  />
-                  <Label htmlFor="showDonorSelection">Add donors now</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {showDonorSelection ? "Select donors to add to this list" : "Create empty list (add donors later)"}
-                  </p>
-                </div>
+                {/* Toggle donor selection - only show for 'none' method */}
+                {donorMethod === "none" && (
+                  <div className="flex items-center space-x-2 pt-4 border-t">
+                    <Switch
+                      id="showDonorSelection"
+                      checked={showDonorSelection}
+                      onCheckedChange={setShowDonorSelection}
+                    />
+                    <Label htmlFor="showDonorSelection">Add donors now</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {showDonorSelection
+                        ? "Select donors to add to this list"
+                        : "Create empty list (add donors later)"}
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex justify-end space-x-4">
                   <Button type="button" variant="outline" onClick={() => router.push("/lists")}>

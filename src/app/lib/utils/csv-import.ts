@@ -21,7 +21,7 @@ interface AccountRecord {
   ADR_Zip?: string;
   ADR_ZipFour?: string;
   ADR_Country?: string;
-  Email?: string;
+  Email: string;
   Tel1?: string;
   Tel2?: string;
   Tel3?: string;
@@ -498,24 +498,13 @@ export async function processCSVFiles(params: {
     // Get default project for donations
     const defaultProjectId = await getDefaultProject(params.organizationId);
 
-    // Get existing donors to check for duplicates
-    const existingDonors = await db
-      .select({ id: donors.id, externalId: donors.externalId, email: donors.email })
-      .from(donors)
-      .where(eq(donors.organizationId, params.organizationId));
-
-    const existingDonorsByExternalId = new Map(existingDonors.map((d) => [d.externalId, d]));
-    const existingDonorsByEmail = new Map(existingDonors.filter((d) => d.email).map((d) => [d.email, d]));
-
-    logger.info(`Found ${existingDonors.length} existing donors in organization`);
-
-    // Prepare donors for batch processing
+    // Prepare donors for batch processing (no duplicate checking, just like optimized script)
     const donorsToInsert: any[] = [];
-    const donorsToUpdate: { id: number; data: any }[] = [];
     const donorMap = new Map<string, number>(); // ACT_ID -> donor.id
-    const processedEmails = new Set<string>(); // Track emails to avoid duplicates
-    const processedExternalIds = new Set<string>(); // Track external IDs to avoid duplicates
+    let successfulDonors = 0;
+    let failedDonors = 0;
 
+    // Prepare all donor data first
     for (const accountRecord of accountRecords) {
       result.donorsProcessed++;
 
@@ -531,141 +520,58 @@ export async function processCSVFiles(params: {
           continue;
         }
 
-        // Check for duplicate ACT_ID
-        if (processedExternalIds.has(accountRecord.ACT_ID)) {
-          logger.info(`Skipping duplicate ACT_ID: ${accountRecord.ACT_ID}`);
-          result.donorsSkipped++;
-          continue;
-        }
-        processedExternalIds.add(accountRecord.ACT_ID);
-
-        // Check for duplicate email (if email exists)
-        const email = accountRecord.Email?.trim() || "";
-        if (email && processedEmails.has(email.toLowerCase())) {
-          logger.info(`Skipping duplicate email: ${email} for account ${accountRecord.ACT_ID}`);
-          result.donorsSkipped++;
-          continue;
-        }
-        if (email) {
-          processedEmails.add(email.toLowerCase());
-        }
-
         // Extract name information
         const nameInfo = extractStructuredNames(accountRecord);
         const address = buildAddress(accountRecord);
         const phone = getPhoneNumber(accountRecord);
 
-        logger.info(`Processing account ${accountRecord.ACT_ID}: ${nameInfo.displayName} (${email || "no email"})`);
+        // Prepare new donor for batch insert (following optimized script exactly)
+        const donorData = {
+          organizationId: params.organizationId,
+          externalId: accountRecord.ACT_ID,
+          email: accountRecord.Email || "",
+          firstName: nameInfo.firstName,
+          lastName: nameInfo.lastName,
+          hisTitle: nameInfo.hisTitle || null,
+          hisFirstName: nameInfo.hisFirstName || null,
+          hisInitial: nameInfo.hisInitial || null,
+          hisLastName: nameInfo.hisLastName || null,
+          herTitle: nameInfo.herTitle || null,
+          herFirstName: nameInfo.herFirstName || null,
+          herInitial: nameInfo.herInitial || null,
+          herLastName: nameInfo.herLastName || null,
+          displayName: nameInfo.displayName,
+          isCouple: nameInfo.isCouple,
+          phone: phone || null,
+          address: address || null,
+          state: accountRecord.ADR_State || null,
+        };
 
-        // Check if donor already exists by external ID or email
-        let existingDonor = existingDonorsByExternalId.get(accountRecord.ACT_ID);
-        if (!existingDonor && email) {
-          existingDonor = existingDonorsByEmail.get(email);
-        }
-
-        if (existingDonor) {
-          logger.info(`Found existing donor for ${accountRecord.ACT_ID}, checking for updates`);
-
-          // Check if any significant fields have changed
-          const hasChanges = true; // For now, always update to ensure latest data
-
-          if (hasChanges) {
-            donorsToUpdate.push({
-              id: existingDonor.id,
-              data: {
-                email: email,
-                firstName: nameInfo.firstName,
-                lastName: nameInfo.lastName,
-                hisTitle: nameInfo.hisTitle,
-                hisFirstName: nameInfo.hisFirstName,
-                hisInitial: nameInfo.hisInitial,
-                hisLastName: nameInfo.hisLastName,
-                herTitle: nameInfo.herTitle,
-                herFirstName: nameInfo.herFirstName,
-                herInitial: nameInfo.herInitial,
-                herLastName: nameInfo.herLastName,
-                displayName: nameInfo.displayName,
-                isCouple: nameInfo.isCouple,
-                phone,
-                address,
-                state: accountRecord.ADR_State || "",
-                updatedAt: new Date(),
-              },
-            });
-            result.donorsUpdated++;
-          } else {
-            result.donorsSkipped++;
-          }
-
-          donorMap.set(accountRecord.ACT_ID, existingDonor.id);
-        } else {
-          logger.info(`Preparing new donor for ${accountRecord.ACT_ID}: ${nameInfo.displayName}`);
-
-          // Prepare new donor for batch insert
-          donorsToInsert.push({
-            organizationId: params.organizationId,
-            externalId: accountRecord.ACT_ID,
-            email: email,
-            firstName: nameInfo.firstName,
-            lastName: nameInfo.lastName,
-            hisTitle: nameInfo.hisTitle,
-            hisFirstName: nameInfo.hisFirstName,
-            hisInitial: nameInfo.hisInitial,
-            hisLastName: nameInfo.hisLastName,
-            herTitle: nameInfo.herTitle,
-            herFirstName: nameInfo.herFirstName,
-            herInitial: nameInfo.herInitial,
-            herLastName: nameInfo.herLastName,
-            displayName: nameInfo.displayName,
-            isCouple: nameInfo.isCouple,
-            phone,
-            address,
-            state: accountRecord.ADR_State || "",
-            // Store ACT_ID temporarily to map back after insert
-            _tempActId: accountRecord.ACT_ID,
-          });
-          result.donorsCreated++;
-        }
+        donorsToInsert.push(donorData);
+        successfulDonors++;
       } catch (error) {
-        logger.error(
-          `Error processing account ${accountRecord.ACT_ID}: ${error instanceof Error ? error.message : String(error)}`
-        );
-        result.errors.push(
-          `Error processing account ${accountRecord.ACT_ID}: ${error instanceof Error ? error.message : String(error)}`
-        );
-        result.donorsSkipped++;
+        logger.error(`Error preparing donor ACT_ID ${accountRecord.ACT_ID}: ${error}`);
+        failedDonors++;
       }
     }
 
-    // Batch insert new donors
+    // Insert donors in batch (exactly like optimized script)
     if (donorsToInsert.length > 0) {
-      logger.info(`Batch inserting ${donorsToInsert.length} new donors`);
+      logger.info(`Inserting ${donorsToInsert.length} donors in batch...`);
+      const insertedDonors = await db.insert(donors).values(donorsToInsert).returning();
 
-      // Remove temporary field before insert
-      const cleanDonorsToInsert = donorsToInsert.map(({ _tempActId, ...donor }) => donor);
-      const insertedDonors = await db.insert(donors).values(cleanDonorsToInsert).returning();
-
-      // Map ACT_IDs to new donor IDs
+      // Create donor mapping (assumes same order)
       for (let i = 0; i < insertedDonors.length; i++) {
-        const actId = donorsToInsert[i]._tempActId;
-        donorMap.set(actId, insertedDonors[i].id);
-        logger.info(`Created donor ${actId} with ID ${insertedDonors[i].id}`);
+        const donor = insertedDonors[i];
+        const account = accountRecords[i]; // Assuming same order
+        donorMap.set(account.ACT_ID, donor.id);
       }
-    }
 
-    // Batch update existing donors
-    if (donorsToUpdate.length > 0) {
-      logger.info(`Batch updating ${donorsToUpdate.length} existing donors`);
-
-      // Update in batches of 100 to avoid query size limits
-      const batchSize = 100;
-      for (let i = 0; i < donorsToUpdate.length; i += batchSize) {
-        const batch = donorsToUpdate.slice(i, i + batchSize);
-
-        for (const update of batch) {
-          await db.update(donors).set(update.data).where(eq(donors.id, update.id));
-        }
+      logger.info(`✅ Successfully imported ${successfulDonors} donors`);
+      if (failedDonors > 0) {
+        logger.info(`⚠️ Failed to prepare ${failedDonors} donors`);
       }
+      result.donorsCreated = successfulDonors;
     }
 
     // Add all donors to the list (both new and existing)
