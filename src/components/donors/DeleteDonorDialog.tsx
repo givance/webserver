@@ -25,7 +25,7 @@ interface DeleteDonorDialogProps {
   onSuccess?: () => void;
 }
 
-type DeleteMode = 'fromList' | 'fromAllLists' | 'entirely';
+type DeleteMode = "fromList" | "fromAllLists" | "entirely";
 
 export function DeleteDonorDialog({
   open,
@@ -36,9 +36,9 @@ export function DeleteDonorDialog({
   listName,
   onSuccess,
 }: DeleteDonorDialogProps) {
-  const [deleteMode, setDeleteMode] = useState<DeleteMode>('fromList');
+  const [deleteMode, setDeleteMode] = useState<DeleteMode>("fromList");
   const { deleteDonor, isDeleting, getDonorListCount } = useDonors();
-  
+
   // Get the count of lists this donor belongs to
   const { data: listCountData } = getDonorListCount(donorId);
   const listCount = listCountData?.count || 0;
@@ -48,9 +48,9 @@ export function DeleteDonorDialog({
     if (open) {
       // If donor is only in one list or we're not in a list context, default to delete entirely
       if (!listId || listCount <= 1) {
-        setDeleteMode('entirely');
+        setDeleteMode("entirely");
       } else {
-        setDeleteMode('fromList');
+        setDeleteMode("fromList");
       }
     }
   }, [open, listId, listCount]);
@@ -58,7 +58,7 @@ export function DeleteDonorDialog({
   const handleDelete = async () => {
     const success = await deleteDonor(donorId, {
       deleteMode,
-      listId: deleteMode === 'fromList' ? listId : undefined,
+      listId: deleteMode === "fromList" ? listId : undefined,
     });
 
     if (success) {
@@ -86,11 +86,7 @@ export function DeleteDonorDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete} 
-              disabled={isDeleting}
-            >
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? "Deleting..." : "Delete Donor"}
             </Button>
           </DialogFooter>
@@ -106,10 +102,10 @@ export function DeleteDonorDialog({
         <DialogHeader>
           <DialogTitle>Remove or Delete Donor</DialogTitle>
           <DialogDescription>
-            {donorName} is in {listCount} list{listCount !== 1 ? 's' : ''}. Choose how you want to proceed:
+            {donorName} is in {listCount} list{listCount !== 1 ? "s" : ""}. Choose how you want to proceed:
           </DialogDescription>
         </DialogHeader>
-        
+
         <RadioGroup value={deleteMode} onValueChange={(value) => setDeleteMode(value as DeleteMode)}>
           <div className="space-y-3">
             {listName && (
@@ -117,15 +113,16 @@ export function DeleteDonorDialog({
                 <RadioGroupItem value="fromList" id="fromList" className="mt-1" />
                 <div className="grid gap-1.5 leading-none">
                   <Label htmlFor="fromList" className="font-medium cursor-pointer">
-                    Remove from "{listName}" only
+                    Remove from &quot;{listName}&quot; only
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    The donor will remain in {listCount - 1} other list{listCount - 1 !== 1 ? 's' : ''} and their data will be preserved.
+                    The donor will remain in {listCount - 1} other list{listCount - 1 !== 1 ? "s" : ""} and their data
+                    will be preserved.
                   </p>
                 </div>
               </div>
             )}
-            
+
             <div className="flex items-start space-x-2 rounded-md border p-3">
               <RadioGroupItem value="fromAllLists" id="fromAllLists" className="mt-1" />
               <div className="grid gap-1.5 leading-none">
@@ -137,7 +134,7 @@ export function DeleteDonorDialog({
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-2 rounded-md border border-destructive/50 p-3">
               <RadioGroupItem value="entirely" id="entirely" className="mt-1" />
               <div className="grid gap-1.5 leading-none">
@@ -156,15 +153,18 @@ export function DeleteDonorDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button 
-            variant={deleteMode === 'entirely' ? 'destructive' : 'default'}
-            onClick={handleDelete} 
+          <Button
+            variant={deleteMode === "entirely" ? "destructive" : "default"}
+            onClick={handleDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Processing..." : 
-             deleteMode === 'fromList' ? 'Remove from List' :
-             deleteMode === 'fromAllLists' ? 'Remove from All Lists' :
-             'Delete Donor'}
+            {isDeleting
+              ? "Processing..."
+              : deleteMode === "fromList"
+              ? "Remove from List"
+              : deleteMode === "fromAllLists"
+              ? "Remove from All Lists"
+              : "Delete Donor"}
           </Button>
         </DialogFooter>
       </DialogContent>

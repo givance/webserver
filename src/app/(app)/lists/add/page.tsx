@@ -258,17 +258,17 @@ export default function AddListPage() {
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       console.log(`Reading file: ${file.name}, size: ${file.size} bytes`);
-      
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
         console.log(`FileReader result length: ${result.length}`);
-        
+
         // Remove the data:application/... prefix to get just the base64 content
         const base64Content = result.split(",")[1];
         console.log(`Base64 content length: ${base64Content.length}`);
-        
+
         resolve(base64Content);
       };
       reader.onerror = (error) => reject(error);
@@ -328,7 +328,7 @@ export default function AddListPage() {
       if (!newList) {
         throw new Error("Failed to create list");
       }
-      
+
       // Store the list ID for navigation
       setCreatedListId(newList.id);
 
@@ -340,7 +340,7 @@ export default function AddListPage() {
         donorIdsToAssignStaff = selectedDonorIds;
       } else if (donorMethod === "upload" && accountsFile) {
         setIsProcessingUpload(true);
-        
+
         // Convert files to base64
         const accountsContent = await fileToBase64(accountsFile);
         const pledgesContent = pledgesFile ? await fileToBase64(pledgesFile) : null;
@@ -363,11 +363,11 @@ export default function AddListPage() {
 
         setUploadResult(result);
         setShowImportSummary(true);
-        
+
         // Store the donor count for staff assignment
         if (result && (result.donorsCreated > 0 || result.donorsUpdated > 0)) {
           // Give the database a moment to fully commit the transaction
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
         // For uploaded donors, we need to get the donor IDs from the list
@@ -384,40 +384,42 @@ export default function AddListPage() {
             let donorIds: number[] = [];
             let retryCount = 0;
             const maxRetries = 5;
-            
+
             // Retry logic to handle race condition with longer delays
             while (retryCount < maxRetries) {
               // Wait before attempting (give DB time to commit)
               if (retryCount === 0) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise((resolve) => setTimeout(resolve, 2000));
               } else {
                 // Exponential backoff: 2s, 4s, 6s, 8s
-                await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+                await new Promise((resolve) => setTimeout(resolve, 2000 * retryCount));
               }
-              
+
               try {
                 donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [newList.id] });
-                
+
                 if (donorIds && donorIds.length > 0) {
                   break; // Success, exit loop
                 }
               } catch (fetchError) {
                 console.warn(`Error fetching donor IDs on attempt ${retryCount + 1}:`, fetchError);
               }
-              
+
               retryCount++;
               if (retryCount < maxRetries) {
                 console.log(`Retrying to fetch donor IDs (attempt ${retryCount + 1}/${maxRetries})...`);
               }
             }
-            
+
             if (donorIds && donorIds.length > 0) {
               await bulkUpdateDonorStaff(donorIds, parseInt(selectedStaffId, 10));
               toast.success(
                 `Successfully assigned staff to ${donorIds.length} imported donor${donorIds.length !== 1 ? "s" : ""}!`
               );
             } else {
-              toast.warning("List created successfully, but no donors found to assign staff to. You can assign staff manually from the list details page.");
+              toast.warning(
+                "List created successfully, but no donors found to assign staff to. You can assign staff manually from the list details page."
+              );
             }
           } catch (error) {
             console.error("Error assigning staff to uploaded donors:", error);
@@ -649,8 +651,8 @@ export default function AddListPage() {
                         address), names.
                       </p>
                       <div className="p-2 bg-amber-50 rounded text-sm text-amber-800 border border-amber-200">
-                        <strong>Important:</strong> Only records with valid email addresses will be imported. 
-                        Records without emails will be skipped and reported in the import summary.
+                        <strong>Important:</strong> Only records with valid email addresses will be imported. Records
+                        without emails will be skipped and reported in the import summary.
                       </div>
                     </div>
 
@@ -1072,7 +1074,7 @@ export default function AddListPage() {
                   Import Completed Successfully
                 </CardTitle>
                 <CardDescription>
-                  Review the import summary below. Click the button at the bottom when you're ready to continue.
+                  Review the import summary below. Click the button at the bottom when you&apos;re ready to continue.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1093,12 +1095,13 @@ export default function AddListPage() {
                     <div className="text-sm text-orange-600">Skipped</div>
                   </div>
                 </div>
-                
+
                 {/* List Members Added */}
                 {uploadResult.listMembersAdded > 0 && (
                   <div className="text-center p-3 bg-green-50 rounded-lg">
                     <div className="text-lg font-medium text-green-700">
-                      {uploadResult.listMembersAdded} donor{uploadResult.listMembersAdded !== 1 ? "s" : ""} added to this list
+                      {uploadResult.listMembersAdded} donor{uploadResult.listMembersAdded !== 1 ? "s" : ""} added to
+                      this list
                     </div>
                   </div>
                 )}
@@ -1158,13 +1161,11 @@ export default function AddListPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Navigation Controls */}
                 <div className="mt-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
                   <div className="text-center space-y-3">
-                    <div className="text-lg font-semibold text-green-800">
-                      ✅ Import Completed Successfully!
-                    </div>
+                    <div className="text-lg font-semibold text-green-800">✅ Import Completed Successfully!</div>
                     <div className="text-sm text-green-700">
                       Your list has been created and {uploadResult.listMembersAdded} donors have been added.
                     </div>

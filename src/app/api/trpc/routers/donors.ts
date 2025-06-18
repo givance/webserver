@@ -29,23 +29,25 @@ const donorIdsSchema = z.object({
   ids: z.array(z.number()),
 });
 
-const deleteDonorSchema = z.object({
-  id: z.number(),
-  deleteMode: z.enum(['fromList', 'fromAllLists', 'entirely']).optional(),
-  listId: z.number().optional(),
-}).refine(
-  (data) => {
-    // If deleteMode is 'fromList', listId is required
-    if (data.deleteMode === 'fromList' && !data.listId) {
-      return false;
+const deleteDonorSchema = z
+  .object({
+    id: z.number(),
+    deleteMode: z.enum(["fromList", "fromAllLists", "entirely"]).optional(),
+    listId: z.number().optional(),
+  })
+  .refine(
+    (data) => {
+      // If deleteMode is 'fromList', listId is required
+      if (data.deleteMode === "fromList" && !data.listId) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "List ID is required when deleting from a specific list",
+      path: ["listId"],
     }
-    return true;
-  },
-  {
-    message: "List ID is required when deleting from a specific list",
-    path: ["listId"],
-  }
-);
+  );
 
 const createDonorSchema = z.object({
   externalId: z.string().optional(),
@@ -296,10 +298,15 @@ export const donorsRouter = router({
    */
   delete: protectedProcedure.input(deleteDonorSchema).mutation(async ({ input, ctx }) => {
     try {
-      await deleteDonor(input.id, ctx.auth.user.organizationId, {
-        deleteMode: input.deleteMode,
-        listId: input.listId,
-      });
+      const options =
+        input.deleteMode || input.listId
+          ? {
+              deleteMode: input.deleteMode || "entirely",
+              listId: input.listId,
+            }
+          : undefined;
+
+      await deleteDonor(input.id, ctx.auth.user.organizationId, options);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes("List ID is required")) {
@@ -374,7 +381,7 @@ export const donorsRouter = router({
         message: "Donor not found",
       });
     }
-    
+
     const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
     return { count };
   }),

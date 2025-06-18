@@ -158,7 +158,7 @@ interface ProcessResult {
     skipped: number;
     skipBreakdown: Array<{ reason: string; count: number }>;
   };
-  
+
   // Processing status
   isComplete: boolean;
   listMembersAdded: number;
@@ -169,33 +169,33 @@ interface ProcessResult {
  */
 function parseCSV(content: string): any[] {
   // Handle different line endings (Windows \r\n, Unix \n, Mac \r)
-  const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = normalizedContent.split("\n");
-  
+
   // Remove any BOM (Byte Order Mark) from the first line
-  if (lines.length > 0 && lines[0].charCodeAt(0) === 0xFEFF) {
+  if (lines.length > 0 && lines[0].charCodeAt(0) === 0xfeff) {
     lines[0] = lines[0].substring(1);
   }
-  
+
   if (lines.length === 0) return [];
 
   const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
   const records: any[] = [];
-  let skippedLines = {
+  const skippedLines = {
     empty: 0,
     tooFewColumns: 0,
     lastLineEmpty: false,
   };
 
   // Check if last line is empty (common in CSV files)
-  if (lines.length > 1 && lines[lines.length - 1].trim() === '') {
+  if (lines.length > 1 && lines[lines.length - 1].trim() === "") {
     skippedLines.lastLineEmpty = true;
   }
 
   logger.info(`CSV parsing: Found ${lines.length} total lines (including header)`);
-  logger.info(`First line (header): "${lines[0].substring(0, 100)}${lines[0].length > 100 ? '...' : ''}"`);
+  logger.info(`First line (header): "${lines[0].substring(0, 100)}${lines[0].length > 100 ? "..." : ""}"`);
   if (lines.length > 1) {
-    logger.info(`Second line sample: "${lines[1].substring(0, 100)}${lines[1].length > 100 ? '...' : ''}"`);
+    logger.info(`Second line sample: "${lines[1].substring(0, 100)}${lines[1].length > 100 ? "..." : ""}"`);
   }
 
   for (let i = 1; i < lines.length; i++) {
@@ -209,11 +209,15 @@ function parseCSV(content: string): any[] {
     if (values.length < headers.length) {
       skippedLines.tooFewColumns++;
       if (i <= 5 || i >= lines.length - 5) {
-        logger.debug(`Line ${i + 1}: Skipped - has ${values.length} columns but expected ${headers.length}. Content: "${line.substring(0, 50)}..."`);
+        logger.debug(
+          `Line ${i + 1}: Skipped - has ${values.length} columns but expected ${
+            headers.length
+          }. Content: "${line.substring(0, 50)}..."`
+        );
       }
       continue;
     }
-    
+
     const record: any = {};
     headers.forEach((header, index) => {
       record[header] = values[index] ? values[index].replace(/"/g, "").trim() : "";
@@ -627,7 +631,7 @@ export async function processCSVFiles(params: {
       duplicateEmails: new Map<string, number>(),
       invalidEmails: 0,
     };
-    
+
     accountRecords.forEach((r, index) => {
       const email = r.Email?.trim();
       if (!email) {
@@ -636,19 +640,19 @@ export async function processCSVFiles(params: {
         emailStats.withEmail++;
         const emailLower = email.toLowerCase();
         if (emailStats.uniqueEmails.has(emailLower)) {
-          emailStats.duplicateEmails.set(emailLower, (emailStats.duplicateEmails.get(emailLower) || 2));
+          emailStats.duplicateEmails.set(emailLower, emailStats.duplicateEmails.get(emailLower) || 2);
         } else {
           emailStats.uniqueEmails.add(emailLower);
         }
-        
+
         // Basic email validation
-        if (!email.includes('@') || !email.includes('.')) {
+        if (!email.includes("@") || !email.includes(".")) {
           emailStats.invalidEmails++;
           logger.warn(`Row ${index + 2}: Invalid email format: "${email}"`);
         }
       }
     });
-    
+
     logger.info(`Email analysis:`, {
       totalRows: emailStats.total,
       withEmail: emailStats.withEmail,
@@ -657,12 +661,16 @@ export async function processCSVFiles(params: {
       duplicateEmailCount: emailStats.duplicateEmails.size,
       invalidEmails: emailStats.invalidEmails,
     });
-    
+
     if (emailStats.duplicateEmails.size > 0) {
       const topDuplicates = Array.from(emailStats.duplicateEmails.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
-      logger.info(`Top duplicate emails in CSV: ${topDuplicates.map(([email, count]) => `"${email}" appears ${count} times`).join(", ")}`)
+      logger.info(
+        `Top duplicate emails in CSV: ${topDuplicates
+          .map(([email, count]) => `"${email}" appears ${count} times`)
+          .join(", ")}`
+      );
     }
 
     // Filter out accounts without email addresses upfront
@@ -677,8 +685,8 @@ export async function processCSVFiles(params: {
       const noEmailSample = accountRecords
         .filter((r) => !r.Email || r.Email.trim() === "")
         .slice(0, 5)
-        .map((r) => `ACT_ID: ${r.ACT_ID}, Display: "${r.Display || r.SystemDisplay1 || 'N/A'}"`);
-      
+        .map((r) => `ACT_ID: ${r.ACT_ID}, Display: "${r.Display || r.SystemDisplay1 || "N/A"}"`);
+
       logger.info(`Skipping ${noEmailCount} records without email addresses.`);
       if (noEmailSample.length > 0) {
         logger.info(`Sample of records without emails: ${noEmailSample.join("; ")}`);
@@ -1069,7 +1077,9 @@ Additional Information:
   - Pledges skipped: ${result.pledgesSkipped}
   - Total errors: ${result.errors.length}
 
-Verification: ${result.summary.totalInCSV} total = ${result.summary.imported} imported + ${result.summary.skipped} skipped ✓
+Verification: ${result.summary.totalInCSV} total = ${result.summary.imported} imported + ${
+      result.summary.skipped
+    } skipped ✓
 
 Note: The CSV contained ${result.summary.totalInCSV} total rows. Only records with valid, unique email addresses 
 were processed for import. There is no hardcoded limit on the number of records processed.

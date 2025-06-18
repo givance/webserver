@@ -162,10 +162,10 @@ export async function updateDonor(
  * @param options - Optional deletion mode configuration.
  */
 export async function deleteDonor(
-  id: number, 
+  id: number,
   organizationId: string,
   options?: {
-    deleteMode: 'fromList' | 'fromAllLists' | 'entirely';
+    deleteMode?: "fromList" | "fromAllLists" | "entirely";
     listId?: number;
   }
 ): Promise<void> {
@@ -176,32 +176,25 @@ export async function deleteDonor(
       throw new Error("Donor not found or access denied");
     }
 
-    const deleteMode = options?.deleteMode || 'entirely';
+    const deleteMode = options?.deleteMode || "entirely";
 
-    if (deleteMode === 'fromList') {
+    if (deleteMode === "fromList") {
       // Delete from specific list only
       if (!options?.listId) {
         throw new Error("List ID is required when deleting from a specific list");
       }
-      
+
       const result = await db
         .delete(donorListMembers)
-        .where(
-          and(
-            eq(donorListMembers.donorId, id),
-            eq(donorListMembers.listId, options.listId)
-          )
-        );
-      
+        .where(and(eq(donorListMembers.donorId, id), eq(donorListMembers.listId, options.listId)));
+
       if ((result.rowCount || 0) === 0) {
         throw new Error("Donor is not a member of the specified list");
       }
-      
-    } else if (deleteMode === 'fromAllLists') {
+    } else if (deleteMode === "fromAllLists") {
       // Remove from all lists but keep donor record
-      const { removeFromAllLists } = await import('./donor-lists');
+      const { removeFromAllLists } = await import("./donor-lists");
       await removeFromAllLists(id, organizationId);
-      
     } else {
       // Delete entirely - original behavior
       // Start a transaction to ensure all deletes succeed or all fail

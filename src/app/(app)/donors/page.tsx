@@ -99,7 +99,7 @@ export default function DonorListPage() {
       setIsSelectingAllFiltered(false);
       prevFiltersRef.current = current;
     }
-  });
+  }, [sortField, sortDirection, onlyResearched, selectedListId, notInAnyList, selectedStaffId, setCurrentPage]);
 
   // Environment-based delete dialog states
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -278,7 +278,7 @@ export default function DonorListPage() {
       // Fetch filtered donor IDs first since the query is disabled by default
       console.log("Fetching filtered donor IDs for bulk delete...");
       const refetchResult = await filteredDonorIdsQuery.refetch();
-      
+
       // Access data from the refetch result, not the query object
       const allDonorIds = refetchResult.data || [];
       console.log("Filtered donor IDs retrieved:", allDonorIds.length, allDonorIds);
@@ -290,7 +290,7 @@ export default function DonorListPage() {
 
       console.log("Attempting to bulk delete", allDonorIds.length, "donors");
       const result = await bulkDeleteDonors(allDonorIds);
-      
+
       if (result) {
         console.log("Bulk delete result:", result);
         setIsDeleteAllDialogOpen(false);
@@ -372,7 +372,7 @@ export default function DonorListPage() {
       try {
         console.log("Fetching filtered donor IDs for select all...");
         const refetchResult = await filteredDonorIdsQuery.refetch();
-        
+
         // Access data from the refetch result, not the query object
         const allMatchingIds = refetchResult.data || [];
         console.log("Filtered donor IDs for selection:", allMatchingIds.length, allMatchingIds);
