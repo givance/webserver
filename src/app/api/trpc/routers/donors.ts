@@ -8,6 +8,7 @@ import {
   createDonor,
   updateDonor,
   deleteDonor,
+  bulkDeleteDonors,
   listDonors,
   listDonorsForCommunication,
 } from "@/app/lib/data/donors";
@@ -271,6 +272,39 @@ export const donorsRouter = router({
       }
       throw error;
     }
+  }),
+
+  /**
+   * Deletes multiple donors from the organization
+   * @param input.ids - Array of donor IDs to delete
+   * @returns Object with success/failure counts and any error messages
+   * @throws BAD_REQUEST if no IDs provided
+   */
+  bulkDelete: protectedProcedure.input(donorIdsSchema).mutation(async ({ input, ctx }) => {
+    if (input.ids.length === 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "No donor IDs provided",
+      });
+    }
+
+    return await bulkDeleteDonors(input.ids, ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Gets all donor IDs for the organization (for bulk operations)
+   * @returns Array of all donor IDs in the organization
+   */
+  getAllIds: protectedProcedure.query(async ({ ctx }) => {
+    const result = await listDonors(
+      {
+        // No limit to get all donors
+        // No offset, orderBy, etc. - just get all IDs
+      },
+      ctx.auth.user.organizationId
+    );
+
+    return result.donors.map((donor) => donor.id);
   }),
 
   /**

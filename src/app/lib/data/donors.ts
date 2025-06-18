@@ -1,5 +1,16 @@
 import { db } from "../db";
-import { donors, staff, organizations, personResearch, donations } from "../db/schema";
+import {
+  donors,
+  staff,
+  organizations,
+  personResearch,
+  donations,
+  communicationContent,
+  donorListMembers,
+  emailTrackers,
+  generatedEmails,
+  todos,
+} from "../db/schema";
 import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -145,18 +156,49 @@ export async function updateDonor(
 }
 
 /**
- * Deletes a donor by their ID and organization ID.
- * Note: Consider implications for related donations or communications.
+ * Deletes a donor and all associated records (cascading delete).
  * @param id - The ID of the donor to delete.
  * @param organizationId - The ID of the organization the donor belongs to.
  */
 export async function deleteDonor(id: number, organizationId: string): Promise<void> {
   try {
-    await db.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
+    // First verify the donor exists and belongs to the organization
+    const donor = await getDonorById(id, organizationId);
+    if (!donor) {
+      throw new Error("Donor not found or access denied");
+    }
+
+    // Start a transaction to ensure all deletes succeed or all fail
+    await db.transaction(async (tx) => {
+      // 1. Delete donations (these don't have cascade delete)
+      await tx.delete(donations).where(eq(donations.donorId, id));
+
+      // 2. Delete communication content where donor is sender or receiver
+      await tx
+        .delete(communicationContent)
+        .where(or(eq(communicationContent.fromDonorId, id), eq(communicationContent.toDonorId, id)));
+
+      // 3. Delete donor list memberships
+      await tx.delete(donorListMembers).where(eq(donorListMembers.donorId, id));
+
+      // 4. Delete email trackers
+      await tx.delete(emailTrackers).where(eq(emailTrackers.donorId, id));
+
+      // 5. Delete generated emails
+      await tx.delete(generatedEmails).where(eq(generatedEmails.donorId, id));
+
+      // 6. Delete person research records
+      await tx.delete(personResearch).where(eq(personResearch.donorId, id));
+
+      // 7. Delete todos associated with this donor
+      await tx.delete(todos).where(eq(todos.donorId, id));
+
+      // 8. Finally delete the donor (communication thread donors will cascade automatically)
+      await tx.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
+    });
   } catch (error) {
     console.error("Failed to delete donor:", error);
-    // Check for foreign key constraints if donations exist for this donor
-    throw new Error("Could not delete donor. They may have existing donations or communications.");
+    throw new Error("Could not delete donor and associated records.");
   }
 }
 
@@ -628,4 +670,86 @@ export async function listDonorsForCommunication(
     console.error("Failed to list donors for communication:", error);
     throw new Error("Could not list donors for communication.");
   }
+}
+
+/**
+ * Deletes multiple donors and all associated records efficiently (batch cascading delete).
+ * @param ids - Array of donor IDs to delete.
+ * @param organizationId - The ID of the organization the donors belong to.
+ * @returns Object with success and failure counts
+ */
+export async function bulkDeleteDonors(
+  ids: number[],
+  organizationId: string
+): Promise<{
+  success: number;
+  failed: number;
+  errors: string[];
+}> {
+  if (ids.length === 0) {
+    return { success: 0, failed: 0, errors: [] };
+  }
+
+  const results = { success: 0, failed: 0, errors: [] as string[] };
+
+  try {
+    // First verify all donors exist and belong to the organization
+    const existingDonors = await getDonorsByIds(ids, organizationId);
+    const validDonorIds = existingDonors.map((d) => d.id);
+
+    if (validDonorIds.length === 0) {
+      return {
+        success: 0,
+        failed: ids.length,
+        errors: ["No valid donors found in your organization"],
+      };
+    }
+
+    // Start a transaction for batch deletion
+    await db.transaction(async (tx) => {
+      // 1. Delete donations in batch
+      await tx.delete(donations).where(inArray(donations.donorId, validDonorIds));
+
+      // 2. Delete communication content where donor is sender or receiver
+      await tx
+        .delete(communicationContent)
+        .where(
+          or(
+            inArray(communicationContent.fromDonorId, validDonorIds),
+            inArray(communicationContent.toDonorId, validDonorIds)
+          )
+        );
+
+      // 3. Delete donor list memberships in batch
+      await tx.delete(donorListMembers).where(inArray(donorListMembers.donorId, validDonorIds));
+
+      // 4. Delete email trackers in batch
+      await tx.delete(emailTrackers).where(inArray(emailTrackers.donorId, validDonorIds));
+
+      // 5. Delete generated emails in batch
+      await tx.delete(generatedEmails).where(inArray(generatedEmails.donorId, validDonorIds));
+
+      // 6. Delete person research records in batch
+      await tx.delete(personResearch).where(inArray(personResearch.donorId, validDonorIds));
+
+      // 7. Delete todos associated with donors in batch
+      await tx.delete(todos).where(inArray(todos.donorId, validDonorIds));
+
+      // 8. Finally delete the donors in batch (communication thread donors will cascade automatically)
+      await tx.delete(donors).where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId)));
+    });
+
+    results.success = validDonorIds.length;
+    results.failed = ids.length - validDonorIds.length;
+
+    if (results.failed > 0) {
+      results.errors.push(`${results.failed} donor(s) not found in your organization`);
+    }
+  } catch (error) {
+    console.error("Failed to bulk delete donors:", error);
+    results.failed = ids.length;
+    results.errors.push("Failed to delete donors: " + (error instanceof Error ? error.message : "Unknown error"));
+  }
+
+  return results;
 }

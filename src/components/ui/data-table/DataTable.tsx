@@ -14,6 +14,7 @@ import {
   Cell,
   PaginationState,
   VisibilityState,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,10 @@ interface DataTableProps<TData, TValue> {
   onSortingChange?: (sorting: { id: string; desc: boolean }[]) => void;
   title?: string;
   ctaButton?: React.ReactNode;
+  // Row selection props
+  enableRowSelection?: boolean;
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -57,10 +62,15 @@ export function DataTable<TData, TValue>({
   onSortingChange,
   title,
   ctaButton,
+  // Row selection props
+  enableRowSelection,
+  rowSelection,
+  onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [rowSelectionState, setRowSelectionState] = React.useState<RowSelectionState>({});
 
   const isServerSidePagination =
     totalItems !== undefined &&
@@ -101,6 +111,27 @@ export function DataTable<TData, TValue>({
     [sorting, isServerSideSorting, onSortingChange]
   );
 
+  // Handle row selection changes
+  const handleRowSelectionChange = React.useCallback(
+    (updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+      let newSelection: RowSelectionState;
+      const currentSelection = rowSelection || rowSelectionState;
+
+      if (typeof updaterOrValue === "function") {
+        newSelection = updaterOrValue(currentSelection);
+      } else {
+        newSelection = updaterOrValue;
+      }
+
+      if (onRowSelectionChange) {
+        onRowSelectionChange(newSelection);
+      } else {
+        setRowSelectionState(newSelection);
+      }
+    },
+    [rowSelection, rowSelectionState, onRowSelectionChange]
+  );
+
   const table = useReactTable({
     data,
     columns,
@@ -111,6 +142,8 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: handleRowSelectionChange,
+    enableRowSelection: enableRowSelection,
     manualPagination: isServerSidePagination,
     manualSorting: isServerSideSorting,
     pageCount: isServerSidePagination ? pageCount : undefined,
@@ -119,6 +152,7 @@ export function DataTable<TData, TValue>({
       columnFilters,
       pagination: pagination,
       columnVisibility,
+      rowSelection: rowSelection || rowSelectionState,
     },
   });
 

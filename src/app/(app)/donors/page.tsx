@@ -20,13 +20,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Info } from "lucide-react";
+import { Plus, Search, Info, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { useBulkDonorResearch } from "@/app/hooks/use-bulk-donor-research";
 import type { Donor } from "./columns";
 import { getColumns } from "./columns";
+import { toast } from "sonner";
+
+const isDevelopment = process.env.NODE_ENV === "development";
 
 export default function DonorListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
@@ -45,13 +59,21 @@ export default function DonorListPage() {
   // Add state for the researched donors filter
   const [onlyResearched, setOnlyResearched] = useState(false);
 
-  const { listDonors, getMultipleDonorStats, updateDonorStaff } = useDonors();
+  // Environment-based delete dialog states
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
+  const [isDeleteListDialogOpen, setIsDeleteListDialogOpen] = useState(false);
+
+  const { listDonors, getMultipleDonorStats, updateDonorStaff, bulkDeleteDonors, getAllDonorIds, isBulkDeleting } =
+    useDonors();
   const { staffMembers } = useStaffMembers();
   const { startBulkResearch, researchStatistics, isStartingResearch, isLoadingStatistics } = useBulkDonorResearch();
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [donorCount, setDonorCount] = useState<string>("");
+
+  // Get all donor IDs for bulk operations (called at top level)
+  const allDonorIdsQuery = getAllDonorIds();
 
   const {
     data: listDonorsResponse,
@@ -68,7 +90,7 @@ export default function DonorListPage() {
 
   // Get donation stats for all donors in the current page
   const donorIds = useMemo(() => listDonorsResponse?.donors?.map((d) => d.id) || [], [listDonorsResponse]);
-  const { data: donorStats } = getMultipleDonorStats(donorIds);
+  const { data: donorStats } = getMultipleDonorStats(donorIds, !isBulkDeleting && donorIds.length > 0);
 
   // Handler for when the DataTable sorting changes
   const handleSortingChange = useCallback(
@@ -175,6 +197,43 @@ export default function DonorListPage() {
       setIsDialogOpen(false);
       setDonorCount("");
     }
+  };
+
+  // Handle delete all donors (dev environment)
+  const handleDeleteAll = async () => {
+    if (!isDevelopment) return;
+
+    // Use the data from the hook called at top level
+    const allDonorIds = allDonorIdsQuery.data || [];
+
+    if (allDonorIds.length === 0) {
+      toast.error("No donors found to delete");
+      return;
+    }
+
+    const result = await bulkDeleteDonors(allDonorIds);
+    if (result) {
+      setIsDeleteAllDialogOpen(false);
+    }
+  };
+
+  // Handle delete list (prod environment) - placeholder for now
+  const handleDeleteList = async () => {
+    if (isDevelopment) return;
+
+    // TODO: Implement list-specific deletion logic
+    // This would need to delete all donors in a specific list
+    // while preserving donors that are in other lists
+    console.log("Delete list functionality not yet implemented");
+    setIsDeleteListDialogOpen(false);
+  };
+
+  const handleConfirmDeleteAll = () => {
+    setIsDeleteAllDialogOpen(true);
+  };
+
+  const handleConfirmDeleteList = () => {
+    setIsDeleteListDialogOpen(true);
   };
 
   if (error) {
@@ -294,6 +353,24 @@ export default function DonorListPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Environment-based delete buttons */}
+          {isDevelopment ? (
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteAll}
+              disabled={isBulkDeleting || totalCount === 0}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {isBulkDeleting ? "Deleting..." : `Delete All (${totalCount})`}
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={handleConfirmDeleteList} disabled={isBulkDeleting}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              {isBulkDeleting ? "Deleting..." : "Delete List"}
+            </Button>
+          )}
+
           <Link href="/donors/add">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
@@ -347,6 +424,55 @@ export default function DonorListPage() {
           onSortingChange={handleSortingChange}
         />
       )}
+
+      {/* Delete All confirmation dialog (Dev environment) */}
+      <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Donors</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete all <strong>{totalCount}</strong> donors? This will permanently delete all
+              donors and their associated data including donations, communications, and research records.
+              <br />
+              <br />
+              <strong>This action cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              disabled={isBulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkDeleting ? "Deleting..." : `Delete All ${totalCount} Donors`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete List confirmation dialog (Prod environment) */}
+      <AlertDialog open={isDeleteListDialogOpen} onOpenChange={setIsDeleteListDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete List Donors</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete all donors that belong only to the selected list, while preserving donors that are in
+              other lists. This feature is not yet implemented - please contact support if you need this functionality.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteList}
+              className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? "Deleting..." : "Delete List Donors"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

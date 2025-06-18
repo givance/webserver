@@ -93,7 +93,7 @@ export function useDonors() {
     );
 
   // Get multiple donor donation stats
-  const getMultipleDonorStats = (donorIds: number[]) =>
+  const getMultipleDonorStats = (donorIds: number[], enabled = true) =>
     trpc.donations.getMultipleDonorStats.useQuery(
       { donorIds },
       {
@@ -101,9 +101,18 @@ export function useDonors() {
         refetchOnWindowFocus: false,
         refetchOnMount: false,
         refetchOnReconnect: false,
-        enabled: donorIds.length > 0, // Only run the query if we have IDs
+        enabled: enabled && donorIds.length > 0, // Only run the query if enabled and we have IDs
       }
     );
+
+  // Get all donor IDs for bulk operations
+  const getAllDonorIds = () =>
+    trpc.donors.getAllIds.useQuery(undefined, {
+      // Don't refetch automatically
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    });
 
   // Mutation hooks
   const createMutation = trpc.donors.create.useMutation({
@@ -135,6 +144,24 @@ export function useDonors() {
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete donor");
+    },
+  });
+
+  const bulkDeleteMutation = trpc.donors.bulkDelete.useMutation({
+    onSuccess: (result) => {
+      utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
+
+      if (result.success > 0 && result.failed === 0) {
+        toast.success(`Successfully deleted ${result.success} donor${result.success === 1 ? "" : "s"}`);
+      } else if (result.success > 0 && result.failed > 0) {
+        toast.warning(`Deleted ${result.success} donors, but ${result.failed} failed. Check errors for details.`);
+      } else {
+        toast.error(`Failed to delete all ${result.failed} donors`);
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete donors");
     },
   });
 
@@ -228,6 +255,20 @@ export function useDonors() {
   };
 
   /**
+   * Delete multiple donors by IDs
+   * @param ids Array of donor IDs to delete
+   * @returns Bulk delete result with success/failure counts
+   */
+  const bulkDeleteDonors = async (ids: number[]) => {
+    try {
+      return await bulkDeleteMutation.mutateAsync({ ids });
+    } catch (error) {
+      console.error("Failed to bulk delete donors:", error);
+      return null;
+    }
+  };
+
+  /**
    * Analyze one or more donors
    * @param donorIds Array of donor IDs to analyze
    * @returns Promise that resolves when analysis is complete
@@ -268,11 +309,13 @@ export function useDonors() {
     listDonorsForCommunication,
     getDonorStats,
     getMultipleDonorStats,
+    getAllDonorIds,
 
     // Mutation functions
     createDonor,
     updateDonor,
     deleteDonor,
+    bulkDeleteDonors,
     analyzeDonors,
     updateDonorStaff,
 
@@ -280,6 +323,7 @@ export function useDonors() {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isBulkDeleting: bulkDeleteMutation.isPending,
     isAnalyzing: analyzeDonorsMutation.isPending,
     isUpdatingStaff: updateDonorStaffMutation.isPending,
 

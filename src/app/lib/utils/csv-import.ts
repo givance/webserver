@@ -1,6 +1,6 @@
 import { db } from "@/app/lib/db";
 import { donors, donations, projects, donorListMembers } from "@/app/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "@/app/lib/logger";
 
 interface AccountRecord {
@@ -13,31 +13,94 @@ interface AccountRecord {
   ACT_HerName?: string;
   ACT_HerInitial?: string;
   ACT_CompanyName?: string;
-  Email: string;
+  ACT_DefaultADR?: string;
+  ADR_Type?: string;
+  Adr_Line1?: string;
+  ADR_City?: string;
+  ADR_State?: string;
+  ADR_Zip?: string;
+  ADR_ZipFour?: string;
+  ADR_Country?: string;
+  Email?: string;
   Tel1?: string;
   Tel2?: string;
   Tel3?: string;
   Tel4?: string;
   Tel5?: string;
   Tel6?: string;
-  ADR_Line1?: string;
-  ADR_City?: string;
-  ADR_State?: string;
-  ADR_Zip?: string;
-  ADR_Country?: string;
-  Line2?: string; // Full display name
   TotalPledges?: string;
   TotalPaid?: string;
   TotalOutstanding?: string;
+  DueNow?: string;
+  LastAppPaymentDate?: string;
+  LastPaymentAmt?: string;
+  LastPaymentDate?: string;
+  Line1?: string;
+  Line2?: string;
+  Line3?: string;
+  Line4?: string;
+  Line5?: string;
+  Line6?: string;
+  LineDear?: string;
+  BothInactive?: string;
+  ACT_IgnoreHim?: string;
+  ACT_IgnoreHer?: string;
+  StdNames?: string;
+  MasterFlags?: string;
+  DataSource?: string;
+  AdmireProExport?: string;
+  AdmireProUser?: string;
 }
 
 interface PledgeRecord {
+  SystemDisplay1?: string;
+  Address?: string;
+  PLG_ID?: string;
   ACT_ID: string;
-  PLG_Amount: string;
-  PLG_Date: string;
+  PLG_Date?: string;
+  PLG_Amount?: string;
   PLG_Comment?: string;
-  OCC_Name?: string; // Occasion/Fund name
+  PLG_Solicitator?: string;
+  PLG_InsSpread?: string;
+  OCC_Name?: string;
+  TotalPaid?: string;
+  Outstanding?: string;
+  DueNow?: string;
+  LastPayment?: string;
+  PLG_ACT_ID?: string;
+  Plg_Adr_Id?: string;
+  SolicitorName?: string;
+  PLG_DateEntered?: string;
+  Line1?: string;
+  Line2?: string;
+  Line3?: string;
+  Line4?: string;
+  Line5?: string;
+  Line6?: string;
+  LineDear?: string;
+  SPLG_AcaCodes?: string;
+  OCC_ID?: string;
+  ADR_Zip?: string;
+  PlgAmountAsText?: string;
+  TotalPaidAsText?: string;
+  OutstandingAsText?: string;
+  DueNowAsText?: string;
+  Tels?: string;
+  ReferredActId?: string;
+  ReferredActName?: string;
+  LTT_ID?: string;
+  LTT_Code?: string;
+  LTT_Description?: string;
+  PLG_PeriodStartDate?: string;
+  PLG_PeriodEndDate?: string;
+  PLG_ForeignAmt?: string;
+  PLG_ExchangeRate?: string;
+  CUR_Code?: string;
   Email?: string;
+  HEBDAT_Plg_Date?: string;
+  DataSource?: string;
+  AdmireProExport?: string;
+  AdmireProUser?: string;
 }
 
 interface ProcessResult {
@@ -141,7 +204,48 @@ function parseDate(dateString: string): Date | null {
 }
 
 /**
- * Extract structured name information from account record
+ * Parse display name into first and last name (from optimized version)
+ */
+function parseDisplayName(fullName: string): { firstName: string; lastName: string } {
+  if (!fullName || fullName.trim() === "") {
+    return { firstName: "Unknown", lastName: "Donor" };
+  }
+
+  const cleanName = fullName.trim();
+
+  // Handle couple names (contains "and")
+  if (cleanName.includes(" and ")) {
+    const parts = cleanName.split(" and ");
+    const firstPerson = parts[0].trim();
+    const nameParts = firstPerson.split(" ");
+
+    if (nameParts.length >= 2) {
+      return {
+        firstName: nameParts[nameParts.length - 2] || "Unknown",
+        lastName: nameParts[nameParts.length - 1] || "Donor",
+      };
+    }
+  }
+
+  // Handle single names
+  const nameParts = cleanName.split(" ").filter(Boolean);
+  if (nameParts.length >= 2) {
+    return {
+      firstName: nameParts[0],
+      lastName: nameParts[nameParts.length - 1],
+    };
+  } else if (nameParts.length === 1) {
+    return {
+      firstName: nameParts[0],
+      lastName: "Donor",
+    };
+  }
+
+  return { firstName: "Unknown", lastName: "Donor" };
+}
+
+/**
+ * Extract structured name information from account record (using proven logic from optimized version)
  */
 function extractStructuredNames(account: AccountRecord): {
   firstName: string;
@@ -157,92 +261,139 @@ function extractStructuredNames(account: AccountRecord): {
   displayName: string;
   isCouple: boolean;
 } {
+  // Check if we have structured data for a couple
   const hasHisData = !!(account.ACT_HisTitle || account.ACT_HisName || account.ACT_HisInitial);
   const hasHerData = !!(account.ACT_HerTitle || account.ACT_HerName || account.ACT_HerInitial);
   const hasSharedLastName = !!account.ACT_LastName;
 
   if (hasHisData || hasHerData) {
+    // This is structured couple data
     const isCouple = hasHisData && hasHerData;
 
     // Build display name from structured data
     let displayName = "";
     if (hasHisData) {
-      displayName += `${account.ACT_HisTitle || ""} ${account.ACT_HisName || ""} ${
-        account.ACT_HisInitial || ""
-      }`.trim();
-      if (account.ACT_LastName) {
-        displayName += ` ${account.ACT_LastName}`;
-      }
-    }
-    if (hasHerData) {
-      if (displayName) displayName += " and ";
-      displayName += `${account.ACT_HerTitle || ""} ${account.ACT_HerName || ""} ${
-        account.ACT_HerInitial || ""
-      }`.trim();
-      if (account.ACT_LastName) {
-        displayName += ` ${account.ACT_LastName}`;
-      }
+      const hisParts = [
+        account.ACT_HisTitle?.trim(),
+        account.ACT_HisName?.trim(),
+        account.ACT_HisInitial?.trim(),
+        hasSharedLastName ? account.ACT_LastName?.trim() : "",
+      ].filter(Boolean);
+      displayName += hisParts.join(" ");
     }
 
-    // For legacy compatibility, use first available name
-    const firstName = account.ACT_HisName || account.ACT_HerName || "";
-    const lastName = account.ACT_LastName || "";
+    if (hasHerData) {
+      if (displayName) displayName += " and ";
+      const herParts = [
+        account.ACT_HerTitle?.trim(),
+        account.ACT_HerName?.trim(),
+        account.ACT_HerInitial?.trim(),
+        hasSharedLastName ? account.ACT_LastName?.trim() : "",
+      ].filter(Boolean);
+      displayName += herParts.join(" ");
+    }
+
+    // Fallback to Line2 if structured display name is empty
+    if (!displayName.trim()) {
+      displayName = account.Line2 || "Unknown Donor";
+    }
+
+    // For legacy firstName/lastName, use the primary person's info or fallback
+    let firstName = "";
+    let lastName = "";
+
+    if (hasHisData) {
+      firstName = account.ACT_HisName || "Unknown";
+      lastName = account.ACT_LastName || account.ACT_HisName || "Donor";
+    } else if (hasHerData) {
+      firstName = account.ACT_HerName || "Unknown";
+      lastName = account.ACT_LastName || account.ACT_HerName || "Donor";
+    } else {
+      // Parse from Line2 as fallback
+      const { firstName: parsedFirst, lastName: parsedLast } = parseDisplayName(account.Line2 || "");
+      firstName = parsedFirst;
+      lastName = parsedLast;
+    }
 
     return {
       firstName,
       lastName,
-      hisTitle: account.ACT_HisTitle,
-      hisFirstName: account.ACT_HisName,
-      hisInitial: account.ACT_HisInitial,
-      hisLastName: account.ACT_LastName,
-      herTitle: account.ACT_HerTitle,
-      herFirstName: account.ACT_HerName,
-      herInitial: account.ACT_HerInitial,
-      herLastName: account.ACT_LastName,
-      displayName: displayName || account.Line2 || `${firstName} ${lastName}`.trim(),
+      hisTitle: account.ACT_HisTitle?.trim() || undefined,
+      hisFirstName: account.ACT_HisName?.trim() || undefined,
+      hisInitial: account.ACT_HisInitial?.trim() || undefined,
+      hisLastName: hasSharedLastName ? account.ACT_LastName?.trim() : account.ACT_HisName?.trim() || undefined,
+      herTitle: account.ACT_HerTitle?.trim() || undefined,
+      herFirstName: account.ACT_HerName?.trim() || undefined,
+      herInitial: account.ACT_HerInitial?.trim() || undefined,
+      herLastName: hasSharedLastName ? account.ACT_LastName?.trim() : account.ACT_HerName?.trim() || undefined,
+      displayName: displayName.trim(),
       isCouple,
     };
+  } else {
+    // No structured data, parse from Line2
+    const { firstName, lastName } = parseDisplayName(account.Line2 || "");
+    return {
+      firstName,
+      lastName,
+      displayName: account.Line2 || "Unknown Donor",
+      isCouple: false,
+    };
   }
-
-  // Fallback to parsing display name
-  const fullName = account.Line2 || `${account.ACT_HisName || ""} ${account.ACT_LastName || ""}`.trim();
-  const parts = fullName.split(" ");
-  const firstName = parts[0] || "";
-  const lastName = parts.slice(1).join(" ") || "";
-
-  return {
-    firstName,
-    lastName,
-    displayName: fullName,
-    isCouple: false,
-  };
 }
 
 /**
- * Build address from account record
+ * Build full address from record components
  */
 function buildAddress(record: AccountRecord): string {
-  const parts = [record.ADR_Line1, record.ADR_City, record.ADR_State, record.ADR_Zip, record.ADR_Country].filter(
-    Boolean
-  );
+  const parts: string[] = [];
 
-  return parts.join(", ");
+  if (record.Adr_Line1?.trim()) {
+    parts.push(record.Adr_Line1.trim());
+  }
+
+  const cityStateZip: string[] = [];
+  if (record.ADR_City?.trim()) {
+    cityStateZip.push(record.ADR_City.trim());
+  }
+  if (record.ADR_State?.trim()) {
+    cityStateZip.push(record.ADR_State.trim());
+  }
+  if (record.ADR_Zip?.trim()) {
+    let zip = record.ADR_Zip.trim();
+    if (record.ADR_ZipFour?.trim()) {
+      zip += `-${record.ADR_ZipFour.trim()}`;
+    }
+    cityStateZip.push(zip);
+  }
+
+  if (cityStateZip.length > 0) {
+    parts.push(cityStateZip.join(", "));
+  }
+
+  if (record.ADR_Country?.trim() && record.ADR_Country.trim().toUpperCase() !== "USA") {
+    parts.push(record.ADR_Country.trim());
+  }
+
+  return parts.join("\n");
 }
 
 /**
- * Get phone number from account record
+ * Get phone number from record (prioritizing Tel1)
  */
 function getPhoneNumber(record: AccountRecord): string | null {
-  const phones = [record.Tel1, record.Tel2, record.Tel3, record.Tel4, record.Tel5, record.Tel6]
-    .filter(Boolean)
-    .map((phone) => phone?.trim())
-    .filter((phone) => phone && phone.length > 0);
+  const phones = [record.Tel1, record.Tel2, record.Tel3, record.Tel4, record.Tel5, record.Tel6];
 
-  return phones[0] || null;
+  for (const phone of phones) {
+    if (phone?.trim()) {
+      return phone.trim();
+    }
+  }
+
+  return null;
 }
 
 /**
- * Validate account record has required fields
+ * Validate account record has minimum required fields
  */
 function validateAccountRecord(record: AccountRecord): string[] {
   const errors: string[] = [];
@@ -251,12 +402,10 @@ function validateAccountRecord(record: AccountRecord): string[] {
     errors.push("Missing ACT_ID");
   }
 
-  if (!record.Email) {
-    errors.push("Missing Email");
-  }
-
+  // Don't require email - many records might not have emails
+  // Just require some form of name information
   const names = extractStructuredNames(record);
-  if (!names.firstName && !names.lastName) {
+  if (!names.firstName && !names.lastName && !record.ACT_CompanyName) {
     errors.push("Missing name information");
   }
 
@@ -314,7 +463,7 @@ async function getDefaultProject(organizationId: string): Promise<number> {
 }
 
 /**
- * Process CSV files and import donors and pledges
+ * Process CSV files and import donors and pledges with batch processing and duplicate detection
  */
 export async function processCSVFiles(params: {
   accountsCSV: string;
@@ -349,8 +498,23 @@ export async function processCSVFiles(params: {
     // Get default project for donations
     const defaultProjectId = await getDefaultProject(params.organizationId);
 
-    // Process donors
+    // Get existing donors to check for duplicates
+    const existingDonors = await db
+      .select({ id: donors.id, externalId: donors.externalId, email: donors.email })
+      .from(donors)
+      .where(eq(donors.organizationId, params.organizationId));
+
+    const existingDonorsByExternalId = new Map(existingDonors.map((d) => [d.externalId, d]));
+    const existingDonorsByEmail = new Map(existingDonors.filter((d) => d.email).map((d) => [d.email, d]));
+
+    logger.info(`Found ${existingDonors.length} existing donors in organization`);
+
+    // Prepare donors for batch processing
+    const donorsToInsert: any[] = [];
+    const donorsToUpdate: { id: number; data: any }[] = [];
     const donorMap = new Map<string, number>(); // ACT_ID -> donor.id
+    const processedEmails = new Set<string>(); // Track emails to avoid duplicates
+    const processedExternalIds = new Set<string>(); // Track external IDs to avoid duplicates
 
     for (const accountRecord of accountRecords) {
       result.donorsProcessed++;
@@ -359,9 +523,31 @@ export async function processCSVFiles(params: {
         // Validate record
         const validationErrors = validateAccountRecord(accountRecord);
         if (validationErrors.length > 0) {
+          logger.info(
+            `Skipping account ${accountRecord.ACT_ID} due to validation errors: ${validationErrors.join(", ")}`
+          );
           result.errors.push(`Account ${accountRecord.ACT_ID}: ${validationErrors.join(", ")}`);
           result.donorsSkipped++;
           continue;
+        }
+
+        // Check for duplicate ACT_ID
+        if (processedExternalIds.has(accountRecord.ACT_ID)) {
+          logger.info(`Skipping duplicate ACT_ID: ${accountRecord.ACT_ID}`);
+          result.donorsSkipped++;
+          continue;
+        }
+        processedExternalIds.add(accountRecord.ACT_ID);
+
+        // Check for duplicate email (if email exists)
+        const email = accountRecord.Email?.trim() || "";
+        if (email && processedEmails.has(email.toLowerCase())) {
+          logger.info(`Skipping duplicate email: ${email} for account ${accountRecord.ACT_ID}`);
+          result.donorsSkipped++;
+          continue;
+        }
+        if (email) {
+          processedEmails.add(email.toLowerCase());
         }
 
         // Extract name information
@@ -369,28 +555,25 @@ export async function processCSVFiles(params: {
         const address = buildAddress(accountRecord);
         const phone = getPhoneNumber(accountRecord);
 
-        // Check if donor already exists by external ID
-        const [existingDonor] = await db
-          .select()
-          .from(donors)
-          .where(and(eq(donors.organizationId, params.organizationId), eq(donors.externalId, accountRecord.ACT_ID)))
-          .limit(1);
+        logger.info(`Processing account ${accountRecord.ACT_ID}: ${nameInfo.displayName} (${email || "no email"})`);
+
+        // Check if donor already exists by external ID or email
+        let existingDonor = existingDonorsByExternalId.get(accountRecord.ACT_ID);
+        if (!existingDonor && email) {
+          existingDonor = existingDonorsByEmail.get(email);
+        }
 
         if (existingDonor) {
+          logger.info(`Found existing donor for ${accountRecord.ACT_ID}, checking for updates`);
+
           // Check if any significant fields have changed
-          const hasChanges =
-            existingDonor.email !== accountRecord.Email ||
-            existingDonor.firstName !== nameInfo.firstName ||
-            existingDonor.lastName !== nameInfo.lastName ||
-            existingDonor.phone !== phone ||
-            existingDonor.address !== address;
+          const hasChanges = true; // For now, always update to ensure latest data
 
           if (hasChanges) {
-            // Update existing donor
-            await db
-              .update(donors)
-              .set({
-                email: accountRecord.Email,
+            donorsToUpdate.push({
+              id: existingDonor.id,
+              data: {
+                email: email,
                 firstName: nameInfo.firstName,
                 lastName: nameInfo.lastName,
                 hisTitle: nameInfo.hisTitle,
@@ -405,10 +588,10 @@ export async function processCSVFiles(params: {
                 isCouple: nameInfo.isCouple,
                 phone,
                 address,
+                state: accountRecord.ADR_State || "",
                 updatedAt: new Date(),
-              })
-              .where(eq(donors.id, existingDonor.id));
-
+              },
+            });
             result.donorsUpdated++;
           } else {
             result.donorsSkipped++;
@@ -416,51 +599,37 @@ export async function processCSVFiles(params: {
 
           donorMap.set(accountRecord.ACT_ID, existingDonor.id);
         } else {
-          // Create new donor
-          const [newDonor] = await db
-            .insert(donors)
-            .values({
-              organizationId: params.organizationId,
-              externalId: accountRecord.ACT_ID,
-              email: accountRecord.Email,
-              firstName: nameInfo.firstName,
-              lastName: nameInfo.lastName,
-              hisTitle: nameInfo.hisTitle,
-              hisFirstName: nameInfo.hisFirstName,
-              hisInitial: nameInfo.hisInitial,
-              hisLastName: nameInfo.hisLastName,
-              herTitle: nameInfo.herTitle,
-              herFirstName: nameInfo.herFirstName,
-              herInitial: nameInfo.herInitial,
-              herLastName: nameInfo.herLastName,
-              displayName: nameInfo.displayName,
-              isCouple: nameInfo.isCouple,
-              phone,
-              address,
-              state: accountRecord.ADR_State,
-            })
-            .returning();
+          logger.info(`Preparing new donor for ${accountRecord.ACT_ID}: ${nameInfo.displayName}`);
 
-          result.donorsCreated++;
-          donorMap.set(accountRecord.ACT_ID, newDonor.id);
-        }
-
-        // Add donor to the list if not already a member
-        const donorId = donorMap.get(accountRecord.ACT_ID)!;
-        const [existingMember] = await db
-          .select()
-          .from(donorListMembers)
-          .where(and(eq(donorListMembers.listId, params.listId), eq(donorListMembers.donorId, donorId)))
-          .limit(1);
-
-        if (!existingMember) {
-          await db.insert(donorListMembers).values({
-            listId: params.listId,
-            donorId,
-            addedBy: params.userId,
+          // Prepare new donor for batch insert
+          donorsToInsert.push({
+            organizationId: params.organizationId,
+            externalId: accountRecord.ACT_ID,
+            email: email,
+            firstName: nameInfo.firstName,
+            lastName: nameInfo.lastName,
+            hisTitle: nameInfo.hisTitle,
+            hisFirstName: nameInfo.hisFirstName,
+            hisInitial: nameInfo.hisInitial,
+            hisLastName: nameInfo.hisLastName,
+            herTitle: nameInfo.herTitle,
+            herFirstName: nameInfo.herFirstName,
+            herInitial: nameInfo.herInitial,
+            herLastName: nameInfo.herLastName,
+            displayName: nameInfo.displayName,
+            isCouple: nameInfo.isCouple,
+            phone,
+            address,
+            state: accountRecord.ADR_State || "",
+            // Store ACT_ID temporarily to map back after insert
+            _tempActId: accountRecord.ACT_ID,
           });
+          result.donorsCreated++;
         }
       } catch (error) {
+        logger.error(
+          `Error processing account ${accountRecord.ACT_ID}: ${error instanceof Error ? error.message : String(error)}`
+        );
         result.errors.push(
           `Error processing account ${accountRecord.ACT_ID}: ${error instanceof Error ? error.message : String(error)}`
         );
@@ -468,8 +637,67 @@ export async function processCSVFiles(params: {
       }
     }
 
-    // Process pledges if provided
+    // Batch insert new donors
+    if (donorsToInsert.length > 0) {
+      logger.info(`Batch inserting ${donorsToInsert.length} new donors`);
+
+      // Remove temporary field before insert
+      const cleanDonorsToInsert = donorsToInsert.map(({ _tempActId, ...donor }) => donor);
+      const insertedDonors = await db.insert(donors).values(cleanDonorsToInsert).returning();
+
+      // Map ACT_IDs to new donor IDs
+      for (let i = 0; i < insertedDonors.length; i++) {
+        const actId = donorsToInsert[i]._tempActId;
+        donorMap.set(actId, insertedDonors[i].id);
+        logger.info(`Created donor ${actId} with ID ${insertedDonors[i].id}`);
+      }
+    }
+
+    // Batch update existing donors
+    if (donorsToUpdate.length > 0) {
+      logger.info(`Batch updating ${donorsToUpdate.length} existing donors`);
+
+      // Update in batches of 100 to avoid query size limits
+      const batchSize = 100;
+      for (let i = 0; i < donorsToUpdate.length; i += batchSize) {
+        const batch = donorsToUpdate.slice(i, i + batchSize);
+
+        for (const update of batch) {
+          await db.update(donors).set(update.data).where(eq(donors.id, update.id));
+        }
+      }
+    }
+
+    // Add all donors to the list (both new and existing)
+    const listMembersToInsert: any[] = [];
+    const existingListMembers = await db
+      .select({ donorId: donorListMembers.donorId })
+      .from(donorListMembers)
+      .where(eq(donorListMembers.listId, params.listId));
+
+    const existingMemberIds = new Set(existingListMembers.map((m) => m.donorId));
+
+    for (const [actId, donorId] of donorMap) {
+      if (!existingMemberIds.has(donorId)) {
+        listMembersToInsert.push({
+          listId: params.listId,
+          donorId,
+          addedBy: params.userId,
+        });
+      }
+    }
+
+    if (listMembersToInsert.length > 0) {
+      logger.info(`Adding ${listMembersToInsert.length} donors to list ${params.listId}`);
+      await db.insert(donorListMembers).values(listMembersToInsert);
+    }
+
+    // Process pledges if provided (batch processing)
     if (pledgeRecords.length > 0) {
+      logger.info(`Processing ${pledgeRecords.length} pledge records`);
+
+      const donationsToInsert: any[] = [];
+
       for (const pledgeRecord of pledgeRecords) {
         result.pledgesProcessed++;
 
@@ -491,8 +719,8 @@ export async function processCSVFiles(params: {
           }
 
           // Parse amount and date
-          const amount = dollarsToCents(pledgeRecord.PLG_Amount);
-          const date = parseDate(pledgeRecord.PLG_Date);
+          const amount = dollarsToCents(pledgeRecord.PLG_Amount || "");
+          const date = parseDate(pledgeRecord.PLG_Date || "");
 
           if (amount <= 0) {
             result.errors.push(`Pledge for ${pledgeRecord.ACT_ID}: Invalid amount ${pledgeRecord.PLG_Amount}`);
@@ -506,26 +734,7 @@ export async function processCSVFiles(params: {
             continue;
           }
 
-          // Check for duplicate donations (same donor, amount, date)
-          const [existingDonation] = await db
-            .select()
-            .from(donations)
-            .where(
-              and(
-                eq(donations.donorId, donorId),
-                eq(donations.amount, amount),
-                sql`DATE(${donations.date}) = DATE(${date})`
-              )
-            )
-            .limit(1);
-
-          if (existingDonation) {
-            result.pledgesSkipped++;
-            continue;
-          }
-
-          // Create donation record
-          await db.insert(donations).values({
+          donationsToInsert.push({
             donorId,
             projectId: defaultProjectId,
             amount,
@@ -543,9 +752,17 @@ export async function processCSVFiles(params: {
           result.pledgesSkipped++;
         }
       }
+
+      // Batch insert donations
+      if (donationsToInsert.length > 0) {
+        logger.info(`Batch inserting ${donationsToInsert.length} donations`);
+        await db.insert(donations).values(donationsToInsert);
+      }
     }
 
-    logger.info(`CSV import completed: ${JSON.stringify(result)}`);
+    logger.info(
+      `CSV import completed - Donors: ${result.donorsCreated} created, ${result.donorsUpdated} updated, ${result.donorsSkipped} skipped. Pledges: ${result.pledgesCreated} created, ${result.pledgesSkipped} skipped. Errors: ${result.errors.length}`
+    );
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

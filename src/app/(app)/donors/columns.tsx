@@ -107,12 +107,7 @@ function NotesEditCell({ donor }: { donor: Donor }) {
           >
             <Save className="h-3 w-3" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCancel}
-            className="h-6 px-2 text-red-600 hover:text-red-700"
-          >
+          <Button variant="ghost" size="sm" onClick={handleCancel} className="h-6 px-2 text-red-600 hover:text-red-700">
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -123,9 +118,7 @@ function NotesEditCell({ donor }: { donor: Donor }) {
   return (
     <div className="w-full max-w-[300px] group cursor-pointer" onClick={handleStartEdit}>
       <div className="flex items-start justify-between">
-        <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
-          {donor.notes || "Click to add notes..."}
-        </p>
+        <p className="text-sm text-muted-foreground line-clamp-2 flex-1">{donor.notes || "Click to add notes..."}</p>
         <Edit className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-2 mt-0.5 flex-shrink-0" />
       </div>
     </div>
