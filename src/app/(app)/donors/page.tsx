@@ -56,7 +56,14 @@ export default function DonorListPage() {
   // Add state for filters
   const [onlyResearched, setOnlyResearched] = useState(false);
   const [selectedListId, setSelectedListId] = useState<number | undefined>(undefined);
+  const [notInAnyList, setNotInAnyList] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<number | null | undefined>(undefined);
+
+  // Add state for row selection
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [isCreateListDialogOpen, setIsCreateListDialogOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [isSelectingAllFiltered, setIsSelectingAllFiltered] = useState(false);
 
   // Reset pagination state when sorting or searched term changes
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount, resetToFirstPage } =
@@ -65,10 +72,17 @@ export default function DonorListPage() {
     });
 
   // Reset pagination when filters/sorting change
-  const prevFiltersRef = useRef({ sortField, sortDirection, onlyResearched, selectedListId, selectedStaffId });
+  const prevFiltersRef = useRef({
+    sortField,
+    sortDirection,
+    onlyResearched,
+    selectedListId,
+    notInAnyList,
+    selectedStaffId,
+  });
   useEffect(() => {
     const prev = prevFiltersRef.current;
-    const current = { sortField, sortDirection, onlyResearched, selectedListId, selectedStaffId };
+    const current = { sortField, sortDirection, onlyResearched, selectedListId, notInAnyList, selectedStaffId };
 
     // Only reset if values actually changed (not just on re-render)
     if (
@@ -76,9 +90,13 @@ export default function DonorListPage() {
       prev.sortDirection !== current.sortDirection ||
       prev.onlyResearched !== current.onlyResearched ||
       prev.selectedListId !== current.selectedListId ||
+      prev.notInAnyList !== current.notInAnyList ||
       prev.selectedStaffId !== current.selectedStaffId
     ) {
       setCurrentPage(1);
+      // Clear selection when filters change
+      setRowSelection({});
+      setIsSelectingAllFiltered(false);
       prevFiltersRef.current = current;
     }
   });
@@ -90,7 +108,7 @@ export default function DonorListPage() {
   const { listDonors, getMultipleDonorStats, updateDonorStaff, bulkDeleteDonors, getAllDonorIds, isBulkDeleting } =
     useDonors();
   const { staffMembers } = useStaffMembers();
-  const { listDonorLists } = useLists();
+  const { listDonorLists, createList, addDonorsToList, isCreating, isAddingDonors } = useLists();
 
   // Get lists for the filter dropdown
   const { data: lists } = listDonorLists();
@@ -103,6 +121,15 @@ export default function DonorListPage() {
   // Get all donor IDs for bulk operations (called at top level)
   const allDonorIdsQuery = getAllDonorIds();
 
+  // Get filtered donor IDs for select all functionality
+  const filteredDonorIdsQuery = getAllDonorIds({
+    searchTerm: debouncedSearchTerm,
+    listId: selectedListId,
+    notInAnyList,
+    onlyResearched,
+    assignedToStaffId: selectedStaffId,
+  });
+
   const queryParams = {
     limit: pageSize,
     offset: getOffset(),
@@ -111,6 +138,7 @@ export default function DonorListPage() {
     orderDirection: sortDirection,
     onlyResearched,
     listId: selectedListId,
+    notInAnyList,
     assignedToStaffId: selectedStaffId,
   };
 
@@ -279,6 +307,73 @@ export default function DonorListPage() {
     setIsDeleteListDialogOpen(true);
   };
 
+  // Handler for creating list from selected donors
+  const handleCreateListFromSelected = async () => {
+    if (!newListName.trim()) {
+      toast.error("Please enter a list name");
+      return;
+    }
+
+    const selectedDonorIds = Object.keys(rowSelection)
+      .filter((id) => rowSelection[id])
+      .map((id) => parseInt(id));
+    if (selectedDonorIds.length === 0) {
+      toast.error("Please select at least one donor");
+      return;
+    }
+
+    try {
+      // Create the list first
+      const newList = await createList({
+        name: newListName.trim(),
+        description: `Created from ${selectedDonorIds.length} selected donors`,
+      });
+
+      // Then add the selected donors to the list
+      await addDonorsToList(newList.id, selectedDonorIds);
+
+      setNewListName("");
+      setRowSelection({});
+      setIsCreateListDialogOpen(false);
+      toast.success(`Created list "${newList.name}" with ${selectedDonorIds.length} donors`);
+    } catch (error) {
+      console.error("Failed to create list:", error);
+      toast.error("Failed to create list");
+    }
+  };
+
+  // Get count of selected donors
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
+
+  // Handle select all functionality
+  const handleSelectAll = async () => {
+    if (isSelectingAllFiltered || selectedCount > 0) {
+      // Deselect all
+      setRowSelection({});
+      setIsSelectingAllFiltered(false);
+    } else {
+      // Select all matching donors (not just current page)
+      try {
+        await filteredDonorIdsQuery.refetch();
+        const allMatchingIds = filteredDonorIdsQuery.data || [];
+
+        const newSelection: Record<string, boolean> = {};
+        allMatchingIds.forEach((id) => {
+          newSelection[id.toString()] = true;
+        });
+        setRowSelection(newSelection);
+        setIsSelectingAllFiltered(true);
+
+        toast.success(
+          `Selected ${allMatchingIds.length} donor${allMatchingIds.length !== 1 ? "s" : ""} matching current filters`
+        );
+      } catch (error) {
+        console.error("Failed to get all donor IDs:", error);
+        toast.error("Failed to select all donors");
+      }
+    }
+  };
+
   if (error) {
     return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading donors" />;
   }
@@ -443,14 +538,26 @@ export default function DonorListPage() {
               List:
             </Label>
             <Select
-              value={selectedListId?.toString() || "all"}
-              onValueChange={(value) => setSelectedListId(value === "all" ? undefined : parseInt(value))}
+              value={notInAnyList ? "not-in-any" : selectedListId?.toString() || "all"}
+              onValueChange={(value) => {
+                if (value === "not-in-any") {
+                  setNotInAnyList(true);
+                  setSelectedListId(undefined);
+                } else if (value === "all") {
+                  setNotInAnyList(false);
+                  setSelectedListId(undefined);
+                } else {
+                  setNotInAnyList(false);
+                  setSelectedListId(parseInt(value));
+                }
+              }}
             >
-              <SelectTrigger className="w-40" id="list-filter">
+              <SelectTrigger className="w-48" id="list-filter">
                 <SelectValue placeholder="All Lists" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Lists</SelectItem>
+                <SelectItem value="not-in-any">Not in any list</SelectItem>
                 {lists?.lists?.map((list) => (
                   <SelectItem key={list.id} value={list.id.toString()}>
                     {list.name}
@@ -516,6 +623,29 @@ export default function DonorListPage() {
         </div>
       </div>
 
+      {/* Selection controls */}
+      {donors.length > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" onClick={handleSelectAll} className="flex items-center gap-2">
+              {selectedCount > 0 ? "Deselect All" : "Select All Matching"}
+            </Button>
+            {selectedCount > 0 && (
+              <span className="text-sm text-muted-foreground">
+                {selectedCount} donor{selectedCount !== 1 ? "s" : ""} selected
+                {isSelectingAllFiltered && selectedCount > donors.length && ` (across all pages matching filters)`}
+              </span>
+            )}
+          </div>
+          {selectedCount > 0 && (
+            <Button onClick={() => setIsCreateListDialogOpen(true)} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Create List from Selected ({selectedCount})
+            </Button>
+          )}
+        </div>
+      )}
+
       {isLoading && !listDonorsResponse ? (
         <LoadingSkeleton />
       ) : (
@@ -530,6 +660,9 @@ export default function DonorListPage() {
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           onSortingChange={handleSortingChange}
+          enableRowSelection={true}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
         />
       )}
 
@@ -581,6 +714,43 @@ export default function DonorListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create List from Selected Dialog */}
+      <Dialog open={isCreateListDialogOpen} onOpenChange={setIsCreateListDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create List from Selected Donors</DialogTitle>
+            <DialogDescription>
+              Create a new list with the {selectedCount} selected donor{selectedCount !== 1 ? "s" : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="list-name" className="text-right">
+                List Name
+              </Label>
+              <Input
+                id="list-name"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                placeholder="Enter list name..."
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateListDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateListFromSelected}
+              disabled={!newListName.trim() || isCreating || isAddingDonors}
+            >
+              {isCreating || isAddingDonors ? "Creating..." : "Create List"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

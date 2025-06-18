@@ -108,12 +108,21 @@ export function useDonors() {
     );
 
   // Get all donor IDs for bulk operations
-  const getAllDonorIds = () =>
-    trpc.donors.getAllIds.useQuery(undefined, {
+  const getAllDonorIds = (filters?: {
+    searchTerm?: string;
+    state?: string;
+    gender?: "male" | "female" | null;
+    assignedToStaffId?: number | null;
+    listId?: number;
+    notInAnyList?: boolean;
+    onlyResearched?: boolean;
+  }) =>
+    trpc.donors.getAllIds.useQuery(filters || {}, {
       // Don't refetch automatically
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
+      enabled: false, // Only run when manually triggered
     });
 
   // Mutation hooks

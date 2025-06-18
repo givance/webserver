@@ -48,3 +48,6 @@ data/boruch
 *.csv
 
 worktrees
+
+# clerk configuration (can include secrets)
+/.clerk/

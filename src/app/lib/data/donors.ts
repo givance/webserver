@@ -338,6 +338,7 @@ export async function listDonors(
     gender?: "male" | "female" | null;
     assignedToStaffId?: number | null;
     listId?: number;
+    notInAnyList?: boolean;
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
@@ -353,6 +354,7 @@ export async function listDonors(
       gender,
       assignedToStaffId,
       listId,
+      notInAnyList,
       onlyResearched,
       limit, // No default limit - if not provided, fetch all
       offset = 0,
@@ -406,6 +408,14 @@ export async function listDonors(
         SELECT 1 FROM ${donorListMembers} 
         WHERE ${donorListMembers.donorId} = ${donors.id} 
         AND ${donorListMembers.listId} = ${listId}
+      )`);
+    }
+
+    // Add filter for donors not in any list
+    if (notInAnyList) {
+      whereClauses.push(sql`NOT EXISTS (
+        SELECT 1 FROM ${donorListMembers} 
+        WHERE ${donorListMembers.donorId} = ${donors.id}
       )`);
     }
 
