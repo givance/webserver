@@ -13,6 +13,8 @@ import {
   removeDonorsFromList,
   getDonorIdsFromLists,
   getListsForDonor,
+  getDonorsExclusiveToList,
+  type ListDeletionMode,
 } from "../../../lib/data/donor-lists";
 import { listDonorsByCriteria } from "../../../lib/data/donors";
 import { processCSVFiles } from "../../../lib/utils/csv-import";
@@ -23,6 +25,11 @@ import { donorListCriteriaSchemas } from "../../../lib/validation/schemas";
  */
 const listIdSchema = z.object({
   id: z.number(),
+});
+
+const deleteListSchema = z.object({
+  id: z.number(),
+  deleteMode: z.enum(["listOnly", "withExclusiveDonors", "withAllDonors"]).default("listOnly"),
 });
 
 const createListSchema = z.object({
@@ -210,18 +217,21 @@ export const listsRouter = router({
   }),
 
   /**
-   * Delete a donor list
+   * Delete a donor list with optional donor deletion
    * @param input.id - The donor list ID
+   * @param input.deleteMode - Deletion mode: "listOnly", "withExclusiveDonors", or "withAllDonors"
+   * @returns Object with deletion results (listDeleted and donorsDeleted count)
    * @throws NOT_FOUND if the list doesn't exist or doesn't belong to the organization
    */
-  delete: protectedProcedure.input(listIdSchema).mutation(async ({ input, ctx }) => {
-    const deleted = await deleteDonorList(input.id, ctx.auth.user.organizationId);
-    if (!deleted) {
+  delete: protectedProcedure.input(deleteListSchema).mutation(async ({ input, ctx }) => {
+    const result = await deleteDonorList(input.id, ctx.auth.user.organizationId, input.deleteMode);
+    if (!result.listDeleted) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: "Donor list not found",
       });
     }
+    return result;
   }),
 
   /**
@@ -306,6 +316,29 @@ export const listsRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get lists for donor",
+      });
+    }
+  }),
+
+  /**
+   * Get the count of donors that are exclusively in a specific list
+   * @param input.id - The donor list ID
+   * @returns Count of donors that belong only to this list
+   */
+  getExclusiveDonorCount: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
+    try {
+      const exclusiveDonorIds = await getDonorsExclusiveToList(input.id, ctx.auth.user.organizationId);
+      return { count: exclusiveDonorIds.length };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("not found")) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "List not found",
+        });
+      }
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get exclusive donor count",
       });
     }
   }),

@@ -125,6 +125,19 @@ export function useDonors() {
       enabled: false, // Only run when manually triggered
     });
 
+  // Get donor list count
+  const getDonorListCount = (donorId: number) =>
+    trpc.donors.countLists.useQuery(
+      { id: donorId },
+      {
+        // Don't refetch automatically
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        enabled: !!donorId, // Only run the query if we have an ID
+      }
+    );
+
   // Mutation hooks
   const createMutation = trpc.donors.create.useMutation({
     onSuccess: () => {
@@ -148,10 +161,18 @@ export function useDonors() {
   });
 
   const deleteMutation = trpc.donors.delete.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.donors.list.invalidate();
       utils.donors.getById.invalidate();
-      toast.success("Donor deleted successfully");
+      utils.lists.invalidate(); // Invalidate lists in case we removed from lists
+      
+      if (variables.deleteMode === 'fromList') {
+        toast.success("Donor removed from list successfully");
+      } else if (variables.deleteMode === 'fromAllLists') {
+        toast.success("Donor removed from all lists successfully");
+      } else {
+        toast.success("Donor deleted successfully");
+      }
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete donor");
@@ -269,13 +290,24 @@ export function useDonors() {
   };
 
   /**
-   * Delete a donor by ID
+   * Delete a donor by ID with different deletion modes
    * @param id The ID of the donor to delete
+   * @param options Optional deletion mode and list ID
    * @returns true if deletion was successful, false otherwise
    */
-  const deleteDonor = async (id: number) => {
+  const deleteDonor = async (
+    id: number, 
+    options?: {
+      deleteMode?: 'fromList' | 'fromAllLists' | 'entirely';
+      listId?: number;
+    }
+  ) => {
     try {
-      await deleteMutation.mutateAsync({ id });
+      await deleteMutation.mutateAsync({ 
+        id,
+        deleteMode: options?.deleteMode,
+        listId: options?.listId,
+      });
       return true;
     } catch (error) {
       console.error("Failed to delete donor:", error);
@@ -358,6 +390,7 @@ export function useDonors() {
     getDonorStats,
     getMultipleDonorStats,
     getAllDonorIds,
+    getDonorListCount,
 
     // Mutation functions
     createDonor,

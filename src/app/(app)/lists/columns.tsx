@@ -5,17 +5,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpDown, MoreHorizontal, Trash2, Edit, Users } from "lucide-react";
 import Link from "next/link";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -26,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useLists } from "@/app/hooks/use-lists";
 import React from "react";
+import { DeleteListDialog } from "@/components/lists/delete-list-dialog";
+import type { ListDeletionMode } from "@/app/lib/data/donor-lists";
 
 // Frontend type that matches what comes from tRPC (dates are strings)
 export type DonorListWithMemberCountFrontend = {
@@ -41,43 +32,33 @@ export type DonorListWithMemberCountFrontend = {
 };
 
 // DeleteListButton component to handle delete with confirmation dialog
-function DeleteListButton({ listId, listName }: { listId: number; listName: string }) {
+function DeleteListButton({ list }: { list: DonorListWithMemberCountFrontend }) {
   const [open, setOpen] = useState(false);
   const { deleteList, isDeleting } = useLists();
 
-  const handleDelete = async () => {
-    await deleteList(listId);
-    setOpen(false);
+  const handleDelete = async (deleteMode: ListDeletionMode) => {
+    await deleteList(list.id, deleteMode);
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete
-        </DropdownMenuItem>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the list &quot;{listName}&quot; and remove all
-            its members.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <DropdownMenuItem onSelect={(e) => { 
+        e.preventDefault(); 
+        setOpen(true); 
+      }}>
+        <Trash2 className="h-4 w-4 mr-2" />
+        Delete
+      </DropdownMenuItem>
+      <DeleteListDialog
+        open={open}
+        onOpenChange={setOpen}
+        listId={list.id}
+        listName={list.name}
+        memberCount={list.memberCount}
+        onDelete={handleDelete}
+        isDeleting={isDeleting}
+      />
+    </>
   );
 }
 
@@ -187,7 +168,7 @@ export const getColumns = (): ColumnDef<DonorListWithMemberCountFrontend>[] => [
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DeleteListButton listId={list.id} listName={list.name} />
+            <DeleteListButton list={list} />
           </DropdownMenuContent>
         </DropdownMenu>
       );
