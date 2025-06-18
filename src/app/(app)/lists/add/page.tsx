@@ -33,7 +33,16 @@ type SelectableDonor = {
 
 export default function AddListPage() {
   const router = useRouter();
-  const { createList, addDonorsToList, uploadFilesToList, isCreating, isAddingDonors, isUploadingFiles } = useLists();
+  const {
+    createList,
+    addDonorsToList,
+    uploadFilesToList,
+    createListByCriteria,
+    previewByCriteria,
+    isCreating,
+    isAddingDonors,
+    isUploadingFiles,
+  } = useLists();
   const { listDonors, bulkUpdateDonorStaff } = useDonors();
   const { staffMembers, isLoading: isLoadingStaff } = useStaffMembers();
   const utils = trpc.useUtils();
@@ -52,10 +61,26 @@ export default function AddListPage() {
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
   // File upload state
-  const [donorMethod, setDonorMethod] = useState<"none" | "select" | "upload">("none");
+  const [donorMethod, setDonorMethod] = useState<"none" | "select" | "upload" | "criteria">("none");
   const [accountsFile, setAccountsFile] = useState<File | null>(null);
   const [pledgesFile, setPledgesFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
+
+  // Criteria filtering state
+  const [criteriaFormData, setCriteriaFormData] = useState({
+    createdDateFrom: "",
+    createdDateTo: "",
+    lastDonationDateFrom: "",
+    lastDonationDateTo: "",
+    highestDonationMin: "",
+    highestDonationMax: "",
+    totalDonationMin: "",
+    totalDonationMax: "",
+    assignedToStaffId: "any",
+    includeNoDonations: false,
+  });
+  const [previewLimit] = useState(10);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Get donors for selection
   const {
@@ -79,6 +104,151 @@ export default function AddListPage() {
       })) || []
     );
   }, [donorsResponse, selectedDonorIds]);
+
+  // Build criteria for preview
+  const buildCriteriaFromForm = () => {
+    const criteria: any = {};
+
+    if (criteriaFormData.createdDateFrom) {
+      criteria.createdDateFrom = new Date(criteriaFormData.createdDateFrom);
+    }
+    if (criteriaFormData.createdDateTo) {
+      criteria.createdDateTo = new Date(criteriaFormData.createdDateTo);
+    }
+    if (criteriaFormData.lastDonationDateFrom) {
+      criteria.lastDonationDateFrom = new Date(criteriaFormData.lastDonationDateFrom);
+    }
+    if (criteriaFormData.lastDonationDateTo) {
+      criteria.lastDonationDateTo = new Date(criteriaFormData.lastDonationDateTo);
+    }
+    if (criteriaFormData.highestDonationMin) {
+      criteria.highestDonationMin = Math.round(parseFloat(criteriaFormData.highestDonationMin) * 100);
+    }
+    if (criteriaFormData.highestDonationMax) {
+      criteria.highestDonationMax = Math.round(parseFloat(criteriaFormData.highestDonationMax) * 100);
+    }
+    if (criteriaFormData.totalDonationMin) {
+      criteria.totalDonationMin = Math.round(parseFloat(criteriaFormData.totalDonationMin) * 100);
+    }
+    if (criteriaFormData.totalDonationMax) {
+      criteria.totalDonationMax = Math.round(parseFloat(criteriaFormData.totalDonationMax) * 100);
+    }
+    if (
+      criteriaFormData.assignedToStaffId &&
+      criteriaFormData.assignedToStaffId !== "none" &&
+      criteriaFormData.assignedToStaffId !== "any"
+    ) {
+      criteria.assignedToStaffId = parseInt(criteriaFormData.assignedToStaffId, 10);
+    } else if (criteriaFormData.assignedToStaffId === "none") {
+      criteria.assignedToStaffId = null;
+    }
+    // If "any" or empty, don't set assignedToStaffId which means no filtering by staff
+    criteria.includeNoDonations = criteriaFormData.includeNoDonations;
+
+    return criteria;
+  };
+
+  // Build criteria description for the list description
+  const buildCriteriaDescription = () => {
+    const parts: string[] = [];
+
+    // Date ranges
+    if (criteriaFormData.createdDateFrom || criteriaFormData.createdDateTo) {
+      const from = criteriaFormData.createdDateFrom
+        ? new Date(criteriaFormData.createdDateFrom).toLocaleDateString()
+        : "";
+      const to = criteriaFormData.createdDateTo ? new Date(criteriaFormData.createdDateTo).toLocaleDateString() : "";
+      if (from && to) {
+        parts.push(`Donors created between ${from} and ${to}`);
+      } else if (from) {
+        parts.push(`Donors created after ${from}`);
+      } else if (to) {
+        parts.push(`Donors created before ${to}`);
+      }
+    }
+
+    if (criteriaFormData.lastDonationDateFrom || criteriaFormData.lastDonationDateTo) {
+      const from = criteriaFormData.lastDonationDateFrom
+        ? new Date(criteriaFormData.lastDonationDateFrom).toLocaleDateString()
+        : "";
+      const to = criteriaFormData.lastDonationDateTo
+        ? new Date(criteriaFormData.lastDonationDateTo).toLocaleDateString()
+        : "";
+      if (from && to) {
+        parts.push(`Last donation between ${from} and ${to}`);
+      } else if (from) {
+        parts.push(`Last donation after ${from}`);
+      } else if (to) {
+        parts.push(`Last donation before ${to}`);
+      }
+    }
+
+    // Amount ranges
+    if (criteriaFormData.highestDonationMin || criteriaFormData.highestDonationMax) {
+      const min = criteriaFormData.highestDonationMin ? `$${criteriaFormData.highestDonationMin}` : "";
+      const max = criteriaFormData.highestDonationMax ? `$${criteriaFormData.highestDonationMax}` : "";
+      if (min && max) {
+        parts.push(`Highest donation between ${min} and ${max}`);
+      } else if (min) {
+        parts.push(`Highest donation at least ${min}`);
+      } else if (max) {
+        parts.push(`Highest donation up to ${max}`);
+      }
+    }
+
+    if (criteriaFormData.totalDonationMin || criteriaFormData.totalDonationMax) {
+      const min = criteriaFormData.totalDonationMin ? `$${criteriaFormData.totalDonationMin}` : "";
+      const max = criteriaFormData.totalDonationMax ? `$${criteriaFormData.totalDonationMax}` : "";
+      if (min && max) {
+        parts.push(`Total donations between ${min} and ${max}`);
+      } else if (min) {
+        parts.push(`Total donations at least ${min}`);
+      } else if (max) {
+        parts.push(`Total donations up to ${max}`);
+      }
+    }
+
+    // Staff assignment
+    if (criteriaFormData.assignedToStaffId && criteriaFormData.assignedToStaffId !== "any") {
+      if (criteriaFormData.assignedToStaffId === "none") {
+        parts.push("Not assigned to any staff member");
+      } else {
+        const staffMember = staffMembers.find((s) => s.id === criteriaFormData.assignedToStaffId);
+        if (staffMember) {
+          parts.push(`Assigned to ${staffMember.name}`);
+        }
+      }
+    }
+
+    // Include no donations
+    if (criteriaFormData.includeNoDonations) {
+      parts.push("Including donors with no donations");
+    }
+
+    if (parts.length === 0) {
+      return "All donors";
+    }
+
+    return `Criteria-based list: ${parts.join("; ")}`;
+  };
+
+  // Preview query for criteria-based filtering
+  const previewCriteria = buildCriteriaFromForm();
+  const {
+    data: previewResponse,
+    isLoading: isLoadingPreview,
+    error: previewError,
+  } = previewByCriteria(
+    {
+      criteria: previewCriteria,
+      limit: previewLimit,
+      offset: 0,
+    },
+    {
+      enabled: showPreview && donorMethod === "criteria",
+      refetchOnWindowFocus: false,
+    }
+  );
 
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -119,7 +289,26 @@ export default function AddListPage() {
     }
 
     try {
-      // Step 1: Create the list
+      // Handle criteria method separately since it creates the list AND adds donors
+      if (donorMethod === "criteria") {
+        const criteriaDescription = buildCriteriaDescription();
+        const finalDescription = formData.description.trim()
+          ? `${formData.description.trim()}\n\n${criteriaDescription}`
+          : criteriaDescription;
+
+        const criteriaList = await createListByCriteria({
+          name: formData.name.trim(),
+          description: finalDescription,
+          isActive: formData.isActive,
+          criteria: previewCriteria,
+        });
+
+        // Navigate to the list detail page immediately since criteria-based creation is complete
+        router.push(`/lists/${criteriaList?.id}`);
+        return;
+      }
+
+      // Step 1: Create the list for all other methods
       const newList = await createList({
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
@@ -198,7 +387,15 @@ export default function AddListPage() {
       router.push(`/lists/${newList.id}`);
     } catch (error) {
       console.error("Error creating list:", error);
-      toast.error("Failed to create list. Please try again.");
+      if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+        if (error.message.includes("already exists")) {
+          toast.error("A list with this name already exists. Please choose a different name.");
+        } else {
+          toast.error(`Failed to create list: ${error.message}`);
+        }
+      } else {
+        toast.error("Failed to create list. Please try again.");
+      }
     }
   };
 
@@ -234,7 +431,7 @@ export default function AddListPage() {
     }
   };
 
-  const handleDonorMethodChange = (method: "none" | "select" | "upload") => {
+  const handleDonorMethodChange = (method: "none" | "select" | "upload" | "criteria") => {
     setDonorMethod(method);
     setShowDonorSelection(method === "select");
 
@@ -245,6 +442,9 @@ export default function AddListPage() {
     if (method !== "upload") {
       setAccountsFile(null);
       setPledgesFile(null);
+    }
+    if (method !== "criteria") {
+      setShowPreview(false);
     }
   };
 
@@ -267,10 +467,10 @@ export default function AddListPage() {
         </Link>
       </div>
 
-      <div className="max-w-4xl">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="max-w-6xl">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* List Details */}
-          <Card>
+          <Card className="xl:col-span-2">
             <CardHeader>
               <CardTitle>Create New Donor List</CardTitle>
               <CardDescription>
@@ -332,6 +532,10 @@ export default function AddListPage() {
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="upload" id="method-upload" />
                       <Label htmlFor="method-upload">Upload CSV files</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="criteria" id="method-criteria" />
+                      <Label htmlFor="method-criteria">Filter by criteria</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -406,6 +610,258 @@ export default function AddListPage() {
                   </div>
                 )}
 
+                {/* Criteria Form Section */}
+                {donorMethod === "criteria" && (
+                  <div className="space-y-6 p-4 border rounded-lg bg-muted/20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Donor Creation Date Range */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Donor Created Between</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="createdDateFrom" className="text-xs text-muted-foreground">
+                              From
+                            </Label>
+                            <Input
+                              id="createdDateFrom"
+                              type="date"
+                              value={criteriaFormData.createdDateFrom}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, createdDateFrom: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="createdDateTo" className="text-xs text-muted-foreground">
+                              To
+                            </Label>
+                            <Input
+                              id="createdDateTo"
+                              type="date"
+                              value={criteriaFormData.createdDateTo}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, createdDateTo: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Last Donation Date Range */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Last Donation Between</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="lastDonationDateFrom" className="text-xs text-muted-foreground">
+                              From
+                            </Label>
+                            <Input
+                              id="lastDonationDateFrom"
+                              type="date"
+                              value={criteriaFormData.lastDonationDateFrom}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, lastDonationDateFrom: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="lastDonationDateTo" className="text-xs text-muted-foreground">
+                              To
+                            </Label>
+                            <Input
+                              id="lastDonationDateTo"
+                              type="date"
+                              value={criteriaFormData.lastDonationDateTo}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, lastDonationDateTo: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Highest Donation Amount Range */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Highest Donation Amount</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="highestDonationMin" className="text-xs text-muted-foreground">
+                              Min ($)
+                            </Label>
+                            <Input
+                              id="highestDonationMin"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={criteriaFormData.highestDonationMin}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, highestDonationMin: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="highestDonationMax" className="text-xs text-muted-foreground">
+                              Max ($)
+                            </Label>
+                            <Input
+                              id="highestDonationMax"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={criteriaFormData.highestDonationMax}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, highestDonationMax: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total Donation Amount Range */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Total Donation Amount</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="totalDonationMin" className="text-xs text-muted-foreground">
+                              Min ($)
+                            </Label>
+                            <Input
+                              id="totalDonationMin"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={criteriaFormData.totalDonationMin}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, totalDonationMin: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="totalDonationMax" className="text-xs text-muted-foreground">
+                              Max ($)
+                            </Label>
+                            <Input
+                              id="totalDonationMax"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={criteriaFormData.totalDonationMax}
+                              onChange={(e) =>
+                                setCriteriaFormData((prev) => ({ ...prev, totalDonationMax: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Assigned Staff and Options */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="criteriaStaffSelect">Assigned to Staff Member</Label>
+                        {isLoadingStaff ? (
+                          <div className="h-10 bg-muted rounded animate-pulse" />
+                        ) : (
+                          <Select
+                            value={criteriaFormData.assignedToStaffId}
+                            onValueChange={(value) =>
+                              setCriteriaFormData((prev) => ({ ...prev, assignedToStaffId: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Any staff member" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="any">Any staff member</SelectItem>
+                              <SelectItem value="none">No assignment</SelectItem>
+                              {staffMembers.map((staff) => (
+                                <SelectItem key={staff.id} value={staff.id.toString()}>
+                                  {staff.firstName} {staff.lastName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Options</Label>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="includeNoDonations"
+                            checked={criteriaFormData.includeNoDonations}
+                            onCheckedChange={(checked) =>
+                              setCriteriaFormData((prev) => ({ ...prev, includeNoDonations: checked }))
+                            }
+                          />
+                          <Label htmlFor="includeNoDonations" className="text-sm">
+                            Include donors with no donations
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Preview Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPreview(!showPreview)}
+                          disabled={isLoadingPreview}
+                        >
+                          {isLoadingPreview ? "Loading..." : showPreview ? "Hide Preview" : "Preview Results"}
+                        </Button>
+                        {previewResponse && (
+                          <span className="text-sm text-muted-foreground">
+                            {previewResponse.totalCount} donor{previewResponse.totalCount !== 1 ? "s" : ""} match your
+                            criteria
+                          </span>
+                        )}
+                      </div>
+
+                      {showPreview && previewResponse && (
+                        <div className="mt-4 p-4 border rounded-lg bg-background">
+                          <h4 className="font-medium mb-2">
+                            Preview ({previewResponse.donors.length} of {previewResponse.totalCount})
+                          </h4>
+                          {previewResponse.donors.length > 0 ? (
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {previewResponse.donors.map((donor) => (
+                                <div
+                                  key={donor.id}
+                                  className="flex justify-between items-center py-2 border-b last:border-b-0"
+                                >
+                                  <div>
+                                    <span className="font-medium">
+                                      {donor.displayName || `${donor.firstName} ${donor.lastName}`}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground ml-2">{donor.email}</span>
+                                  </div>
+                                  <span className="text-sm text-muted-foreground">
+                                    {new Date(donor.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No donors match your criteria.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {previewError && (
+                        <div className="text-sm text-red-500">Error loading preview: {previewError.message}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Toggle donor selection - only show for 'none' method */}
                 {donorMethod === "none" && (
                   <div className="flex items-center space-x-2 pt-4 border-t">
@@ -438,6 +894,12 @@ export default function AddListPage() {
                       ? selectedStaffId && selectedStaffId !== "none"
                         ? "Create List, Upload Files & Assign Staff"
                         : "Create List & Upload Files"
+                      : donorMethod === "criteria"
+                      ? previewResponse && previewResponse.totalCount > 0
+                        ? `Create List with ${previewResponse.totalCount} Donor${
+                            previewResponse.totalCount !== 1 ? "s" : ""
+                          }`
+                        : "Create List with Criteria"
                       : selectedDonorIds.length > 0
                       ? selectedStaffId && selectedStaffId !== "none"
                         ? `Create List with ${selectedDonorIds.length} Donor${

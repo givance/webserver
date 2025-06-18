@@ -209,6 +209,26 @@ export function useLists() {
     },
   });
 
+  const createByCriteriaMutation = trpc.lists.createByCriteria.useMutation({
+    onSuccess: (result) => {
+      utils.lists.list.invalidate();
+      utils.lists.getByIdWithMemberCount.invalidate();
+      utils.lists.getByIdWithMembers.invalidate();
+      utils.lists.getDonorIdsFromLists.invalidate();
+
+      if (result) {
+        toast.success(
+          `Successfully created list "${result.name}" with ${result.memberCount} donor${
+            result.memberCount !== 1 ? "s" : ""
+          }`
+        );
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to create list by criteria: ${error.message}`);
+    },
+  });
+
   // Helper functions for easier use
   const createList = async (data: CreateDonorListInput) => {
     return createMutation.mutateAsync(data);
@@ -230,9 +250,35 @@ export function useLists() {
     return removeDonorsMutation.mutateAsync({ listId, donorIds });
   };
 
-  const uploadFilesToList = async (data: UploadFilesInput) => {
+  const uploadFilesToList = async (data: {
+    listId: number;
+    accountsFile: { name: string; content: string };
+    pledgesFile?: { name: string; content: string };
+  }) => {
     return uploadFilesMutation.mutateAsync(data);
   };
+
+  const createListByCriteria = async (data: {
+    name: string;
+    description?: string;
+    isActive?: boolean;
+    criteria: {
+      createdDateFrom?: Date;
+      createdDateTo?: Date;
+      lastDonationDateFrom?: Date;
+      lastDonationDateTo?: Date;
+      highestDonationMin?: number;
+      highestDonationMax?: number;
+      totalDonationMin?: number;
+      totalDonationMax?: number;
+      assignedToStaffId?: number | null;
+      includeNoDonations?: boolean;
+    };
+  }) => {
+    return createByCriteriaMutation.mutateAsync(data);
+  };
+
+  const previewByCriteria = trpc.lists.previewByCriteria.useQuery;
 
   return {
     // Query hooks
@@ -250,6 +296,7 @@ export function useLists() {
     addDonorsMutation,
     removeDonorsMutation,
     uploadFilesMutation,
+    createByCriteriaMutation,
 
     // Helper functions
     createList,
@@ -258,9 +305,11 @@ export function useLists() {
     addDonorsToList,
     removeDonorsFromList,
     uploadFilesToList,
+    createListByCriteria,
+    previewByCriteria,
 
     // Loading states
-    isCreating: createMutation.isPending,
+    isCreating: createMutation.isPending || createByCriteriaMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isAddingDonors: addDonorsMutation.isPending,

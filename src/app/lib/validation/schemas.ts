@@ -404,6 +404,103 @@ export const gmailSchemas = {
 };
 
 /**
+ * Donor list criteria filtering schemas
+ */
+const donorListCriteriaSchema = z
+  .object({
+    // Donor creation date range
+    createdDateFrom: z.date().optional(),
+    createdDateTo: z.date().optional(),
+
+    // Last donation date range
+    lastDonationDateFrom: z.date().optional(),
+    lastDonationDateTo: z.date().optional(),
+
+    // Highest donation amount range (in cents)
+    highestDonationMin: z.number().min(0).optional(),
+    highestDonationMax: z.number().min(0).optional(),
+
+    // Total donation amount range (in cents)
+    totalDonationMin: z.number().min(0).optional(),
+    totalDonationMax: z.number().min(0).optional(),
+
+    // Assigned staff member
+    assignedToStaffId: idSchema.nullable().optional(),
+
+    // Include donors with no donations
+    includeNoDonations: z.boolean().default(false),
+  })
+  .refine(
+    (data) => {
+      // Validate date ranges
+      if (data.createdDateFrom && data.createdDateTo) {
+        return data.createdDateFrom <= data.createdDateTo;
+      }
+      return true;
+    },
+    {
+      message: "Created date 'from' must be before or equal to 'to' date",
+      path: ["createdDateTo"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate last donation date ranges
+      if (data.lastDonationDateFrom && data.lastDonationDateTo) {
+        return data.lastDonationDateFrom <= data.lastDonationDateTo;
+      }
+      return true;
+    },
+    {
+      message: "Last donation date 'from' must be before or equal to 'to' date",
+      path: ["lastDonationDateTo"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate highest donation amount ranges
+      if (data.highestDonationMin !== undefined && data.highestDonationMax !== undefined) {
+        return data.highestDonationMin <= data.highestDonationMax;
+      }
+      return true;
+    },
+    {
+      message: "Highest donation minimum must be less than or equal to maximum",
+      path: ["highestDonationMax"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate total donation amount ranges
+      if (data.totalDonationMin !== undefined && data.totalDonationMax !== undefined) {
+        return data.totalDonationMin <= data.totalDonationMax;
+      }
+      return true;
+    },
+    {
+      message: "Total donation minimum must be less than or equal to maximum",
+      path: ["totalDonationMax"],
+    }
+  );
+
+export const donorListCriteriaSchemas = {
+  criteria: donorListCriteriaSchema,
+
+  createByCriteria: z.object({
+    name: z.string().min(1).max(255),
+    description: z.string().optional(),
+    isActive: z.boolean().default(true),
+    criteria: donorListCriteriaSchema,
+  }),
+
+  previewByCriteria: z.object({
+    criteria: donorListCriteriaSchema,
+    limit: z.number().min(1).max(100).optional(),
+    offset: z.number().min(0).optional(),
+  }),
+} as const;
+
+/**
  * Combined schemas export for easy access
  */
 export const schemas = {
@@ -426,4 +523,5 @@ export const schemas = {
   analysis: analysisSchemas,
   todos: todoSchemas,
   gmail: gmailSchemas,
+  donorListCriteria: donorListCriteriaSchemas,
 };

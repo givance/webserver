@@ -14,7 +14,9 @@ import {
   getDonorIdsFromLists,
   getListsForDonor,
 } from "../../../lib/data/donor-lists";
+import { listDonorsByCriteria } from "../../../lib/data/donors";
 import { processCSVFiles } from "../../../lib/utils/csv-import";
+import { donorListCriteriaSchemas } from "../../../lib/validation/schemas";
 
 /**
  * Input validation schemas for donor list operations
@@ -346,4 +348,85 @@ export const listsRouter = router({
       });
     }
   }),
+
+  /**
+   * Preview donors that match the specified criteria
+   * @param input.criteria - Filtering criteria for donors
+   * @param input.limit - Maximum number of donors to return for preview
+   * @param input.offset - Number of donors to skip for pagination
+   * @returns Object containing matching donors and total count
+   */
+  previewByCriteria: protectedProcedure
+    .input(donorListCriteriaSchemas.previewByCriteria)
+    .query(async ({ input, ctx }) => {
+      try {
+        const result = await listDonorsByCriteria(
+          {
+            ...input.criteria,
+            limit: input.limit || 10,
+            offset: input.offset || 0,
+          },
+          ctx.auth.user.organizationId
+        );
+
+        return result;
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to preview donors by criteria",
+        });
+      }
+    }),
+
+  /**
+   * Create a new donor list based on filtering criteria
+   * @param input.name - The name of the list (required, 1-255 characters)
+   * @param input.description - Optional description of the list
+   * @param input.isActive - Whether the list is active (default: true)
+   * @param input.criteria - Filtering criteria for selecting donors
+   * @returns The created donor list with member count
+   * @throws CONFLICT if a list with the same name already exists in the organization
+   */
+  createByCriteria: protectedProcedure
+    .input(donorListCriteriaSchemas.createByCriteria)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { criteria, ...listData } = input;
+
+        // Step 1: Create the list
+        const newList = await createDonorList({
+          ...listData,
+          organizationId: ctx.auth.user.organizationId,
+          createdBy: ctx.auth.user.id,
+        });
+
+        if (!newList) {
+          throw new Error("Failed to create list");
+        }
+
+        // Step 2: Get donors that match the criteria
+        const donorsResult = await listDonorsByCriteria(criteria, ctx.auth.user.organizationId);
+
+        if (donorsResult.donors.length > 0) {
+          // Step 3: Add all matching donors to the list
+          const donorIds = donorsResult.donors.map((donor) => donor.id);
+          await addDonorsToList(newList.id, donorIds, ctx.auth.user.id, ctx.auth.user.organizationId);
+        }
+
+        // Return the list with member count
+        const listWithMemberCount = await getDonorListWithMemberCount(newList.id, ctx.auth.user.organizationId);
+        return listWithMemberCount;
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("unique constraint")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A list with this name already exists in your organization",
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to create list by criteria",
+        });
+      }
+    }),
 });

@@ -766,3 +766,207 @@ export async function bulkDeleteDonors(
 
   return results;
 }
+
+/**
+ * Lists donors based on comprehensive criteria including donation history
+ * @param criteria - Filtering criteria for donors
+ * @param organizationId - The organization ID to filter by
+ * @returns Object containing filtered donors and total count
+ */
+export async function listDonorsByCriteria(
+  criteria: {
+    createdDateFrom?: Date;
+    createdDateTo?: Date;
+    lastDonationDateFrom?: Date;
+    lastDonationDateTo?: Date;
+    highestDonationMin?: number; // in cents
+    highestDonationMax?: number; // in cents
+    totalDonationMin?: number; // in cents
+    totalDonationMax?: number; // in cents
+    assignedToStaffId?: number | null;
+    includeNoDonations?: boolean;
+    limit?: number;
+    offset?: number;
+  },
+  organizationId: string
+): Promise<{ donors: DonorWithDetails[]; totalCount: number }> {
+  try {
+    const {
+      createdDateFrom,
+      createdDateTo,
+      lastDonationDateFrom,
+      lastDonationDateTo,
+      highestDonationMin,
+      highestDonationMax,
+      totalDonationMin,
+      totalDonationMax,
+      assignedToStaffId,
+      includeNoDonations = false,
+      limit,
+      offset = 0,
+    } = criteria;
+
+    // Build base where conditions for donors
+    const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
+
+    // Add donor creation date filters
+    if (createdDateFrom) {
+      whereClauses.push(sql`${donors.createdAt} >= ${createdDateFrom}`);
+    }
+    if (createdDateTo) {
+      whereClauses.push(sql`${donors.createdAt} <= ${createdDateTo}`);
+    }
+
+    // Add staff assignment filter
+    if (assignedToStaffId === null) {
+      whereClauses.push(isNull(donors.assignedToStaffId));
+    } else if (assignedToStaffId !== undefined) {
+      whereClauses.push(eq(donors.assignedToStaffId, assignedToStaffId));
+    }
+
+    // Build donation-related subqueries and filters
+    const donationFilters: SQL[] = [];
+
+    // Last donation date filters
+    if (lastDonationDateFrom || lastDonationDateTo) {
+      const lastDonationConditions: SQL[] = [];
+      if (lastDonationDateFrom) {
+        lastDonationConditions.push(sql`MAX(${donations.date}) >= ${lastDonationDateFrom}`);
+      }
+      if (lastDonationDateTo) {
+        lastDonationConditions.push(sql`MAX(${donations.date}) <= ${lastDonationDateTo}`);
+      }
+
+      donationFilters.push(sql`EXISTS (
+        SELECT 1 FROM ${donations} 
+        WHERE ${donations.donorId} = ${donors.id}
+        GROUP BY ${donations.donorId}
+        HAVING ${and(...lastDonationConditions)}
+      )`);
+    }
+
+    // Highest donation amount filters
+    if (highestDonationMin !== undefined || highestDonationMax !== undefined) {
+      const highestDonationConditions: SQL[] = [];
+      if (highestDonationMin !== undefined) {
+        highestDonationConditions.push(sql`MAX(${donations.amount}) >= ${highestDonationMin}`);
+      }
+      if (highestDonationMax !== undefined) {
+        highestDonationConditions.push(sql`MAX(${donations.amount}) <= ${highestDonationMax}`);
+      }
+
+      donationFilters.push(sql`EXISTS (
+        SELECT 1 FROM ${donations} 
+        WHERE ${donations.donorId} = ${donors.id}
+        GROUP BY ${donations.donorId}
+        HAVING ${and(...highestDonationConditions)}
+      )`);
+    }
+
+    // Total donation amount filters
+    if (totalDonationMin !== undefined || totalDonationMax !== undefined) {
+      const totalDonationConditions: SQL[] = [];
+      if (totalDonationMin !== undefined) {
+        totalDonationConditions.push(sql`SUM(${donations.amount}) >= ${totalDonationMin}`);
+      }
+      if (totalDonationMax !== undefined) {
+        totalDonationConditions.push(sql`SUM(${donations.amount}) <= ${totalDonationMax}`);
+      }
+
+      donationFilters.push(sql`EXISTS (
+        SELECT 1 FROM ${donations} 
+        WHERE ${donations.donorId} = ${donors.id}
+        GROUP BY ${donations.donorId}
+        HAVING ${and(...totalDonationConditions)}
+      )`);
+    }
+
+    // Add donation filters to main where clause
+    if (donationFilters.length > 0) {
+      if (includeNoDonations) {
+        // Include donors with no donations OR donors that match the donation criteria
+        whereClauses.push(
+          or(
+            sql`NOT EXISTS (SELECT 1 FROM ${donations} WHERE ${donations.donorId} = ${donors.id})`,
+            and(...donationFilters)
+          )!
+        );
+      } else {
+        // Only include donors that match the donation criteria
+        whereClauses.push(and(...donationFilters)!);
+      }
+    } else if (!includeNoDonations) {
+      // If no donation filters but not including no donations, only include donors with donations
+      whereClauses.push(sql`EXISTS (SELECT 1 FROM ${donations} WHERE ${donations.donorId} = ${donors.id})`);
+    }
+
+    // Build the main query
+    const queryBuilder = db
+      .select({
+        id: donors.id,
+        organizationId: donors.organizationId,
+        externalId: donors.externalId,
+        firstName: donors.firstName,
+        lastName: donors.lastName,
+        displayName: donors.displayName,
+        email: donors.email,
+        phone: donors.phone,
+        address: donors.address,
+        state: donors.state,
+        notes: donors.notes,
+        isCouple: donors.isCouple,
+        gender: donors.gender,
+        hisTitle: donors.hisTitle,
+        hisFirstName: donors.hisFirstName,
+        hisInitial: donors.hisInitial,
+        hisLastName: donors.hisLastName,
+        herTitle: donors.herTitle,
+        herFirstName: donors.herFirstName,
+        herInitial: donors.herInitial,
+        herLastName: donors.herLastName,
+        assignedToStaffId: donors.assignedToStaffId,
+        currentStageName: donors.currentStageName,
+        classificationReasoning: donors.classificationReasoning,
+        predictedActions: donors.predictedActions,
+        highPotentialDonor: donors.highPotentialDonor,
+        createdAt: donors.createdAt,
+        updatedAt: donors.updatedAt,
+        // Research rationale from the live person research record
+        highPotentialDonorRationale: sql<string | null>`
+          (${personResearch.researchData}->>'structuredData')::jsonb->>'highPotentialDonorRationale'
+        `,
+      })
+      .from(donors)
+      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+      .where(and(...whereClauses))
+      .orderBy(asc(donors.firstName), asc(donors.lastName));
+
+    // Get total count
+    const countQuery = db
+      .select({ count: count(donors.id) })
+      .from(donors)
+      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+      .where(and(...whereClauses));
+
+    const [totalResult, donorsResult] = await Promise.all([
+      countQuery,
+      limit !== undefined ? queryBuilder.limit(limit).offset(offset) : queryBuilder,
+    ]);
+
+    const totalCount = totalResult[0]?.count || 0;
+
+    // Map to DonorWithDetails format
+    const donorsWithDetails: DonorWithDetails[] = donorsResult.map((donor) => ({
+      ...donor,
+      predictedActions: (donor.predictedActions as string[]) || [],
+    }));
+
+    return {
+      donors: donorsWithDetails,
+      totalCount,
+    };
+  } catch (error) {
+    console.error("Failed to list donors by criteria:", error);
+    throw new Error("Could not list donors by criteria.");
+  }
+}
