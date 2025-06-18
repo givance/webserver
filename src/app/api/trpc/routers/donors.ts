@@ -67,11 +67,13 @@ const updateDonorSchema = z.object({
 
 const listDonorsSchema = z.object({
   searchTerm: z.string().optional(),
+  state: z.string().optional(),
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
   assignedToStaffId: z.number().nullable().optional(),
   listId: z.number().optional(),
+  notInAnyList: z.boolean().optional(),
   onlyResearched: z.boolean().optional(),
   limit: z.number().min(1).optional(),
   offset: z.number().min(0).optional(),
@@ -302,14 +304,16 @@ export const donorsRouter = router({
   }),
 
   /**
-   * Gets all donor IDs for the organization (for bulk operations)
-   * @returns Array of all donor IDs in the organization
+   * Gets all donor IDs for the organization with optional filtering (for bulk operations)
+   * @param input - Optional filters to apply (same as list endpoint)
+   * @returns Array of donor IDs matching the criteria
    */
-  getAllIds: protectedProcedure.query(async ({ ctx }) => {
+  getAllIds: protectedProcedure.input(listDonorsSchema.partial()).query(async ({ input, ctx }) => {
     const result = await listDonors(
       {
-        // No limit to get all donors
-        // No offset, orderBy, etc. - just get all IDs
+        ...input,
+        // No limit to get all matching donors
+        // No offset for bulk operations
       },
       ctx.auth.user.organizationId
     );
@@ -418,12 +422,17 @@ export const donorsRouter = router({
   /**
    * Lists donors with filtering, searching, and pagination
    * @param input.searchTerm - Optional search term to filter by name or email
+   * @param input.state - Optional state filter
    * @param input.isAnonymous - Optional filter for anonymous donors
    * @param input.isOrganization - Optional filter for organization donors
    * @param input.gender - Optional filter for gender
+   * @param input.assignedToStaffId - Optional filter for donors assigned to a specific staff member
+   * @param input.listId - Optional filter for donors in a specific list
+   * @param input.notInAnyList - Optional filter for donors not in any list
+   * @param input.onlyResearched - Optional filter for donors who have been researched
    * @param input.limit - Maximum number of donors to return (1-100, default varies)
    * @param input.offset - Number of donors to skip for pagination
-   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt)
+   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt, totalDonated)
    * @param input.orderDirection - Sort direction (asc or desc)
    * @returns Object containing donors array and total count for pagination
    */
