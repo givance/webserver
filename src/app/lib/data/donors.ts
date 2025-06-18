@@ -337,6 +337,7 @@ export async function listDonors(
     state?: string;
     gender?: "male" | "female" | null;
     assignedToStaffId?: number | null;
+    listId?: number;
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
@@ -351,6 +352,7 @@ export async function listDonors(
       state,
       gender,
       assignedToStaffId,
+      listId,
       onlyResearched,
       limit, // No default limit - if not provided, fetch all
       offset = 0,
@@ -395,6 +397,15 @@ export async function listDonors(
         SELECT 1 FROM ${personResearch} 
         WHERE ${personResearch.donorId} = ${donors.id} 
         AND ${personResearch.isLive} = true
+      )`);
+    }
+
+    // Add filter for list membership
+    if (listId !== undefined) {
+      whereClauses.push(sql`EXISTS (
+        SELECT 1 FROM ${donorListMembers} 
+        WHERE ${donorListMembers.donorId} = ${donors.id} 
+        AND ${donorListMembers.listId} = ${listId}
       )`);
     }
 

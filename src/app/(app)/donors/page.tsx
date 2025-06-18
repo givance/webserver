@@ -7,6 +7,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { usePagination } from "@/app/hooks/use-pagination";
 import { useSearch } from "@/app/hooks/use-search";
 import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useLists } from "@/app/hooks/use-lists";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Info, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -51,8 +53,10 @@ export default function DonorListPage() {
   );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Add state for the researched donors filter
+  // Add state for filters
   const [onlyResearched, setOnlyResearched] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<number | undefined>(undefined);
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null | undefined>(undefined);
 
   // Reset pagination state when sorting or searched term changes
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount, resetToFirstPage } =
@@ -61,16 +65,18 @@ export default function DonorListPage() {
     });
 
   // Reset pagination when filters/sorting change
-  const prevFiltersRef = useRef({ sortField, sortDirection, onlyResearched });
+  const prevFiltersRef = useRef({ sortField, sortDirection, onlyResearched, selectedListId, selectedStaffId });
   useEffect(() => {
     const prev = prevFiltersRef.current;
-    const current = { sortField, sortDirection, onlyResearched };
+    const current = { sortField, sortDirection, onlyResearched, selectedListId, selectedStaffId };
 
     // Only reset if values actually changed (not just on re-render)
     if (
       prev.sortField !== current.sortField ||
       prev.sortDirection !== current.sortDirection ||
-      prev.onlyResearched !== current.onlyResearched
+      prev.onlyResearched !== current.onlyResearched ||
+      prev.selectedListId !== current.selectedListId ||
+      prev.selectedStaffId !== current.selectedStaffId
     ) {
       setCurrentPage(1);
       prevFiltersRef.current = current;
@@ -84,6 +90,10 @@ export default function DonorListPage() {
   const { listDonors, getMultipleDonorStats, updateDonorStaff, bulkDeleteDonors, getAllDonorIds, isBulkDeleting } =
     useDonors();
   const { staffMembers } = useStaffMembers();
+  const { listDonorLists } = useLists();
+
+  // Get lists for the filter dropdown
+  const { data: lists } = listDonorLists();
   const { startBulkResearch, researchStatistics, isStartingResearch, isLoadingStatistics } = useBulkDonorResearch();
 
   // Dialog state
@@ -99,7 +109,9 @@ export default function DonorListPage() {
     searchTerm: debouncedSearchTerm,
     orderBy: sortField,
     orderDirection: sortDirection,
-    onlyResearched, // Add the filter parameter
+    onlyResearched,
+    listId: selectedListId,
+    assignedToStaffId: selectedStaffId,
   };
 
   const { data: listDonorsResponse, isLoading, error } = listDonors(queryParams);
@@ -411,19 +423,85 @@ export default function DonorListPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search donors..."
-            className="w-full pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="flex flex-col gap-4 mb-4">
+        {/* Search and filters row */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search donors..."
+              className="w-full pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Filter by list */}
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="list-filter" className="text-sm font-medium whitespace-nowrap">
+              List:
+            </Label>
+            <Select
+              value={selectedListId?.toString() || "all"}
+              onValueChange={(value) => setSelectedListId(value === "all" ? undefined : parseInt(value))}
+            >
+              <SelectTrigger className="w-40" id="list-filter">
+                <SelectValue placeholder="All Lists" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Lists</SelectItem>
+                {lists?.lists?.map((list) => (
+                  <SelectItem key={list.id} value={list.id.toString()}>
+                    {list.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter by assigned staff */}
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="staff-filter" className="text-sm font-medium whitespace-nowrap">
+              Assigned to:
+            </Label>
+            <Select
+              value={
+                selectedStaffId === null
+                  ? "unassigned"
+                  : selectedStaffId === undefined
+                  ? "all"
+                  : selectedStaffId.toString()
+              }
+              onValueChange={(value) => {
+                if (value === "all") {
+                  setSelectedStaffId(undefined);
+                } else if (value === "unassigned") {
+                  setSelectedStaffId(null);
+                } else {
+                  setSelectedStaffId(parseInt(value));
+                }
+              }}
+            >
+              <SelectTrigger className="w-40" id="staff-filter">
+                <SelectValue placeholder="All Staff" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Staff</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {staffMembers?.map((staff) => (
+                  <SelectItem key={staff.id} value={staff.id.toString()}>
+                    {staff.firstName} {staff.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
         </div>
 
-        {/* Add the checkbox for researched donors */}
+        {/* Second row with researched donors checkbox */}
         <div className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -436,8 +514,6 @@ export default function DonorListPage() {
             Show only researched donors
           </label>
         </div>
-
-        <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
       </div>
 
       {isLoading && !listDonorsResponse ? (

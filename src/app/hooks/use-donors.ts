@@ -23,6 +23,8 @@ export function useDonors() {
   const listDonors = (params: {
     searchTerm?: string;
     gender?: "male" | "female" | null;
+    assignedToStaffId?: number | null;
+    listId?: number;
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;

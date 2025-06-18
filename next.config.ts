@@ -15,6 +15,15 @@ const nextConfig: NextConfig = {
       config.externals = config.externals || [];
       config.externals.push("winston");
     }
+
+    // Exclude worktrees directory from webpack compilation
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /worktrees/,
+      loader: "ignore-loader",
+    });
+
     return config;
   },
 };
