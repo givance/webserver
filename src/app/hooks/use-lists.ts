@@ -181,26 +181,23 @@ export function useLists() {
       utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
       utils.lists.getDonorIdsFromLists.invalidate();
 
-      // Show detailed success message
-      const messages = [];
-      if (result.donorsCreated > 0) {
-        messages.push(`${result.donorsCreated} new donor${result.donorsCreated !== 1 ? "s" : ""} created`);
-      }
-      if (result.donorsUpdated > 0) {
-        messages.push(`${result.donorsUpdated} donor${result.donorsUpdated !== 1 ? "s" : ""} updated`);
-      }
-      if (result.pledgesCreated > 0) {
-        messages.push(`${result.pledgesCreated} pledge${result.pledgesCreated !== 1 ? "s" : ""} imported`);
-      }
+      // Show comprehensive import summary
+      const { summary } = result;
+      const successMessage = `Import Complete: ${summary.imported} of ${summary.totalInCSV} records imported`;
 
-      const summary = `Processed ${result.donorsProcessed} donor records. ${messages.join(", ")}.`;
-      toast.success(summary);
+      if (summary.skipped === 0) {
+        toast.success(successMessage);
+      } else {
+        toast.success(successMessage);
+
+        // Show skip details if any records were skipped
+        const skipDetails = summary.skipBreakdown
+          .map((item) => `${item.count} ${item.reason.toLowerCase()}`)
+          .join(", ");
+        toast.info(`Skipped ${summary.skipped} records: ${skipDetails}`);
+      }
 
       if (result.errors.length > 0) {
-        const errorSummary = `${result.errors.length} error${
-          result.errors.length !== 1 ? "s" : ""
-        } occurred during import`;
-        toast.warning(errorSummary);
         console.warn("Import errors:", result.errors);
       }
     },

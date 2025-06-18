@@ -125,14 +125,39 @@ interface PledgeRecord {
 }
 
 interface ProcessResult {
+  // Total records in CSV
+  totalRecordsInCSV: number;
+
+  // Donor processing results
   donorsProcessed: number;
   donorsCreated: number;
   donorsUpdated: number;
   donorsSkipped: number;
+
+  // Detailed skip reasons for donors
+  skipReasons: {
+    noEmail: number;
+    validationErrors: number;
+    duplicateActId: number;
+    duplicateEmail: number;
+    processingErrors: number;
+  };
+
+  // Pledge processing results
   pledgesProcessed: number;
   pledgesCreated: number;
   pledgesSkipped: number;
+
+  // Error details
   errors: string[];
+
+  // Summary for display
+  summary: {
+    totalInCSV: number;
+    imported: number;
+    skipped: number;
+    skipBreakdown: Array<{ reason: string; count: number }>;
+  };
 }
 
 /**
@@ -512,28 +537,61 @@ export async function processCSVFiles(params: {
   userId: string;
 }): Promise<ProcessResult> {
   const result: ProcessResult = {
+    totalRecordsInCSV: 0,
     donorsProcessed: 0,
     donorsCreated: 0,
     donorsUpdated: 0,
     donorsSkipped: 0,
+    skipReasons: {
+      noEmail: 0,
+      validationErrors: 0,
+      duplicateActId: 0,
+      duplicateEmail: 0,
+      processingErrors: 0,
+    },
     pledgesProcessed: 0,
     pledgesCreated: 0,
     pledgesSkipped: 0,
     errors: [],
+    summary: {
+      totalInCSV: 0,
+      imported: 0,
+      skipped: 0,
+      skipBreakdown: [],
+    },
   };
 
   try {
     // Parse accounts CSV
     const accountRecords = parseCSV(params.accountsCSV) as AccountRecord[];
+    result.totalRecordsInCSV = accountRecords.length;
     logger.info(`Parsed ${accountRecords.length} account records`);
 
     // Debug: Log first few emails to see what we're working with
     const emailSample = accountRecords.slice(0, 10).map((r) => `${r.ACT_ID}: "${r.Email}"`);
     logger.info(`Email sample: ${emailSample.join(", ")}`);
 
-    // Debug: Count empty emails
+    // Count empty emails
     const emptyEmails = accountRecords.filter((r) => !r.Email || r.Email.trim() === "").length;
     logger.info(`Records with empty emails: ${emptyEmails}/${accountRecords.length}`);
+
+    // Filter out accounts without email addresses upfront
+    const validEmailRecords = accountRecords.filter((r) => r.Email && r.Email.trim() !== "");
+    const noEmailCount = accountRecords.length - validEmailRecords.length;
+
+    if (noEmailCount > 0) {
+      logger.info(`Skipping ${noEmailCount} accounts without email addresses`);
+      result.skipReasons.noEmail = noEmailCount;
+      result.donorsSkipped += noEmailCount;
+
+      // Add error details for accounts without emails
+      const noEmailAccounts = accountRecords.filter((r) => !r.Email || r.Email.trim() === "");
+      noEmailAccounts.forEach((account) => {
+        result.errors.push(`Account ${account.ACT_ID}: No email address provided`);
+      });
+    }
+
+    logger.info(`Processing ${validEmailRecords.length} accounts with valid email addresses`);
 
     // Parse pledges CSV if provided
     let pledgeRecords: PledgeRecord[] = [];
@@ -571,8 +629,8 @@ export async function processCSVFiles(params: {
     let existingDonorUpdates = 0;
     let failedDonors = 0;
 
-    // Process all account records and separate into insert/update
-    for (const accountRecord of accountRecords) {
+    // Process all valid account records (with emails) and separate into insert/update
+    for (const accountRecord of validEmailRecords) {
       result.donorsProcessed++;
 
       try {
@@ -584,6 +642,7 @@ export async function processCSVFiles(params: {
           );
           result.errors.push(`Account ${accountRecord.ACT_ID}: ${validationErrors.join(", ")}`);
           result.donorsSkipped++;
+          result.skipReasons.validationErrors++;
           continue;
         }
 
@@ -591,6 +650,7 @@ export async function processCSVFiles(params: {
         if (processedExternalIds.has(accountRecord.ACT_ID)) {
           logger.info(`Skipping duplicate ACT_ID within CSV: ${accountRecord.ACT_ID}`);
           result.donorsSkipped++;
+          result.skipReasons.duplicateActId++;
           continue;
         }
         processedExternalIds.add(accountRecord.ACT_ID);
@@ -599,15 +659,13 @@ export async function processCSVFiles(params: {
         const nameInfo = extractStructuredNames(accountRecord);
         const address = buildAddress(accountRecord);
         const phone = getPhoneNumber(accountRecord);
-        const email =
-          accountRecord.Email && accountRecord.Email.trim() !== ""
-            ? accountRecord.Email.trim()
-            : `no-email-${accountRecord.ACT_ID}@imported.local`;
+        const email = accountRecord.Email.trim(); // We know this is valid since we filtered
 
         // Check for duplicate email within CSV (if email exists and not empty)
         if (email && processedEmails.has(email.toLowerCase())) {
           logger.info(`Skipping duplicate email within CSV: "${email}" for account ${accountRecord.ACT_ID}`);
           result.donorsSkipped++;
+          result.skipReasons.duplicateEmail++;
           continue;
         }
 
@@ -662,6 +720,7 @@ export async function processCSVFiles(params: {
         logger.error(`Error preparing donor ACT_ID ${accountRecord.ACT_ID}: ${error}`);
         failedDonors++;
         result.donorsSkipped++;
+        result.skipReasons.processingErrors++;
       }
     }
 
@@ -694,7 +753,7 @@ export async function processCSVFiles(params: {
 
         // Map the donors we prepared for insert to their new IDs
         let insertIndex = 0;
-        for (const accountRecord of accountRecords) {
+        for (const accountRecord of validEmailRecords) {
           if (insertIndex < donorsToInsert.length) {
             const preparedDonor = donorsToInsert[insertIndex];
             if (preparedDonor.externalId === accountRecord.ACT_ID) {
@@ -884,9 +943,39 @@ export async function processCSVFiles(params: {
       }
     }
 
-    logger.info(
-      `CSV import completed - Donors: ${result.donorsCreated} created, ${result.donorsUpdated} updated, ${result.donorsSkipped} skipped. Pledges: ${result.pledgesCreated} created, ${result.pledgesSkipped} skipped. Errors: ${result.errors.length}`
-    );
+    // Generate comprehensive summary
+    const totalImported = result.donorsCreated + result.donorsUpdated;
+    const totalSkipped = result.donorsSkipped;
+
+    result.summary = {
+      totalInCSV: result.totalRecordsInCSV,
+      imported: totalImported,
+      skipped: totalSkipped,
+      skipBreakdown: [
+        { reason: "No email address", count: result.skipReasons.noEmail },
+        { reason: "Validation errors", count: result.skipReasons.validationErrors },
+        { reason: "Duplicate ACT_ID in CSV", count: result.skipReasons.duplicateActId },
+        { reason: "Duplicate email in CSV", count: result.skipReasons.duplicateEmail },
+        { reason: "Processing errors", count: result.skipReasons.processingErrors },
+      ].filter((item) => item.count > 0), // Only include reasons with non-zero counts
+    };
+
+    // Comprehensive logging
+    logger.info(`
+=== CSV IMPORT SUMMARY ===
+Total records in CSV: ${result.summary.totalInCSV}
+Successfully imported: ${result.summary.imported} (${result.donorsCreated} new, ${result.donorsUpdated} updated)
+Skipped: ${result.summary.skipped}
+
+Skip breakdown:
+${result.summary.skipBreakdown.map((item) => `  - ${item.reason}: ${item.count}`).join("\n")}
+
+Pledges: ${result.pledgesCreated} created, ${result.pledgesSkipped} skipped
+Errors: ${result.errors.length}
+
+Verification: ${result.summary.totalInCSV} = ${result.summary.imported} + ${result.summary.skipped} ✓
+========================`);
+
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

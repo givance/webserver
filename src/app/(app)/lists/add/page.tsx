@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Users, Search, Upload } from "lucide-react";
+import { ArrowLeft, Users, Search, Upload, CheckCircle, AlertTriangle, Info } from "lucide-react";
 import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { useDonors } from "@/app/hooks/use-donors";
@@ -586,7 +586,11 @@ export default function AddListPage() {
                       {errors.accountsFile && <p className="text-sm text-red-500">{errors.accountsFile}</p>}
                       {accountsFile && <p className="text-sm text-green-600">✓ {accountsFile.name} selected</p>}
                       <p className="text-sm text-muted-foreground">
-                        CSV file containing donor account information. Required fields: ACT_ID, Email, names.
+                        CSV file containing donor account information. Required fields: ACT_ID, Email (valid email
+                        address), names.
+                        <span className="font-medium text-amber-700">
+                          Records without email addresses will be skipped.
+                        </span>
                       </p>
                     </div>
 
@@ -991,6 +995,93 @@ export default function AddListPage() {
                     ))
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Upload Result Display */}
+          {uploadResult && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Import Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Main Statistics */}
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{uploadResult.summary.totalInCSV}</div>
+                    <div className="text-sm text-blue-600">Total in CSV</div>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{uploadResult.summary.imported}</div>
+                    <div className="text-sm text-green-600">
+                      Imported ({uploadResult.donorsCreated} new, {uploadResult.donorsUpdated} updated)
+                    </div>
+                  </div>
+                  <div className="p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{uploadResult.summary.skipped}</div>
+                    <div className="text-sm text-orange-600">Skipped</div>
+                  </div>
+                </div>
+
+                {/* Verification */}
+                <div className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-lg">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-gray-600">
+                    Verification: {uploadResult.summary.totalInCSV} = {uploadResult.summary.imported} +{" "}
+                    {uploadResult.summary.skipped} ✓
+                  </span>
+                </div>
+
+                {/* Skip Breakdown */}
+                {uploadResult.summary.skipBreakdown.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      Why records were skipped:
+                    </h4>
+                    <div className="space-y-1">
+                      {uploadResult.summary.skipBreakdown.map(
+                        (item: { reason: string; count: number }, index: number) => (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">{item.reason}</span>
+                            <span className="font-medium">{item.count}</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pledges Summary */}
+                {uploadResult.pledgesCreated > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      Pledges/Donations:
+                    </h4>
+                    <div className="text-sm text-gray-600">
+                      {uploadResult.pledgesCreated} pledges imported
+                      {uploadResult.pledgesSkipped > 0 && `, ${uploadResult.pledgesSkipped} skipped`}
+                    </div>
+                  </div>
+                )}
+
+                {/* Errors Summary */}
+                {uploadResult.errors.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      Issues encountered:
+                    </h4>
+                    <div className="text-sm text-red-600">
+                      {uploadResult.errors.length} issues (check console for details)
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

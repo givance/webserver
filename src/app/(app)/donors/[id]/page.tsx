@@ -3,6 +3,7 @@
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonations } from "@/app/hooks/use-donations";
 import { useDonors } from "@/app/hooks/use-donors";
+import { usePagination, PAGE_SIZE_OPTIONS } from "@/app/hooks/use-pagination";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { formatCurrency } from "@/app/lib/utils/format";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +13,21 @@ import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ColumnDef } from "@tanstack/react-table";
-import { Activity, ArrowLeft, Calendar, DollarSign, Mail, MessageSquare, Phone, Search, Edit, Save, X } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Calendar,
+  DollarSign,
+  Mail,
+  MessageSquare,
+  Phone,
+  Search,
+  Edit,
+  Save,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
@@ -42,24 +56,28 @@ export default function DonorProfilePage() {
   const router = useRouter();
   const donorId = Number(params.id);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  
+  // Use pagination hook like main donors page
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
+
   // Notes editing state
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
 
   // Fetch donor data
-  const { getDonorQuery, updateDonor } = useDonors();
+  const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
   const { data: donor, isLoading: isDonorLoading, error: donorError } = getDonorQuery(donorId);
 
-  // Fetch donor donations
+  // Fetch donor stats for summary cards
+  const { data: donorStats } = getDonorStats(donorId);
+
+  // Fetch donor donations with proper pagination
   const { list: listDonations } = useDonations();
   const { data: donationsResponse, isLoading: isDonationsLoading } = listDonations({
     donorId,
     includeDonor: false,
     includeProject: true,
-    limit: 100, // Get all donations for now
+    limit: pageSize,
+    offset: getOffset(),
     orderBy: "date",
     orderDirection: "desc",
   });
@@ -109,9 +127,9 @@ export default function DonorProfilePage() {
   };
 
   // Process donations data
-  const { donations, totalDonated, donationCount } = useMemo(() => {
+  const { donations, totalDonated, donationCount, totalCount } = useMemo(() => {
     if (!donationsResponse?.donations) {
-      return { donations: [], totalDonated: 0, donationCount: 0 };
+      return { donations: [], totalDonated: 0, donationCount: 0, totalCount: 0 };
     }
 
     const donationItems: DonationRow[] = donationsResponse.donations.map((donation) => ({
@@ -123,12 +141,14 @@ export default function DonorProfilePage() {
       status: "completed", // Assuming all donations are completed
     }));
 
-    const total = donationsResponse.donations.reduce((sum, donation) => sum + donation.amount, 0);
+    // For current page donations, calculate the total from current page
+    const currentPageTotal = donationsResponse.donations.reduce((sum, donation) => sum + donation.amount, 0);
 
     return {
       donations: donationItems,
-      totalDonated: total,
-      donationCount: donationsResponse.donations.length,
+      totalDonated: currentPageTotal, // This is just for current page display
+      donationCount: donationsResponse.donations.length, // Current page count
+      totalCount: donationsResponse.totalCount || 0, // Total count from server
     };
   }, [donationsResponse]);
 
@@ -255,7 +275,7 @@ export default function DonorProfilePage() {
     );
   }
 
-  const lastDonationDate = donations.length > 0 ? new Date(donations[0].date) : null;
+  const lastDonationDate = donorStats?.lastDonationDate ? new Date(donorStats.lastDonationDate) : null;
 
   return (
     <div className="container mx-auto py-6">
@@ -300,7 +320,7 @@ export default function DonorProfilePage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalDonated)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(donorStats?.totalDonated || 0)}</div>
           </CardContent>
         </Card>
 
@@ -310,7 +330,7 @@ export default function DonorProfilePage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{donationCount}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
           </CardContent>
         </Card>
 
@@ -368,12 +388,7 @@ export default function DonorProfilePage() {
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium">Notes</h4>
               {!isEditingNotes ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleStartEditingNotes}
-                  className="h-8 px-2"
-                >
+                <Button variant="ghost" size="sm" onClick={handleStartEditingNotes} className="h-8 px-2">
                   <Edit className="h-4 w-4" />
                 </Button>
               ) : (
@@ -406,9 +421,7 @@ export default function DonorProfilePage() {
                 autoFocus
               />
             ) : (
-              <p className="text-muted-foreground min-h-[24px]">
-                {donor.notes || "No notes added yet."}
-              </p>
+              <p className="text-muted-foreground min-h-[24px]">{donor.notes || "No notes added yet."}</p>
             )}
           </div>
         </CardContent>
@@ -425,7 +438,26 @@ export default function DonorProfilePage() {
         <TabsContent value="donations">
           <Card>
             <CardHeader>
-              <CardTitle>Donation History</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Donation History</CardTitle>
+                <Select
+                  value={pageSize.toString()}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value) as typeof pageSize);
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select page size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size} items per page
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               {isDonationsLoading ? (
@@ -438,9 +470,9 @@ export default function DonorProfilePage() {
                 <DataTable
                   columns={donationColumns}
                   data={donations}
-                  totalItems={donations.length}
+                  totalItems={totalCount}
                   pageSize={pageSize}
-                  pageCount={Math.ceil(donations.length / pageSize)}
+                  pageCount={getPageCount(totalCount)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
                 />
