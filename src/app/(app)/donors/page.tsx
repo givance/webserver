@@ -102,7 +102,7 @@ export default function DonorListPage() {
         // Map table column IDs to backend field names
         switch (sort.id) {
           case "name":
-            newSortField = "firstName";
+            newSortField = "firstName"; // Note: Backend still sorts by firstName for consistency
             break;
           case "email":
             newSortField = "email";
@@ -114,7 +114,7 @@ export default function DonorListPage() {
             newSortField = "createdAt"; // fallback to createdAt for last donation
             break;
           default:
-            newSortField = "firstName";
+            newSortField = "firstName"; // Note: Backend still sorts by firstName for consistency
         }
 
         const newSortDirection = sort.desc ? "desc" : "asc";

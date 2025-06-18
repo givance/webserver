@@ -83,7 +83,7 @@ interface PledgeRecord {
   PLG_Comment?: string;
   PLG_Solicitator?: string;
   PLG_InsSpread?: string;
-  OCC_Name?: string;
+  OCC_Name?: string; // Occasion/Fund name - used for project mapping
   TotalPaid?: string;
   Outstanding?: string;
   DueNow?: string;
@@ -99,7 +99,7 @@ interface PledgeRecord {
   Line5?: string;
   Line6?: string;
   LineDear?: string;
-  SPLG_AcaCodes?: string;
+  SPLG_AcaCodes?: string; // Academic codes - used for project mapping
   OCC_ID?: string;
   ADR_Zip?: string;
   PlgAmountAsText?: string;
@@ -757,6 +757,8 @@ export async function processCSVFiles(params: {
       logger.info(`Processing ${pledgeRecords.length} pledge records`);
 
       const donationsToInsert: any[] = [];
+      const projectCache = new Map<string, number>(); // Cache for project lookups
+      projectCache.set("General", defaultProjectId); // Add default project to cache
 
       for (const pledgeRecord of pledgeRecords) {
         result.pledgesProcessed++;
@@ -794,9 +796,60 @@ export async function processCSVFiles(params: {
             continue;
           }
 
+          // Try to match project by OCC_Name or SPLG_AcaCodes from pledge record
+          let projectId = defaultProjectId;
+          let projectName = "";
+
+          // First try to match by OCC_Name (Occasion/Fund name)
+          if (pledgeRecord.OCC_Name?.trim()) {
+            projectName = pledgeRecord.OCC_Name.trim();
+          }
+          // If no OCC_Name, try SPLG_AcaCodes
+          else if (pledgeRecord.SPLG_AcaCodes?.trim()) {
+            projectName = pledgeRecord.SPLG_AcaCodes.trim();
+          }
+
+          // Look up or create project if we have a project name
+          if (projectName) {
+            // Check cache first
+            if (projectCache.has(projectName)) {
+              projectId = projectCache.get(projectName)!;
+            } else {
+              // Look for existing project with matching name
+              const existingProjects = await db
+                .select()
+                .from(projects)
+                .where(and(eq(projects.organizationId, params.organizationId), eq(projects.name, projectName)))
+                .limit(1);
+
+              if (existingProjects.length > 0) {
+                projectId = existingProjects[0].id;
+                projectCache.set(projectName, projectId);
+              } else {
+                // Create new project for this fund/occasion/code
+                const description = pledgeRecord.OCC_Name?.trim()
+                  ? `Fund/Occasion: ${projectName}`
+                  : `Academic codes: ${projectName}`;
+
+                const [newProject] = await db
+                  .insert(projects)
+                  .values({
+                    organizationId: params.organizationId,
+                    name: projectName,
+                    description,
+                    active: true,
+                  })
+                  .returning();
+                projectId = newProject.id;
+                projectCache.set(projectName, projectId);
+                logger.info(`Created new project: ${projectName} (ID: ${projectId})`);
+              }
+            }
+          }
+
           donationsToInsert.push({
             donorId,
-            projectId: defaultProjectId,
+            projectId,
             amount,
             date,
             currency: "USD",

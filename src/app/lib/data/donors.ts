@@ -364,6 +364,7 @@ export async function listDonors(
       const searchCondition = or(
         like(sql`lower(${donors.firstName})`, term),
         like(sql`lower(${donors.lastName})`, term),
+        like(sql`lower(${donors.displayName})`, term),
         like(sql`lower(${donors.email})`, term)
       );
       if (searchCondition) {
@@ -606,6 +607,7 @@ export async function listDonorsForCommunication(
       const searchCondition = or(
         like(sql`lower(${donors.firstName})`, term),
         like(sql`lower(${donors.lastName})`, term),
+        like(sql`lower(${donors.displayName})`, term),
         like(sql`lower(${donors.email})`, term)
       );
       if (searchCondition) {
