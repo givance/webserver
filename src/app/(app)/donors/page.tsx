@@ -274,17 +274,33 @@ export default function DonorListPage() {
   const handleDeleteAll = async () => {
     if (!isDevelopment) return;
 
-    // Use the data from the hook called at top level
-    const allDonorIds = allDonorIdsQuery.data || [];
+    try {
+      // Fetch filtered donor IDs first since the query is disabled by default
+      console.log("Fetching filtered donor IDs for bulk delete...");
+      const refetchResult = await filteredDonorIdsQuery.refetch();
+      
+      // Access data from the refetch result, not the query object
+      const allDonorIds = refetchResult.data || [];
+      console.log("Filtered donor IDs retrieved:", allDonorIds.length, allDonorIds);
 
-    if (allDonorIds.length === 0) {
-      toast.error("No donors found to delete");
-      return;
-    }
+      if (allDonorIds.length === 0) {
+        toast.error("No donors found to delete with current filters");
+        return;
+      }
 
-    const result = await bulkDeleteDonors(allDonorIds);
-    if (result) {
-      setIsDeleteAllDialogOpen(false);
+      console.log("Attempting to bulk delete", allDonorIds.length, "donors");
+      const result = await bulkDeleteDonors(allDonorIds);
+      
+      if (result) {
+        console.log("Bulk delete result:", result);
+        setIsDeleteAllDialogOpen(false);
+      } else {
+        console.error("Bulk delete returned null/undefined result");
+        toast.error("Delete operation failed");
+      }
+    } catch (error) {
+      console.error("Error during bulk delete process:", error);
+      toast.error("Failed to delete donors: " + (error instanceof Error ? error.message : "Unknown error"));
     }
   };
 
@@ -354,8 +370,12 @@ export default function DonorListPage() {
     } else {
       // Select all matching donors (not just current page)
       try {
-        await filteredDonorIdsQuery.refetch();
-        const allMatchingIds = filteredDonorIdsQuery.data || [];
+        console.log("Fetching filtered donor IDs for select all...");
+        const refetchResult = await filteredDonorIdsQuery.refetch();
+        
+        // Access data from the refetch result, not the query object
+        const allMatchingIds = refetchResult.data || [];
+        console.log("Filtered donor IDs for selection:", allMatchingIds.length, allMatchingIds);
 
         const newSelection: Record<string, boolean> = {};
         allMatchingIds.forEach((id) => {
