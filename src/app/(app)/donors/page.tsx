@@ -34,7 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Info, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBulkDonorResearch } from "@/app/hooks/use-bulk-donor-research";
 import type { Donor } from "./columns";
 import { getColumns } from "./columns";
@@ -51,13 +51,31 @@ export default function DonorListPage() {
   );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Reset pagination state when sorting or searched term changes
-  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
-    resetOnDependency: [debouncedSearchTerm, sortField, sortDirection],
-  });
-
   // Add state for the researched donors filter
   const [onlyResearched, setOnlyResearched] = useState(false);
+
+  // Reset pagination state when sorting or searched term changes
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount, resetToFirstPage } =
+    usePagination({
+      resetOnDependency: debouncedSearchTerm,
+    });
+
+  // Reset pagination when filters/sorting change
+  const prevFiltersRef = useRef({ sortField, sortDirection, onlyResearched });
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    const current = { sortField, sortDirection, onlyResearched };
+
+    // Only reset if values actually changed (not just on re-render)
+    if (
+      prev.sortField !== current.sortField ||
+      prev.sortDirection !== current.sortDirection ||
+      prev.onlyResearched !== current.onlyResearched
+    ) {
+      setCurrentPage(1);
+      prevFiltersRef.current = current;
+    }
+  });
 
   // Environment-based delete dialog states
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -75,18 +93,16 @@ export default function DonorListPage() {
   // Get all donor IDs for bulk operations (called at top level)
   const allDonorIdsQuery = getAllDonorIds();
 
-  const {
-    data: listDonorsResponse,
-    isLoading,
-    error,
-  } = listDonors({
+  const queryParams = {
     limit: pageSize,
     offset: getOffset(),
     searchTerm: debouncedSearchTerm,
     orderBy: sortField,
     orderDirection: sortDirection,
     onlyResearched, // Add the filter parameter
-  });
+  };
+
+  const { data: listDonorsResponse, isLoading, error } = listDonors(queryParams);
 
   // Get donation stats for all donors in the current page
   const donorIds = useMemo(() => listDonorsResponse?.donors?.map((d) => d.id) || [], [listDonorsResponse]);
@@ -176,6 +192,21 @@ export default function DonorListPage() {
       await updateDonorStaff(donorId, staffId);
     },
     [updateDonorStaff]
+  );
+
+  const handlePageSizeChange = useCallback(
+    (size: number) => {
+      // Cast to PageSize union type since DataTable uses standard numbers
+      setPageSize(size as 10 | 20 | 50 | 100);
+    },
+    [setPageSize]
+  );
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+    },
+    [setCurrentPage]
   );
 
   const columnsConfig = useMemo(
@@ -420,7 +451,8 @@ export default function DonorListPage() {
           pageSize={pageSize}
           pageCount={pageCount}
           currentPage={currentPage}
-          onPageChange={setCurrentPage}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
           onSortingChange={handleSortingChange}
         />
       )}
