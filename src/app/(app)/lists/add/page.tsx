@@ -10,10 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Users, Search, Upload } from "lucide-react";
 import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { useDonors } from "@/app/hooks/use-donors";
+import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { trpc } from "@/app/lib/trpc/client";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
@@ -31,7 +34,9 @@ type SelectableDonor = {
 export default function AddListPage() {
   const router = useRouter();
   const { createList, addDonorsToList, uploadFilesToList, isCreating, isAddingDonors, isUploadingFiles } = useLists();
-  const { listDonors } = useDonors();
+  const { listDonors, bulkUpdateDonorStaff } = useDonors();
+  const { staffMembers, isLoading: isLoadingStaff } = useStaffMembers();
+  const utils = trpc.useUtils();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -43,6 +48,8 @@ export default function AddListPage() {
   const [selectedDonorIds, setSelectedDonorIds] = useState<number[]>([]);
   const [donorSearchTerm, setDonorSearchTerm] = useState("");
   const [showDonorSelection, setShowDonorSelection] = useState(false);
+
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
   // File upload state
   const [donorMethod, setDonorMethod] = useState<"none" | "select" | "upload">("none");
@@ -104,6 +111,8 @@ export default function AddListPage() {
       }
     }
 
+    // No validation needed for staff assignment since it's optional
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -121,9 +130,12 @@ export default function AddListPage() {
         throw new Error("Failed to create list");
       }
 
+      let donorIdsToAssignStaff: number[] = [];
+
       // Step 2: Handle donor addition based on method
       if (donorMethod === "select" && selectedDonorIds.length > 0) {
         await addDonorsToList(newList.id, selectedDonorIds);
+        donorIdsToAssignStaff = selectedDonorIds;
       } else if (donorMethod === "upload" && accountsFile) {
         // Convert files to base64
         const accountsContent = await fileToBase64(accountsFile);
@@ -146,6 +158,40 @@ export default function AddListPage() {
         });
 
         setUploadResult(result);
+
+        // For uploaded donors, we need to get the donor IDs from the list
+        // We'll assign staff after the upload is complete
+        // Note: This requires the list to be populated first, so we handle it below
+      }
+
+      // Step 3: Assign staff to donors if requested
+      if (selectedStaffId && selectedStaffId !== "none") {
+        if (donorMethod === "upload") {
+          // For uploaded files, we need to get the donor IDs from the newly created list
+          // Get donor IDs from the list after successful upload
+          try {
+            const donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [newList.id] });
+            if (donorIds && donorIds.length > 0) {
+              await bulkUpdateDonorStaff(donorIds, parseInt(selectedStaffId, 10));
+              toast.success(
+                `Successfully assigned staff to ${donorIds.length} imported donor${donorIds.length !== 1 ? "s" : ""}!`
+              );
+            } else {
+              toast.warning("List created successfully, but no donors found to assign staff to.");
+            }
+          } catch (error) {
+            console.error("Error assigning staff to uploaded donors:", error);
+            toast.error(
+              "List created successfully, but failed to assign staff. You can assign staff manually from the list details page."
+            );
+          }
+        } else if (donorIdsToAssignStaff.length > 0) {
+          // Assign staff to selected donors
+          await bulkUpdateDonorStaff(donorIdsToAssignStaff, parseInt(selectedStaffId, 10));
+          toast.success(
+            `Assigned staff to ${donorIdsToAssignStaff.length} donor${donorIdsToAssignStaff.length !== 1 ? "s" : ""}!`
+          );
+        }
       }
 
       // Navigate to the list detail page
@@ -199,6 +245,14 @@ export default function AddListPage() {
     if (method !== "upload") {
       setAccountsFile(null);
       setPledgesFile(null);
+    }
+  };
+
+  const handleStaffChange = (staffId: string) => {
+    setSelectedStaffId(staffId);
+    // Clear error when staff is selected
+    if (staffId && errors.staffId) {
+      setErrors((prev) => ({ ...prev, staffId: "" }));
     }
   };
 
@@ -282,6 +336,34 @@ export default function AddListPage() {
                   </RadioGroup>
                 </div>
 
+                {/* Staff Assignment Section */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="staffSelect">Assign to Staff Member (Optional)</Label>
+                    {isLoadingStaff ? (
+                      <div className="h-10 bg-muted rounded animate-pulse" />
+                    ) : (
+                      <Select value={selectedStaffId} onValueChange={handleStaffChange}>
+                        <SelectTrigger className={errors.staffId ? "border-red-500" : ""}>
+                          <SelectValue placeholder="Select a staff member (optional)..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No assignment</SelectItem>
+                          {staffMembers.map((staff) => (
+                            <SelectItem key={staff.id} value={staff.id}>
+                              {staff.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {errors.staffId && <p className="text-sm text-red-500">{errors.staffId}</p>}
+                    <p className="text-sm text-muted-foreground">
+                      Choose a staff member to assign all donors in this list to them automatically.
+                    </p>
+                  </div>
+                </div>
+
                 {/* File Upload Section */}
                 {donorMethod === "upload" && (
                   <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
@@ -353,9 +435,15 @@ export default function AddListPage() {
                         ? "Processing files..."
                         : "Adding donors..."
                       : donorMethod === "upload" && accountsFile
-                      ? "Create List & Upload Files"
+                      ? selectedStaffId && selectedStaffId !== "none"
+                        ? "Create List, Upload Files & Assign Staff"
+                        : "Create List & Upload Files"
                       : selectedDonorIds.length > 0
-                      ? `Create List with ${selectedDonorIds.length} Donor${selectedDonorIds.length !== 1 ? "s" : ""}`
+                      ? selectedStaffId && selectedStaffId !== "none"
+                        ? `Create List with ${selectedDonorIds.length} Donor${
+                            selectedDonorIds.length !== 1 ? "s" : ""
+                          } & Assign Staff`
+                        : `Create List with ${selectedDonorIds.length} Donor${selectedDonorIds.length !== 1 ? "s" : ""}`
                       : "Create List"}
                   </Button>
                 </div>
@@ -373,6 +461,11 @@ export default function AddListPage() {
                 </CardTitle>
                 <CardDescription>
                   Choose which donors to include in this list. You can search by name or email.
+                  {selectedStaffId && selectedStaffId !== "none" && (
+                    <span className="block mt-2 text-sm font-medium text-blue-600">
+                      All selected donors will be assigned to {staffMembers.find((s) => s.id === selectedStaffId)?.name}
+                    </span>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

@@ -211,6 +211,24 @@ export function useDonors() {
     },
   });
 
+  const bulkUpdateDonorStaffMutation = trpc.donors.bulkUpdateAssignedStaff.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success(`Successfully assigned staff to ${data.updated} donor${data.updated !== 1 ? "s" : ""}.`);
+      utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
+      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after bulk staff assignment.");
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to assign staff to donors: ${error.message}`);
+      console.error("Error bulk updating donors' assigned staff:", error);
+      logger.error(
+        `Error bulk updating ${variables.donorIds.length} donors assigned staff to ${
+          variables.staffId === null ? "unassigned" : variables.staffId
+        }: ${error.message}`
+      );
+    },
+  });
+
   /**
    * Create a new donor
    * @param input The donor data to create
@@ -301,6 +319,25 @@ export function useDonors() {
     }
   };
 
+  /**
+   * Update the assigned staff member for multiple donors in bulk
+   * @param donorIds Array of donor IDs to update
+   * @param staffId The ID of the staff member to assign, or null to unassign
+   * @returns Promise that resolves when update is complete
+   */
+  const bulkUpdateDonorStaff = async (donorIds: number[], staffId: number | null) => {
+    try {
+      const result = await bulkUpdateDonorStaffMutation.mutateAsync({
+        donorIds,
+        staffId,
+      });
+      return result;
+    } catch (error) {
+      console.error("Failed to bulk update donor staff:", error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     getDonorQuery,
@@ -318,6 +355,7 @@ export function useDonors() {
     bulkDeleteDonors,
     analyzeDonors,
     updateDonorStaff,
+    bulkUpdateDonorStaff,
 
     // Loading states
     isCreating: createMutation.isPending,
@@ -326,9 +364,12 @@ export function useDonors() {
     isBulkDeleting: bulkDeleteMutation.isPending,
     isAnalyzing: analyzeDonorsMutation.isPending,
     isUpdatingStaff: updateDonorStaffMutation.isPending,
+    isBulkUpdatingStaff: bulkUpdateDonorStaffMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,
     updateResult: updateMutation.data,
+    bulkDeleteResult: bulkDeleteMutation.data,
+    analyzeResult: analyzeDonorsMutation.data,
   };
 }

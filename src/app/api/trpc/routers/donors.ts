@@ -13,6 +13,9 @@ import {
   listDonorsForCommunication,
 } from "@/app/lib/data/donors";
 import { getStaffById } from "@/app/lib/data/staff";
+import { db } from "@/app/lib/db";
+import { donors } from "@/app/lib/db/schema";
+import { and, inArray, eq, sql } from "drizzle-orm";
 
 /**
  * Input validation schemas for donor operations
@@ -85,6 +88,11 @@ const listDonorsForCommunicationSchema = z.object({
 const updateAssignedStaffSchema = z.object({
   donorId: z.number(),
   staffId: z.number().nullable(), // staffId can be null to unassign
+});
+
+const bulkUpdateAssignedStaffSchema = z.object({
+  donorIds: z.array(z.number()),
+  staffId: z.number().nullable(), // staffId can be null to unassign all
 });
 
 /**
@@ -348,6 +356,61 @@ export const donorsRouter = router({
       });
     }
     return updatedDonor;
+  }),
+
+  /**
+   * Updates the staff member assigned to multiple donors in bulk
+   * @param input.donorIds - Array of donor IDs to update
+   * @param input.staffId - The staff ID to assign (null to unassign all)
+   * @returns Count of donors updated successfully
+   * @throws NOT_FOUND if staff member doesn't exist in the organization
+   * @throws INTERNAL_SERVER_ERROR if the update operation fails
+   */
+  bulkUpdateAssignedStaff: protectedProcedure.input(bulkUpdateAssignedStaffSchema).mutation(async ({ input, ctx }) => {
+    const { donorIds, staffId } = input;
+    const { organizationId } = ctx.auth.user;
+
+    if (donorIds.length === 0) {
+      return { updated: 0 };
+    }
+
+    // If staffId is provided, verify staff member belongs to the organization
+    if (staffId !== null) {
+      const staff = await getStaffById(staffId, organizationId);
+      if (!staff) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Staff member not found in your organization",
+        });
+      }
+    }
+
+    // Verify all donors belong to the organization
+    const validDonors = await getDonorsByIds(donorIds, organizationId);
+    const validDonorIds = validDonors.map((d) => d.id);
+
+    if (validDonorIds.length === 0) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "No valid donors found in your organization",
+      });
+    }
+
+    // Bulk update the donors' assignedToStaffId using raw SQL for efficiency
+    try {
+      const result = await db
+        .update(donors)
+        .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
+        .where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId)));
+
+      return { updated: validDonorIds.length };
+    } catch (error) {
+      console.error("Failed to bulk update assigned staff:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update donors' assigned staff",
+      });
+    }
   }),
 
   /**
