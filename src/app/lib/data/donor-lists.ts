@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { donorLists, donorListMembers, donors } from "../db/schema";
+import { donorLists, donorListMembers, donors, donations } from "../db/schema";
 import { eq, and, desc, asc, ilike, inArray, count, sql } from "drizzle-orm";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
@@ -234,18 +234,92 @@ export async function updateDonorList(
   return updated || null;
 }
 
+export type ListDeletionMode = "listOnly" | "withExclusiveDonors" | "withAllDonors";
+
+export interface ListDeletionResult {
+  listDeleted: boolean;
+  donorsDeleted: number;
+}
+
 /**
- * Delete a donor list
+ * Delete a donor list with various deletion modes
  * @param id The donor list ID
  * @param organizationId The organization ID for authorization
- * @returns True if deleted, false if not found
+ * @param deleteMode The deletion mode: 
+ *   - "listOnly": Delete only the list, keep all donors
+ *   - "withExclusiveDonors": Delete the list and donors that are only in this list
+ *   - "withAllDonors": Delete the list and all donors in it
+ * @returns Object with deletion results
  */
-export async function deleteDonorList(id: number, organizationId: string): Promise<boolean> {
-  const result = await db
-    .delete(donorLists)
-    .where(and(eq(donorLists.id, id), eq(donorLists.organizationId, organizationId)));
+export async function deleteDonorList(
+  id: number, 
+  organizationId: string,
+  deleteMode: ListDeletionMode = "listOnly"
+): Promise<ListDeletionResult> {
+  // Start transaction
+  return await db.transaction(async (tx) => {
+    // First verify the list belongs to the organization
+    const list = await getDonorListById(id, organizationId);
+    if (!list) {
+      return { listDeleted: false, donorsDeleted: 0 };
+    }
 
-  return (result.rowCount || 0) > 0;
+    let donorsDeleted = 0;
+
+    if (deleteMode === "withExclusiveDonors") {
+      // Get donors that are only in this list
+      const exclusiveDonorIds = await getDonorsExclusiveToList(id, organizationId);
+      
+      if (exclusiveDonorIds.length > 0) {
+        // First delete donations for these donors
+        await tx
+          .delete(donations)
+          .where(inArray(donations.donorId, exclusiveDonorIds));
+        
+        // Then delete the donors (cascade will handle other related data)
+        const deleteResult = await tx
+          .delete(donors)
+          .where(
+            and(
+              inArray(donors.id, exclusiveDonorIds),
+              eq(donors.organizationId, organizationId)
+            )
+          );
+        donorsDeleted = deleteResult.rowCount || 0;
+      }
+    } else if (deleteMode === "withAllDonors") {
+      // Get all donor IDs in this list
+      const allDonorIds = await getDonorIdsFromLists([id], organizationId);
+      
+      if (allDonorIds.length > 0) {
+        // First delete donations for these donors
+        await tx
+          .delete(donations)
+          .where(inArray(donations.donorId, allDonorIds));
+        
+        // Then delete all donors in the list (cascade will handle other related data)
+        const deleteResult = await tx
+          .delete(donors)
+          .where(
+            and(
+              inArray(donors.id, allDonorIds),
+              eq(donors.organizationId, organizationId)
+            )
+          );
+        donorsDeleted = deleteResult.rowCount || 0;
+      }
+    }
+
+    // Delete the list (cascade will remove all list memberships)
+    const result = await tx
+      .delete(donorLists)
+      .where(and(eq(donorLists.id, id), eq(donorLists.organizationId, organizationId)));
+
+    return {
+      listDeleted: (result.rowCount || 0) > 0,
+      donorsDeleted
+    };
+  });
 }
 
 /**
@@ -387,4 +461,109 @@ export async function getListsForDonor(donorId: number, organizationId: string):
     .orderBy(asc(donorLists.name));
 
   return lists;
+}
+
+/**
+ * Count the number of lists a donor belongs to
+ * @param donorId The donor ID
+ * @param organizationId The organization ID for authorization
+ * @returns The number of lists the donor belongs to
+ */
+export async function countListsForDonor(donorId: number, organizationId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(donorListMembers)
+    .innerJoin(donorLists, eq(donorLists.id, donorListMembers.listId))
+    .where(
+      and(
+        eq(donorListMembers.donorId, donorId),
+        eq(donorLists.organizationId, organizationId),
+        eq(donorLists.isActive, true)
+      )
+    );
+
+  return result?.count || 0;
+}
+
+/**
+ * Remove a donor from all lists
+ * @param donorId The donor ID
+ * @param organizationId The organization ID for authorization
+ * @returns The number of list memberships removed
+ */
+export async function removeFromAllLists(donorId: number, organizationId: string): Promise<number> {
+  // First verify the donor belongs to the organization
+  const [donor] = await db
+    .select({ id: donors.id })
+    .from(donors)
+    .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+    .limit(1);
+
+  if (!donor) {
+    throw new Error("Donor not found or access denied");
+  }
+
+  // Get all list IDs that belong to the organization and contain this donor
+  const listMemberships = await db
+    .select({ listId: donorListMembers.listId })
+    .from(donorListMembers)
+    .innerJoin(donorLists, eq(donorLists.id, donorListMembers.listId))
+    .where(
+      and(
+        eq(donorListMembers.donorId, donorId),
+        eq(donorLists.organizationId, organizationId)
+      )
+    );
+
+  if (listMemberships.length === 0) {
+    return 0;
+  }
+
+  // Delete all memberships for this donor in lists belonging to the organization
+  const listIds = listMemberships.map(m => m.listId);
+  const result = await db
+    .delete(donorListMembers)
+    .where(
+      and(
+        eq(donorListMembers.donorId, donorId),
+        inArray(donorListMembers.listId, listIds)
+      )
+    );
+
+  return result.rowCount || 0;
+}
+
+/**
+ * Get donors that belong exclusively to a specific list (not in any other lists)
+ * @param listId The list ID
+ * @param organizationId The organization ID for authorization
+ * @returns Array of donor IDs that are only in this list
+ */
+export async function getDonorsExclusiveToList(listId: number, organizationId: string): Promise<number[]> {
+  // First verify the list belongs to the organization
+  const list = await getDonorListById(listId, organizationId);
+  if (!list) {
+    throw new Error("List not found or access denied");
+  }
+
+  // Get donors that are in this list but not in any other list
+  const exclusiveDonors = await db
+    .select({ donorId: donorListMembers.donorId })
+    .from(donorListMembers)
+    .innerJoin(donors, eq(donorListMembers.donorId, donors.id))
+    .where(
+      and(
+        eq(donorListMembers.listId, listId),
+        eq(donors.organizationId, organizationId),
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${donorListMembers} dlm2
+          INNER JOIN ${donorLists} dl2 ON dl2.id = dlm2.list_id
+          WHERE dlm2.donor_id = ${donorListMembers.donorId}
+          AND dlm2.list_id != ${listId}
+          AND dl2.organization_id = ${organizationId}
+        )`
+      )
+    );
+
+  return exclusiveDonors.map(d => d.donorId);
 }

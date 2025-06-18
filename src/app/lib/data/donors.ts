@@ -156,11 +156,19 @@ export async function updateDonor(
 }
 
 /**
- * Deletes a donor and all associated records (cascading delete).
+ * Deletes a donor with different deletion modes.
  * @param id - The ID of the donor to delete.
  * @param organizationId - The ID of the organization the donor belongs to.
+ * @param options - Optional deletion mode configuration.
  */
-export async function deleteDonor(id: number, organizationId: string): Promise<void> {
+export async function deleteDonor(
+  id: number, 
+  organizationId: string,
+  options?: {
+    deleteMode: 'fromList' | 'fromAllLists' | 'entirely';
+    listId?: number;
+  }
+): Promise<void> {
   try {
     // First verify the donor exists and belongs to the organization
     const donor = await getDonorById(id, organizationId);
@@ -168,37 +176,66 @@ export async function deleteDonor(id: number, organizationId: string): Promise<v
       throw new Error("Donor not found or access denied");
     }
 
-    // Start a transaction to ensure all deletes succeed or all fail
-    await db.transaction(async (tx) => {
-      // 1. Delete donations (these don't have cascade delete)
-      await tx.delete(donations).where(eq(donations.donorId, id));
+    const deleteMode = options?.deleteMode || 'entirely';
 
-      // 2. Delete communication content where donor is sender or receiver
-      await tx
-        .delete(communicationContent)
-        .where(or(eq(communicationContent.fromDonorId, id), eq(communicationContent.toDonorId, id)));
+    if (deleteMode === 'fromList') {
+      // Delete from specific list only
+      if (!options?.listId) {
+        throw new Error("List ID is required when deleting from a specific list");
+      }
+      
+      const result = await db
+        .delete(donorListMembers)
+        .where(
+          and(
+            eq(donorListMembers.donorId, id),
+            eq(donorListMembers.listId, options.listId)
+          )
+        );
+      
+      if ((result.rowCount || 0) === 0) {
+        throw new Error("Donor is not a member of the specified list");
+      }
+      
+    } else if (deleteMode === 'fromAllLists') {
+      // Remove from all lists but keep donor record
+      const { removeFromAllLists } = await import('./donor-lists');
+      await removeFromAllLists(id, organizationId);
+      
+    } else {
+      // Delete entirely - original behavior
+      // Start a transaction to ensure all deletes succeed or all fail
+      await db.transaction(async (tx) => {
+        // 1. Delete donations (these don't have cascade delete)
+        await tx.delete(donations).where(eq(donations.donorId, id));
 
-      // 3. Delete donor list memberships
-      await tx.delete(donorListMembers).where(eq(donorListMembers.donorId, id));
+        // 2. Delete communication content where donor is sender or receiver
+        await tx
+          .delete(communicationContent)
+          .where(or(eq(communicationContent.fromDonorId, id), eq(communicationContent.toDonorId, id)));
 
-      // 4. Delete email trackers
-      await tx.delete(emailTrackers).where(eq(emailTrackers.donorId, id));
+        // 3. Delete donor list memberships
+        await tx.delete(donorListMembers).where(eq(donorListMembers.donorId, id));
 
-      // 5. Delete generated emails
-      await tx.delete(generatedEmails).where(eq(generatedEmails.donorId, id));
+        // 4. Delete email trackers
+        await tx.delete(emailTrackers).where(eq(emailTrackers.donorId, id));
 
-      // 6. Delete person research records
-      await tx.delete(personResearch).where(eq(personResearch.donorId, id));
+        // 5. Delete generated emails
+        await tx.delete(generatedEmails).where(eq(generatedEmails.donorId, id));
 
-      // 7. Delete todos associated with this donor
-      await tx.delete(todos).where(eq(todos.donorId, id));
+        // 6. Delete person research records
+        await tx.delete(personResearch).where(eq(personResearch.donorId, id));
 
-      // 8. Finally delete the donor (communication thread donors will cascade automatically)
-      await tx.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
-    });
+        // 7. Delete todos associated with this donor
+        await tx.delete(todos).where(eq(todos.donorId, id));
+
+        // 8. Finally delete the donor (communication thread donors will cascade automatically)
+        await tx.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
+      });
+    }
   } catch (error) {
     console.error("Failed to delete donor:", error);
-    throw new Error("Could not delete donor and associated records.");
+    throw new Error(error instanceof Error ? error.message : "Could not delete donor.");
   }
 }
 

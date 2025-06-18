@@ -4,6 +4,7 @@ import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
 import { toast } from "sonner";
+import type { ListDeletionMode } from "@/app/lib/data/donor-lists";
 
 // Type inference for better type safety
 type DonorListOutput = inferProcedureOutput<AppRouter["lists"]["getById"]>;
@@ -115,9 +116,15 @@ export function useLists() {
   });
 
   const deleteMutation = trpc.lists.delete.useMutation({
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
       utils.lists.list.invalidate();
-      toast.success("List deleted successfully!");
+      
+      let message = "List deleted successfully!";
+      if (result.donorsDeleted > 0) {
+        message = `List deleted along with ${result.donorsDeleted} donor${result.donorsDeleted !== 1 ? 's' : ''}!`;
+      }
+      
+      toast.success(message);
     },
     onError: (error) => {
       toast.error(`Failed to delete list: ${error.message}`);
@@ -218,8 +225,8 @@ export function useLists() {
     return updateMutation.mutateAsync(data);
   };
 
-  const deleteList = async (id: number) => {
-    return deleteMutation.mutateAsync({ id });
+  const deleteList = async (id: number, deleteMode: ListDeletionMode = "listOnly") => {
+    return deleteMutation.mutateAsync({ id, deleteMode });
   };
 
   const addDonorsToList = async (listId: number, donorIds: number[]) => {

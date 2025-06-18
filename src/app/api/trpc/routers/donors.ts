@@ -12,6 +12,7 @@ import {
   listDonors,
   listDonorsForCommunication,
 } from "@/app/lib/data/donors";
+import { countListsForDonor } from "@/app/lib/data/donor-lists";
 import { getStaffById } from "@/app/lib/data/staff";
 import { db } from "@/app/lib/db";
 import { donors } from "@/app/lib/db/schema";
@@ -27,6 +28,24 @@ const donorIdSchema = z.object({
 const donorIdsSchema = z.object({
   ids: z.array(z.number()),
 });
+
+const deleteDonorSchema = z.object({
+  id: z.number(),
+  deleteMode: z.enum(['fromList', 'fromAllLists', 'entirely']).optional(),
+  listId: z.number().optional(),
+}).refine(
+  (data) => {
+    // If deleteMode is 'fromList', listId is required
+    if (data.deleteMode === 'fromList' && !data.listId) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "List ID is required when deleting from a specific list",
+    path: ["listId"],
+  }
+);
 
 const createDonorSchema = z.object({
   externalId: z.string().optional(),
@@ -267,20 +286,40 @@ export const donorsRouter = router({
   }),
 
   /**
-   * Deletes a donor from the organization
+   * Deletes a donor from the organization with different deletion modes
    * @param input.id - The donor ID to delete
+   * @param input.deleteMode - Optional deletion mode: 'fromList', 'fromAllLists', or 'entirely' (default)
+   * @param input.listId - Required when deleteMode is 'fromList'
    * @throws NOT_FOUND if donor doesn't exist
-   * @throws PRECONDITION_FAILED if donor is linked to other records (donations, communications, etc.)
+   * @throws BAD_REQUEST if invalid parameters
+   * @throws PRECONDITION_FAILED if donor is linked to other records (when deleting entirely)
    */
-  delete: protectedProcedure.input(donorIdSchema).mutation(async ({ input, ctx }) => {
+  delete: protectedProcedure.input(deleteDonorSchema).mutation(async ({ input, ctx }) => {
     try {
-      await deleteDonor(input.id, ctx.auth.user.organizationId);
+      await deleteDonor(input.id, ctx.auth.user.organizationId, {
+        deleteMode: input.deleteMode,
+        listId: input.listId,
+      });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("linked to other records")) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Cannot delete donor as they are linked to other records",
-        });
+      if (error instanceof Error) {
+        if (error.message.includes("List ID is required")) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message,
+          });
+        }
+        if (error.message.includes("not a member of the specified list")) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: error.message,
+          });
+        }
+        if (error.message.includes("linked to other records")) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cannot delete donor as they are linked to other records",
+          });
+        }
       }
       throw error;
     }
@@ -319,6 +358,25 @@ export const donorsRouter = router({
     );
 
     return result.donors.map((donor) => donor.id);
+  }),
+
+  /**
+   * Counts the number of lists a donor belongs to
+   * @param input.id - The donor ID to check
+   * @returns The count of lists the donor belongs to
+   * @throws NOT_FOUND if donor doesn't exist
+   */
+  countLists: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
+    const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
+    if (!donor) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Donor not found",
+      });
+    }
+    
+    const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
+    return { count };
   }),
 
   /**
