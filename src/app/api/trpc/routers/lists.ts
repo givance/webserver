@@ -330,6 +330,12 @@ export const listsRouter = router({
         ? Buffer.from(input.pledgesFile.content, "base64").toString("utf-8")
         : null;
 
+      // Log file info for debugging
+      console.log(`Received file: ${input.accountsFile.name}`);
+      console.log(`Base64 content length: ${input.accountsFile.content.length}`);
+      console.log(`Decoded content length: ${accountsContent.length} characters`);
+      console.log(`Line count check: ${accountsContent.split('\n').length} lines`);
+
       // Process the CSV files
       const result = await processCSVFiles({
         accountsCSV: accountsContent,

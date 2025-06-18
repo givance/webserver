@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,9 @@ export default function AddListPage() {
   const [accountsFile, setAccountsFile] = useState<File | null>(null);
   const [pledgesFile, setPledgesFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
+  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [showImportSummary, setShowImportSummary] = useState(false);
+  const [createdListId, setCreatedListId] = useState<number | null>(null);
 
   // Criteria filtering state
   const [criteriaFormData, setCriteriaFormData] = useState({
@@ -253,12 +257,18 @@ export default function AddListPage() {
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      console.log(`Reading file: ${file.name}, size: ${file.size} bytes`);
+      
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
+        console.log(`FileReader result length: ${result.length}`);
+        
         // Remove the data:application/... prefix to get just the base64 content
         const base64Content = result.split(",")[1];
+        console.log(`Base64 content length: ${base64Content.length}`);
+        
         resolve(base64Content);
       };
       reader.onerror = (error) => reject(error);
@@ -318,6 +328,9 @@ export default function AddListPage() {
       if (!newList) {
         throw new Error("Failed to create list");
       }
+      
+      // Store the list ID for navigation
+      setCreatedListId(newList.id);
 
       let donorIdsToAssignStaff: number[] = [];
 
@@ -326,6 +339,8 @@ export default function AddListPage() {
         await addDonorsToList(newList.id, selectedDonorIds);
         donorIdsToAssignStaff = selectedDonorIds;
       } else if (donorMethod === "upload" && accountsFile) {
+        setIsProcessingUpload(true);
+        
         // Convert files to base64
         const accountsContent = await fileToBase64(accountsFile);
         const pledgesContent = pledgesFile ? await fileToBase64(pledgesFile) : null;
@@ -347,6 +362,13 @@ export default function AddListPage() {
         });
 
         setUploadResult(result);
+        setShowImportSummary(true);
+        
+        // Store the donor count for staff assignment
+        if (result && (result.donorsCreated > 0 || result.donorsUpdated > 0)) {
+          // Give the database a moment to fully commit the transaction
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
 
         // For uploaded donors, we need to get the donor IDs from the list
         // We'll assign staff after the upload is complete
@@ -357,16 +379,45 @@ export default function AddListPage() {
       if (selectedStaffId && selectedStaffId !== "none") {
         if (donorMethod === "upload") {
           // For uploaded files, we need to get the donor IDs from the newly created list
-          // Get donor IDs from the list after successful upload
+          // Get donor IDs from the list after successful upload with retry logic
           try {
-            const donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [newList.id] });
+            let donorIds: number[] = [];
+            let retryCount = 0;
+            const maxRetries = 5;
+            
+            // Retry logic to handle race condition with longer delays
+            while (retryCount < maxRetries) {
+              // Wait before attempting (give DB time to commit)
+              if (retryCount === 0) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              } else {
+                // Exponential backoff: 2s, 4s, 6s, 8s
+                await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+              }
+              
+              try {
+                donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [newList.id] });
+                
+                if (donorIds && donorIds.length > 0) {
+                  break; // Success, exit loop
+                }
+              } catch (fetchError) {
+                console.warn(`Error fetching donor IDs on attempt ${retryCount + 1}:`, fetchError);
+              }
+              
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.log(`Retrying to fetch donor IDs (attempt ${retryCount + 1}/${maxRetries})...`);
+              }
+            }
+            
             if (donorIds && donorIds.length > 0) {
               await bulkUpdateDonorStaff(donorIds, parseInt(selectedStaffId, 10));
               toast.success(
                 `Successfully assigned staff to ${donorIds.length} imported donor${donorIds.length !== 1 ? "s" : ""}!`
               );
             } else {
-              toast.warning("List created successfully, but no donors found to assign staff to.");
+              toast.warning("List created successfully, but no donors found to assign staff to. You can assign staff manually from the list details page.");
             }
           } catch (error) {
             console.error("Error assigning staff to uploaded donors:", error);
@@ -383,9 +434,17 @@ export default function AddListPage() {
         }
       }
 
-      // Navigate to the list detail page
-      router.push(`/lists/${newList.id}`);
+      // For uploads, show the summary and let user navigate manually
+      if (donorMethod === "upload" && uploadResult) {
+        setIsProcessingUpload(false);
+        // Don't navigate - let user review the results
+      } else {
+        // For other methods, navigate immediately
+        setIsProcessingUpload(false);
+        router.push(`/lists/${newList.id}`);
+      }
     } catch (error) {
+      setIsProcessingUpload(false);
       console.error("Error creating list:", error);
       if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
         if (error.message.includes("already exists")) {
@@ -456,7 +515,7 @@ export default function AddListPage() {
     }
   };
 
-  const isLoading = isCreating || isAddingDonors || isUploadingFiles;
+  const isLoading = isCreating || isAddingDonors || isUploadingFiles || isProcessingUpload;
 
   return (
     <div className="container mx-auto px-6 py-6">
@@ -588,10 +647,11 @@ export default function AddListPage() {
                       <p className="text-sm text-muted-foreground">
                         CSV file containing donor account information. Required fields: ACT_ID, Email (valid email
                         address), names.
-                        <span className="font-medium text-amber-700">
-                          Records without email addresses will be skipped.
-                        </span>
                       </p>
+                      <div className="p-2 bg-amber-50 rounded text-sm text-amber-800 border border-amber-200">
+                        <strong>Important:</strong> Only records with valid email addresses will be imported. 
+                        Records without emails will be skipped and reported in the import summary.
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -890,10 +950,14 @@ export default function AddListPage() {
                   <Button type="submit" disabled={isLoading}>
                     {isLoading
                       ? isCreating
-                        ? "Creating..."
+                        ? "Creating list..."
                         : isUploadingFiles
-                        ? "Processing files..."
-                        : "Adding donors..."
+                        ? "Processing CSV files..."
+                        : isProcessingUpload
+                        ? "Finalizing import..."
+                        : isAddingDonors
+                        ? "Adding donors..."
+                        : "Processing..."
                       : donorMethod === "upload" && accountsFile
                       ? selectedStaffId && selectedStaffId !== "none"
                         ? "Create List, Upload Files & Assign Staff"
@@ -1000,13 +1064,16 @@ export default function AddListPage() {
           )}
 
           {/* Upload Result Display */}
-          {uploadResult && (
-            <Card className="mt-6">
+          {uploadResult && showImportSummary && (
+            <Card className="mt-6 border-2 border-green-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  Import Summary
+                  Import Completed Successfully
                 </CardTitle>
+                <CardDescription>
+                  Review the import summary below. Click the button at the bottom when you're ready to continue.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Main Statistics */}
@@ -1026,6 +1093,15 @@ export default function AddListPage() {
                     <div className="text-sm text-orange-600">Skipped</div>
                   </div>
                 </div>
+                
+                {/* List Members Added */}
+                {uploadResult.listMembersAdded > 0 && (
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-lg font-medium text-green-700">
+                      {uploadResult.listMembersAdded} donor{uploadResult.listMembersAdded !== 1 ? "s" : ""} added to this list
+                    </div>
+                  </div>
+                )}
 
                 {/* Verification */}
                 <div className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-lg">
@@ -1082,6 +1158,27 @@ export default function AddListPage() {
                     </div>
                   </div>
                 )}
+                
+                {/* Navigation Controls */}
+                <div className="mt-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                  <div className="text-center space-y-3">
+                    <div className="text-lg font-semibold text-green-800">
+                      ✅ Import Completed Successfully!
+                    </div>
+                    <div className="text-sm text-green-700">
+                      Your list has been created and {uploadResult.listMembersAdded} donors have been added.
+                    </div>
+                    <Button
+                      size="lg"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        router.push(`/lists/${createdListId}`);
+                      }}
+                    >
+                      I understand, take me to the list
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
