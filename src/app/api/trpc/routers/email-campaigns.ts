@@ -137,6 +137,7 @@ const saveDraftSchema = z.object({
     })
   ).optional(),
   refinedInstruction: z.string().optional(),
+  previewDonorIds: z.array(z.number()).optional(),
 });
 
 const saveGeneratedEmailSchema = z.object({

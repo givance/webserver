@@ -155,7 +155,7 @@ export function WriteInstructionStep({
   const lastPersistedData = useRef<string>("");
 
   const { getOrganization } = useOrganization();
-  const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail } = useCommunications();
+  const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail, saveDraft } = useCommunications();
   const { listProjects } = useProjects();
   const { userId } = useAuth();
 
@@ -201,6 +201,41 @@ export function WriteInstructionStep({
       setPreviewDonorIds(initialPreviewDonors);
     }
   }, [initialPreviewDonors, previewDonorIds.length]);
+
+  // Function to save chat history - called after messages are sent/received
+  const saveChatHistory = useCallback(async (messages?: Array<{ role: "user" | "assistant"; content: string }>, refinedInst?: string) => {
+    if (!sessionId || !campaignName) {
+      console.log("[WriteInstructionStep] Skipping chat history save - no sessionId or campaignName");
+      return;
+    }
+
+    // Use provided messages or fall back to current state
+    const messagesToSave = messages || chatMessages;
+    const refinedToSave = refinedInst !== undefined ? refinedInst : previousInstruction;
+
+    console.log("[WriteInstructionStep] Saving chat history and refined instruction", {
+      sessionId,
+      chatMessagesCount: messagesToSave.length,
+      hasRefinedInstruction: !!refinedToSave,
+      lastMessage: messagesToSave[messagesToSave.length - 1],
+    });
+
+    try {
+      await saveDraft.mutateAsync({
+        sessionId,
+        campaignName,
+        selectedDonorIds: selectedDonors,
+        templateId,
+        instruction: instruction || "",
+        chatHistory: messagesToSave,
+        refinedInstruction: refinedToSave,
+        previewDonorIds,
+      });
+      console.log("[WriteInstructionStep] Successfully saved chat history with", messagesToSave.length, "messages");
+    } catch (error) {
+      console.error("[WriteInstructionStep] Failed to save chat history:", error);
+    }
+  }, [sessionId, campaignName, selectedDonors, templateId, instruction, previewDonorIds, saveDraft, chatMessages, previousInstruction]);
 
   // Memoize session data to avoid unnecessary recalculations
   const sessionData = useMemo(
@@ -254,7 +289,11 @@ export function WriteInstructionStep({
       setAllGeneratedEmails([]);
       setReferenceContexts({});
       setSuggestedMemories([]);
-      setChatMessages((prev) => [...prev, { role: "user", content: finalInstruction }]);
+      setChatMessages((prev) => {
+        const newMessages = [...prev, { role: "user", content: finalInstruction }];
+        // Note: We'll save chat history after the assistant responds
+        return newMessages;
+      });
 
       // Clear the input box only if this is manual submission (not auto-generation)
       if (!instructionToSubmit) {
@@ -334,6 +373,7 @@ export function WriteInstructionStep({
             // Save generated emails incrementally if we have a sessionId
             if (sessionId) {
               console.log(`[WriteInstructionStep] Saving ${emailResult.emails.length} generated emails to session ${sessionId}`);
+
               const savePromises = emailResult.emails.map(async (email) => {
                 try {
                   console.log(`[WriteInstructionStep] Saving email for donor ${email.donorId}`);
@@ -365,13 +405,20 @@ export function WriteInstructionStep({
               ? "I've generated personalized emails using your selected template. You can review them on the left side and make any adjustments to the content or style if needed."
               : "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
 
-            setChatMessages((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: responseMessage,
-              },
-            ]);
+            setChatMessages((prev) => {
+              const newMessages = [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: responseMessage,
+                },
+              ];
+              
+              // Save chat history after adding assistant message with the refined instruction
+              setTimeout(() => saveChatHistory(newMessages, emailResult.refinedInstruction), 100);
+              
+              return newMessages;
+            });
 
             // Auto-switch to preview tab after email generation
             setTimeout(() => {
@@ -384,13 +431,20 @@ export function WriteInstructionStep({
       } catch (error) {
         console.error("Error generating emails:", error);
         toast.error("Failed to generate emails. Please try again.");
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "I apologize, but I encountered an error while generating the emails. Please try again.",
-          },
-        ]);
+        setChatMessages((prev) => {
+          const newMessages = [
+            ...prev,
+            {
+              role: "assistant",
+              content: "I apologize, but I encountered an error while generating the emails. Please try again.",
+            },
+          ];
+          
+          // Save chat history after error message
+          setTimeout(() => saveChatHistory(newMessages), 100);
+          
+          return newMessages;
+        });
       } finally {
         setIsGenerating(false);
       }
@@ -406,6 +460,11 @@ export function WriteInstructionStep({
       chatMessages,
       sessionId,
       saveGeneratedEmail,
+      saveChatHistory,
+      campaignName,
+      selectedDonors,
+      templateId,
+      saveDraft,
     ]
   );
 
@@ -530,13 +589,20 @@ export function WriteInstructionStep({
           });
         }
 
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `I've generated ${emailResult.emails.length} more personalized emails. You now have ${newEmails.length} emails total to review.`,
-          },
-        ]);
+        setChatMessages((prev) => {
+          const newMessages = [
+            ...prev,
+            {
+              role: "assistant",
+              content: `I've generated ${emailResult.emails.length} more personalized emails. You now have ${newEmails.length} emails total to review.`,
+            },
+          ];
+          
+          // Save chat history after generating more emails
+          setTimeout(() => saveChatHistory(newMessages), 100);
+          
+          return newMessages;
+        });
 
         toast.success(`Generated ${emailResult.emails.length} more emails successfully!`);
       } else {
@@ -545,13 +611,20 @@ export function WriteInstructionStep({
     } catch (error) {
       console.error("Error generating more emails:", error);
       toast.error("Failed to generate more emails. Please try again.");
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "I apologize, but I encountered an error while generating more emails. Please try again.",
-        },
-      ]);
+      setChatMessages((prev) => {
+        const newMessages = [
+          ...prev,
+          {
+            role: "assistant",
+            content: "I apologize, but I encountered an error while generating more emails. Please try again.",
+          },
+        ];
+        
+        // Save chat history after error
+        setTimeout(() => saveChatHistory(newMessages), 100);
+        
+        return newMessages;
+      });
     } finally {
       setIsGeneratingMore(false);
     }

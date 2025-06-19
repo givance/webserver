@@ -73,6 +73,7 @@ export interface SaveDraftInput {
     content: string;
   }>;
   refinedInstruction?: string;
+  previewDonorIds?: number[];
 }
 
 export interface SaveGeneratedEmailInput {
@@ -755,10 +756,20 @@ export class EmailCampaignsService {
           instruction: input.instruction || "",
           refinedInstruction: input.refinedInstruction,
           chatHistory: input.chatHistory || [],
+          previewDonorIds: input.previewDonorIds || [],
           updatedAt: new Date(),
         };
 
-        logger.info(`[saveDraft] Updating session with data:`, updateData);
+        logger.info(`[saveDraft] Updating session with data:`, {
+          ...updateData,
+          chatHistoryLength: updateData.chatHistory.length,
+          hasRefinedInstruction: !!updateData.refinedInstruction,
+          existingStatus: existingSession[0]?.status,
+          lastTwoMessages: updateData.chatHistory.slice(-2).map(m => ({
+            role: m.role,
+            contentPreview: m.content.substring(0, 50) + '...'
+          })),
+        });
 
         const [updatedSession] = await db
           .update(emailGenerationSessions)
@@ -766,17 +777,17 @@ export class EmailCampaignsService {
           .where(
             and(
               eq(emailGenerationSessions.id, input.sessionId),
-              eq(emailGenerationSessions.organizationId, organizationId),
-              eq(emailGenerationSessions.status, "DRAFT")
+              eq(emailGenerationSessions.organizationId, organizationId)
+              // Removed status check - allow updating sessions in any status
             )
           )
           .returning();
 
         if (!updatedSession) {
-          logger.error(`[saveDraft] Failed to update session ${input.sessionId} - session not found or not in DRAFT status`);
+          logger.error(`[saveDraft] Failed to update session ${input.sessionId} - session not found`);
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Draft session not found or not in draft status",
+            message: "Session not found",
           });
         }
 
@@ -800,7 +811,15 @@ export class EmailCampaignsService {
           status: "DRAFT" as const,
         };
 
-        logger.info(`[saveDraft] Creating session with data:`, newSessionData);
+        logger.info(`[saveDraft] Creating session with data:`, {
+          ...newSessionData,
+          chatHistoryLength: newSessionData.chatHistory.length,
+          hasRefinedInstruction: !!newSessionData.refinedInstruction,
+          lastMessage: newSessionData.chatHistory.length > 0 ? {
+            role: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].role,
+            contentPreview: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].content.substring(0, 50) + '...'
+          } : null,
+        });
 
         // Create new draft
         const [newSession] = await db
