@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,11 +39,31 @@ interface TemplateDialogProps {
 
 function TemplateDialog({ isOpen, onOpenChange, template, onSave, isLoading }: TemplateDialogProps) {
   const [formData, setFormData] = useState<TemplateFormData>({
-    name: template?.name || "",
-    description: template?.description || "",
-    prompt: template?.prompt || "",
-    isActive: template?.isActive ?? true,
+    name: "",
+    description: "",
+    prompt: "",
+    isActive: true,
   });
+
+  // Update form data when template prop changes or dialog opens
+  useEffect(() => {
+    if (template) {
+      setFormData({
+        name: template.name || "",
+        description: template.description || "",
+        prompt: template.prompt || "",
+        isActive: template.isActive ?? true,
+      });
+    } else if (isOpen && !template) {
+      // Reset form for new template
+      setFormData({
+        name: "",
+        description: "",
+        prompt: "",
+        isActive: true,
+      });
+    }
+  }, [template, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,20 +74,9 @@ function TemplateDialog({ isOpen, onOpenChange, template, onSave, isLoading }: T
     await onSave(formData);
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      description: "",
-      prompt: "",
-      isActive: true,
-    });
-  };
-
   const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      resetForm();
-    }
     onOpenChange(open);
+    // Form reset is now handled by the useEffect hook
   };
 
   return (
