@@ -821,8 +821,8 @@ export function WriteInstructionStep({
     try {
       let response: { sessionId: number };
 
-      if (editMode && existingCampaignId) {
-        // Update existing campaign
+      if (editMode && existingCampaignId && sessionId) {
+        // Update existing campaign - don't create a new one
         await updateCampaign.mutateAsync({
           campaignId: existingCampaignId,
           campaignName: campaignName,
@@ -834,16 +834,10 @@ export function WriteInstructionStep({
           templateId: templateId,
         });
 
-        // Create new session for the updated campaign
-        response = await createSession.mutateAsync({
-          campaignName: campaignName,
-          instruction: currentSessionData.finalInstruction,
-          chatHistory: currentSessionData.chatHistory,
-          selectedDonorIds: selectedDonors,
-          previewDonorIds: currentSessionData.previewDonorIds,
-          refinedInstruction: currentSessionData.finalInstruction,
-          templateId: templateId,
-        });
+        // Use the existing session ID for the updated campaign
+        response = { sessionId: sessionId };
+
+        toast.success("Campaign updated! Redirecting to communication jobs...");
       } else {
         // Create new campaign session
         response = await createSession.mutateAsync({
@@ -855,13 +849,14 @@ export function WriteInstructionStep({
           refinedInstruction: currentSessionData.finalInstruction,
           templateId: templateId,
         });
+
+        if (!response?.sessionId) {
+          throw new Error("Failed to create session");
+        }
+
+        toast.success("Campaign started! Redirecting to communication jobs...");
       }
 
-      if (!response?.sessionId) {
-        throw new Error("Failed to create session");
-      }
-
-      toast.success("Campaign started! Redirecting to communication jobs...");
       setShowBulkGenerationDialog(false);
 
       // Redirect after starting the generation

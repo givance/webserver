@@ -1,37 +1,9 @@
 "use client";
 
+import type { AppRouter } from "@/app/api/trpc/routers/_app";
+import type { CommunicationChannel, CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import type { CommunicationThreadWithDetails, CommunicationChannel } from "@/app/lib/data/communications";
-
-type ThreadOutput = inferProcedureOutput<AppRouter["communications"]["threads"]["getThread"]>;
-type ListThreadsInput = inferProcedureInput<AppRouter["communications"]["threads"]["listThreads"]>;
-type CreateThreadInput = inferProcedureInput<AppRouter["communications"]["threads"]["createThread"]>;
-type AddMessageInput = inferProcedureInput<AppRouter["communications"]["threads"]["addMessage"]>;
-type GetMessagesInput = inferProcedureInput<AppRouter["communications"]["threads"]["getMessages"]>;
-type GenerateEmailsInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["generateEmails"]>;
-type CreateSessionInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["createSession"]>;
-type GetSessionInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["getSession"]>;
-type GetSessionStatusInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["getSessionStatus"]>;
-type ListCampaignsInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["listCampaigns"]>;
-type GetEmailStatusInput = inferProcedureInput<AppRouter["communications"]["campaigns"]["getEmailStatus"]>;
-
-interface ListThreadsOptions {
-  channel?: CommunicationChannel;
-  staffId?: number;
-  donorId?: number;
-  limit?: number;
-  offset?: number;
-  includeStaff?: boolean;
-  includeDonors?: boolean;
-  includeLatestMessage?: boolean;
-}
-
-interface ListThreadsResponse {
-  threads: CommunicationThreadWithDetails[];
-  totalCount: number;
-}
 
 /**
  * Hook for managing communication threads through the tRPC API
