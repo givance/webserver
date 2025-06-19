@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SignatureEditor, SignaturePreview } from "@/components/signature";
+import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
+import { trpc } from "@/app/lib/trpc/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Plus, X, MessageSquare } from "lucide-react";
 import Link from "next/link";
@@ -38,8 +41,12 @@ export default function AddStaffPage() {
   const { createStaff, isCreating } = useStaff();
   const { addPhoneNumber } = useWhatsApp();
   const router = useRouter();
+  
+  // Mutation for updating signature
+  const updateSignatureMutation = trpc.staff.updateSignature.useMutation();
   const [error, setError] = useState<string | null>(null);
   const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
+  const [showCodeView, setShowCodeView] = useState(false);
 
   const form = useForm<FormValues>({
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
@@ -117,6 +124,22 @@ export default function AddStaffPage() {
       });
 
       if (result) {
+        // If signature was provided, update it
+        if (values.signature && values.signature.trim()) {
+          try {
+            const sanitizedSignature = sanitizeHtml(values.signature);
+            await updateSignatureMutation.mutateAsync({
+              id: result.id,
+              signature: sanitizedSignature,
+            });
+          } catch (signatureError: any) {
+            console.warn("Error updating signature, but staff was created:", signatureError);
+            toast.warning(
+              "Staff member created successfully, but failed to save signature. You can add it later from the staff detail page."
+            );
+          }
+        }
+
         // If WhatsApp phone numbers were provided, add them
         if (values.whatsappPhoneNumbers && values.whatsappPhoneNumbers.length > 0) {
           try {
@@ -305,19 +328,26 @@ export default function AddStaffPage() {
                   <FormItem>
                     <FormLabel>Email Signature</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Best regards,&#10;John Doe&#10;Marketing Manager&#10;example@nonprofit.org"
-                        {...field}
+                      <SignatureEditor
                         value={field.value || ""}
-                        rows={4}
-                        className="resize-none"
+                        onChange={field.onChange}
+                        showCodeView={showCodeView}
+                        onCodeViewChange={setShowCodeView}
+                        placeholder="Enter the staff member's email signature..."
                       />
                     </FormControl>
-                    <FormDescription>Enter the staff member&apos;s email signature (optional)</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Signature Preview */}
+              {form.watch("signature") && (
+                <SignaturePreview 
+                  signature={form.watch("signature") || ""}
+                  staffName={`${form.watch("firstName") || "Staff"} ${form.watch("lastName") || "Member"}`}
+                />
+              )}
 
               {/* WhatsApp Phone Numbers Section */}
               <div className="space-y-4">

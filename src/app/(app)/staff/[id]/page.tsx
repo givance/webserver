@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { SignatureEditor, SignaturePreview } from "@/components/signature";
+import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -89,6 +91,7 @@ export default function StaffDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
+  const [showCodeView, setShowCodeView] = useState(false);
 
   const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
   const {
@@ -274,9 +277,12 @@ export default function StaffDetailPage() {
    */
   const onSignatureSubmit = async (values: EditSignatureFormValues) => {
     try {
+      // Sanitize HTML before saving to database
+      const sanitizedSignature = values.signature ? sanitizeHtml(values.signature) : "";
+      
       await updateSignatureMutation.mutateAsync({
         id: staffId,
-        signature: values.signature,
+        signature: sanitizedSignature,
       });
       await refetchStaff();
     } catch (error) {
@@ -334,6 +340,7 @@ export default function StaffDetailPage() {
       });
     }
     setIsEditingSignature(false);
+    setShowCodeView(false);
   };
 
   // Loading state
@@ -633,19 +640,22 @@ export default function StaffDetailPage() {
                         <FormItem>
                           <FormLabel>Email Signature</FormLabel>
                           <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="Enter email signature..."
-                              rows={8}
-                              className="resize-none"
+                            <SignatureEditor
+                              value={field.value || ""}
+                              onChange={field.onChange}
+                              showCodeView={showCodeView}
+                              onCodeViewChange={setShowCodeView}
                             />
                           </FormControl>
                           <FormMessage />
-                          <p className="text-sm text-muted-foreground">
-                            This signature will be automatically included in emails sent on behalf of this staff member.
-                          </p>
                         </FormItem>
                       )}
+                    />
+
+                    {/* Live Preview */}
+                    <SignaturePreview 
+                      signature={signatureForm.watch("signature") || ""}
+                      staffName={`${staff?.firstName} ${staff?.lastName}`}
                     />
 
                     <div className="flex justify-end gap-2">
@@ -662,18 +672,13 @@ export default function StaffDetailPage() {
                 </Form>
               ) : (
                 <div className="space-y-4">
-                  {staff.signature ? (
-                    <div>
-                      <label className="text-sm font-medium">Current Signature</label>
-                      <div className="mt-2 p-4 bg-gray-50 rounded-md">
-                        <pre className="whitespace-pre-wrap text-sm font-sans">{staff.signature}</pre>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                      <p>No email signature set</p>
-                      <p className="text-sm">Click &quot;Edit Signature&quot; to add one</p>
+                  <SignaturePreview 
+                    signature={staff.signature || ""}
+                    staffName={`${staff.firstName} ${staff.lastName}`}
+                  />
+                  {!staff.signature && (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p className="text-sm">Click &quot;Edit Signature&quot; to add a custom signature</p>
                     </div>
                   )}
                 </div>
