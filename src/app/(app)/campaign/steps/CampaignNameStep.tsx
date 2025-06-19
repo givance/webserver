@@ -42,8 +42,8 @@ export function CampaignNameStep({
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedName, setLastSavedName] = useState(campaignName);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
-  
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const { saveDraft } = useCommunications();
   console.log("[CampaignNameStep] saveDraft mutation available:", !!saveDraft);
 
@@ -84,14 +84,14 @@ export function CampaignNameStep({
           templateId,
         };
         console.log("[CampaignNameStep] Calling saveDraft.mutateAsync with payload:", payload);
-        
+
         // Extra validation
         if (!payload.selectedDonorIds || payload.selectedDonorIds.length === 0) {
           console.warn("[CampaignNameStep] Warning: selectedDonorIds is empty!");
         }
-        
+
         const result = await saveDraft.mutateAsync(payload);
-        
+
         console.log("[CampaignNameStep] saveDraft result:", result);
 
         // Update session ID if this was a new draft

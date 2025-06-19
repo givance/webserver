@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, count } from "drizzle-orm";
+import { and, desc, eq, count, sql } from "drizzle-orm";
 import { db } from "@/app/lib/db";
 import { emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
@@ -24,7 +24,7 @@ export interface CreateSessionInput {
 export interface ListCampaignsInput {
   limit?: number;
   offset?: number;
-  status?: "DRAFT" | "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  status?: "DRAFT" | "PENDING" | "GENERATING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
 }
 
 export interface UpdateEmailInput {
@@ -144,12 +144,7 @@ export class EmailCampaignsService {
             isPreview: false,
             updatedAt: new Date(),
           })
-          .where(
-            and(
-              eq(generatedEmails.sessionId, sessionId),
-              eq(generatedEmails.status, "PENDING_APPROVAL")
-            )
-          );
+          .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
 
         logger.info(`Updated existing draft session ${sessionId} to PENDING for user ${userId}`);
       } else {
@@ -179,17 +174,10 @@ export class EmailCampaignsService {
       const existingEmails = await db
         .select({ donorId: generatedEmails.donorId })
         .from(generatedEmails)
-        .where(
-          and(
-            eq(generatedEmails.sessionId, sessionId),
-            eq(generatedEmails.status, "APPROVED")
-          )
-        );
+        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "APPROVED")));
 
-      const alreadyGeneratedDonorIds = existingEmails.map(e => e.donorId);
-      const donorsToGenerate = input.selectedDonorIds.filter(
-        id => !alreadyGeneratedDonorIds.includes(id)
-      );
+      const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
+      const donorsToGenerate = input.selectedDonorIds.filter((id) => !alreadyGeneratedDonorIds.includes(id));
 
       // Only trigger background job if there are donors without emails
       if (donorsToGenerate.length > 0) {
@@ -205,10 +193,12 @@ export class EmailCampaignsService {
           templateId: input.templateId,
         });
 
-        logger.info(`Triggered email generation for ${donorsToGenerate.length} donors (${alreadyGeneratedDonorIds.length} already have emails)`);
+        logger.info(
+          `Triggered email generation for ${donorsToGenerate.length} donors (${alreadyGeneratedDonorIds.length} already have emails)`
+        );
       } else {
         logger.info(`All donors already have emails, marking session as completed`);
-        
+
         // If all donors already have emails, mark session as completed
         await db
           .update(emailGenerationSessions)
@@ -534,7 +524,7 @@ export class EmailCampaignsService {
         });
       }
 
-      if (existingCampaign.status === "IN_PROGRESS" || existingCampaign.status === "PENDING") {
+      if (existingCampaign.status === "GENERATING" || existingCampaign.status === "IN_PROGRESS") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Cannot edit a campaign that is currently processing",
@@ -622,7 +612,11 @@ export class EmailCampaignsService {
         });
       }
 
-      if (existingSession.status === "IN_PROGRESS" || existingSession.status === "PENDING") {
+      if (
+        existingSession.status === "GENERATING" ||
+        existingSession.status === "IN_PROGRESS" ||
+        existingSession.status === "PENDING"
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Cannot regenerate emails while campaign is still processing",
@@ -641,11 +635,11 @@ export class EmailCampaignsService {
       // If instruction is empty, use the existing instruction from the session
       const useExistingInstruction = !input.instruction || input.instruction.trim() === "";
       const finalInstruction = useExistingInstruction ? existingSession.instruction : input.instruction;
-      const finalRefinedInstruction = useExistingInstruction 
-        ? (existingSession.refinedInstruction || existingSession.instruction)
-        : (input.refinedInstruction || input.instruction);
-      const finalChatHistory = useExistingInstruction 
-        ? (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }> || [])
+      const finalRefinedInstruction = useExistingInstruction
+        ? existingSession.refinedInstruction || existingSession.instruction
+        : input.refinedInstruction || input.instruction;
+      const finalChatHistory = useExistingInstruction
+        ? (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || []
         : input.chatHistory;
 
       // Update the session with instruction and reset status
@@ -676,7 +670,11 @@ export class EmailCampaignsService {
         templateId: existingSession.templateId ?? undefined,
       });
 
-      logger.info(`Started regeneration for session ${input.sessionId} with ${useExistingInstruction ? 'existing' : 'new'} instruction`);
+      logger.info(
+        `Started regeneration for session ${input.sessionId} with ${
+          useExistingInstruction ? "existing" : "new"
+        } instruction`
+      );
 
       return {
         success: true,
@@ -728,7 +726,7 @@ export class EmailCampaignsService {
     try {
       if (input.sessionId) {
         logger.info(`[saveDraft] Attempting to update existing draft session ${input.sessionId}`);
-        
+
         // First check if the session exists and its current status
         const existingSession = await db
           .select()
@@ -765,9 +763,9 @@ export class EmailCampaignsService {
           chatHistoryLength: updateData.chatHistory.length,
           hasRefinedInstruction: !!updateData.refinedInstruction,
           existingStatus: existingSession[0]?.status,
-          lastTwoMessages: updateData.chatHistory.slice(-2).map(m => ({
+          lastTwoMessages: updateData.chatHistory.slice(-2).map((m) => ({
             role: m.role,
-            contentPreview: m.content.substring(0, 50) + '...'
+            contentPreview: m.content.substring(0, 50) + "...",
           })),
         });
 
@@ -795,7 +793,7 @@ export class EmailCampaignsService {
         return { sessionId: updatedSession.id };
       } else {
         logger.info(`[saveDraft] Creating new draft session`);
-        
+
         const newSessionData = {
           organizationId,
           userId,
@@ -815,17 +813,18 @@ export class EmailCampaignsService {
           ...newSessionData,
           chatHistoryLength: newSessionData.chatHistory.length,
           hasRefinedInstruction: !!newSessionData.refinedInstruction,
-          lastMessage: newSessionData.chatHistory.length > 0 ? {
-            role: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].role,
-            contentPreview: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].content.substring(0, 50) + '...'
-          } : null,
+          lastMessage:
+            newSessionData.chatHistory.length > 0
+              ? {
+                  role: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].role,
+                  contentPreview:
+                    newSessionData.chatHistory[newSessionData.chatHistory.length - 1].content.substring(0, 50) + "...",
+                }
+              : null,
         });
 
         // Create new draft
-        const [newSession] = await db
-          .insert(emailGenerationSessions)
-          .values(newSessionData)
-          .returning();
+        const [newSession] = await db.insert(emailGenerationSessions).values(newSessionData).returning();
 
         logger.info(`[saveDraft] Successfully created new draft session ${newSession.id}`);
         return { sessionId: newSession.id };
@@ -843,6 +842,52 @@ export class EmailCampaignsService {
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to save draft",
       });
+    }
+  }
+
+  /**
+   * Checks if all emails in a session have been sent and updates status to COMPLETED
+   * @param sessionId - The session ID
+   * @param organizationId - The organization ID
+   */
+  async checkAndUpdateCampaignCompletion(sessionId: number, organizationId: string) {
+    try {
+      // Get the session
+      const session = await db.query.emailGenerationSessions.findFirst({
+        where: and(
+          eq(emailGenerationSessions.id, sessionId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        ),
+      });
+
+      if (!session || session.status !== "IN_PROGRESS") {
+        return; // Only update if campaign is in IN_PROGRESS status
+      }
+
+      // Count total emails and sent emails
+      const [emailStats] = await db
+        .select({
+          totalEmails: count(),
+          sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
+        })
+        .from(generatedEmails)
+        .where(eq(generatedEmails.sessionId, sessionId));
+
+      // If all emails have been sent, mark campaign as COMPLETED
+      if (emailStats.totalEmails > 0 && emailStats.totalEmails === emailStats.sentEmails) {
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "COMPLETED",
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+
+        logger.info(`Campaign ${sessionId} marked as COMPLETED - all ${emailStats.totalEmails} emails have been sent`);
+      }
+    } catch (error) {
+      logger.error(`Failed to check campaign completion for session ${sessionId}: ${error}`);
     }
   }
 
@@ -877,12 +922,7 @@ export class EmailCampaignsService {
       const existingEmail = await db
         .select()
         .from(generatedEmails)
-        .where(
-          and(
-            eq(generatedEmails.sessionId, input.sessionId),
-            eq(generatedEmails.donorId, input.donorId)
-          )
-        )
+        .where(and(eq(generatedEmails.sessionId, input.sessionId), eq(generatedEmails.donorId, input.donorId)))
         .limit(1);
 
       if (existingEmail[0]) {

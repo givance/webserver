@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { donors, emailGenerationSessions, generatedEmails, gmailOAuthTokens, staff, users } from "@/app/lib/db/schema";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
+import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
 import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { TRPCError } from "@trpc/server";
@@ -812,6 +813,10 @@ export const gmailRouter = router({
               })
               .where(eq(generatedEmails.id, email.id));
 
+            // Check if all emails in the session have been sent and update campaign status
+            const campaignsService = new EmailCampaignsService();
+            await campaignsService.checkAndUpdateCampaignCompletion(input.sessionId, session.organizationId);
+
             logger.info(
               `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}, account type: ${accountType}, sender: ${senderInfo.name}`
             );
@@ -1151,6 +1156,10 @@ export const gmailRouter = router({
                 updatedAt: new Date(),
               })
               .where(eq(generatedEmails.id, email.id));
+
+            // Check if all emails in the session have been sent and update campaign status
+            const campaignsService = new EmailCampaignsService();
+            await campaignsService.checkAndUpdateCampaignCompletion(input.sessionId, session.organizationId);
 
             logger.info(
               `Sent tracked email to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}, account type: ${accountType}, sender: ${senderInfo.name}`

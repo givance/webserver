@@ -56,7 +56,7 @@ const getSessionStatusSchema = z.object({
 const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
+  status: z.enum(["DRAFT", "PENDING", "GENERATING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
 });
 
 const deleteCampaignSchema = z.object({

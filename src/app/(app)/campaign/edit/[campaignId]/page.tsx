@@ -27,11 +27,26 @@ export default function EditCampaignPage() {
 
     if (sessionData && !isLoadingSession) {
       // Check if campaign is still processing
-      if (sessionData.session.status === "IN_PROGRESS" || sessionData.session.status === "PENDING") {
-        toast.error("Cannot edit campaign while it's still processing");
+      // Block editing if the campaign is actively generating emails or sending them
+      // All other statuses (DRAFT, PENDING, COMPLETED, FAILED) are allowed for editing
+      if (sessionData.session.status === "GENERATING" || sessionData.session.status === "IN_PROGRESS") {
+        const message = sessionData.session.status === "GENERATING" 
+          ? "Cannot edit campaign while emails are being generated"
+          : "Cannot edit campaign while emails are being sent";
+        toast.error(message);
         router.push("/existing-campaigns");
         return;
       }
+
+      console.log("[EditCampaignPage] Session data loaded:", {
+        campaignId,
+        campaignName: sessionData.session.jobName,
+        refinedInstruction: sessionData.session.refinedInstruction,
+        instruction: sessionData.session.instruction,
+        status: sessionData.session.status,
+        totalDonors: sessionData.session.totalDonors,
+        completedDonors: sessionData.session.completedDonors,
+      });
 
       setCampaignData(sessionData);
       setIsLoading(false);
@@ -74,8 +89,9 @@ export default function EditCampaignPage() {
           campaignName: campaignData.session.jobName,
           selectedDonorIds: campaignData.session.selectedDonorIds,
           chatHistory: campaignData.session.chatHistory,
-          instruction: "", // Don't pre-populate instruction in edit mode - let user start fresh
+          instruction: campaignData.session.instruction || "", // Pass the original instruction for fallback
           templateId: campaignData.session.templateId,
+          refinedInstruction: campaignData.session.refinedInstruction,
           // Include any existing generated emails for reference
           existingGeneratedEmails: campaignData.emails || [],
         }}

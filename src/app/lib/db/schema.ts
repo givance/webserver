@@ -538,7 +538,7 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
   chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
   selectedDonorIds: jsonb("selected_donor_ids").notNull(), // Array of donor IDs
   previewDonorIds: jsonb("preview_donor_ids").notNull(), // Array of donor IDs used for preview
-  status: text("status").notNull().default("PENDING"), // 'DRAFT', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'
+  status: text("status").notNull().default("PENDING"), // 'DRAFT', 'PENDING', 'GENERATING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'
   triggerJobId: text("trigger_job_id"), // ID of the trigger job
   totalDonors: integer("total_donors").notNull(),
   completedDonors: integer("completed_donors").default(0).notNull(),

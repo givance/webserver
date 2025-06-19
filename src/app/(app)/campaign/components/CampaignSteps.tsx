@@ -22,6 +22,7 @@ interface CampaignStepsProps {
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     instruction: string;
     templateId?: number;
+    refinedInstruction?: string;
     existingGeneratedEmails?: any[];
   };
 }
@@ -148,6 +149,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             initialGeneratedEmails={persistedGeneratedEmails}
             initialReferenceContexts={persistedReferenceContexts}
             initialPreviewDonorIds={persistedPreviewDonorIds}
+            initialRefinedInstruction={existingCampaignData?.refinedInstruction}
             campaignName={campaignName}
             templateId={selectedTemplateId}
             onBulkGenerationComplete={handleBulkGenerationComplete}

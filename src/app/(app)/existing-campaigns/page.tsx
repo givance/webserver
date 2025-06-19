@@ -32,8 +32,30 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
     return <Badge variant="destructive">Failed</Badge>;
   }
 
-  // If still generating emails (not all donors completed or still in progress/pending)
-  if (status === "IN_PROGRESS" || status === "PENDING" || completedDonors < totalDonors) {
+  // If it's a draft, show draft status
+  if (status === "DRAFT") {
+    return (
+      <Badge variant="outline" className="border-gray-500 text-gray-700 bg-gray-50">
+        Draft
+      </Badge>
+    );
+  }
+
+  // If it's pending (queued for generation but not yet started)
+  if (status === "PENDING") {
+    return (
+      <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
+        Pending
+      </Badge>
+    );
+  }
+
+  // If still generating emails (actively generating or in progress)
+  if (
+    status === "GENERATING" ||
+    status === "IN_PROGRESS" ||
+    (completedDonors < totalDonors && status !== "COMPLETED")
+  ) {
     return (
       <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">
         Generating ({completedDonors}/{totalDonors})
@@ -454,7 +476,7 @@ function ExistingCampaignsContent() {
       header: "Actions",
       cell: ({ row }) => {
         const campaign = row.original;
-        const isProcessing = campaign.status === "IN_PROGRESS" || campaign.status === "PENDING";
+        const isProcessing = campaign.status === "IN_PROGRESS" || campaign.status === "GENERATING";
         const isCompleted = campaign.status === "COMPLETED";
         const hasFailed = campaign.status === "FAILED";
         const isGmailConnected = gmailStatus?.isConnected ?? false;

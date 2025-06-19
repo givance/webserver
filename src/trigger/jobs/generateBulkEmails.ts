@@ -80,11 +80,11 @@ export const generateBulkEmailsTask = task({
     );
 
     try {
-      // Update session status to IN_PROGRESS
+      // Update session status to GENERATING
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "IN_PROGRESS",
+          status: "GENERATING",
           triggerJobId: ctx.run.id,
           updatedAt: new Date(),
         })
@@ -374,15 +374,14 @@ export const generateBulkEmailsTask = task({
 
       await db.insert(generatedEmails).values(emailInserts);
 
-      // Update session status to COMPLETED with total completed count including existing emails
+      // Update session status to IN_PROGRESS (ready for sending) with total completed count including existing emails
       const totalCompletedDonors = selectedDonorIds.length; // All selected donors now have emails
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "COMPLETED",
+          status: "IN_PROGRESS",
           completedDonors: totalCompletedDonors,
           refinedInstruction: refinedInstruction || instruction,
-          completedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(emailGenerationSessions.id, sessionId));
