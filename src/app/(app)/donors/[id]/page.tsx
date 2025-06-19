@@ -71,10 +71,10 @@ export default function DonorProfilePage() {
   // Fetch donor data
   const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
   const { data: donor, isLoading: isDonorLoading, error: donorError } = getDonorQuery(donorId);
-  
+
   // Fetch staff members for assignment dropdown
-  const { data: staffMembers = [] } = useStaffMembers();
-  
+  const { staffMembers = [] } = useStaffMembers();
+
   // Fetch donor journey stages
   const { donorJourneyStagesQuery } = useDonorJourneyStages();
   const { data: donorJourneyStages = [] } = donorJourneyStagesQuery;
@@ -113,7 +113,7 @@ export default function DonorProfilePage() {
       setNotesValue(donor.notes);
     }
   }, [donor?.notes]);
-  
+
   // Helper functions for inline editing
   const handleUpdateField = async (field: string, value: any) => {
     try {
@@ -127,7 +127,7 @@ export default function DonorProfilePage() {
       throw error;
     }
   };
-  
+
   // Validation functions
   const validateEmail = (email: string): string | null => {
     if (!email) return "Email is required";
@@ -135,14 +135,14 @@ export default function DonorProfilePage() {
     if (!emailRegex.test(email)) return "Invalid email format";
     return null;
   };
-  
+
   const validatePhone = (phone: string): string | null => {
     if (!phone) return null; // Phone is optional
     const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{4,6}$/;
     if (!phoneRegex.test(phone)) return "Invalid phone format";
     return null;
   };
-  
+
   const validateName = (name: string): string | null => {
     if (!name || name.length < 2) return "Name must be at least 2 characters";
     return null;
@@ -606,10 +606,10 @@ export default function DonorProfilePage() {
                   value={donor.assignedToStaffId ? String(donor.assignedToStaffId) : null}
                   options={[
                     { value: "", label: "Unassigned" },
-                    ...staffMembers.map(staff => ({
+                    ...staffMembers.map((staff) => ({
                       value: String(staff.id),
-                      label: `${staff.firstName} ${staff.lastName}`
-                    }))
+                      label: `${staff.firstName} ${staff.lastName}`,
+                    })),
                   ]}
                   onSave={async (value) => {
                     await handleUpdateField("assignedToStaffId", value ? Number(value) : null);
@@ -621,9 +621,9 @@ export default function DonorProfilePage() {
                 <label className="text-sm text-muted-foreground">Donor Journey Stage</label>
                 <InlineSelectEdit
                   value={donor.currentStageName || null}
-                  options={donorJourneyStages.map(stage => ({
+                  options={donorJourneyStages.map((stage) => ({
                     value: stage.name,
-                    label: stage.name
+                    label: stage.name,
                   }))}
                   onSave={(value) => handleUpdateField("currentStageName", value)}
                   emptyText="No stage set"

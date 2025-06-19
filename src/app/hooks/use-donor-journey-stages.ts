@@ -16,20 +16,20 @@ export interface DonorJourneyStage {
 export function useDonorJourneyStages() {
   const { getDonorJourney } = useOrganization();
   const donorJourneyQuery = getDonorJourney();
-  
+
   // Extract stages from donor journey nodes
   const stages = useMemo(() => {
     if (!donorJourneyQuery.data?.nodes) {
       return [];
     }
-    
+
     return donorJourneyQuery.data.nodes.map((node) => ({
       id: node.id,
-      name: node.data.label,
-      description: node.data.description,
+      name: node.label,
+      description: node.properties.description,
     }));
   }, [donorJourneyQuery.data]);
-  
+
   return {
     donorJourneyStagesQuery: {
       data: stages,
