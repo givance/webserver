@@ -121,7 +121,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@microsoft/microsoft-graph-types": "^2.40.0",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.1.10",
     "@tanstack/table-core": "^8.21.3",
     "@trigger.dev/build": "^3.3.17",
     "@types/cheerio": "^1.0.0",
