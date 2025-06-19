@@ -103,6 +103,17 @@ export function useCommunications() {
     },
   });
 
+  // Regenerate all emails mutation hook
+  const regenerateAllEmails = trpc.communications.campaigns.regenerateAllEmails.useMutation({
+    onSuccess: (data) => {
+      // Invalidate the session query to refetch updated status
+      if (data.sessionId) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+        utils.communications.campaigns.listCampaigns.invalidate();
+      }
+    },
+  });
+
   return {
     // Query hooks
     listThreads,
@@ -126,5 +137,6 @@ export function useCommunications() {
     updateEmail,
     updateCampaign,
     enhanceEmail,
+    regenerateAllEmails,
   };
 }

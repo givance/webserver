@@ -112,6 +112,18 @@ const enhanceEmailSchema = z.object({
   currentReferenceContexts: z.record(z.string(), z.string()),
 });
 
+const regenerateAllEmailsSchema = z.object({
+  sessionId: z.number(),
+  instruction: z.string(), // Allow empty string to use existing instruction
+  chatHistory: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    })
+  ),
+  refinedInstruction: z.string().optional(),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -233,5 +245,18 @@ export const emailCampaignsRouter = router({
   enhanceEmail: protectedProcedure.input(enhanceEmailSchema).mutation(async ({ ctx, input }) => {
     const emailService = new EmailGenerationService();
     return await emailService.enhanceEmail(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+  }),
+
+  /**
+   * Regenerate all emails for a campaign with new instructions
+   * This will delete all existing emails and regenerate them
+   */
+  regenerateAllEmails: protectedProcedure.input(regenerateAllEmailsSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.regenerateAllEmails(
+      input,
+      ctx.auth.user.organizationId,
+      ctx.auth.user.id
+    );
   }),
 });

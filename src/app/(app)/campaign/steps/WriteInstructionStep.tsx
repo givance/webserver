@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Mail, Plus } from "lucide-react";
+import { Users, Mail, Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Mention, MentionsInput } from "react-mentions";
@@ -139,11 +139,13 @@ export function WriteInstructionStep({
   const [allGeneratedEmails, setAllGeneratedEmails] = useState<GeneratedEmail[]>(initialGeneratedEmails);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const lastPersistedData = useRef<string>("");
 
   const { getOrganization } = useOrganization();
-  const { generateEmails, createSession, updateCampaign } = useCommunications();
+  const { generateEmails, createSession, updateCampaign, regenerateAllEmails } = useCommunications();
   const { listProjects } = useProjects();
   const { userId } = useAuth();
 
@@ -501,6 +503,57 @@ export function WriteInstructionStep({
     chatMessages,
   ]);
 
+  // Handle regenerating all emails with same instructions
+  const handleRegenerateAllEmails = async () => {
+    if (isRegenerating) return;
+
+    const finalInstruction = previousInstruction || instruction;
+    if (!finalInstruction || finalInstruction.trim().length === 0) {
+      toast.error("No instruction available for regeneration");
+      return;
+    }
+
+    setIsRegenerating(true);
+    setShowRegenerateDialog(false);
+
+    // If we don't have a campaign ID, just regenerate the preview locally
+    if (!existingCampaignId) {
+      // Re-run the same generation with the same instruction
+      await handleSubmitInstruction(finalInstruction);
+      setIsRegenerating(false);
+      return;
+    }
+
+    try {
+      // For existing campaigns, regenerate on the server
+      const result = await regenerateAllEmails.mutateAsync({
+        sessionId: existingCampaignId,
+        // Pass empty instruction to signal we want to use existing one
+        instruction: "",
+        chatHistory: [],
+        refinedInstruction: "",
+      });
+
+      if (result.success) {
+        toast.success(`Regenerating ${result.deletedEmailsCount || allGeneratedEmails.length} emails with the same instructions...`);
+        
+        // Clear local state
+        setGeneratedEmails([]);
+        setAllGeneratedEmails([]);
+        setReferenceContexts({});
+        
+        // Redirect to existing campaigns page to see progress
+        setTimeout(() => {
+          onBulkGenerationComplete(result.sessionId);
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Error regenerating emails:", error);
+      toast.error("Failed to regenerate emails. Please try again.");
+      setIsRegenerating(false);
+    }
+  };
+
   // Handle bulk generation
   const handleBulkGeneration = async () => {
     if (isStartingBulkGeneration) return;
@@ -730,7 +783,16 @@ export function WriteInstructionStep({
                             />
                           </MentionsInput>
                         </div>
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            onClick={() => setShowRegenerateDialog(true)}
+                            disabled={isRegenerating || isGenerating}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Regenerate
+                          </Button>
                           <Button
                             onClick={() => handleSubmitInstruction()}
                             disabled={isGenerating || !instruction.trim()}
@@ -750,21 +812,34 @@ export function WriteInstructionStep({
           {/* Preview Tab */}
           <TabsContent value="preview" className="flex-1 min-h-0 mt-3">
             <Card className="h-full flex flex-col">
-              {/* Only show header if we need the Generate More button */}
-              {canGenerateMore && (
+              {/* Show header if we have buttons to display */}
+              {(canGenerateMore || true) && (
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-end gap-2">
+                    {/* Simple Regenerate button - always show */}
                     <Button
                       variant="outline"
-                      onClick={handleGenerateMore}
-                      disabled={isGeneratingMore}
+                      onClick={() => setShowRegenerateDialog(true)}
+                      disabled={isRegenerating || isGenerating}
                       className="flex items-center gap-2"
                     >
-                      <Plus className="h-4 w-4" />
-                      {isGeneratingMore
-                        ? "Generating..."
-                        : `Generate ${Math.min(GENERATE_MORE_COUNT, remainingDonors.length)} More`}
+                      <RefreshCw className="h-4 w-4" />
+                      Regenerate
                     </Button>
+                    {/* Generate More button */}
+                    {canGenerateMore && (
+                      <Button
+                        variant="outline"
+                        onClick={handleGenerateMore}
+                        disabled={isGeneratingMore}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {isGeneratingMore
+                          ? "Generating..."
+                          : `Generate ${Math.min(GENERATE_MORE_COUNT, remainingDonors.length)} More`}
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
               )}
@@ -920,6 +995,45 @@ export function WriteInstructionStep({
                 : editMode
                 ? "Update Campaign"
                 : "Launch Campaign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate Confirmation Dialog */}
+      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Regenerate Emails
+            </DialogTitle>
+            <DialogDescription>
+              This will regenerate all emails with the same instructions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                This will regenerate all {allGeneratedEmails.length} emails for {selectedDonors.length} donors using the exact same instructions as before.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+              disabled={isRegenerating}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRegenerateAllEmails} 
+              disabled={isRegenerating}
+            >
+              {isRegenerating ? "Regenerating..." : "Regenerate"}
             </Button>
           </DialogFooter>
         </DialogContent>

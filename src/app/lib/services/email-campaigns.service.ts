@@ -52,6 +52,16 @@ export interface UpdateCampaignInput {
   templateId?: number;
 }
 
+export interface RegenerateAllEmailsInput {
+  sessionId: number;
+  instruction: string; // Empty string means use existing instruction
+  chatHistory: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  refinedInstruction?: string;
+}
+
 /**
  * Service for handling email campaign operations
  */
@@ -465,6 +475,107 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to update campaign",
+      });
+    }
+  }
+
+  /**
+   * Regenerates all emails for a campaign with new instructions
+   * This will delete all existing emails and trigger new generation
+   * @param input - Regeneration parameters
+   * @param organizationId - The organization ID for authorization
+   * @param userId - The user ID
+   * @returns The result of the regeneration
+   */
+  async regenerateAllEmails(input: RegenerateAllEmailsInput, organizationId: string, userId: string) {
+    try {
+      // First verify the session exists and belongs to the user's organization
+      const [existingSession] = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.id, input.sessionId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!existingSession) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign session not found",
+        });
+      }
+
+      if (existingSession.status === "IN_PROGRESS" || existingSession.status === "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot regenerate emails while campaign is still processing",
+        });
+      }
+
+      // Delete all existing generated emails for this session
+      const deleteResult = await db
+        .delete(generatedEmails)
+        .where(eq(generatedEmails.sessionId, input.sessionId))
+        .returning({ id: generatedEmails.id });
+
+      const deletedCount = deleteResult.length;
+      logger.info(`Deleted ${deletedCount} existing emails for session ${input.sessionId}`);
+
+      // If instruction is empty, use the existing instruction from the session
+      const useExistingInstruction = !input.instruction || input.instruction.trim() === "";
+      const finalInstruction = useExistingInstruction ? existingSession.instruction : input.instruction;
+      const finalRefinedInstruction = useExistingInstruction 
+        ? (existingSession.refinedInstruction || existingSession.instruction)
+        : (input.refinedInstruction || input.instruction);
+      const finalChatHistory = useExistingInstruction 
+        ? (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }> || [])
+        : input.chatHistory;
+
+      // Update the session with instruction and reset status
+      await db
+        .update(emailGenerationSessions)
+        .set({
+          instruction: finalInstruction,
+          refinedInstruction: finalRefinedInstruction,
+          chatHistory: finalChatHistory,
+          status: "PENDING",
+          completedDonors: 0,
+          completedAt: null,
+          errorMessage: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, input.sessionId));
+
+      // Trigger the background job with regeneration flag
+      await generateBulkEmailsTask.trigger({
+        sessionId: existingSession.id,
+        organizationId,
+        userId,
+        instruction: finalInstruction,
+        refinedInstruction: finalRefinedInstruction,
+        selectedDonorIds: existingSession.selectedDonorIds as number[],
+        previewDonorIds: existingSession.previewDonorIds as number[],
+        chatHistory: finalChatHistory,
+        templateId: existingSession.templateId ?? undefined,
+      });
+
+      logger.info(`Started regeneration for session ${input.sessionId} with ${useExistingInstruction ? 'existing' : 'new'} instruction`);
+
+      return {
+        success: true,
+        sessionId: existingSession.id,
+        deletedEmailsCount: deletedCount,
+        message: "Email regeneration started successfully",
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to regenerate emails: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to regenerate emails",
       });
     }
   }
