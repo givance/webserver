@@ -327,13 +327,14 @@ export const generateBulkEmailsTask = task({
 
         // Create the appropriate signature
         let signature: string;
-        if (assignedStaff?.signature) {
+        if (assignedStaff?.signature && assignedStaff.signature.trim()) {
+          // Use custom signature if it exists and is not empty
           signature = assignedStaff.signature;
         } else if (assignedStaff) {
           // Default signature format: "Best, firstname"
           signature = `Best,\n${assignedStaff.firstName}`;
-        } else if (primaryStaff?.signature) {
-          // Use primary staff signature if available
+        } else if (primaryStaff?.signature && primaryStaff.signature.trim()) {
+          // Use primary staff signature if available and not empty
           signature = primaryStaff.signature;
         } else if (primaryStaff) {
           // Default signature format for primary staff: "Best, firstname"

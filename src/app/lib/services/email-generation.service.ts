@@ -217,21 +217,32 @@ export class EmailGenerationService {
 
       // Create the appropriate signature
       let signature: string;
-      if (assignedStaff?.signature) {
+      let signatureSource: string;
+      
+      if (assignedStaff?.signature && assignedStaff.signature.trim()) {
+        // Use custom signature if it exists and is not empty
         signature = assignedStaff.signature;
+        signatureSource = `custom signature from assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
       } else if (assignedStaff) {
         // Default signature format: "Best, firstname"
         signature = `Best,\n${assignedStaff.firstName}`;
-      } else if (primaryStaff?.signature) {
-        // Use primary staff signature if available
+        signatureSource = `default format for assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
+      } else if (primaryStaff?.signature && primaryStaff.signature.trim()) {
+        // Use primary staff signature if available and not empty
         signature = primaryStaff.signature;
+        signatureSource = `custom signature from primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
       } else if (primaryStaff) {
         // Default signature format for primary staff: "Best, firstname"
         signature = `Best,\n${primaryStaff.firstName}`;
+        signatureSource = `default format for primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
       } else {
         // Fallback to user signature if no staff assigned and no primary staff
         signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
+        signatureSource = user?.emailSignature ? "user email signature" : "default fallback signature";
       }
+      
+      // Log signature usage for debugging
+      logger.info(`Email for donor ${donor?.displayName || donor?.firstName}: Using ${signatureSource}`);
 
       // Append signature to the structured content
       const enhancedStructuredContent = [

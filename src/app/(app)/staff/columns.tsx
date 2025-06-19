@@ -31,7 +31,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SignatureEditor, SignaturePreview } from "@/components/signature";
+import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
+import DOMPurify from "dompurify";
+import { cn } from "@/lib/utils";
 import { useStaff } from "@/app/hooks/use-staff";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
@@ -306,6 +310,7 @@ function SignatureEditModal({
 }) {
   const [open, setOpen] = useState(false);
   const [signature, setSignature] = useState(currentSignature || "");
+  const [showCodeView, setShowCodeView] = useState(false);
   const utils = trpc.useUtils();
 
   const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
@@ -321,14 +326,18 @@ function SignatureEditModal({
   });
 
   const handleSave = async () => {
+    // Sanitize HTML before saving
+    const sanitizedSignature = signature ? sanitizeHtml(signature) : "";
+    
     await updateSignatureMutation.mutateAsync({
       id: Number(staffId),
-      signature: signature.trim() || undefined,
+      signature: sanitizedSignature || undefined,
     });
   };
 
   const handleCancel = () => {
     setSignature(currentSignature || "");
+    setShowCodeView(false);
     setOpen(false);
   };
 
@@ -337,6 +346,7 @@ function SignatureEditModal({
     setOpen(newOpen);
     if (newOpen) {
       setSignature(currentSignature || "");
+      setShowCodeView(false);
     }
   };
 
@@ -348,7 +358,7 @@ function SignatureEditModal({
           Edit
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="!max-w-[1400px] w-[90vw] sm:!max-w-[1400px]">
         <DialogHeader>
           <DialogTitle>Edit Email Signature</DialogTitle>
           <DialogDescription>
@@ -356,16 +366,19 @@ function SignatureEditModal({
             their behalf.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="signature">Email Signature</Label>
-            <Textarea
-              id="signature"
+        <div className="grid grid-cols-2 gap-6 mt-4">
+          <div className="space-y-4">
+            <SignatureEditor
               value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder="Enter email signature..."
-              rows={6}
-              className="resize-none mt-2"
+              onChange={setSignature}
+              showCodeView={showCodeView}
+              onCodeViewChange={setShowCodeView}
+            />
+          </div>
+          <div>
+            <SignaturePreview 
+              signature={signature}
+              staffName={staffName}
             />
           </div>
         </div>
@@ -396,6 +409,7 @@ function SignatureEditMenuItem({
 }) {
   const [open, setOpen] = useState(false);
   const [signature, setSignature] = useState(currentSignature || "");
+  const [showCodeView, setShowCodeView] = useState(false);
   const utils = trpc.useUtils();
 
   const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
@@ -411,14 +425,18 @@ function SignatureEditMenuItem({
   });
 
   const handleSave = async () => {
+    // Sanitize HTML before saving
+    const sanitizedSignature = signature ? sanitizeHtml(signature) : "";
+    
     await updateSignatureMutation.mutateAsync({
       id: Number(staffId),
-      signature: signature.trim() || undefined,
+      signature: sanitizedSignature || undefined,
     });
   };
 
   const handleCancel = () => {
     setSignature(currentSignature || "");
+    setShowCodeView(false);
     setOpen(false);
   };
 
@@ -427,6 +445,7 @@ function SignatureEditMenuItem({
     setOpen(newOpen);
     if (newOpen) {
       setSignature(currentSignature || "");
+      setShowCodeView(false);
     }
   };
 
@@ -438,7 +457,7 @@ function SignatureEditMenuItem({
           Edit Signature
         </DropdownMenuItem>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="!max-w-[1400px] w-[90vw] sm:!max-w-[1400px]">
         <DialogHeader>
           <DialogTitle>Edit Email Signature</DialogTitle>
           <DialogDescription>
@@ -446,16 +465,19 @@ function SignatureEditMenuItem({
             their behalf.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="signature-dropdown">Email Signature</Label>
-            <Textarea
-              id="signature-dropdown"
+        <div className="grid grid-cols-2 gap-6 mt-4">
+          <div className="space-y-4">
+            <SignatureEditor
               value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder="Enter email signature..."
-              rows={6}
-              className="resize-none mt-2"
+              onChange={setSignature}
+              showCodeView={showCodeView}
+              onCodeViewChange={setShowCodeView}
+            />
+          </div>
+          <div>
+            <SignaturePreview 
+              signature={signature}
+              staffName={staffName}
             />
           </div>
         </div>
@@ -471,6 +493,68 @@ function SignatureEditMenuItem({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// SignatureDisplay component to show HTML signatures
+function SignatureDisplay({ signature }: { signature: string }) {
+  const [sanitizedHtml, setSanitizedHtml] = useState("");
+  const [isHtml, setIsHtml] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && signature) {
+      // Check if signature contains HTML tags
+      const hasHtmlTags = /<[^>]+>/.test(signature);
+      setIsHtml(hasHtmlTags);
+      
+      if (hasHtmlTags) {
+        const config = {
+          ALLOWED_TAGS: [
+            'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'img', 
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'blockquote', 'span', 'div'
+          ],
+          ALLOWED_ATTR: [
+            'href', 'src', 'alt', 'title', 'width', 'height', 
+            'target', 'rel', 'class', 'style'
+          ],
+          ALLOWED_PROTOCOLS: ['http', 'https', 'mailto', 'tel'],
+          FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+          FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+        };
+
+        const clean = DOMPurify.sanitize(signature, config);
+        setSanitizedHtml(clean);
+      }
+    }
+  }, [signature]);
+
+  // For plain text signatures or if no HTML detected
+  if (!isHtml) {
+    return (
+      <div className="text-xs text-slate-400 max-w-xs truncate">
+        {signature?.slice(0, 50)}
+        {signature && signature.length > 50 ? "..." : ""}
+      </div>
+    );
+  }
+
+  // For HTML signatures
+  return (
+    <div 
+      className={cn(
+        "text-xs text-slate-400 max-w-xs overflow-hidden",
+        "prose prose-xs max-w-none",
+        "prose-p:m-0 prose-p:leading-normal",
+        "prose-headings:m-0 prose-headings:text-xs",
+        "[&_*]:text-xs [&_*]:text-slate-400",
+        "[&_a]:text-slate-500 [&_a]:no-underline",
+        "[&_img]:hidden", // Hide images in the table view
+        "[&_br]:hidden", // Hide line breaks to save space
+        "line-clamp-2" // Limit to 2 lines
+      )}
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+    />
   );
 }
 
@@ -567,10 +651,7 @@ export const columns: ColumnDef<Staff>[] = [
               />
             </div>
             {hasSignature && (
-              <div className="text-xs text-slate-400 max-w-xs truncate">
-                {row.original.signature?.slice(0, 50)}
-                {row.original.signature && row.original.signature.length > 50 ? "..." : ""}
-              </div>
+              <SignatureDisplay signature={row.original.signature || ""} />
             )}
           </div>
         </div>
