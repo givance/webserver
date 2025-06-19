@@ -861,9 +861,7 @@ export function WriteInstructionStep({
         throw new Error("Failed to create session");
       }
 
-      toast.success(
-        editMode ? "Campaign updated and relaunched!" : "Campaign started! Redirecting to communication jobs..."
-      );
+      toast.success("Campaign started! Redirecting to communication jobs...");
       setShowBulkGenerationDialog(false);
 
       // Redirect after starting the generation
@@ -872,7 +870,7 @@ export function WriteInstructionStep({
       }, 1000);
     } catch (error) {
       console.error("Error starting bulk generation:", error);
-      toast.error(editMode ? "Failed to update and relaunch campaign" : "Failed to start bulk generation");
+      toast.error("Failed to start bulk generation");
     } finally {
       setIsStartingBulkGeneration(false);
     }
@@ -1152,7 +1150,7 @@ export function WriteInstructionStep({
           Back
         </Button>
         <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating}>
-          {editMode ? "Update Campaign" : "Launch Campaign"}
+          Launch Campaign
         </Button>
       </div>
 
@@ -1162,12 +1160,11 @@ export function WriteInstructionStep({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5" />
-              {editMode ? "Confirm Campaign Update" : "Confirm Campaign Launch"}
+              Confirm Campaign Launch
             </DialogTitle>
             <DialogDescription>
-              {editMode
-                ? "You're about to update and relaunch this campaign with your new instructions. This will generate additional emails for any new donors and update the campaign settings."
-                : "You're about to launch a campaign to generate personalized emails for all selected donors based on your current instruction."}
+              You're about to launch a campaign to generate personalized emails for all selected donors based on your
+              current instruction.
             </DialogDescription>
           </DialogHeader>
 
@@ -1209,9 +1206,8 @@ export function WriteInstructionStep({
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                {editMode
-                  ? `This will update and relaunch your campaign for all ${selectedDonors.length} selected donors. Only new emails will be generated for donors who don't already have them. You'll be redirected to the communication jobs page where you can monitor the progress.`
-                  : `This will launch your campaign for all ${selectedDonors.length} selected donors. You'll be redirected to the communication jobs page where you can monitor the progress.`}
+                This will launch your campaign for all {selectedDonors.length} selected donors. You'll be redirected to
+                the communication jobs page where you can monitor the progress.
               </p>
             </div>
           </div>
@@ -1225,13 +1221,7 @@ export function WriteInstructionStep({
               Cancel
             </Button>
             <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration}>
-              {isStartingBulkGeneration
-                ? editMode
-                  ? "Updating..."
-                  : "Launching..."
-                : editMode
-                ? "Update Campaign"
-                : "Launch Campaign"}
+              {isStartingBulkGeneration ? "Launching..." : "Launch Campaign"}
             </Button>
           </DialogFooter>
         </DialogContent>
