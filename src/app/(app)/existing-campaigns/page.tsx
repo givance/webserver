@@ -454,6 +454,22 @@ function ExistingCampaignsContent() {
       cell: ({ row }) => <div className="font-medium">{row.getValue("campaignName")}</div>,
     },
     {
+      accessorKey: "donors",
+      header: "Donors",
+      cell: ({ row }) => {
+        const campaign = row.original;
+        const { totalDonors, completedDonors } = campaign;
+        return (
+          <div className="text-center">
+            <div className="text-sm font-medium">{totalDonors}</div>
+            <div className="text-xs text-muted-foreground">
+              {completedDonors}/{totalDonors} processed
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => <CampaignStatus campaign={row.original} />,
