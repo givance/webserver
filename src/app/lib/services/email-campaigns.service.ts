@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, count, sql } from "drizzle-orm";
+import { and, desc, eq, count, sql, or } from "drizzle-orm";
 import { db } from "@/app/lib/db";
 import { emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
@@ -352,9 +352,18 @@ export class EmailCampaignsService {
       .limit(limit)
       .offset(offset);
 
-    // Get email counts for each campaign separately
+    // Get email counts for each campaign separately and fix stuck campaigns
     const campaignsWithCounts = await Promise.all(
       campaigns.map(async (campaign) => {
+        // Check and fix stuck campaigns before returning data
+        if (campaign.status === "PENDING" || campaign.status === "IN_PROGRESS") {
+          try {
+            await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
+          } catch (error) {
+            logger.warn(`Failed to check completion for campaign ${campaign.id}: ${error}`);
+          }
+        }
+
         const [sentEmailsResult, totalEmailsResult] = await Promise.all([
           db
             .select({ count: count() })
@@ -363,8 +372,20 @@ export class EmailCampaignsService {
           db.select({ count: count() }).from(generatedEmails).where(eq(generatedEmails.sessionId, campaign.id)),
         ]);
 
+        // Get updated campaign status after the check
+        const [updatedCampaign] = await db
+          .select({
+            status: emailGenerationSessions.status,
+            completedDonors: emailGenerationSessions.completedDonors,
+          })
+          .from(emailGenerationSessions)
+          .where(eq(emailGenerationSessions.id, campaign.id))
+          .limit(1);
+
         return {
           ...campaign,
+          status: updatedCampaign?.status ?? campaign.status,
+          completedDonors: updatedCampaign?.completedDonors ?? campaign.completedDonors,
           sentEmails: sentEmailsResult[0]?.count ?? 0,
           totalEmails: totalEmailsResult[0]?.count ?? 0,
         };
@@ -882,6 +903,7 @@ export class EmailCampaignsService {
 
   /**
    * Checks if all emails in a session have been sent and updates status to COMPLETED
+   * Also handles campaigns stuck in PENDING that should be IN_PROGRESS or COMPLETED
    * @param sessionId - The session ID
    * @param organizationId - The organization ID
    */
@@ -895,8 +917,8 @@ export class EmailCampaignsService {
         ),
       });
 
-      if (!session || session.status !== "IN_PROGRESS") {
-        return; // Only update if campaign is in IN_PROGRESS status
+      if (!session) {
+        return;
       }
 
       // Count total emails and sent emails
@@ -904,22 +926,68 @@ export class EmailCampaignsService {
         .select({
           totalEmails: count(),
           sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
+          approvedEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.status} = 'APPROVED' THEN 1 END)`,
         })
         .from(generatedEmails)
         .where(eq(generatedEmails.sessionId, sessionId));
 
-      // If all emails have been sent, mark campaign as COMPLETED
-      if (emailStats.totalEmails > 0 && emailStats.totalEmails === emailStats.sentEmails) {
+      const selectedDonorIds = (session.selectedDonorIds as number[]) || [];
+      const totalDonors = selectedDonorIds.length;
+
+      // Handle different status scenarios
+      if (session.status === "PENDING" && emailStats.approvedEmails > 0) {
+        // Campaign is stuck in PENDING but has generated emails - move to IN_PROGRESS
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "IN_PROGRESS",
+            completedDonors: emailStats.approvedEmails,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+
+        logger.info(
+          `Campaign ${sessionId} updated from PENDING to IN_PROGRESS - found ${emailStats.approvedEmails} generated emails`
+        );
+      }
+
+      // Check for completion (works for both IN_PROGRESS and campaigns that were just updated)
+      if (
+        (session.status === "IN_PROGRESS" || (session.status === "PENDING" && emailStats.approvedEmails > 0)) &&
+        emailStats.totalEmails > 0 &&
+        emailStats.totalEmails === emailStats.sentEmails
+      ) {
         await db
           .update(emailGenerationSessions)
           .set({
             status: "COMPLETED",
+            completedDonors: totalDonors,
             completedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(emailGenerationSessions.id, sessionId));
 
         logger.info(`Campaign ${sessionId} marked as COMPLETED - all ${emailStats.totalEmails} emails have been sent`);
+      } else if (
+        (session.status === "IN_PROGRESS" || session.status === "PENDING") &&
+        emailStats.approvedEmails === totalDonors &&
+        emailStats.sentEmails === 0
+      ) {
+        // All emails generated but none sent yet - ensure status is IN_PROGRESS
+        if (session.status === "PENDING") {
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              status: "IN_PROGRESS",
+              completedDonors: totalDonors,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailGenerationSessions.id, sessionId));
+
+          logger.info(
+            `Campaign ${sessionId} updated from PENDING to IN_PROGRESS - all ${totalDonors} emails generated`
+          );
+        }
       }
     } catch (error) {
       logger.error(`Failed to check campaign completion for session ${sessionId}: ${error}`);
@@ -1110,6 +1178,73 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to retry campaign",
+      });
+    }
+  }
+
+  /**
+   * Fixes all stuck campaigns for an organization by checking their status
+   * @param organizationId - The organization ID
+   * @returns Number of campaigns that were fixed
+   */
+  async fixStuckCampaigns(organizationId: string) {
+    try {
+      // Get all campaigns that might be stuck (PENDING or IN_PROGRESS)
+      const stuckCampaigns = await db
+        .select({
+          id: emailGenerationSessions.id,
+          status: emailGenerationSessions.status,
+        })
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.organizationId, organizationId),
+            or(eq(emailGenerationSessions.status, "PENDING"), eq(emailGenerationSessions.status, "IN_PROGRESS"))
+          )
+        );
+
+      let fixedCount = 0;
+
+      for (const campaign of stuckCampaigns) {
+        try {
+          const originalStatus = campaign.status;
+          await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
+
+          // Check if status changed
+          const [updatedCampaign] = await db
+            .select({ status: emailGenerationSessions.status })
+            .from(emailGenerationSessions)
+            .where(eq(emailGenerationSessions.id, campaign.id))
+            .limit(1);
+
+          if (updatedCampaign && updatedCampaign.status !== originalStatus) {
+            fixedCount++;
+            logger.info(`Fixed campaign ${campaign.id}: ${originalStatus} → ${updatedCampaign.status}`);
+          }
+        } catch (error) {
+          logger.warn(`Failed to fix campaign ${campaign.id}: ${error}`);
+        }
+      }
+
+      logger.info(
+        `Fixed ${fixedCount} out of ${stuckCampaigns.length} potentially stuck campaigns for organization ${organizationId}`
+      );
+
+      return {
+        success: true,
+        fixedCount,
+        totalChecked: stuckCampaigns.length,
+        message: `Fixed ${fixedCount} campaigns`,
+      };
+    } catch (error) {
+      logger.error(
+        `Failed to fix stuck campaigns for organization ${organizationId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to fix stuck campaigns",
       });
     }
   }
