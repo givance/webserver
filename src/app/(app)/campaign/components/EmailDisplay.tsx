@@ -8,6 +8,7 @@ import { useState } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
+import { EmailEnhanceButton } from "./EmailEnhanceButton";
 
 interface EmailPiece {
   piece: string;
@@ -98,15 +99,23 @@ export function EmailDisplay({
               <div className="text-sm font-medium mt-2">Subject: {subject}</div>
             </div>
             {emailId && !emailStatus?.isSent && showEditButton && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Edit
-              </Button>
+              <div className="flex items-center gap-2">
+                <EmailEnhanceButton
+                  emailId={emailId}
+                  currentSubject={subject}
+                  currentContent={content}
+                  currentReferenceContexts={referenceContexts}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>

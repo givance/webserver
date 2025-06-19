@@ -266,6 +266,7 @@ export default function EmailGenerationResultsPage() {
                 showPagination={true}
                 showTracking={true}
                 showStaffAssignment={true}
+                showEditButton={true}
                 emailsPerPage={EMAILS_PER_PAGE}
                 maxHeight="calc(100vh - 400px)"
                 trackingStats={donorStats}
