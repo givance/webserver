@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { SignatureEditor, SignaturePreview } from "@/components/signature";
 import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
+import { InlineTextEdit, InlineToggleEdit } from "@/components/ui/inline-edit";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { CheckedState } from "@radix-ui/react-checkbox";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -88,7 +89,6 @@ export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
   const staffId = Number(params.id);
-  const [isEditing, setIsEditing] = useState(false);
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
@@ -154,17 +154,38 @@ export default function StaffDetailPage() {
 
   const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
 
-  // Initialize forms
-  const form = useForm<EditStaffFormValues>({
-    // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
-    resolver: zodResolver(editStaffSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      isRealPerson: true,
-    },
-  });
+  // Helper functions for inline editing
+  const handleUpdateStaffField = async (field: string, value: any) => {
+    try {
+      const result = await updateStaff({
+        id: staffId,
+        [field]: value,
+      });
+      if (result) {
+        toast.success(`Updated ${field}`);
+        await refetchStaff();
+      } else {
+        toast.error(`Failed to update ${field}`);
+        throw new Error(`Failed to update ${field}`);
+      }
+    } catch (error) {
+      toast.error(`Failed to update ${field}`);
+      throw error;
+    }
+  };
+  
+  // Validation functions
+  const validateEmail = (email: string): string | null => {
+    if (!email) return "Email is required";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "Invalid email format";
+    return null;
+  };
+  
+  const validateName = (name: string): string | null => {
+    if (!name || name.length < 2) return "Name must be at least 2 characters";
+    return null;
+  };
 
   const signatureForm = useForm<EditSignatureFormValues>({
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
@@ -182,20 +203,14 @@ export default function StaffDetailPage() {
     },
   });
 
-  // Update forms when staff data loads
+  // Update signature form when staff data loads
   React.useEffect(() => {
     if (staff) {
-      form.reset({
-        firstName: staff.firstName,
-        lastName: staff.lastName,
-        email: staff.email,
-        isRealPerson: staff.isRealPerson,
-      });
       signatureForm.reset({
         signature: staff.signature || "",
       });
     }
-  }, [staff, form, signatureForm]);
+  }, [staff, signatureForm]);
 
   // Process assigned donors data
   const { assignedDonors, donorCount, totalValue } = useMemo(() => {
@@ -250,27 +265,6 @@ export default function StaffDetailPage() {
     },
   ];
 
-  /**
-   * Handle form submission for staff updates
-   */
-  const onSubmit = async (values: EditStaffFormValues) => {
-    try {
-      const result = await updateStaff({
-        id: staffId,
-        ...values,
-      });
-
-      if (result) {
-        toast.success("Staff member updated successfully");
-        setIsEditing(false);
-      } else {
-        toast.error("Failed to update staff member");
-      }
-    } catch (error) {
-      toast.error("An error occurred while updating staff member");
-      console.error("Error updating staff:", error);
-    }
-  };
 
   /**
    * Handle signature form submission
@@ -315,20 +309,6 @@ export default function StaffDetailPage() {
 
   // Note: Gmail account management is now handled through the GmailConnect component
 
-  /**
-   * Cancel editing and reset form
-   */
-  const handleCancelEdit = () => {
-    if (staff) {
-      form.reset({
-        firstName: staff.firstName,
-        lastName: staff.lastName,
-        email: staff.email,
-        isRealPerson: staff.isRealPerson,
-      });
-    }
-    setIsEditing(false);
-  };
 
   /**
    * Cancel signature editing and reset form
@@ -403,12 +383,6 @@ export default function StaffDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {!isEditing && (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Edit Staff
-            </Button>
-          )}
           <Button variant="outline" asChild>
             <Link href={`/communications?staffId=${staffId}`}>
               <Mail className="h-4 w-4 mr-2" />
@@ -488,124 +462,53 @@ export default function StaffDetailPage() {
               <CardTitle>Staff Information</CardTitle>
             </CardHeader>
             <CardContent>
-              {isEditing ? (
-                <Form {...form}>
-                  <form
-                    // @ts-ignore - Known type mismatch with react-hook-form, but works as expected
-                    onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-4"
-                  >
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        // @ts-ignore - Known type mismatch with react-hook-form's Control type
-                        control={form.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        // @ts-ignore - Known type mismatch with react-hook-form's Control type
-                        control={form.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      // @ts-ignore - Known type mismatch with react-hook-form's Control type
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">First Name</label>
+                    <InlineTextEdit
+                      value={staff.firstName}
+                      onSave={(value) => handleUpdateStaffField("firstName", value)}
+                      validation={validateName}
+                      className="mt-1"
                     />
-
-                    <FormField
-                      // @ts-ignore - Known type mismatch with react-hook-form's Control type
-                      control={form.control}
-                      name="isRealPerson"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={(checked: CheckedState) => {
-                                field.onChange(checked === true);
-                              }}
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>Active Staff Member</FormLabel>
-                            <p className="text-sm text-muted-foreground">Is this person currently active?</p>
-                          </div>
-                        </FormItem>
-                      )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Last Name</label>
+                    <InlineTextEdit
+                      value={staff.lastName}
+                      onSave={(value) => handleUpdateStaffField("lastName", value)}
+                      validation={validateName}
+                      className="mt-1"
                     />
-
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={handleCancelEdit}>
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={isUpdating}>
-                        <Save className="h-4 w-4 mr-2" />
-                        {isUpdating ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">First Name</label>
-                      <p className="text-lg">{staff.firstName}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Last Name</label>
-                      <p className="text-lg">{staff.lastName}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Email</label>
-                      <p className="text-lg">{staff.email}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Status</label>
-                      <p className="text-lg">
-                        <Badge variant={staff.isRealPerson ? "default" : "secondary"}>
-                          {staff.isRealPerson ? "Active" : "Inactive"}
-                        </Badge>
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Member Since</label>
-                      <p className="text-lg">{new Date(staff.createdAt).toLocaleDateString()}</p>
-                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Email</label>
+                    <InlineTextEdit
+                      value={staff.email}
+                      onSave={(value) => handleUpdateStaffField("email", value)}
+                      type="email"
+                      validation={validateEmail}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                    <InlineToggleEdit
+                      value={staff.isRealPerson}
+                      onSave={(value) => handleUpdateStaffField("isRealPerson", value)}
+                      label="Real Person"
+                      trueText="Active"
+                      falseText="Inactive"
+                      className="mt-1"
+                    />
                   </div>
                 </div>
-              )}
+                <div className="mt-6">
+                  <label className="text-sm font-medium text-muted-foreground">Member Since</label>
+                  <p className="text-lg mt-1">{new Date(staff.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -42,6 +42,7 @@ import { MoreHorizontal } from "lucide-react";
 import { trpc } from "@/app/lib/trpc/client";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { InlineTextEdit } from "@/components/ui/inline-edit";
 
 export type Staff = {
   id: string | number;
@@ -496,6 +497,37 @@ function SignatureEditMenuItem({
   );
 }
 
+// EmailEditCell component for inline email editing
+function EmailEditCell({ staff }: { staff: Staff }) {
+  const { updateStaff } = useStaff();
+  
+  return (
+    <InlineTextEdit
+      value={staff.email}
+      onSave={async (value) => {
+        try {
+          await updateStaff({
+            id: Number(staff.id),
+            email: value,
+          });
+          toast.success("Email updated");
+        } catch (error) {
+          toast.error("Failed to update email");
+          throw error;
+        }
+      }}
+      type="email"
+      validation={(email) => {
+        if (!email) return "Email is required";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) return "Invalid email format";
+        return null;
+      }}
+      className="text-sm text-slate-500"
+    />
+  );
+}
+
 // SignatureDisplay component to show HTML signatures
 function SignatureDisplay({ signature }: { signature: string }) {
   const [sanitizedHtml, setSanitizedHtml] = useState("");
@@ -581,7 +613,7 @@ export const columns: ColumnDef<Staff>[] = [
           >
             {row.original.firstName} {row.original.lastName}
           </Link>
-          <div className="text-sm text-slate-500">{row.original.email}</div>
+          <EmailEditCell staff={row.original} />
         </div>
       </div>
     ),
