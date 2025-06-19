@@ -86,6 +86,15 @@ export function useCommunications() {
       utils.communications.campaigns.getSession.invalidate();
     },
   });
+  
+  const enhanceEmail = trpc.communications.campaigns.enhanceEmail.useMutation({
+    onSuccess: (data) => {
+      // Invalidate the session query to refetch updated emails
+      if (data.sessionId) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+      }
+    },
+  });
 
   // Delete campaign mutation hook
   const deleteCampaign = trpc.communications.campaigns.deleteCampaign.useMutation({
@@ -116,5 +125,6 @@ export function useCommunications() {
     sendBulkEmails,
     updateEmail,
     updateCampaign,
+    enhanceEmail,
   };
 }

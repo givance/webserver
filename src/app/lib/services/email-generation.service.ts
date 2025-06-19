@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/app/lib/db";
-import { organizations, donors as donorsSchema, staff } from "@/app/lib/db/schema";
+import { organizations, donors as donorsSchema, staff, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { DonationWithDetails, listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
@@ -9,9 +9,10 @@ import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
-import { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { RawCommunicationThread, Organization, DonorStatistics } from "@/app/lib/utils/email-generator/types";
 import { PersonResearchService } from "./person-research.service";
 import { PersonResearchResult } from "./person-research/types";
+import { EmailEnhancementService } from "./email-enhancement.service";
 
 /**
  * Input types for email generation
@@ -271,5 +272,184 @@ export class EmailGenerationService {
       ...result,
       emails: emailsWithSignatures,
     };
+  }
+
+  /**
+   * Enhances an existing email using AI based on user instructions
+   * @param input - Enhancement parameters including email content and instruction
+   * @param organizationId - The organization ID
+   * @param userId - The user ID for fetching user memories
+   * @returns Enhanced email with updated content
+   */
+  async enhanceEmail(
+    input: {
+      emailId: number;
+      enhancementInstruction: string;
+      currentSubject: string;
+      currentStructuredContent: Array<{
+        piece: string;
+        references: string[];
+        addNewlineAfter: boolean;
+      }>;
+      currentReferenceContexts: Record<string, string>;
+    },
+    organizationId: string,
+    userId: string
+  ) {
+    const { emailId, enhancementInstruction, currentSubject, currentStructuredContent, currentReferenceContexts } =
+      input;
+
+    logger.info(
+      `Enhancing email ${emailId} for organization ${organizationId} with instruction: "${enhancementInstruction}"`
+    );
+
+    // Get the email's associated donor and campaign information
+    const emailData = await db.query.generatedEmails.findFirst({
+      where: eq(generatedEmails.id, emailId),
+      with: {
+        donor: true,
+        session: true,
+      },
+    });
+
+    if (!emailData) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Email not found",
+      });
+    }
+
+    // Check that the email belongs to the user's organization
+    if (emailData.session.organizationId !== organizationId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Email does not belong to your organization",
+      });
+    }
+
+    if (emailData.sentAt) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Cannot enhance an email that has already been sent",
+      });
+    }
+
+    // Get organization data
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+
+    if (!organization) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Organization not found",
+      });
+    }
+
+    // Fetch donor context for enhancement
+    const [communicationHistory, donationHistory, donorStats] = await Promise.all([
+      getDonorCommunicationHistory(emailData.donorId, { organizationId }),
+      listDonations({
+        donorId: emailData.donorId,
+        limit: 50,
+        orderBy: "date",
+        orderDirection: "desc",
+        includeProject: true,
+      }),
+      getMultipleComprehensiveDonorStats([emailData.donorId], organizationId),
+    ]);
+
+    // Get person research if available
+    const personResearchService = new PersonResearchService();
+    let personResearch: PersonResearchResult | undefined;
+    try {
+      const research = await personResearchService.getPersonResearch(emailData.donorId, organizationId);
+      if (research) {
+        personResearch = research;
+      }
+    } catch (error) {
+      logger.warn(`Failed to fetch person research for donor ${emailData.donorId} during enhancement`);
+    }
+
+    // Get memories
+    const [organizationMemories, userMemories] = await Promise.all([
+      getOrganizationMemories(organizationId),
+      getUserMemories(userId),
+    ]);
+
+    // Use the existing email generation service to enhance the email
+    const emailService = new EmailGenerationService();
+    const result = await emailService.enhanceSingleEmail({
+      emailId,
+      donorId: emailData.donorId,
+      donor: emailData.donor,
+      currentSubject,
+      currentStructuredContent,
+      currentReferenceContexts,
+      enhancementInstruction,
+      organizationName: organization.name,
+      organization: {
+        ...organization,
+        rawWebsiteSummary: organization.websiteSummary,
+      },
+      organizationWritingInstructions: organization.writingInstructions || undefined,
+      communicationHistory: communicationHistory.map((thread) => ({
+        content: thread.content?.map((message) => ({ content: message.content })) || [],
+      })) as RawCommunicationThread[],
+      donationHistory: donationHistory.donations,
+      donorStatistics: donorStats[emailData.donorId],
+      personResearch,
+      userMemories,
+      organizationMemories,
+      originalInstruction: emailData.session.instruction,
+    });
+
+    // Update the email in the database with the enhanced content
+    const [updatedEmail] = await db
+      .update(generatedEmails)
+      .set({
+        subject: result.subject,
+        structuredContent: result.structuredContent,
+        referenceContexts: result.referenceContexts,
+        updatedAt: new Date(),
+      })
+      .where(eq(generatedEmails.id, emailId))
+      .returning();
+
+    logger.info(`Successfully enhanced and updated email ${emailId} for donor ${emailData.donorId}`);
+
+    return {
+      ...result,
+      email: updatedEmail,
+      sessionId: emailData.sessionId,
+    };
+  }
+
+  /**
+   * Internal method to enhance a single email using AI
+   */
+  private async enhanceSingleEmail(options: {
+    emailId: number;
+    donorId: number;
+    donor: any;
+    currentSubject: string;
+    currentStructuredContent: Array<{
+      piece: string;
+      references: string[];
+      addNewlineAfter: boolean;
+    }>;
+    currentReferenceContexts: Record<string, string>;
+    enhancementInstruction: string;
+    organizationName: string;
+    organization: Organization | null;
+    organizationWritingInstructions?: string;
+    communicationHistory: RawCommunicationThread[];
+    donationHistory: DonationWithDetails[];
+    donorStatistics?: DonorStatistics;
+    personResearch?: PersonResearchResult;
+    userMemories: string[];
+    organizationMemories: string[];
+    originalInstruction: string;
+  }) {
+    const service = new EmailEnhancementService();
+    return await service.enhanceEmail(options);
   }
 }

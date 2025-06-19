@@ -98,6 +98,20 @@ const updateCampaignSchema = z.object({
   templateId: z.number().optional(),
 });
 
+const enhanceEmailSchema = z.object({
+  emailId: z.number(),
+  enhancementInstruction: z.string().min(1).max(500),
+  currentSubject: z.string(),
+  currentStructuredContent: z.array(
+    z.object({
+      piece: z.string(),
+      references: z.array(z.string()),
+      addNewlineAfter: z.boolean(),
+    })
+  ),
+  currentReferenceContexts: z.record(z.string(), z.string()),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -211,5 +225,13 @@ export const emailCampaignsRouter = router({
   updateCampaign: protectedProcedure.input(updateCampaignSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.updateCampaign(input, ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Enhance email content using AI
+   */
+  enhanceEmail: protectedProcedure.input(enhanceEmailSchema).mutation(async ({ ctx, input }) => {
+    const emailService = new EmailGenerationService();
+    return await emailService.enhanceEmail(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 });
