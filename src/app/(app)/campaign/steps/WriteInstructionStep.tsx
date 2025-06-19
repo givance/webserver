@@ -664,9 +664,9 @@ export function WriteInstructionStep({
     chatMessages,
   ]);
 
-  // Handle regenerating all emails with same instructions
+  // Handle regenerating all emails with same instructions without affecting chat history
   const handleRegenerateAllEmails = async () => {
-    if (isRegenerating) return;
+    if (isRegenerating || !organization) return;
 
     const finalInstruction = previousInstruction || instruction;
     console.log("[WriteInstructionStep] Regenerating with:", {
@@ -684,10 +684,111 @@ export function WriteInstructionStep({
     setIsRegenerating(true);
     setShowRegenerateDialog(false);
 
-    // Always regenerate locally in the preview for immediate feedback
-    // This applies to both new campaigns and existing campaigns
-    await handleSubmitInstruction(finalInstruction);
-    setIsRegenerating(false);
+    try {
+      // Clear existing emails and contexts
+      setGeneratedEmails([]);
+      setAllGeneratedEmails([]);
+      setReferenceContexts({});
+      setSuggestedMemories([]);
+
+      // Prepare donor data for the API call - use only preview donors
+      const donorData = previewDonorIds.map((donorId) => {
+        const donor = donorsData?.find((d) => d.id === donorId);
+        if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
+
+        return {
+          id: donor.id,
+          firstName: donor.firstName,
+          lastName: donor.lastName,
+          email: donor.email,
+        };
+      });
+
+      // Get current date in a readable format
+      const currentDate = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      // Generate emails using the hook without affecting chat history
+      const result = await generateEmails.mutateAsync({
+        instruction: finalInstruction,
+        donors: donorData,
+        organizationName: organization.name,
+        organizationWritingInstructions: organization.writingInstructions ?? undefined,
+        previousInstruction,
+        currentDate,
+        chatHistory: chatMessages, // Pass existing chat history but don't modify it
+      });
+
+      if (result && !("isAgenticFlow" in result)) {
+        const emailResult = result as GenerateEmailsResponse;
+        setAllGeneratedEmails(emailResult.emails);
+        setGeneratedEmails(emailResult.emails);
+        setPreviousInstruction(emailResult.refinedInstruction);
+
+        setReferenceContexts(
+          emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+            acc[email.donorId] = email.referenceContexts;
+            return acc;
+          }, {})
+        );
+
+        // Save generated emails incrementally if we have a sessionId
+        if (sessionId) {
+          console.log(
+            `[WriteInstructionStep] Saving ${emailResult.emails.length} regenerated emails to session ${sessionId}`
+          );
+
+          const savePromises = emailResult.emails.map(async (email) => {
+            try {
+              console.log(`[WriteInstructionStep] Saving regenerated email for donor ${email.donorId}`);
+              await saveGeneratedEmail.mutateAsync({
+                sessionId,
+                donorId: email.donorId,
+                subject: email.subject,
+                structuredContent: email.structuredContent,
+                referenceContexts: email.referenceContexts,
+                isPreview: true,
+              });
+              console.log(`[WriteInstructionStep] Successfully saved regenerated email for donor ${email.donorId}`);
+            } catch (error) {
+              console.error(
+                `[WriteInstructionStep] Failed to save regenerated email for donor ${email.donorId}:`,
+                error
+              );
+            }
+          });
+
+          // Save all emails in parallel but don't block UI
+          Promise.all(savePromises)
+            .then(() => {
+              console.log(
+                `[WriteInstructionStep] Successfully saved ${emailResult.emails.length} regenerated emails to draft`
+              );
+            })
+            .catch((error) => {
+              console.error(`[WriteInstructionStep] Error saving some regenerated emails:`, error);
+            });
+        }
+
+        // Auto-switch to preview tab after email regeneration
+        setTimeout(() => {
+          setActiveTab("preview");
+        }, 500);
+
+        toast.success(`Successfully regenerated ${emailResult.emails.length} emails!`);
+      } else {
+        throw new Error("Failed to regenerate emails");
+      }
+    } catch (error) {
+      console.error("Error regenerating emails:", error);
+      toast.error("Failed to regenerate emails. Please try again.");
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   // Handle bulk generation
