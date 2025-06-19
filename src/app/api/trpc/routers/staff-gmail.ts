@@ -22,11 +22,6 @@ if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
   console.error("Missing Google OAuth credentials in environment variables. Staff Gmail integration will not work.");
 }
 
-// Debug logging for redirect URIs
-console.log("Staff Gmail OAuth Configuration:");
-console.log("- Original REDIRECT_URI:", GOOGLE_REDIRECT_URI);
-console.log("- Staff REDIRECT_URI:", STAFF_GMAIL_REDIRECT_URI);
-
 let oauth2Client: any;
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && STAFF_GMAIL_REDIRECT_URI) {
   oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, STAFF_GMAIL_REDIRECT_URI);
