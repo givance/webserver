@@ -86,7 +86,7 @@ export function useCommunications() {
       utils.communications.campaigns.getSession.invalidate();
     },
   });
-  
+
   const enhanceEmail = trpc.communications.campaigns.enhanceEmail.useMutation({
     onSuccess: (data) => {
       // Invalidate the session query to refetch updated emails
@@ -140,6 +140,15 @@ export function useCommunications() {
     },
   });
 
+  // Retry campaign mutation hook
+  const retryCampaign = trpc.communications.campaigns.retryCampaign.useMutation({
+    onSuccess: (data, variables) => {
+      // Invalidate campaigns list and session to refetch updated status
+      utils.communications.campaigns.listCampaigns.invalidate();
+      utils.communications.campaigns.getSession.invalidate({ sessionId: variables.campaignId });
+    },
+  });
+
   return {
     // Query hooks
     listThreads,
@@ -166,5 +175,6 @@ export function useCommunications() {
     regenerateAllEmails,
     saveDraft,
     saveGeneratedEmail,
+    retryCampaign,
   };
 }

@@ -67,6 +67,10 @@ const getEmailStatusSchema = z.object({
   emailId: z.number(),
 });
 
+const retryCampaignSchema = z.object({
+  campaignId: z.number(),
+});
+
 const updateEmailSchema = z.object({
   emailId: z.number(),
   subject: z.string().min(1).max(200),
@@ -130,12 +134,14 @@ const saveDraftSchema = z.object({
   selectedDonorIds: z.array(z.number()),
   templateId: z.number().optional(),
   instruction: z.string().optional(),
-  chatHistory: z.array(
-    z.object({
-      role: z.enum(["user", "assistant"]),
-      content: z.string(),
-    })
-  ).optional(),
+  chatHistory: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      })
+    )
+    .optional(),
   refinedInstruction: z.string().optional(),
   previewDonorIds: z.array(z.number()).optional(),
 });
@@ -284,11 +290,7 @@ export const emailCampaignsRouter = router({
    */
   regenerateAllEmails: protectedProcedure.input(regenerateAllEmailsSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
-    return await campaignsService.regenerateAllEmails(
-      input,
-      ctx.auth.user.organizationId,
-      ctx.auth.user.id
-    );
+    return await campaignsService.regenerateAllEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
@@ -303,10 +305,10 @@ export const emailCampaignsRouter = router({
       organizationId: ctx.auth.user.organizationId,
       userId: ctx.auth.user.id,
     });
-    
+
     const campaignsService = new EmailCampaignsService();
     const result = await campaignsService.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
-    
+
     console.log("[tRPC saveDraft] Mutation completed with result:", result);
     return result;
   }),
@@ -317,5 +319,13 @@ export const emailCampaignsRouter = router({
   saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.saveGeneratedEmail(input, ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Retry a campaign that is stuck in PENDING status
+   */
+  retryCampaign: protectedProcedure.input(retryCampaignSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.retryCampaign(input.campaignId, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 });

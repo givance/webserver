@@ -181,21 +181,50 @@ export class EmailCampaignsService {
 
       // Only trigger background job if there are donors without emails
       if (donorsToGenerate.length > 0) {
-        await generateBulkEmailsTask.trigger({
-          sessionId,
-          organizationId,
-          userId,
-          instruction: input.instruction,
-          refinedInstruction: input.refinedInstruction,
-          selectedDonorIds: donorsToGenerate,
-          previewDonorIds: input.previewDonorIds,
-          chatHistory: input.chatHistory,
-          templateId: input.templateId,
-        });
+        try {
+          logger.info(
+            `Attempting to trigger background job for session ${sessionId} with ${donorsToGenerate.length} donors`
+          );
 
-        logger.info(
-          `Triggered email generation for ${donorsToGenerate.length} donors (${alreadyGeneratedDonorIds.length} already have emails)`
-        );
+          await generateBulkEmailsTask.trigger({
+            sessionId,
+            organizationId,
+            userId,
+            instruction: input.instruction,
+            refinedInstruction: input.refinedInstruction,
+            selectedDonorIds: donorsToGenerate,
+            previewDonorIds: input.previewDonorIds,
+            chatHistory: input.chatHistory,
+            templateId: input.templateId,
+          });
+
+          logger.info(
+            `Successfully triggered email generation for ${donorsToGenerate.length} donors (${alreadyGeneratedDonorIds.length} already have emails) in session ${sessionId}`
+          );
+        } catch (triggerError) {
+          logger.error(
+            `Failed to trigger background job for session ${sessionId}: ${
+              triggerError instanceof Error ? triggerError.message : String(triggerError)
+            }`
+          );
+
+          // Update session status to FAILED if trigger fails
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              status: "FAILED",
+              errorMessage: `Failed to start background job: ${
+                triggerError instanceof Error ? triggerError.message : String(triggerError)
+              }`,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailGenerationSessions.id, sessionId));
+
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to start email generation job. Please check your Trigger.dev configuration.",
+          });
+        }
       } else {
         logger.info(`All donors already have emails, marking session as completed`);
 
@@ -216,6 +245,12 @@ export class EmailCampaignsService {
       logger.error(
         `Failed to create email generation session: ${error instanceof Error ? error.message : String(error)}`
       );
+
+      // If it's already a TRPCError, re-throw it
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to create email generation session",
@@ -894,79 +929,187 @@ export class EmailCampaignsService {
   /**
    * Saves a generated email incrementally with PENDING_APPROVAL status
    * @param input - Generated email data
-   * @param organizationId - The organization ID
-   * @returns The saved email
+   * @param organizationId - The organization ID for authorization
+   * @returns Success confirmation
    */
   async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
     try {
-      // Verify session belongs to organization
-      const session = await db
-        .select()
-        .from(emailGenerationSessions)
-        .where(
-          and(
-            eq(emailGenerationSessions.id, input.sessionId),
-            eq(emailGenerationSessions.organizationId, organizationId)
-          )
-        )
-        .limit(1);
+      // Verify the session belongs to the organization
+      const session = await db.query.emailGenerationSessions.findFirst({
+        where: and(
+          eq(emailGenerationSessions.id, input.sessionId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        ),
+        columns: { id: true },
+      });
 
-      if (!session[0]) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Session not found",
-        });
+      if (!session) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       }
 
       // Check if email already exists for this donor in this session
-      const existingEmail = await db
-        .select()
-        .from(generatedEmails)
-        .where(and(eq(generatedEmails.sessionId, input.sessionId), eq(generatedEmails.donorId, input.donorId)))
-        .limit(1);
+      const existingEmail = await db.query.generatedEmails.findFirst({
+        where: and(eq(generatedEmails.sessionId, input.sessionId), eq(generatedEmails.donorId, input.donorId)),
+        columns: { id: true },
+      });
 
-      if (existingEmail[0]) {
+      if (existingEmail) {
         // Update existing email
-        const [updatedEmail] = await db
+        await db
           .update(generatedEmails)
           .set({
             subject: input.subject,
             structuredContent: input.structuredContent,
             referenceContexts: input.referenceContexts,
-            status: "PENDING_APPROVAL",
-            isPreview: input.isPreview ?? true,
+            status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+            isPreview: input.isPreview || false,
             updatedAt: new Date(),
           })
-          .where(eq(generatedEmails.id, existingEmail[0].id))
-          .returning();
+          .where(eq(generatedEmails.id, existingEmail.id));
 
-        logger.info(`Updated generated email ${updatedEmail.id} for donor ${input.donorId}`);
-        return { emailId: updatedEmail.id };
+        console.log(`Updated existing email for donor ${input.donorId} in session ${input.sessionId}`);
       } else {
         // Create new email
-        const [newEmail] = await db
-          .insert(generatedEmails)
-          .values({
-            sessionId: input.sessionId,
-            donorId: input.donorId,
-            subject: input.subject,
-            structuredContent: input.structuredContent,
-            referenceContexts: input.referenceContexts,
-            status: "PENDING_APPROVAL",
-            isPreview: input.isPreview ?? true,
-            isSent: false,
-          })
-          .returning();
+        await db.insert(generatedEmails).values({
+          sessionId: input.sessionId,
+          donorId: input.donorId,
+          subject: input.subject,
+          structuredContent: input.structuredContent,
+          referenceContexts: input.referenceContexts,
+          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+          isPreview: input.isPreview || false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
 
-        logger.info(`Created new generated email ${newEmail.id} for donor ${input.donorId}`);
-        return { emailId: newEmail.id };
+        console.log(`Created new email for donor ${input.donorId} in session ${input.sessionId}`);
       }
+
+      return { success: true };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
       logger.error(`Failed to save generated email: ${error instanceof Error ? error.message : String(error)}`);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to save generated email",
+      });
+    }
+  }
+
+  /**
+   * Retry a campaign that is stuck in PENDING status
+   * @param sessionId - The session ID to retry
+   * @param organizationId - The organization ID for authorization
+   * @param userId - The user ID
+   * @returns Success confirmation
+   */
+  async retryCampaign(sessionId: number, organizationId: string, userId: string) {
+    try {
+      // Get the session
+      const session = await db.query.emailGenerationSessions.findFirst({
+        where: and(
+          eq(emailGenerationSessions.id, sessionId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        ),
+      });
+
+      if (!session) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+      }
+
+      // Only retry if status is PENDING or FAILED
+      if (session.status !== "PENDING" && session.status !== "FAILED") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot retry campaign with status: ${session.status}`,
+        });
+      }
+
+      logger.info(`Retrying campaign ${sessionId} with status ${session.status}`);
+
+      // Reset status to PENDING and clear error message
+      await db
+        .update(emailGenerationSessions)
+        .set({
+          status: "PENDING",
+          errorMessage: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, sessionId));
+
+      // Get donors that don't have approved emails yet
+      const existingEmails = await db
+        .select({ donorId: generatedEmails.donorId })
+        .from(generatedEmails)
+        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "APPROVED")));
+
+      const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
+      const selectedDonorIds = session.selectedDonorIds as number[];
+      const donorsToGenerate = selectedDonorIds.filter((id) => !alreadyGeneratedDonorIds.includes(id));
+
+      if (donorsToGenerate.length > 0) {
+        try {
+          logger.info(`Retrying trigger for session ${sessionId} with ${donorsToGenerate.length} donors`);
+
+          await generateBulkEmailsTask.trigger({
+            sessionId,
+            organizationId,
+            userId,
+            instruction: session.instruction,
+            refinedInstruction: session.refinedInstruction || undefined,
+            selectedDonorIds: donorsToGenerate,
+            previewDonorIds: session.previewDonorIds as number[],
+            chatHistory: session.chatHistory as Array<{ role: "user" | "assistant"; content: string }>,
+            templateId: session.templateId || undefined,
+          });
+
+          logger.info(`Successfully retried campaign ${sessionId}`);
+          return { success: true, message: `Retried campaign with ${donorsToGenerate.length} donors` };
+        } catch (triggerError) {
+          logger.error(
+            `Failed to retry trigger for session ${sessionId}: ${
+              triggerError instanceof Error ? triggerError.message : String(triggerError)
+            }`
+          );
+
+          // Update session status to FAILED
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              status: "FAILED",
+              errorMessage: `Retry failed: ${
+                triggerError instanceof Error ? triggerError.message : String(triggerError)
+              }`,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailGenerationSessions.id, sessionId));
+
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to retry campaign. Please check your Trigger.dev configuration.",
+          });
+        }
+      } else {
+        // All donors already have emails, mark as completed
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "COMPLETED",
+            completedDonors: selectedDonorIds.length,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+
+        logger.info(`Campaign ${sessionId} marked as completed - all donors already have emails`);
+        return { success: true, message: "Campaign completed - all emails already generated" };
+      }
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to retry campaign ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to retry campaign",
       });
     }
   }

@@ -332,7 +332,7 @@ function ExistingCampaignsContent() {
     action: "draft" | "send" | "delete";
   }>({ open: false, campaign: null, action: "draft" });
 
-  const { listCampaigns, saveToDraft, sendBulkEmails, deleteCampaign } = useCommunications();
+  const { listCampaigns, saveToDraft, sendBulkEmails, deleteCampaign, retryCampaign } = useCommunications();
 
   // Get Gmail connection status
   const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
@@ -381,8 +381,17 @@ function ExistingCampaignsContent() {
   };
 
   const handleRetryCampaign = async (campaignId: number) => {
-    // TODO: Implement retry functionality
-    toast.success("Campaign retry functionality will be implemented soon");
+    try {
+      const promise = retryCampaign.mutateAsync({ campaignId });
+      toast.promise(promise, {
+        loading: "Retrying campaign...",
+        success: (data: any) => data?.message || "Campaign retry initiated successfully!",
+        error: "Failed to retry campaign. Please check your Trigger.dev configuration.",
+      });
+      await promise;
+    } catch (error) {
+      // Toast will show the error
+    }
   };
 
   const handleDeleteCampaign = (campaign: ExistingCampaign) => {
@@ -445,7 +454,8 @@ function ExistingCampaignsContent() {
     }
   };
 
-  const isLoadingAction = saveToDraft.isPending || sendBulkEmails.isPending || deleteCampaign.isPending;
+  const isLoadingAction =
+    saveToDraft.isPending || sendBulkEmails.isPending || deleteCampaign.isPending || retryCampaign.isPending;
 
   const columns: ColumnDef<ExistingCampaign>[] = [
     {
@@ -556,7 +566,7 @@ function ExistingCampaignsContent() {
                   </ActionButtonWrapper>
                 </>
               )}
-              {hasFailed && (
+              {(hasFailed || campaign.status === "PENDING") && (
                 <Button variant="outline" size="sm" onClick={() => handleRetryCampaign(campaign.id)} className="mr-2">
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Retry
