@@ -149,3 +149,21 @@ When fixing build errors:
 4. Run linting: `npm run lint`
 
 Never run `pnpm build` unless explicitly requested by the user.
+
+## Documentation
+
+Comprehensive documentation is available in the `/docs` directory:
+
+### Core Documentation
+- **[API Reference](./docs/api-reference.md)** - Complete tRPC API documentation with examples
+- **[Database Schema](./docs/database-schema.md)** - Detailed schema, relationships, and migration guide
+- **[Deployment Guide](./docs/deployment-guide.md)** - Production deployment, monitoring, and scaling
+- **[AI Features](./docs/ai-features.md)** - AI implementation details, prompts, and optimization
+- **[Security & Authentication](./docs/security-authentication.md)** - Security architecture and best practices
+
+### Quick Links
+- [Getting Started](./docs/README.md)
+- [Architecture Overview](./docs/architecture.md)
+- [Development Guide](./docs/development-guide.md)
+- [Feature Documentation](./docs/features.md)
+- [Tech Stack Details](./docs/tech-stack.md)
