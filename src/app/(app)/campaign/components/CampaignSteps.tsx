@@ -36,6 +36,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   );
   const [templatePrompt, setTemplatePrompt] = useState<string>("");
   const [instruction, setInstruction] = useState(existingCampaignData?.instruction || "");
+  const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     finalInstruction: string;
@@ -117,6 +118,9 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             onCampaignNameChange={handleCampaignNameSet}
             onBack={() => setCurrentStep(0)}
             onNext={() => setCurrentStep(2)}
+            sessionId={sessionId}
+            onSessionIdChange={setSessionId}
+            templateId={selectedTemplateId}
           />
         );
       case 2:
@@ -147,6 +151,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             campaignName={campaignName}
             templateId={selectedTemplateId}
             onBulkGenerationComplete={handleBulkGenerationComplete}
+            sessionId={sessionId}
             editMode={editMode}
             existingCampaignId={existingCampaignData?.campaignId}
           />

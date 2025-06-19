@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, ArrowRight, ArrowLeft } from "lucide-react";
+import { Users, ArrowRight, ArrowLeft, Check, Loader2 } from "lucide-react";
+import { useCommunications } from "@/app/hooks/use-communications";
+import { toast } from "react-hot-toast";
 
 interface CampaignNameStepProps {
   selectedDonors: number[];
@@ -13,6 +15,9 @@ interface CampaignNameStepProps {
   onCampaignNameChange: (campaignName: string) => void;
   onBack: () => void;
   onNext: () => void;
+  sessionId?: number;
+  onSessionIdChange?: (sessionId: number) => void;
+  templateId?: number;
 }
 
 export function CampaignNameStep({
@@ -21,9 +26,97 @@ export function CampaignNameStep({
   onCampaignNameChange,
   onBack,
   onNext,
+  sessionId,
+  onSessionIdChange,
+  templateId,
 }: CampaignNameStepProps) {
+  console.log("[CampaignNameStep] Component mounted/updated with props:", {
+    selectedDonorsCount: selectedDonors?.length,
+    campaignName,
+    sessionId,
+    templateId,
+    hasOnSessionIdChange: !!onSessionIdChange,
+  });
+
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
   const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedName, setLastSavedName] = useState(campaignName);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  const { saveDraft } = useCommunications();
+  console.log("[CampaignNameStep] saveDraft mutation available:", !!saveDraft);
+
+  // Auto-save logic with debouncing
+  useEffect(() => {
+    console.log("[CampaignNameStep] Auto-save effect triggered", {
+      localCampaignName,
+      lastSavedName,
+      sessionId,
+      selectedDonorsCount: selectedDonors.length,
+      templateId,
+      isEmpty: !localCampaignName.trim(),
+      isSame: localCampaignName === lastSavedName,
+    });
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Don't auto-save if empty or same as last saved
+    if (!localCampaignName.trim() || localCampaignName === lastSavedName) {
+      console.log("[CampaignNameStep] Skipping auto-save - empty or unchanged");
+      return;
+    }
+
+    console.log("[CampaignNameStep] Setting up auto-save timeout");
+
+    // Set up new timeout for auto-save (1 second delay)
+    saveTimeoutRef.current = setTimeout(async () => {
+      console.log("[CampaignNameStep] Auto-save timeout fired, starting save");
+      setIsSaving(true);
+      try {
+        const payload = {
+          sessionId,
+          campaignName: localCampaignName.trim(),
+          selectedDonorIds: selectedDonors || [],
+          templateId,
+        };
+        console.log("[CampaignNameStep] Calling saveDraft.mutateAsync with payload:", payload);
+        
+        // Extra validation
+        if (!payload.selectedDonorIds || payload.selectedDonorIds.length === 0) {
+          console.warn("[CampaignNameStep] Warning: selectedDonorIds is empty!");
+        }
+        
+        const result = await saveDraft.mutateAsync(payload);
+        
+        console.log("[CampaignNameStep] saveDraft result:", result);
+
+        // Update session ID if this was a new draft
+        if (!sessionId && result.sessionId && onSessionIdChange) {
+          console.log("[CampaignNameStep] Updating sessionId from", sessionId, "to", result.sessionId);
+          onSessionIdChange(result.sessionId);
+        }
+
+        setLastSavedName(localCampaignName.trim());
+        console.log("[CampaignNameStep] Auto-save successful, lastSavedName updated to:", localCampaignName.trim());
+      } catch (error) {
+        console.error("[CampaignNameStep] Failed to auto-save draft:", error);
+        toast.error("Failed to save draft. Please try again.");
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000);
+
+    // Cleanup on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [localCampaignName, selectedDonors, sessionId, templateId, lastSavedName, saveDraft, onSessionIdChange]);
 
   const handleNext = () => {
     if (!localCampaignName.trim()) {
@@ -41,6 +134,7 @@ export function CampaignNameStep({
   };
 
   const handleCampaignNameChange = (value: string) => {
+    console.log("[CampaignNameStep] handleCampaignNameChange called with:", value);
     setLocalCampaignName(value);
     if (error) {
       setError("");
@@ -91,7 +185,21 @@ export function CampaignNameStep({
               maxLength={255}
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <p className="text-sm text-muted-foreground">{localCampaignName.length}/255 characters</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{localCampaignName.length}/255 characters</p>
+              {isSaving && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Saving...</span>
+                </div>
+              )}
+              {!isSaving && lastSavedName === localCampaignName.trim() && localCampaignName.trim() !== "" && (
+                <div className="flex items-center gap-1 text-sm text-green-600">
+                  <Check className="h-3 w-3" />
+                  <span>Saved</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

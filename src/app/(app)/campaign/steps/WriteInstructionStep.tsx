@@ -51,6 +51,7 @@ interface WriteInstructionStepProps {
   // Edit mode props
   editMode?: boolean;
   existingCampaignId?: number;
+  sessionId?: number;
 }
 
 // Configuration for preview donor count - can be changed later
@@ -123,7 +124,16 @@ export function WriteInstructionStep({
   onBulkGenerationComplete,
   editMode = false,
   existingCampaignId,
+  sessionId,
 }: WriteInstructionStepProps) {
+  console.log("[WriteInstructionStep] Component mounted/updated with props:", {
+    campaignName,
+    templateId,
+    sessionId,
+    editMode,
+    existingCampaignId,
+    selectedDonorsCount: selectedDonors?.length,
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] =
     useState<Array<{ role: "user" | "assistant"; content: string }>>(initialChatHistory);
@@ -145,7 +155,7 @@ export function WriteInstructionStep({
   const lastPersistedData = useRef<string>("");
 
   const { getOrganization } = useOrganization();
-  const { generateEmails, createSession, updateCampaign, regenerateAllEmails } = useCommunications();
+  const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail } = useCommunications();
   const { listProjects } = useProjects();
   const { userId } = useAuth();
 
@@ -321,6 +331,36 @@ export function WriteInstructionStep({
               }, {})
             );
 
+            // Save generated emails incrementally if we have a sessionId
+            if (sessionId) {
+              console.log(`[WriteInstructionStep] Saving ${emailResult.emails.length} generated emails to session ${sessionId}`);
+              const savePromises = emailResult.emails.map(async (email) => {
+                try {
+                  console.log(`[WriteInstructionStep] Saving email for donor ${email.donorId}`);
+                  await saveGeneratedEmail.mutateAsync({
+                    sessionId,
+                    donorId: email.donorId,
+                    subject: email.subject,
+                    structuredContent: email.structuredContent,
+                    referenceContexts: email.referenceContexts,
+                    isPreview: true,
+                  });
+                  console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
+                } catch (error) {
+                  console.error(`[WriteInstructionStep] Failed to save email for donor ${email.donorId}:`, error);
+                }
+              });
+
+              // Save all emails in parallel but don't block UI
+              Promise.all(savePromises).then(() => {
+                console.log(`[WriteInstructionStep] Successfully saved ${emailResult.emails.length} emails to draft`);
+              }).catch(error => {
+                console.error(`[WriteInstructionStep] Error saving some emails:`, error);
+              });
+            } else {
+              console.log(`[WriteInstructionStep] No sessionId available, skipping email save`);
+            }
+
             const responseMessage = instructionToSubmit
               ? "I've generated personalized emails using your selected template. You can review them on the left side and make any adjustments to the content or style if needed."
               : "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
@@ -364,6 +404,8 @@ export function WriteInstructionStep({
       onInstructionChange,
       previousInstruction,
       chatMessages,
+      sessionId,
+      saveGeneratedEmail,
     ]
   );
 
@@ -464,6 +506,29 @@ export function WriteInstructionStep({
           newReferenceContexts[email.donorId] = email.referenceContexts;
         });
         setReferenceContexts(newReferenceContexts);
+
+        // Save newly generated emails incrementally if we have a sessionId
+        if (sessionId) {
+          const savePromises = emailResult.emails.map(async (email) => {
+            try {
+              await saveGeneratedEmail.mutateAsync({
+                sessionId,
+                donorId: email.donorId,
+                subject: email.subject,
+                structuredContent: email.structuredContent,
+                referenceContexts: email.referenceContexts,
+                isPreview: true,
+              });
+            } catch (error) {
+              console.error(`Failed to save email for donor ${email.donorId}:`, error);
+            }
+          });
+
+          // Save all emails in parallel but don't block UI
+          Promise.all(savePromises).then(() => {
+            console.log(`Saved ${emailResult.emails.length} more emails to draft`);
+          });
+        }
 
         setChatMessages((prev) => [
           ...prev,

@@ -114,6 +114,32 @@ export function useCommunications() {
     },
   });
 
+  // Save draft mutation hook
+  const saveDraft = trpc.communications.campaigns.saveDraft.useMutation({
+    onMutate: (variables) => {
+      console.log("[useCommunications] saveDraft.onMutate called with:", variables);
+    },
+    onSuccess: (data, variables) => {
+      console.log("[useCommunications] saveDraft.onSuccess called with:", { data, variables });
+      // Invalidate campaigns list to show the new draft
+      utils.communications.campaigns.listCampaigns.invalidate();
+      if (data.sessionId) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+      }
+    },
+    onError: (error, variables) => {
+      console.error("[useCommunications] saveDraft.onError called with:", { error, variables });
+    },
+  });
+
+  // Save generated email mutation hook
+  const saveGeneratedEmail = trpc.communications.campaigns.saveGeneratedEmail.useMutation({
+    onSuccess: (data, variables) => {
+      // Invalidate the session to refetch with new email
+      utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+    },
+  });
+
   return {
     // Query hooks
     listThreads,
@@ -138,5 +164,7 @@ export function useCommunications() {
     updateCampaign,
     enhanceEmail,
     regenerateAllEmails,
+    saveDraft,
+    saveGeneratedEmail,
   };
 }

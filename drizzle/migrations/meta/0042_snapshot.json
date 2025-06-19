@@ -1,6 +1,6 @@
 {
-  "id": "0a6c0f6a-d697-4dbf-a35a-9723835d4fdf",
-  "prevId": "3ba1b0eb-863d-433f-ba31-795844d2b9a0",
+  "id": "0b486005-41ca-4921-b92e-f2e55c0bc103",
+  "prevId": "0a6c0f6a-d697-4dbf-a35a-9723835d4fdf",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1206,6 +1206,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING_APPROVAL'"
         },
         "is_preview": {
           "name": "is_preview",

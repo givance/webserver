@@ -56,7 +56,7 @@ const getSessionStatusSchema = z.object({
 const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
+  status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
 });
 
 const deleteCampaignSchema = z.object({
@@ -122,6 +122,36 @@ const regenerateAllEmailsSchema = z.object({
     })
   ),
   refinedInstruction: z.string().optional(),
+});
+
+const saveDraftSchema = z.object({
+  sessionId: z.number().optional(), // Optional for new drafts
+  campaignName: z.string().min(1).max(255),
+  selectedDonorIds: z.array(z.number()),
+  templateId: z.number().optional(),
+  instruction: z.string().optional(),
+  chatHistory: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    })
+  ).optional(),
+  refinedInstruction: z.string().optional(),
+});
+
+const saveGeneratedEmailSchema = z.object({
+  sessionId: z.number(),
+  donorId: z.number(),
+  subject: z.string(),
+  structuredContent: z.array(
+    z.object({
+      piece: z.string(),
+      references: z.array(z.string()),
+      addNewlineAfter: z.boolean(),
+    })
+  ),
+  referenceContexts: z.record(z.string(), z.string()),
+  isPreview: z.boolean().optional().default(true),
 });
 
 /**
@@ -258,5 +288,33 @@ export const emailCampaignsRouter = router({
       ctx.auth.user.organizationId,
       ctx.auth.user.id
     );
+  }),
+
+  /**
+   * Save campaign as draft - auto-saves campaign data without triggering generation
+   */
+  saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {
+    console.log("[tRPC saveDraft] Mutation called with input:", {
+      sessionId: input.sessionId,
+      campaignName: input.campaignName,
+      selectedDonorCount: input.selectedDonorIds?.length,
+      templateId: input.templateId,
+      organizationId: ctx.auth.user.organizationId,
+      userId: ctx.auth.user.id,
+    });
+    
+    const campaignsService = new EmailCampaignsService();
+    const result = await campaignsService.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    
+    console.log("[tRPC saveDraft] Mutation completed with result:", result);
+    return result;
+  }),
+
+  /**
+   * Save a generated email incrementally with PENDING_APPROVAL status
+   */
+  saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.saveGeneratedEmail(input, ctx.auth.user.organizationId);
   }),
 });

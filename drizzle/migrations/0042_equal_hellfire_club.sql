@@ -1,0 +1,1 @@
+ALTER TABLE "generated_emails" ADD COLUMN "status" text DEFAULT 'PENDING_APPROVAL' NOT NULL;

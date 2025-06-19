@@ -24,7 +24,7 @@ export interface CreateSessionInput {
 export interface ListCampaignsInput {
   limit?: number;
   offset?: number;
-  status?: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  status?: "DRAFT" | "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
 }
 
 export interface UpdateEmailInput {
@@ -62,6 +62,32 @@ export interface RegenerateAllEmailsInput {
   refinedInstruction?: string;
 }
 
+export interface SaveDraftInput {
+  sessionId?: number;
+  campaignName: string;
+  selectedDonorIds: number[];
+  templateId?: number;
+  instruction?: string;
+  chatHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  refinedInstruction?: string;
+}
+
+export interface SaveGeneratedEmailInput {
+  sessionId: number;
+  donorId: number;
+  subject: string;
+  structuredContent: Array<{
+    piece: string;
+    references: string[];
+    addNewlineAfter: boolean;
+  }>;
+  referenceContexts: Record<string, string>;
+  isPreview?: boolean;
+}
+
 /**
  * Service for handling email campaign operations
  */
@@ -75,39 +101,126 @@ export class EmailCampaignsService {
    */
   async createSession(input: CreateSessionInput, organizationId: string, userId: string) {
     try {
-      // Create session record
-      const [session] = await db
-        .insert(emailGenerationSessions)
-        .values({
+      // First check if there's an existing draft with the same name
+      const existingDraft = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.organizationId, organizationId),
+            eq(emailGenerationSessions.jobName, input.campaignName),
+            eq(emailGenerationSessions.status, "DRAFT")
+          )
+        )
+        .limit(1);
+
+      let sessionId: number;
+
+      if (existingDraft[0]) {
+        // Update existing draft to PENDING and use it
+        const [updatedSession] = await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "PENDING",
+            instruction: input.instruction,
+            refinedInstruction: input.refinedInstruction,
+            chatHistory: input.chatHistory,
+            selectedDonorIds: input.selectedDonorIds,
+            previewDonorIds: input.previewDonorIds,
+            totalDonors: input.selectedDonorIds.length,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, existingDraft[0].id))
+          .returning();
+
+        sessionId = updatedSession.id;
+
+        // Update any PENDING_APPROVAL emails to APPROVED
+        await db
+          .update(generatedEmails)
+          .set({
+            status: "APPROVED",
+            isPreview: false,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(generatedEmails.sessionId, sessionId),
+              eq(generatedEmails.status, "PENDING_APPROVAL")
+            )
+          );
+
+        logger.info(`Updated existing draft session ${sessionId} to PENDING for user ${userId}`);
+      } else {
+        // Create new session
+        const [session] = await db
+          .insert(emailGenerationSessions)
+          .values({
+            organizationId,
+            userId,
+            templateId: input.templateId,
+            jobName: input.campaignName,
+            instruction: input.instruction,
+            refinedInstruction: input.refinedInstruction,
+            chatHistory: input.chatHistory,
+            selectedDonorIds: input.selectedDonorIds,
+            previewDonorIds: input.previewDonorIds,
+            totalDonors: input.selectedDonorIds.length,
+            status: "PENDING",
+          })
+          .returning();
+
+        sessionId = session.id;
+        logger.info(`Created new email generation session ${sessionId} for user ${userId}`);
+      }
+
+      // Get the list of donors that already have approved emails
+      const existingEmails = await db
+        .select({ donorId: generatedEmails.donorId })
+        .from(generatedEmails)
+        .where(
+          and(
+            eq(generatedEmails.sessionId, sessionId),
+            eq(generatedEmails.status, "APPROVED")
+          )
+        );
+
+      const alreadyGeneratedDonorIds = existingEmails.map(e => e.donorId);
+      const donorsToGenerate = input.selectedDonorIds.filter(
+        id => !alreadyGeneratedDonorIds.includes(id)
+      );
+
+      // Only trigger background job if there are donors without emails
+      if (donorsToGenerate.length > 0) {
+        await generateBulkEmailsTask.trigger({
+          sessionId,
           organizationId,
           userId,
-          templateId: input.templateId,
-          jobName: input.campaignName,
           instruction: input.instruction,
           refinedInstruction: input.refinedInstruction,
-          chatHistory: input.chatHistory,
-          selectedDonorIds: input.selectedDonorIds,
+          selectedDonorIds: donorsToGenerate,
           previewDonorIds: input.previewDonorIds,
-          totalDonors: input.selectedDonorIds.length,
-          status: "PENDING",
-        })
-        .returning();
+          chatHistory: input.chatHistory,
+          templateId: input.templateId,
+        });
 
-      // Trigger the background job
-      await generateBulkEmailsTask.trigger({
-        sessionId: session.id,
-        organizationId,
-        userId,
-        instruction: input.instruction,
-        refinedInstruction: input.refinedInstruction,
-        selectedDonorIds: input.selectedDonorIds,
-        previewDonorIds: input.previewDonorIds,
-        chatHistory: input.chatHistory,
-        templateId: input.templateId,
-      });
+        logger.info(`Triggered email generation for ${donorsToGenerate.length} donors (${alreadyGeneratedDonorIds.length} already have emails)`);
+      } else {
+        logger.info(`All donors already have emails, marking session as completed`);
+        
+        // If all donors already have emails, mark session as completed
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            status: "COMPLETED",
+            completedDonors: input.selectedDonorIds.length,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+      }
 
-      logger.info(`Created email generation session ${session.id} for user ${userId}`);
-      return { sessionId: session.id };
+      return { sessionId };
     } catch (error) {
       logger.error(
         `Failed to create email generation session: ${error instanceof Error ? error.message : String(error)}`
@@ -576,6 +689,225 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to regenerate emails",
+      });
+    }
+  }
+
+  /**
+   * Saves a campaign as a draft - creates or updates an email generation session with DRAFT status
+   * @param input - Draft campaign data
+   * @param organizationId - The organization ID
+   * @param userId - The user ID
+   * @returns The draft session
+   */
+  async saveDraft(input: SaveDraftInput, organizationId: string, userId: string) {
+    logger.info(`[saveDraft] Called with input:`, {
+      sessionId: input.sessionId,
+      campaignName: input.campaignName,
+      selectedDonorCount: input.selectedDonorIds?.length,
+      selectedDonorIds: input.selectedDonorIds,
+      templateId: input.templateId,
+      organizationId,
+      userId,
+    });
+
+    // Validate required fields
+    if (!input.campaignName || !input.selectedDonorIds || input.selectedDonorIds.length === 0) {
+      logger.error(`[saveDraft] Missing required fields:`, {
+        hasCampaignName: !!input.campaignName,
+        hasSelectedDonorIds: !!input.selectedDonorIds,
+        selectedDonorCount: input.selectedDonorIds?.length || 0,
+      });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Campaign name and selected donors are required",
+      });
+    }
+
+    try {
+      if (input.sessionId) {
+        logger.info(`[saveDraft] Attempting to update existing draft session ${input.sessionId}`);
+        
+        // First check if the session exists and its current status
+        const existingSession = await db
+          .select()
+          .from(emailGenerationSessions)
+          .where(
+            and(
+              eq(emailGenerationSessions.id, input.sessionId),
+              eq(emailGenerationSessions.organizationId, organizationId)
+            )
+          )
+          .limit(1);
+
+        logger.info(`[saveDraft] Existing session lookup result:`, {
+          found: !!existingSession[0],
+          status: existingSession[0]?.status,
+          sessionId: existingSession[0]?.id,
+        });
+
+        // Update existing draft
+        const updateData = {
+          jobName: input.campaignName,
+          selectedDonorIds: input.selectedDonorIds,
+          totalDonors: input.selectedDonorIds.length,
+          templateId: input.templateId,
+          instruction: input.instruction || "",
+          refinedInstruction: input.refinedInstruction,
+          chatHistory: input.chatHistory || [],
+          updatedAt: new Date(),
+        };
+
+        logger.info(`[saveDraft] Updating session with data:`, updateData);
+
+        const [updatedSession] = await db
+          .update(emailGenerationSessions)
+          .set(updateData)
+          .where(
+            and(
+              eq(emailGenerationSessions.id, input.sessionId),
+              eq(emailGenerationSessions.organizationId, organizationId),
+              eq(emailGenerationSessions.status, "DRAFT")
+            )
+          )
+          .returning();
+
+        if (!updatedSession) {
+          logger.error(`[saveDraft] Failed to update session ${input.sessionId} - session not found or not in DRAFT status`);
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Draft session not found or not in draft status",
+          });
+        }
+
+        logger.info(`[saveDraft] Successfully updated draft session ${input.sessionId}`);
+        return { sessionId: updatedSession.id };
+      } else {
+        logger.info(`[saveDraft] Creating new draft session`);
+        
+        const newSessionData = {
+          organizationId,
+          userId,
+          templateId: input.templateId,
+          jobName: input.campaignName,
+          instruction: input.instruction || "",
+          refinedInstruction: input.refinedInstruction,
+          chatHistory: input.chatHistory || [],
+          selectedDonorIds: input.selectedDonorIds,
+          previewDonorIds: [], // Will be populated when generating preview
+          totalDonors: input.selectedDonorIds.length,
+          completedDonors: 0,
+          status: "DRAFT" as const,
+        };
+
+        logger.info(`[saveDraft] Creating session with data:`, newSessionData);
+
+        // Create new draft
+        const [newSession] = await db
+          .insert(emailGenerationSessions)
+          .values(newSessionData)
+          .returning();
+
+        logger.info(`[saveDraft] Successfully created new draft session ${newSession.id}`);
+        return { sessionId: newSession.id };
+      }
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        logger.error(`[saveDraft] TRPC error:`, error.message);
+        throw error;
+      }
+      logger.error(`[saveDraft] Unexpected error:`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to save draft",
+      });
+    }
+  }
+
+  /**
+   * Saves a generated email incrementally with PENDING_APPROVAL status
+   * @param input - Generated email data
+   * @param organizationId - The organization ID
+   * @returns The saved email
+   */
+  async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
+    try {
+      // Verify session belongs to organization
+      const session = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.id, input.sessionId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!session[0]) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found",
+        });
+      }
+
+      // Check if email already exists for this donor in this session
+      const existingEmail = await db
+        .select()
+        .from(generatedEmails)
+        .where(
+          and(
+            eq(generatedEmails.sessionId, input.sessionId),
+            eq(generatedEmails.donorId, input.donorId)
+          )
+        )
+        .limit(1);
+
+      if (existingEmail[0]) {
+        // Update existing email
+        const [updatedEmail] = await db
+          .update(generatedEmails)
+          .set({
+            subject: input.subject,
+            structuredContent: input.structuredContent,
+            referenceContexts: input.referenceContexts,
+            status: "PENDING_APPROVAL",
+            isPreview: input.isPreview ?? true,
+            updatedAt: new Date(),
+          })
+          .where(eq(generatedEmails.id, existingEmail[0].id))
+          .returning();
+
+        logger.info(`Updated generated email ${updatedEmail.id} for donor ${input.donorId}`);
+        return { emailId: updatedEmail.id };
+      } else {
+        // Create new email
+        const [newEmail] = await db
+          .insert(generatedEmails)
+          .values({
+            sessionId: input.sessionId,
+            donorId: input.donorId,
+            subject: input.subject,
+            structuredContent: input.structuredContent,
+            referenceContexts: input.referenceContexts,
+            status: "PENDING_APPROVAL",
+            isPreview: input.isPreview ?? true,
+            isSent: false,
+          })
+          .returning();
+
+        logger.info(`Created new generated email ${newEmail.id} for donor ${input.donorId}`);
+        return { emailId: newEmail.id };
+      }
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to save generated email: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to save generated email",
       });
     }
   }
