@@ -1,10 +1,16 @@
 import { test, expect } from "@playwright/test";
+import { cleanupBetweenTests } from "../setup/test-cleanup";
 
 test.describe("Donations CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to donations page
     await page.goto("/donations");
     await page.waitForLoadState("networkidle");
+  });
+
+  test.afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupBetweenTests();
   });
 
   test("should display donations list page with key elements", async ({ page }) => {
@@ -28,7 +34,7 @@ test.describe("Donations CRUD Operations", () => {
 
     // Check if table exists
     const table = page.locator("table");
-    const tableExists = await table.count() > 0;
+    const tableExists = (await table.count()) > 0;
 
     if (tableExists) {
       // Check if there are any donations in the table body
@@ -46,7 +52,9 @@ test.describe("Donations CRUD Operations", () => {
       expect(rowCount).toBeGreaterThanOrEqual(0);
     } else {
       // If no table, look for empty state message
-      const emptyMessage = page.locator('text:has-text("No donations"), text:has-text("No results"), text:has-text("No data")');
+      const emptyMessage = page.locator(
+        'text:has-text("No donations"), text:has-text("No results"), text:has-text("No data")'
+      );
       await expect(emptyMessage.first()).toBeVisible();
     }
   });
@@ -57,19 +65,19 @@ test.describe("Donations CRUD Operations", () => {
 
     // Check if pagination controls exist
     const paginationControls = page.locator('[aria-label*="pagination"], [class*="pagination"]');
-    
+
     if (await paginationControls.isVisible()) {
       // Test page size selector
       const pageSizeSelector = page.locator('button:has-text("items per page")').first();
       if (await pageSizeSelector.isVisible()) {
         await pageSizeSelector.click();
-        
+
         // Select a different page size
         const option = page.locator('[role="option"]:has-text("10 items per page")');
         if (await option.isVisible()) {
           await option.click();
           await page.waitForTimeout(1000);
-          
+
           // Verify the page size changed
           await expect(pageSizeSelector).toContainText("10 items per page");
         }
@@ -80,9 +88,9 @@ test.describe("Donations CRUD Operations", () => {
       if (await nextButton.isEnabled()) {
         await nextButton.click();
         await page.waitForTimeout(1000);
-        
+
         // Verify we're on a different page
-        const pageIndicator = page.locator('text=/Page \\d+ of \\d+/');
+        const pageIndicator = page.locator("text=/Page \\d+ of \\d+/");
         if (await pageIndicator.isVisible()) {
           await expect(pageIndicator).toContainText("Page 2");
         }
@@ -95,8 +103,8 @@ test.describe("Donations CRUD Operations", () => {
     await page.waitForTimeout(1000);
 
     const firstDonorLink = page.locator('table tbody tr a[href^="/donors/"]').first();
-    
-    if (await firstDonorLink.count() > 0) {
+
+    if ((await firstDonorLink.count()) > 0) {
       const donorName = await firstDonorLink.textContent();
       await firstDonorLink.click();
 
@@ -114,8 +122,8 @@ test.describe("Donations CRUD Operations", () => {
     await page.waitForTimeout(1000);
 
     const firstProjectLink = page.locator('table tbody tr a[href^="/projects/"]').first();
-    
-    if (await firstProjectLink.count() > 0) {
+
+    if ((await firstProjectLink.count()) > 0) {
       const projectName = await firstProjectLink.textContent();
       await firstProjectLink.click();
 
@@ -124,7 +132,7 @@ test.describe("Donations CRUD Operations", () => {
       await page.waitForLoadState("networkidle");
 
       // Verify we're on the project detail page (look for common project page elements)
-      const projectTitle = page.locator('h1, h2').filter({ hasText: projectName || "" });
+      const projectTitle = page.locator("h1, h2").filter({ hasText: projectName || "" });
       await expect(projectTitle.first()).toBeVisible();
     }
   });
@@ -132,19 +140,19 @@ test.describe("Donations CRUD Operations", () => {
   test("should handle filtering by donor", async ({ page }) => {
     // First check if there are any donations to filter
     await page.waitForTimeout(2000);
-    
+
     const tableRows = page.locator("table tbody tr");
     const rowCount = await tableRows.count();
-    
+
     if (rowCount > 0) {
       // Find a donor link in the donations table itself
       const donorLink = page.locator('table tbody tr a[href^="/donors/"]').first();
-      
-      if (await donorLink.count() > 0) {
+
+      if ((await donorLink.count()) > 0) {
         const donorHref = await donorLink.getAttribute("href");
         const donorId = donorHref?.match(/\/donors\/(\d+)/)?.[1];
         const donorName = await donorLink.textContent();
-        
+
         if (donorId) {
           // Navigate to donations filtered by this donor
           await page.goto(`/donations?donorId=${donorId}`);
@@ -155,7 +163,7 @@ test.describe("Donations CRUD Operations", () => {
           const filterSection = page.locator('div:has-text("Active filters:")');
           if (await filterSection.isVisible()) {
             // Look for a button containing "Donor:" text
-            const filterBadge = filterSection.locator('button').filter({ hasText: /Donor:/ });
+            const filterBadge = filterSection.locator("button").filter({ hasText: /Donor:/ });
             await expect(filterBadge.first()).toBeVisible();
 
             // Verify the donor name is shown in the filter
@@ -183,11 +191,11 @@ test.describe("Donations CRUD Operations", () => {
     await page.waitForTimeout(1000);
 
     const dateHeader = page.locator('button:has-text("Date")').first();
-    
+
     if (await dateHeader.isVisible()) {
       // Get initial dates
       const dates = await page.locator("table tbody tr td:first-child").allTextContents();
-      
+
       if (dates.length > 1) {
         // Click to sort
         await dateHeader.click();
@@ -195,7 +203,7 @@ test.describe("Donations CRUD Operations", () => {
 
         // Get sorted dates
         const sortedDates = await page.locator("table tbody tr td:first-child").allTextContents();
-        
+
         // Verify dates changed order (we can't verify exact sort without knowing the data)
         expect(sortedDates.length).toBe(dates.length);
       }
@@ -207,11 +215,11 @@ test.describe("Donations CRUD Operations", () => {
     await page.waitForTimeout(1000);
 
     const amountHeader = page.locator('button:has-text("Amount")').first();
-    
+
     if (await amountHeader.isVisible()) {
       // Get initial amounts
       const amounts = await page.locator("table tbody tr td:nth-child(2)").allTextContents();
-      
+
       if (amounts.length > 1) {
         // Click to sort
         await amountHeader.click();
@@ -219,10 +227,10 @@ test.describe("Donations CRUD Operations", () => {
 
         // Get sorted amounts
         const sortedAmounts = await page.locator("table tbody tr td:nth-child(2)").allTextContents();
-        
+
         // Verify amounts are displayed
         expect(sortedAmounts.length).toBe(amounts.length);
-        sortedAmounts.forEach(amount => {
+        sortedAmounts.forEach((amount) => {
           expect(amount).toMatch(/^\$[\d,]+(\.\d{2})?$/);
         });
       }
@@ -233,14 +241,14 @@ test.describe("Donations CRUD Operations", () => {
     // Wait for donations to load
     await page.waitForTimeout(1000);
 
-    const viewButton = page.locator('table tbody tr').first().locator('button:has-text("View")');
-    
-    if (await viewButton.count() > 0) {
+    const viewButton = page.locator("table tbody tr").first().locator('button:has-text("View")');
+
+    if ((await viewButton.count()) > 0) {
       await viewButton.click();
 
       // Should navigate to donation detail page
       await page.waitForURL(/\/donations\/\d+$/);
-      
+
       // Since the page might not exist, check if we get a 404 or the actual page
       const pageTitle = await page.title();
       // The navigation attempt itself is the test
@@ -252,14 +260,14 @@ test.describe("Donations CRUD Operations", () => {
     // Wait for donations to load
     await page.waitForTimeout(1000);
 
-    const editButton = page.locator('table tbody tr').first().locator('button:has-text("Edit")');
-    
-    if (await editButton.count() > 0) {
+    const editButton = page.locator("table tbody tr").first().locator('button:has-text("Edit")');
+
+    if ((await editButton.count()) > 0) {
       await editButton.click();
 
       // Should navigate to donation edit page
       await page.waitForURL(/\/donations\/\d+\/edit$/);
-      
+
       // Since the page might not exist, check if we get a 404 or the actual page
       const pageTitle = await page.title();
       // The navigation attempt itself is the test
@@ -276,14 +284,14 @@ test.describe("Donations CRUD Operations", () => {
     // The donations table might show results even with a non-existent donor ID
     // due to how the filtering works, so we just verify the page loads
     const table = page.locator("table");
-    const tableExists = await table.count() > 0;
-    
+    const tableExists = (await table.count()) > 0;
+
     // Verify either a table exists or an empty state message
     if (tableExists) {
       await expect(table).toBeVisible();
     } else {
       // Or there might be an empty state message
-      const emptyState = page.locator('div, p, span').filter({ hasText: /no.*donation|no.*result|empty|nothing/i });
+      const emptyState = page.locator("div, p, span").filter({ hasText: /no.*donation|no.*result|empty|nothing/i });
       // If neither table nor empty state, that's also OK - the page loaded
       expect(tableExists || (await emptyState.count()) > 0).toBeTruthy();
     }

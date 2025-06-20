@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { cleanupBetweenTests } from "../setup/test-cleanup";
+import { createTestStaff, generateTestEmail, generateTestName } from "../utils/test-data-factory";
 
 test.describe("Staff CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to staff page
     await page.goto("/staff");
     await page.waitForLoadState("networkidle");
+  });
+
+  test.afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupBetweenTests();
   });
 
   test("should display staff list page with key elements", async ({ page }) => {
@@ -19,8 +26,8 @@ test.describe("Staff CRUD Operations", () => {
 
     // Verify table headers if table exists
     const table = page.locator("table");
-    const tableExists = await table.count() > 0;
-    
+    const tableExists = (await table.count()) > 0;
+
     if (tableExists) {
       // Verify key columns
       await expect(page.locator('th:has-text("Name")')).toBeVisible();
@@ -30,7 +37,7 @@ test.describe("Staff CRUD Operations", () => {
       await expect(page.locator('th:has-text("Signature")')).toBeVisible();
     } else {
       // Check for empty state
-      const emptyState = page.locator('text=/no.*staff|empty/i');
+      const emptyState = page.locator("text=/no.*staff|empty/i");
       await expect(emptyState.first()).toBeVisible();
     }
 
@@ -53,9 +60,9 @@ test.describe("Staff CRUD Operations", () => {
       'h2:has-text("Add Staff")',
       'text="First Name"',
       'text="Last Name"',
-      'text="Email"'
+      'text="Email"',
     ];
-    
+
     let foundAddPage = false;
     for (const selector of addPageIndicators) {
       const element = page.locator(selector).first();
@@ -64,19 +71,11 @@ test.describe("Staff CRUD Operations", () => {
         break;
       }
     }
-    
+
     expect(foundAddPage).toBe(true);
 
     // Fill in the form with test data
-    const testStaff = {
-      firstName: `Test${Date.now()}`,
-      lastName: "Staff",
-      email: `test${Date.now()}@example.com`,
-      jobTitle: "Development Manager",
-      department: "Engineering",
-      signature: "<p>Best regards,<br>Test Staff</p>",
-      whatsappNumbers: ["+1234567890"],
-    };
+    const testStaff = createTestStaff();
 
     // Fill required fields
     await page.fill('input[placeholder="John"]', testStaff.firstName);
@@ -85,21 +84,21 @@ test.describe("Staff CRUD Operations", () => {
 
     // Fill optional fields
     const jobTitleInput = page.locator('input[placeholder*="Manager"]');
-    if (await jobTitleInput.count() > 0) {
+    if ((await jobTitleInput.count()) > 0) {
       await jobTitleInput.fill(testStaff.jobTitle);
     }
 
     const departmentInput = page.locator('input[placeholder*="Marketing"], input[placeholder*="Department"]');
-    if (await departmentInput.count() > 0) {
+    if ((await departmentInput.count()) > 0) {
       await departmentInput.first().fill(testStaff.department);
     }
 
     // Add WhatsApp number (optional - may not be available)
     const addPhoneButton = page.locator('button:has-text("Add Phone")');
-    if (await addPhoneButton.count() > 0 && await addPhoneButton.isVisible()) {
+    if ((await addPhoneButton.count()) > 0 && (await addPhoneButton.isVisible())) {
       await addPhoneButton.click();
       await page.waitForTimeout(500);
-      
+
       // Try to find phone input
       const phoneInput = page.locator('input[type="tel"], input[placeholder*="phone"]').last();
       const phoneInputVisible = await phoneInput.isVisible().catch(() => false);
@@ -112,14 +111,16 @@ test.describe("Staff CRUD Operations", () => {
 
     // Set signature - the editor might be a rich text editor
     const signatureEditor = page.locator('[contenteditable="true"], .ProseMirror, .tiptap');
-    if (await signatureEditor.count() > 0) {
+    if ((await signatureEditor.count()) > 0) {
       await signatureEditor.click();
       await signatureEditor.fill("Best regards,\nTest Staff");
     }
 
     // Check Real Person checkbox if present
-    const realPersonCheckbox = page.locator('input[type="checkbox"]').filter({ has: page.locator('..').filter({ hasText: /real.*person/i }) });
-    if (await realPersonCheckbox.count() > 0) {
+    const realPersonCheckbox = page
+      .locator('input[type="checkbox"]')
+      .filter({ has: page.locator("..").filter({ hasText: /real.*person/i }) });
+    if ((await realPersonCheckbox.count()) > 0) {
       await realPersonCheckbox.check();
     }
 
@@ -144,35 +145,30 @@ test.describe("Staff CRUD Operations", () => {
     // Wait for page to load
     await page.waitForTimeout(1000);
 
-    // Check if there are any staff members
-    const staffRows = page.locator("table tbody tr");
-    const rowCount = await staffRows.count();
+    // Always create a fresh test staff member for this test to ensure predictable state
+    await test.step("Create a staff member for viewing", async () => {
+      await page.click('a[href="/staff/add"] button');
+      await page.waitForURL("**/staff/add");
 
-    if (rowCount === 0) {
-      // If no staff exist, create one
-      await test.step("Create a staff member for viewing", async () => {
-        await page.click('a[href="/staff/add"] button');
-        await page.waitForURL("**/staff/add");
+      const testStaff = createTestStaff("view");
+      await page.fill('input[placeholder="John"]', testStaff.firstName);
+      await page.fill('input[placeholder="Doe"]', testStaff.lastName);
+      await page.fill('input[placeholder*="@example.com"]', testStaff.email);
+      await page.click('button:has-text("Create Staff Member")');
 
-        await page.fill('input[placeholder="John"]', "ViewTest");
-        await page.fill('input[placeholder="Doe"]', "Staff");
-        await page.fill('input[placeholder*="@example.com"]', `view${Date.now()}@example.com`);
-        await page.click('button:has-text("Create Staff Member")');
-
-        await page.waitForURL("**/staff");
-        await page.waitForTimeout(1000);
-      });
-    }
+      await page.waitForURL("**/staff");
+      await page.waitForTimeout(1000);
+    });
 
     // Click on the first staff member's name or view details
     const firstRow = page.locator("table tbody tr").first();
-    
+
     // Try clicking the dropdown menu first
     const dropdownTrigger = firstRow.locator('button[aria-haspopup="menu"]');
-    if (await dropdownTrigger.count() > 0) {
+    if ((await dropdownTrigger.count()) > 0) {
       await dropdownTrigger.click();
       await page.waitForTimeout(500);
-      
+
       // Click View Details in dropdown
       await page.click('[role="menuitem"]:has-text("View Details")');
     } else {
@@ -197,12 +193,12 @@ test.describe("Staff CRUD Operations", () => {
       'text="Signature"',
       'text="Personal Information"',
       'text="Staff Information"',
-      'h1', // Staff name
-      'h2', // Section headers
+      "h1", // Staff name
+      "h2", // Section headers
       '[data-slot="card"]',
-      '.card'
+      ".card",
     ];
-    
+
     let foundDetailElements = 0;
     for (const selector of detailElements) {
       const element = page.locator(selector).first();
@@ -211,7 +207,7 @@ test.describe("Staff CRUD Operations", () => {
         console.log(`Found staff detail element: ${selector}`);
       }
     }
-    
+
     // Should find at least 3 detail elements
     expect(foundDetailElements).toBeGreaterThanOrEqual(3);
 
@@ -227,31 +223,26 @@ test.describe("Staff CRUD Operations", () => {
     // Wait for page to load
     await page.waitForTimeout(1000);
 
-    // Check if there are any staff members
-    const staffRows = page.locator("table tbody tr");
-    const rowCount = await staffRows.count();
+    // Always create a fresh test staff member for editing to ensure predictable state
+    await test.step("Create a staff member for editing", async () => {
+      await page.click('a[href="/staff/add"] button');
+      await page.waitForURL("**/staff/add");
 
-    if (rowCount === 0) {
-      // Create a staff member if none exist
-      await test.step("Create a staff member for editing", async () => {
-        await page.click('a[href="/staff/add"] button');
-        await page.waitForURL("**/staff/add");
+      const testStaff = createTestStaff("edit");
+      await page.fill('input[placeholder="John"]', testStaff.firstName);
+      await page.fill('input[placeholder="Doe"]', testStaff.lastName);
+      await page.fill('input[placeholder*="@example.com"]', testStaff.email);
+      await page.click('button:has-text("Create Staff Member")');
 
-        await page.fill('input[placeholder="John"]', "EditTest");
-        await page.fill('input[placeholder="Doe"]', "Staff");
-        await page.fill('input[placeholder*="@example.com"]', `edit${Date.now()}@example.com`);
-        await page.click('button:has-text("Create Staff Member")');
-
-        await page.waitForURL("**/staff");
-        await page.waitForTimeout(1000);
-      });
-    }
+      await page.waitForURL("**/staff");
+      await page.waitForTimeout(1000);
+    });
 
     // Navigate to first staff member's detail page
     const firstRow = page.locator("table tbody tr").first();
     const dropdownTrigger = firstRow.locator('button[aria-haspopup="menu"]');
-    
-    if (await dropdownTrigger.count() > 0) {
+
+    if ((await dropdownTrigger.count()) > 0) {
       await dropdownTrigger.click();
       await page.waitForTimeout(500);
       await page.click('[role="menuitem"]:has-text("View Details")');
@@ -264,10 +255,13 @@ test.describe("Staff CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
 
     // Test inline editing - click on the first name field
-    const firstNameField = page.locator('div').filter({ has: page.locator('label:has-text("First Name")') }).locator('[contenteditable], input');
-    if (await firstNameField.count() > 0) {
+    const firstNameField = page
+      .locator("div")
+      .filter({ has: page.locator('label:has-text("First Name")') })
+      .locator("[contenteditable], input");
+    if ((await firstNameField.count()) > 0) {
       await firstNameField.click();
-      await firstNameField.fill(`Updated${Date.now()}`);
+      await firstNameField.fill(`Updated${generateTestName()}`);
       await firstNameField.press("Enter");
       await page.waitForTimeout(1000);
     }
@@ -298,17 +292,19 @@ test.describe("Staff CRUD Operations", () => {
   test("should manage email signature", async ({ page }) => {
     // Navigate to first staff member
     const firstRow = page.locator("table tbody tr").first();
-    
-    if (await firstRow.count() === 0) {
+
+    if ((await firstRow.count()) === 0) {
       // Skip test if no staff members
       test.skip();
       return;
     }
 
     // Check if signature edit is available in the table
-    const signatureEditButton = firstRow.locator('button:has-text("Edit"), button:has(svg)').filter({ has: page.locator('..').filter({ hasText: /signature/i }) });
-    
-    if (await signatureEditButton.count() > 0) {
+    const signatureEditButton = firstRow
+      .locator('button:has-text("Edit"), button:has(svg)')
+      .filter({ has: page.locator("..").filter({ hasText: /signature/i }) });
+
+    if ((await signatureEditButton.count()) > 0) {
       // Edit signature from the table
       await signatureEditButton.click();
       await page.waitForTimeout(500);
@@ -343,10 +339,10 @@ test.describe("Staff CRUD Operations", () => {
       const firstRow = staffRows.first();
       const primarySwitch = firstRow.locator('button[role="switch"]');
 
-      if (await primarySwitch.count() > 0) {
+      if ((await primarySwitch.count()) > 0) {
         // Get current state
         const currentState = await primarySwitch.getAttribute("data-state");
-        
+
         // Toggle the switch
         await primarySwitch.click();
         await page.waitForTimeout(1000);
@@ -380,20 +376,20 @@ test.describe("Staff CRUD Operations", () => {
   test("should delete a staff member", async ({ page }) => {
     const timestamp = Date.now();
     const deleteEmail = `delete${timestamp}@example.com`;
-    
+
     // First create a staff member to delete
     await test.step("Create a staff member to delete", async () => {
       await page.click('a[href="/staff/add"] button');
       await page.waitForURL("**/staff/add");
-      
+
       await page.fill('input[placeholder="John"]', `DeleteTest${timestamp}`);
       await page.fill('input[placeholder="Doe"]', "Staff");
       await page.fill('input[placeholder*="@example.com"]', deleteEmail);
       await page.click('button:has-text("Create Staff Member")');
-      
+
       await page.waitForURL("**/staff");
       await page.waitForTimeout(1000);
-      
+
       // Search for the newly created staff member
       await page.fill('input[placeholder*="Search staff"]', deleteEmail);
       await page.waitForTimeout(500);
@@ -401,7 +397,7 @@ test.describe("Staff CRUD Operations", () => {
 
     // Find the staff member row
     const staffRow = page.locator("table tbody tr").first();
-    
+
     // Open dropdown menu
     const dropdownTrigger = staffRow.locator('button[aria-haspopup="menu"]');
     await dropdownTrigger.click();
@@ -413,7 +409,7 @@ test.describe("Staff CRUD Operations", () => {
     // Confirm deletion in the dialog
     const confirmDialog = page.locator('[role="alertdialog"]');
     await expect(confirmDialog).toBeVisible();
-    
+
     const confirmButton = confirmDialog.locator('button:has-text("Delete")').last();
     await confirmButton.click();
 
@@ -424,7 +420,7 @@ test.describe("Staff CRUD Operations", () => {
     // The search might need to be refreshed or the table might be empty
     const tableRows = page.locator("table tbody tr");
     const currentRowCount = await tableRows.count();
-    
+
     // Either the table is empty or the specific staff member is gone
     if (currentRowCount === 0) {
       // Table is empty - deletion successful
@@ -445,7 +441,7 @@ test.describe("Staff CRUD Operations", () => {
     await page.click('button:has-text("Create Staff Member")');
 
     // Verify validation errors appear
-    await expect(page.locator('text=/required|must be/i').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/required|must be/i").first()).toBeVisible({ timeout: 5000 });
 
     // Test invalid email format
     await page.fill('input[placeholder="John"]', "Test");
@@ -454,10 +450,10 @@ test.describe("Staff CRUD Operations", () => {
     await page.click('button:has-text("Create Staff Member")');
 
     // Verify email validation error
-    await expect(page.locator('text=/invalid.*email|email.*invalid/i')).toBeVisible();
+    await expect(page.locator("text=/invalid.*email|email.*invalid/i")).toBeVisible();
 
     // Fix the email and verify form can be submitted
-    const uniqueEmail = `valid${Date.now()}@example.com`;
+    const uniqueEmail = generateTestEmail("valid");
     await page.fill('input[placeholder*="@example.com"]', uniqueEmail);
     await page.click('button:has-text("Create Staff Member")');
 
@@ -468,14 +464,14 @@ test.describe("Staff CRUD Operations", () => {
   test("should manage WhatsApp phone numbers", async ({ page }) => {
     // Navigate to first staff member's detail page
     const firstRow = page.locator("table tbody tr").first();
-    
-    if (await firstRow.count() === 0) {
+
+    if ((await firstRow.count()) === 0) {
       test.skip();
       return;
     }
 
     const dropdownTrigger = firstRow.locator('button[aria-haspopup="menu"]');
-    if (await dropdownTrigger.count() > 0) {
+    if ((await dropdownTrigger.count()) > 0) {
       await dropdownTrigger.click();
       await page.waitForTimeout(500);
       await page.click('[role="menuitem"]:has-text("View Details")');
@@ -493,14 +489,14 @@ test.describe("Staff CRUD Operations", () => {
 
     // Add a phone number
     const addPhoneButton = page.locator('button:has-text("Add Phone Number")');
-    if (await addPhoneButton.count() > 0) {
+    if ((await addPhoneButton.count()) > 0) {
       await addPhoneButton.click();
       await page.waitForTimeout(500);
 
       // Fill in phone number
       const phoneInput = page.locator('input[type="tel"], input[placeholder*="phone"]').last();
       await phoneInput.fill("+1234567890");
-      
+
       // The number might be saved automatically or need a save action
       await page.waitForTimeout(1000);
 
@@ -518,9 +514,9 @@ test.describe("Staff CRUD Operations", () => {
         'text="WhatsApp"',
         'input[type="tel"]',
         'text="Activity"',
-        'text="Messages"'
+        'text="Messages"',
       ];
-      
+
       let foundWhatsappElement = false;
       for (const selector of whatsappElements) {
         const element = page.locator(selector).first();
@@ -530,7 +526,7 @@ test.describe("Staff CRUD Operations", () => {
           break;
         }
       }
-      
+
       expect(foundWhatsappElement).toBe(true);
     } else {
       console.log("Add Phone Number button not found - WhatsApp feature may not be implemented");

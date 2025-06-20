@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { cleanupBetweenTests } from "../setup/test-cleanup";
+import { createTestCampaign, generateTestName } from "../utils/test-data-factory";
 
 test.describe("Campaign CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Start from the main page to access campaign functionality
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+  });
+
+  test.afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupBetweenTests();
   });
 
   test("should display existing campaigns list", async ({ page }) => {
@@ -18,9 +25,9 @@ test.describe("Campaign CRUD Operations", () => {
       'h1:has-text("Campaigns")',
       'h1:has-text("Email Campaigns")',
       'h2:has-text("Campaigns")',
-      'h1' // Any h1 as fallback
+      "h1", // Any h1 as fallback
     ];
-    
+
     let foundHeading = false;
     for (const selector of headingSelectors) {
       const element = page.locator(selector).first();
@@ -33,9 +40,9 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Verify table headers if campaigns exist
     const table = page.locator("table");
-    if (await table.count() > 0) {
+    if ((await table.count()) > 0) {
       // More flexible header matching
-      const headers = ['Campaign', 'Name', 'Donors', 'Status', 'Progress', 'Actions'];
+      const headers = ["Campaign", "Name", "Donors", "Status", "Progress", "Actions"];
       let foundHeaders = 0;
       for (const header of headers) {
         const th = page.locator(`th:has-text("${header}")`).first();
@@ -47,7 +54,7 @@ test.describe("Campaign CRUD Operations", () => {
       expect(foundHeaders).toBeGreaterThanOrEqual(3);
     } else {
       // Check for empty state
-      const emptyState = page.locator('text=/no.*campaign|empty/i');
+      const emptyState = page.locator("text=/no.*campaign|empty/i");
       await expect(emptyState.first()).toBeVisible();
     }
 
@@ -58,9 +65,9 @@ test.describe("Campaign CRUD Operations", () => {
       'button:has-text("New Campaign")',
       'a:has-text("New Campaign")',
       'button:has-text("Create")',
-      '[href*="/campaign"]'
+      '[href*="/campaign"]',
     ];
-    
+
     let foundCreateButton = false;
     for (const selector of createButtonSelectors) {
       const element = page.locator(selector).first();
@@ -82,7 +89,9 @@ test.describe("Campaign CRUD Operations", () => {
       await expect(page.locator('h1:has-text("Select Donors")')).toBeVisible();
 
       // Check if there are any donors available
-      const donorCheckboxes = page.locator('input[type="checkbox"][data-donor-id], table tbody tr input[type="checkbox"]');
+      const donorCheckboxes = page.locator(
+        'input[type="checkbox"][data-donor-id], table tbody tr input[type="checkbox"]'
+      );
       const checkboxCount = await donorCheckboxes.count();
 
       if (checkboxCount === 0) {
@@ -99,7 +108,7 @@ test.describe("Campaign CRUD Operations", () => {
       }
 
       // Verify selection count is shown
-      const selectedCount = page.locator('text=/\\d+ donor.*selected/i');
+      const selectedCount = page.locator("text=/\\d+ donor.*selected/i");
       await expect(selectedCount).toBeVisible();
 
       // Click Next
@@ -112,15 +121,15 @@ test.describe("Campaign CRUD Operations", () => {
       await expect(page.locator('h1:has-text("Campaign Name")')).toBeVisible();
 
       // Fill campaign name
-      const campaignName = `Test Campaign ${Date.now()}`;
-      const nameInput = page.locator('input#campaignName');
-      await nameInput.fill(campaignName);
+      const testCampaign = createTestCampaign();
+      const nameInput = page.locator("input#campaignName");
+      await nameInput.fill(testCampaign.name);
 
       // Verify character counter
-      await expect(page.locator('text=/\\d+\\/255/i')).toBeVisible();
+      await expect(page.locator("text=/\\d+\\/255/i")).toBeVisible();
 
       // Verify summary card shows donor count
-      await expect(page.locator('text=/\\d+ donor/i')).toBeVisible();
+      await expect(page.locator("text=/\\d+ donor/i")).toBeVisible();
 
       // Click Next
       await page.click('button:has-text("Next")');
@@ -155,7 +164,9 @@ test.describe("Campaign CRUD Operations", () => {
 
       // Type instructions
       const instructionInput = page.locator('textarea[placeholder*="instruction"], textarea').first();
-      await instructionInput.fill("Write a brief thank you email to each donor for their support. Keep it personal and warm.");
+      await instructionInput.fill(
+        "Write a brief thank you email to each donor for their support. Keep it personal and warm."
+      );
 
       // Send instructions
       const sendButton = page.locator('button:has-text("Send")');
@@ -174,7 +185,7 @@ test.describe("Campaign CRUD Operations", () => {
 
       // For testing, we won't actually start bulk generation as it's expensive
       // Instead, verify the UI is ready
-      await expect(page.locator('text=/preview.*email/i')).toBeVisible();
+      await expect(page.locator("text=/preview.*email/i")).toBeVisible();
     });
   });
 
@@ -183,7 +194,7 @@ test.describe("Campaign CRUD Operations", () => {
     await page.goto("/existing-campaigns");
     await page.waitForLoadState("networkidle");
 
-    // Check if there are any campaigns
+    // Check if there are any campaigns to edit
     const campaignRows = page.locator("table tbody tr");
     const rowCount = await campaignRows.count();
 
@@ -197,8 +208,8 @@ test.describe("Campaign CRUD Operations", () => {
     for (let i = 0; i < rowCount; i++) {
       const row = campaignRows.nth(i);
       const status = await row.locator('[class*="badge"]').textContent();
-      
-      if (status && ["Draft", "Completed", "Failed"].some(s => status.includes(s))) {
+
+      if (status && ["Draft", "Completed", "Failed"].some((s) => status.includes(s))) {
         editableRow = row;
         break;
       }
@@ -258,8 +269,8 @@ test.describe("Campaign CRUD Operations", () => {
     for (let i = 0; i < rowCount; i++) {
       const row = campaignRows.nth(i);
       const status = await row.locator('[class*="badge"]').textContent();
-      
-      if (status && ["Ready to Send", "Completed", "In Progress"].some(s => status.includes(s))) {
+
+      if (status && ["Ready to Send", "Completed", "In Progress"].some((s) => status.includes(s))) {
         viewableRow = row;
         break;
       }
@@ -279,7 +290,7 @@ test.describe("Campaign CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
 
     // Verify campaign results page elements
-    await expect(page.locator('h1').first()).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
 
     // Verify summary cards
     await expect(page.locator('text="Total Donors"')).toBeVisible();
@@ -288,18 +299,18 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Verify tabs
     const tabs = page.locator('[role="tablist"]');
-    if (await tabs.count() > 0) {
+    if ((await tabs.count()) > 0) {
       await expect(page.locator('[role="tab"]:has-text("Emails")')).toBeVisible();
       await expect(page.locator('[role="tab"]:has-text("Chat History")')).toBeVisible();
     }
 
     // Verify email list or empty state
-    const emailList = page.locator('[data-email-preview], .email-preview');
-    const emptyState = page.locator('text=/no.*email|empty/i');
-    
-    const hasEmails = await emailList.count() > 0;
-    const isEmpty = await emptyState.count() > 0;
-    
+    const emailList = page.locator("[data-email-preview], .email-preview");
+    const emptyState = page.locator("text=/no.*email|empty/i");
+
+    const hasEmails = (await emailList.count()) > 0;
+    const isEmpty = (await emptyState.count()) > 0;
+
     expect(hasEmails || isEmpty).toBeTruthy();
   });
 
@@ -309,9 +320,9 @@ test.describe("Campaign CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
 
     // Look for campaigns with different statuses - use more flexible selectors
-    const statusElements = page.locator('span, div').filter({ hasText: /^(Draft|Pending|Ready to Send|Failed)$/i });
-    
-    if (await statusElements.count() === 0) {
+    const statusElements = page.locator("span, div").filter({ hasText: /^(Draft|Pending|Ready to Send|Failed)$/i });
+
+    if ((await statusElements.count()) === 0) {
       console.log("No campaign status badges found, skipping test");
       test.skip();
       return;
@@ -319,24 +330,24 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Just verify that status badges exist and are visible
     const draftBadge = statusElements.filter({ hasText: /^Draft$/i }).first();
-    if (await draftBadge.count() > 0) {
+    if ((await draftBadge.count()) > 0) {
       await expect(draftBadge).toBeVisible();
       // Verify it has some styling (any class attribute)
-      const hasClass = await draftBadge.getAttribute('class');
+      const hasClass = await draftBadge.getAttribute("class");
       expect(hasClass).toBeTruthy();
     }
 
     const readyBadge = statusElements.filter({ hasText: /^Ready to Send$/i }).first();
-    if (await readyBadge.count() > 0) {
+    if ((await readyBadge.count()) > 0) {
       await expect(readyBadge).toBeVisible();
-      const hasClass = await readyBadge.getAttribute('class');
+      const hasClass = await readyBadge.getAttribute("class");
       expect(hasClass).toBeTruthy();
     }
 
     const failedBadge = statusElements.filter({ hasText: /^Failed$/i }).first();
-    if (await failedBadge.count() > 0) {
+    if ((await failedBadge.count()) > 0) {
       await expect(failedBadge).toBeVisible();
-      const hasClass = await failedBadge.getAttribute('class');
+      const hasClass = await failedBadge.getAttribute("class");
       expect(hasClass).toBeTruthy();
     }
   });
@@ -350,10 +361,10 @@ test.describe("Campaign CRUD Operations", () => {
     const campaignRows = page.locator("table tbody tr");
     let targetRow = null;
 
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const status = await row.locator('[class*="badge"]').textContent();
-      
+
       if (status && status.includes("Ready to Send")) {
         targetRow = row;
         break;
@@ -374,8 +385,8 @@ test.describe("Campaign CRUD Operations", () => {
     await expect(dialog).toBeVisible({ timeout: 5000 });
 
     // Verify dialog shows campaign details
-    await expect(dialog.locator('text=/save.*draft/i')).toBeVisible();
-    await expect(dialog.locator('text=/\\d+.*email/i')).toBeVisible();
+    await expect(dialog.locator("text=/save.*draft/i")).toBeVisible();
+    await expect(dialog.locator("text=/\\d+.*email/i")).toBeVisible();
 
     // Click confirm button
     const confirmButton = dialog.locator('button:has-text("Save"), button:has-text("Confirm")').last();
@@ -395,10 +406,10 @@ test.describe("Campaign CRUD Operations", () => {
     const campaignRows = page.locator("table tbody tr");
     let failedRow = null;
 
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const status = await row.locator('[class*="badge"]').textContent();
-      
+
       if (status && status.includes("Failed")) {
         failedRow = row;
         break;
@@ -417,7 +428,7 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Verify status changes to Pending or In Progress
     await page.waitForTimeout(2000);
-    
+
     const newStatus = await failedRow.locator('[class*="badge"]').textContent();
     expect(newStatus).toMatch(/Pending|In Progress|Generating/i);
   });
@@ -428,14 +439,16 @@ test.describe("Campaign CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
 
     // Quick campaign creation for deletion test
-    const donorCheckboxes = page.locator('input[type="checkbox"][data-donor-id], table tbody tr input[type="checkbox"]');
-    if (await donorCheckboxes.count() > 0) {
+    const donorCheckboxes = page.locator(
+      'input[type="checkbox"][data-donor-id], table tbody tr input[type="checkbox"]'
+    );
+    if ((await donorCheckboxes.count()) > 0) {
       await donorCheckboxes.first().check();
       await page.click('button:has-text("Next")');
       await page.waitForTimeout(500);
 
       // Set campaign name
-      await page.fill('input#campaignName', `Delete Test ${Date.now()}`);
+      await page.fill("input#campaignName", generateTestName("Delete Test"));
       await page.click('button:has-text("Next")');
       await page.waitForTimeout(500);
 
@@ -449,11 +462,11 @@ test.describe("Campaign CRUD Operations", () => {
     const campaignRows = page.locator("table tbody tr");
     let deleteRow = null;
 
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const status = await row.locator('[class*="badge"]').textContent();
       const name = await row.locator("td").first().textContent();
-      
+
       if (status && status.includes("Draft") && name && name.includes("Delete Test")) {
         deleteRow = row;
         break;
@@ -462,10 +475,10 @@ test.describe("Campaign CRUD Operations", () => {
 
     if (!deleteRow) {
       // Try any draft campaign
-      for (let i = 0; i < await campaignRows.count(); i++) {
+      for (let i = 0; i < (await campaignRows.count()); i++) {
         const row = campaignRows.nth(i);
         const status = await row.locator('[class*="badge"]').textContent();
-        
+
         if (status && status.includes("Draft")) {
           deleteRow = row;
           break;
@@ -487,8 +500,8 @@ test.describe("Campaign CRUD Operations", () => {
     await expect(dialog).toBeVisible({ timeout: 5000 });
 
     // Verify delete confirmation message
-    await expect(dialog.locator('text=/delete.*campaign/i')).toBeVisible();
-    await expect(dialog.locator('text=/cannot.*undone/i')).toBeVisible();
+    await expect(dialog.locator("text=/delete.*campaign/i")).toBeVisible();
+    await expect(dialog.locator("text=/cannot.*undone/i")).toBeVisible();
 
     // Click confirm delete
     const confirmButton = dialog.locator('button:has-text("Delete")').last();
@@ -508,14 +521,14 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Check if there are campaigns
     const table = page.locator("table");
-    if (await table.count() === 0) {
+    if ((await table.count()) === 0) {
       test.skip();
       return;
     }
 
     // Test search if search input exists
     const searchInput = page.locator('input[placeholder*="Search"]');
-    if (await searchInput.count() > 0) {
+    if ((await searchInput.count()) > 0) {
       await searchInput.fill("test");
       await page.waitForTimeout(1000); // Wait for search
 
@@ -530,10 +543,10 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Test pagination if available
     const paginationControls = page.locator('[aria-label*="pagination"], [class*="pagination"]');
-    if (await paginationControls.count() > 0) {
+    if ((await paginationControls.count()) > 0) {
       // Check for next page button
       const nextButton = page.locator('button[aria-label="Next page"], button:has-text("Next")');
-      if (await nextButton.count() > 0 && await nextButton.isEnabled()) {
+      if ((await nextButton.count()) > 0 && (await nextButton.isEnabled())) {
         await nextButton.click();
         await page.waitForTimeout(1000);
 
@@ -542,7 +555,7 @@ test.describe("Campaign CRUD Operations", () => {
 
         // Go back to first page
         const prevButton = page.locator('button[aria-label="Previous page"], button:has-text("Previous")');
-        if (await prevButton.count() > 0) {
+        if ((await prevButton.count()) > 0) {
           await prevButton.click();
           await page.waitForTimeout(1000);
         }

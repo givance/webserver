@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { cleanupBetweenTests } from "../setup/test-cleanup";
+import { createTestDonor, generateTestEmail, generateTestName } from "../utils/test-data-factory";
 
 test.describe("Donors CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to donors page
     await page.goto("/donors");
     await page.waitForLoadState("networkidle");
+  });
+
+  test.afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupBetweenTests();
   });
 
   test("should display donors list page with key elements", async ({ page }) => {
@@ -36,18 +43,7 @@ test.describe("Donors CRUD Operations", () => {
     await expect(page.locator('h1:has-text("Add New Donor")')).toBeVisible();
 
     // Fill in the form with test data
-    const testDonor = {
-      firstName: `Test${Date.now()}`,
-      lastName: "Donor",
-      email: `test${Date.now()}@example.com`,
-      phone: "(555) 123-4567",
-      address: "123 Test Street",
-      city: "Test City",
-      state: "NY",
-      postalCode: "10001",
-      country: "United States",
-      notes: "This is a test donor created by e2e tests",
-    };
+    const testDonor = createTestDonor();
 
     // Fill required fields
     await page.fill('input[placeholder="John"]', testDonor.firstName);
@@ -91,25 +87,20 @@ test.describe("Donors CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    // Check if there are any donor rows in the table
-    const tableRows = page.locator("table tbody tr");
-    const rowCount = await tableRows.count();
+    // Always create a fresh test donor for this test to ensure predictable state
+    await test.step("Create a donor for viewing", async () => {
+      await page.click('a[href="/donors/add"] button');
+      await page.waitForURL("**/donors/add");
 
-    if (rowCount === 0) {
-      // If no donors exist, create one
-      await test.step("Create a donor for viewing", async () => {
-        await page.click('a[href="/donors/add"] button');
-        await page.waitForURL("**/donors/add");
+      const testDonor = createTestDonor("view");
+      await page.fill('input[placeholder="John"]', testDonor.firstName);
+      await page.fill('input[placeholder="Doe"]', testDonor.lastName);
+      await page.fill('input[placeholder="john.doe@example.com"]', testDonor.email);
+      await page.click('button:has-text("Create Donor")');
 
-        await page.fill('input[placeholder="John"]', "ViewTest");
-        await page.fill('input[placeholder="Doe"]', "Donor");
-        await page.fill('input[placeholder="john.doe@example.com"]', `view${Date.now()}@example.com`);
-        await page.click('button:has-text("Create Donor")');
-
-        await page.waitForURL("**/donors");
-        await page.waitForTimeout(2000);
-      });
-    }
+      await page.waitForURL("**/donors");
+      await page.waitForTimeout(2000);
+    });
 
     // Find and click the first donor link
     const donorLink = page.locator("table tbody tr a[href*='/donors/']").first();
@@ -149,21 +140,21 @@ test.describe("Donors CRUD Operations", () => {
     // Verify we're on the donor detail page
     // Check that we have navigated away from the donors list
     await expect(page.url()).toMatch(/\/donors\/\d+$/);
-    
+
     // Wait for the page to fully load
     await page.waitForTimeout(1000);
-    
+
     // Check for any donor-specific content on the detail page
     const donorDetailElements = [
-      'h1', // Page title
-      'h2', // Section headers
-      'h3', // Subsection headers
+      "h1", // Page title
+      "h2", // Section headers
+      "h3", // Subsection headers
       'text="Notes"', // Notes section
       'text="Communications"', // Communications section
       '[data-slot="card"]', // Card elements
-      '.card' // Alternative card selector
+      ".card", // Alternative card selector
     ];
-    
+
     let foundDetailElement = false;
     for (const selector of donorDetailElements) {
       const element = page.locator(selector).first();
@@ -173,7 +164,7 @@ test.describe("Donors CRUD Operations", () => {
         break;
       }
     }
-    
+
     expect(foundDetailElement).toBe(true);
   });
 
@@ -182,27 +173,22 @@ test.describe("Donors CRUD Operations", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    // Check if there are any donors
-    const tableRows = page.locator("table tbody tr");
-    const rowCount = await tableRows.count();
+    // Always create a fresh test donor for editing to ensure predictable state
+    await test.step("Create a donor for editing", async () => {
+      await page.click('a[href="/donors/add"] button');
+      await page.waitForURL("**/donors/add");
 
-    if (rowCount === 0) {
-      // Create a donor if none exist
-      await test.step("Create a donor for editing", async () => {
-        await page.click('a[href="/donors/add"] button');
-        await page.waitForURL("**/donors/add");
+      const testDonor = createTestDonor("edit");
+      await page.fill('input[placeholder="John"]', testDonor.firstName);
+      await page.fill('input[placeholder="Doe"]', testDonor.lastName);
+      await page.fill('input[placeholder="john.doe@example.com"]', testDonor.email);
+      await page.fill('input[placeholder="(555) 123-4567"]', "(555) 111-2222");
+      await page.fill('textarea[placeholder*="Additional information"]', "Initial notes");
+      await page.click('button:has-text("Create Donor")');
 
-        await page.fill('input[placeholder="John"]', "EditTest");
-        await page.fill('input[placeholder="Doe"]', "Donor");
-        await page.fill('input[placeholder="john.doe@example.com"]', `edit${Date.now()}@example.com`);
-        await page.fill('input[placeholder="(555) 123-4567"]', "(555) 111-2222");
-        await page.fill('textarea[placeholder*="Additional information"]', "Initial notes");
-        await page.click('button:has-text("Create Donor")');
-
-        await page.waitForURL("**/donors");
-        await page.waitForTimeout(2000);
-      });
-    }
+      await page.waitForURL("**/donors");
+      await page.waitForTimeout(2000);
+    });
 
     // Navigate to first donor's detail page
     const donorLink = page.locator("table tbody tr a[href*='/donors/']").first();
@@ -363,7 +349,7 @@ test.describe("Donors CRUD Operations", () => {
 
           await page.fill('input[placeholder="John"]', `BulkTest${i}`);
           await page.fill('input[placeholder="Doe"]', "Donor");
-          await page.fill('input[placeholder="john.doe@example.com"]', `bulk${i}-${Date.now()}@example.com`);
+          await page.fill('input[placeholder="john.doe@example.com"]', generateTestEmail(`bulk${i}`));
           await page.click('button:has-text("Create Donor")');
 
           await page.waitForURL("**/donors");
@@ -444,7 +430,7 @@ test.describe("Donors CRUD Operations", () => {
             await expect(dialog).toBeVisible({ timeout: 5000 });
 
             const listNameInput = dialog.locator("input#list-name");
-            await listNameInput.fill(`Test List ${Date.now()}`);
+            await listNameInput.fill(generateTestName("Test List"));
 
             const createButton = dialog
               .locator('button:has-text("Create List")')

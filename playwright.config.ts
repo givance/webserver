@@ -17,14 +17,16 @@ export default defineConfig({
   testDir: "./src/__tests__/e2e",
   /* Global setup - runs once before all tests */
   globalSetup: require.resolve("./global.setup.ts"),
+  /* Global teardown - runs once after all tests */
+  globalTeardown: require.resolve("./global.teardown.ts"),
   /* Run tests in files in parallel */
   fullyParallel: false, // Disable for database tests
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Force sequential execution to prevent race conditions */
+  workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */

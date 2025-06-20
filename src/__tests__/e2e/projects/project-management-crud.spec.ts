@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { cleanupBetweenTests } from "../setup/test-cleanup";
+import { createTestProject, generateTestName } from "../utils/test-data-factory";
 
 test.describe("Projects CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to projects page
     await page.goto("/projects");
     await page.waitForLoadState("networkidle");
+  });
+
+  test.afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupBetweenTests();
   });
 
   test("should display projects list page with key elements", async ({ page }) => {
@@ -40,12 +47,7 @@ test.describe("Projects CRUD Operations", () => {
     await expect(page.locator('h1:has-text("Add New Project")')).toBeVisible();
 
     // Fill in the form with test data
-    const testProject = {
-      name: `Test Project ${Date.now()}`,
-      description: "This is a test project created by e2e tests",
-      goal: "50000",
-      tags: ["test", "e2e"],
-    };
+    const testProject = createTestProject();
 
     // Fill project name - the form uses react-hook-form, so look for the input by its label
     const nameInput = page
@@ -70,7 +72,7 @@ test.describe("Projects CRUD Operations", () => {
 
     // Add tags (if the tag input is available)
     const tagInput = page.locator('input[placeholder*="tag"]');
-    if (await tagInput.isVisible()) {
+    if ((await tagInput.isVisible()) && testProject.tags) {
       for (const tag of testProject.tags) {
         await tagInput.fill(tag);
         await tagInput.press("Enter");
@@ -111,7 +113,8 @@ test.describe("Projects CRUD Operations", () => {
       await test.step("Create a project for viewing", async () => {
         await page.click('a[href="/projects/add"] button');
         await page.waitForURL("**/projects/add");
-        await page.fill('input[name="name"]', `View Test Project ${Date.now()}`);
+        const testProject = createTestProject("view");
+        await page.fill('input[name="name"]', testProject.name);
         await page.fill('textarea[name="description"]', "Test project for viewing");
         await page.click('button:has-text("Create Project")');
         await page.waitForURL("**/projects");
@@ -176,7 +179,8 @@ test.describe("Projects CRUD Operations", () => {
       await test.step("Create a project for editing", async () => {
         await page.click('a[href="/projects/add"] button');
         await page.waitForURL("**/projects/add");
-        await page.fill('input[name="name"]', `Edit Test Project ${Date.now()}`);
+        const testProject = createTestProject("edit");
+        await page.fill('input[name="name"]', testProject.name);
         await page.fill('textarea[name="description"]', "Original description");
         await page.click('button:has-text("Create Project")');
         await page.waitForURL("**/projects");
@@ -195,9 +199,9 @@ test.describe("Projects CRUD Operations", () => {
     await page.waitForTimeout(500);
 
     // Update project information
-    const timestamp = Date.now();
-    await page.fill('input[name="name"]', `Updated Project ${timestamp}`);
-    await page.fill('textarea[name="description"]', `Updated description at ${timestamp}`);
+    const testProject = createTestProject("updated");
+    await page.fill('input[name="name"]', testProject.name);
+    await page.fill('textarea[name="description"]', testProject.description);
 
     // Update goal if field exists
     const goalInput = page.locator('input[name="goal"]');
@@ -250,7 +254,7 @@ test.describe("Projects CRUD Operations", () => {
     // Optionally check if the updated name is visible somewhere on the page
     // This is less strict as the UI might show it differently
     const updatedElements = [
-      `text="Updated Project ${timestamp}"`,
+      `text="${testProject.name}"`,
       `h1:has-text("Updated Project")`,
       `h2:has-text("Updated Project")`,
       'text="Project updated"',
@@ -313,15 +317,15 @@ test.describe("Projects CRUD Operations", () => {
     await test.step("Create a project to delete", async () => {
       await page.click('a[href="/projects/add"] button');
       await page.waitForURL("**/projects/add");
-      const timestamp = Date.now();
-      await page.fill('input[name="name"]', `Delete Test Project ${timestamp}`);
+      const testProject = createTestProject("delete");
+      await page.fill('input[name="name"]', testProject.name);
       await page.fill('textarea[name="description"]', "This project will be deleted");
       await page.click('button:has-text("Create Project")');
       await page.waitForURL("**/projects");
       await page.waitForTimeout(1000);
 
       // Search for the newly created project
-      await page.fill('input[placeholder*="Search projects"]', `Delete Test Project ${timestamp}`);
+      await page.fill('input[placeholder*="Search projects"]', testProject.name);
       await page.waitForTimeout(1000);
     });
 
@@ -360,7 +364,8 @@ test.describe("Projects CRUD Operations", () => {
       await test.step("Create a project for donations navigation", async () => {
         await page.click('a[href="/projects/add"] button');
         await page.waitForURL("**/projects/add");
-        await page.fill('input[name="name"]', `Donations Test Project ${Date.now()}`);
+        const testProject = createTestProject("donations");
+        await page.fill('input[name="name"]', testProject.name);
         await page.fill('textarea[name="description"]', "Test project for donations");
         await page.click('button:has-text("Create Project")');
         await page.waitForURL("**/projects");
