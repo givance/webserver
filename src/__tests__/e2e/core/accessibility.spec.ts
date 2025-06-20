@@ -108,7 +108,7 @@ test.describe('Accessibility Tests', () => {
   })
 
   test('should have proper color contrast', async ({ page }) => {
-    await page.goto('/dashboard')
+    await page.goto('/')
     
     if (!page.url().includes('sign-in') && !page.url().includes('auth')) {
       // Basic color contrast check - ensure text is visible
@@ -135,7 +135,7 @@ test.describe('Accessibility Tests', () => {
   })
 
   test('should handle focus management in modals', async ({ page }) => {
-    await page.goto('/campaigns/new')
+    await page.goto('/campaign')
     
     if (!page.url().includes('sign-in') && !page.url().includes('auth')) {
       // Look for modal triggers
