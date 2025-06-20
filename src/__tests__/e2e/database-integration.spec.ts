@@ -1,10 +1,8 @@
-import { test, expect } from "@playwright/test";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import { expect, test } from "@playwright/test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { eq } from "drizzle-orm";
-import path from "path";
-import { setupTestDatabase, createTestSchema, cleanupTestDatabase } from "../../../test-db/setup-test-db";
+import { cleanupTestDatabase, createTestSchema, setupTestDatabase } from "../../../test-db/setup-test-db";
 
 // Types for our test data (simplified)
 interface TestUser {
@@ -47,9 +45,9 @@ interface TestEmailSession {
 }
 
 test.describe("Database Integration E2E Tests", () => {
-  // Use unique IDs for each test run to avoid conflicts
-  const TEST_ORG_ID = `org_test_e2e_${Date.now()}`;
-  const TEST_USER_ID = `user_test_e2e_${Date.now()}`;
+  // Use specific test user and organization IDs
+  const TEST_ORG_ID = `org_2yl9dNO866AsVhdsRMmTr2CtJ4a`;
+  const TEST_USER_ID = `user_2yl6QlrDHV2dq83Yql2WS9LZWpo`;
   let sqlite: Database.Database;
   let db: ReturnType<typeof drizzle>;
   let dbPath: string;
@@ -84,7 +82,7 @@ test.describe("Database Integration E2E Tests", () => {
       VALUES (?, ?, ?, ?)
     `
       )
-      .run(TEST_USER_ID, "E2E", "Tester", "e2e-test@example.com");
+      .run(TEST_USER_ID, "Test", "User", "testuser@test.com");
 
     // Create test organization
     sqlite
@@ -94,13 +92,7 @@ test.describe("Database Integration E2E Tests", () => {
       VALUES (?, ?, ?, ?, ?)
     `
       )
-      .run(
-        TEST_ORG_ID,
-        "E2E Test Nonprofit",
-        "e2e-test-nonprofit",
-        "A test nonprofit for E2E testing with real database",
-        TEST_USER_ID
-      );
+      .run(TEST_ORG_ID, "Test Org", "test-org", "A test organization for E2E testing with real database", TEST_USER_ID);
 
     // Create organization membership
     sqlite
@@ -232,18 +224,18 @@ test.describe("Database Integration E2E Tests", () => {
           // Type assertion to avoid full interface implementation
           window.Clerk.user = {
             id: testUserId,
-            firstName: "E2E",
-            lastName: "Tester",
+            firstName: "Test",
+            lastName: "User",
             primaryEmailAddress: {
-              emailAddress: "e2e-test@example.com",
+              emailAddress: "testuser@test.com",
               id: "test-email-id",
               verification: { status: "verified" },
             } as any,
           } as any;
           window.Clerk.organization = {
             id: testOrgId,
-            name: "E2E Test Nonprofit",
-            slug: "e2e-test-nonprofit",
+            name: "Test Org",
+            slug: "test-org",
             imageUrl: "",
             hasImage: false,
             membersCount: 1,
