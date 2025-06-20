@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
       loader: "ignore-loader",
     });
 
+    // Exclude test files from the build
+    config.module.rules.push({
+      test: /\.(test|spec)\.(js|jsx|ts|tsx)$/,
+      loader: "ignore-loader",
+    });
+
+    // Exclude __tests__ directories
+    config.module.rules.push({
+      test: /\/__tests__\//,
+      loader: "ignore-loader",
+    });
+
     return config;
   },
 };
