@@ -53,7 +53,12 @@ export function useCommunications() {
   const sendEmails = trpc.gmail.sendEmails.useMutation();
   const sendIndividualEmail = trpc.gmail.sendIndividualEmail.useMutation();
   const sendBulkEmails = trpc.gmail.sendBulkEmails.useMutation();
-  const updateEmail = trpc.communications.campaigns.updateEmail.useMutation();
+  const updateEmail = trpc.communications.campaigns.updateEmail.useMutation({
+    onSuccess: (data) => {
+      // Invalidate all sessions to ensure the updated email is reflected
+      utils.communications.campaigns.getSession.invalidate();
+    },
+  });
   const updateCampaign = trpc.communications.campaigns.updateCampaign.useMutation({
     onSuccess: () => {
       utils.communications.campaigns.listCampaigns.invalidate();

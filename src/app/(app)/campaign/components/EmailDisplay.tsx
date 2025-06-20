@@ -35,7 +35,7 @@ interface ReferencesDisplayProps {
 }
 
 function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayProps) {
-  if (references.length === 0) return null;
+  if (!references || references.length === 0) return null;
 
   return (
     <TooltipProvider>
