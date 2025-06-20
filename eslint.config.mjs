@@ -12,7 +12,6 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    files: ["**/*.ts", "**/*.tsx"],
     ignores: [
       "worktrees/**/*",
       "**/*.test.ts",
@@ -20,8 +19,12 @@ const eslintConfig = [
       "**/*.spec.ts",
       "**/*.spec.tsx",
       "**/__tests__/**/*",
-      "**/test/**/*"
-    ],
+      "**/test/**/*",
+      "src/__tests__/**/*"
+    ]
+  },
+  {
+    files: ["**/*.ts", "**/*.tsx"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
