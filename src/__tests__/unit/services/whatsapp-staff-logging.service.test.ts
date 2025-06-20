@@ -446,14 +446,23 @@ describe('WhatsAppStaffLoggingService', () => {
     });
 
     it('should handle database errors', async () => {
-      mockFrom.mockRejectedValue(new Error('Database error'));
+      // Create a fresh service instance for this test to avoid mock contamination
+      const errorService = new WhatsAppStaffLoggingService();
+      
+      // Mock db.select to throw an error directly
+      (db.select as jest.Mock).mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-      const result = await service.getStaffActivityLog(10);
+      const result = await errorService.getStaffActivityLog(10);
 
       expect(result).toEqual([]);
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Error getting staff activity log')
       );
+      
+      // Reset the mock for other tests
+      (db.select as jest.Mock).mockImplementation(mockSelect);
     });
   });
 
@@ -491,12 +500,21 @@ describe('WhatsAppStaffLoggingService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      mockFrom.mockRejectedValue(new Error('Database error'));
+      // Create a fresh service instance for this test to avoid mock contamination
+      const errorService = new WhatsAppStaffLoggingService();
+      
+      // Mock db.select to throw an error directly
+      (db.select as jest.Mock).mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-      const result = await service.getPhoneActivityLog(10, '+1234567890');
+      const result = await errorService.getPhoneActivityLog(10, '+1234567890');
 
       expect(result).toEqual([]);
       expect(logger.error).toHaveBeenCalled();
+      
+      // Reset the mock for other tests
+      (db.select as jest.Mock).mockImplementation(mockSelect);
     });
   });
 
@@ -569,9 +587,15 @@ describe('WhatsAppStaffLoggingService', () => {
     });
 
     it('should handle database errors', async () => {
-      mockFrom.mockRejectedValue(new Error('Database error'));
+      // Create a fresh service instance for this test to avoid mock contamination
+      const errorService = new WhatsAppStaffLoggingService();
+      
+      // Mock db.select to throw an error directly
+      (db.select as jest.Mock).mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-      const result = await service.getStaffActivityStats(10);
+      const result = await errorService.getStaffActivityStats(10);
 
       expect(result).toEqual({
         totalActivities: 0,
@@ -583,6 +607,9 @@ describe('WhatsAppStaffLoggingService', () => {
         uniquePhoneNumbers: new Set(),
       });
       expect(logger.error).toHaveBeenCalled();
+      
+      // Reset the mock for other tests
+      (db.select as jest.Mock).mockImplementation(mockSelect);
     });
   });
 });
