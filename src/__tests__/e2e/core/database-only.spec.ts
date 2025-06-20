@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { setupTestDatabase, createTestSchema, cleanupTestDatabase } from "../../../test-db/setup-test-db";
+import { setupTestDatabase, createTestSchema, cleanupTestDatabase } from "../../../../test-db/setup-test-db";
 
 test.describe("SQLite Database Setup Tests", () => {
   // Use unique IDs for each test run to avoid conflicts
