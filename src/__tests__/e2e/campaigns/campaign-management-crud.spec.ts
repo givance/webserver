@@ -92,9 +92,9 @@ test.describe("Campaign CRUD Operations", () => {
         'h1:has-text("Choose Donors")',
         'h2:has-text("Select Donors")',
         'h1:has-text("Donors")',
-        'h1', // Fallback to any h1
+        "h1", // Fallback to any h1
       ];
-      
+
       let headingFound = false;
       for (const selector of headingSelectors) {
         const heading = page.locator(selector).first();
@@ -103,7 +103,7 @@ test.describe("Campaign CRUD Operations", () => {
           break;
         }
       }
-      
+
       if (!headingFound) {
         // Skip if we can't find the page
         test.skip();
@@ -118,12 +118,12 @@ test.describe("Campaign CRUD Operations", () => {
         test.skip();
         return;
       }
-      
+
       // Check if there are any donors available
       const donorCheckboxes = page.locator(
         'input[type="checkbox"][data-donor-id], table tbody tr input[type="checkbox"], input[type="checkbox"][name*="donor"]'
       );
-      
+
       // Wait for checkboxes to be available
       await page.waitForTimeout(1000);
       const checkboxCount = await donorCheckboxes.count();
@@ -182,11 +182,13 @@ test.describe("Campaign CRUD Operations", () => {
 
       // Wait for template options to load
       await page.waitForTimeout(1000);
-      
+
       // Select first available template or "Create from scratch"
       const templateOptions = page.locator('input[type="radio"][name="template"]');
-      const fromScratchOption = page.locator('label:has-text("Create from scratch"), button:has-text("Create from scratch")');
-      
+      const fromScratchOption = page.locator(
+        'label:has-text("Create from scratch"), button:has-text("Create from scratch")'
+      );
+
       const templateCount = await templateOptions.count();
 
       if (templateCount > 0) {
@@ -194,11 +196,11 @@ test.describe("Campaign CRUD Operations", () => {
         const firstTemplate = templateOptions.first();
         await firstTemplate.scrollIntoViewIfNeeded();
         await firstTemplate.click({ force: true });
-      } else if (await fromScratchOption.count() > 0) {
+      } else if ((await fromScratchOption.count()) > 0) {
         // Use create from scratch if no templates
         await fromScratchOption.first().click();
       }
-      
+
       await page.waitForTimeout(500);
 
       // Click Next and wait for navigation
@@ -221,7 +223,7 @@ test.describe("Campaign CRUD Operations", () => {
 
       // Send instructions
       const sendButton = page.locator('button:has-text("Send")');
-      await sendButton.waitFor({ state: "enabled", timeout: 5000 });
+      await sendButton.waitFor({ state: "visible", timeout: 5000 });
       await sendButton.click();
 
       // Wait for AI response with proper timeout and retry
@@ -230,7 +232,7 @@ test.describe("Campaign CRUD Operations", () => {
 
       // Wait for preview content to load
       await page.waitForTimeout(2000);
-      
+
       // Verify we can start bulk generation
       const bulkGenerateButton = page.locator('button:has-text("Start Bulk Generation"), button:has-text("Generate")');
       await expect(bulkGenerateButton.first()).toBeVisible({ timeout: 10000 });
@@ -249,7 +251,7 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
-    
+
     // Check if there are any campaigns to edit
     const campaignRows = page.locator("table tbody tr");
     const rowCount = await campaignRows.count();
@@ -264,8 +266,8 @@ test.describe("Campaign CRUD Operations", () => {
     for (let i = 0; i < rowCount; i++) {
       const row = campaignRows.nth(i);
       const statusBadge = row.locator('[class*="badge"], span[data-status]');
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         const status = await statusBadge.first().textContent();
         if (status && ["Draft", "Completed", "Failed"].some((s) => status.includes(s))) {
           editableRow = row;
@@ -302,14 +304,16 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Send the updated instruction
     const sendButton = page.locator('button:has-text("Send")');
-    await sendButton.waitFor({ state: "enabled", timeout: 5000 });
+    await sendButton.waitFor({ state: "visible", timeout: 5000 });
     await sendButton.click();
 
     // Wait for AI response
     await page.waitForTimeout(5000);
 
     // Verify we can generate more emails - look for various possible buttons
-    const generateButtons = page.locator('button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")');
+    const generateButtons = page.locator(
+      'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
+    );
     await expect(generateButtons.first()).toBeVisible({ timeout: 30000 });
   });
 
@@ -317,7 +321,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Navigate to existing campaigns
     await page.goto("/existing-campaigns");
     await page.waitForLoadState("networkidle");
-    
+
     // Wait for table to load
     await page.waitForTimeout(2000);
 
@@ -333,11 +337,11 @@ test.describe("Campaign CRUD Operations", () => {
     let viewableRow = null;
     for (let i = 0; i < rowCount; i++) {
       const row = campaignRows.nth(i);
-      
+
       // Look for status badges with various selectors
       const statusBadge = row.locator('[class*="badge"], span[data-status], div[class*="status"]').first();
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         try {
           const status = await statusBadge.textContent({ timeout: 5000 });
           if (status && ["Ready to Send", "Completed", "In Progress"].some((s) => status.includes(s))) {
@@ -371,18 +375,18 @@ test.describe("Campaign CRUD Operations", () => {
     // Verify summary cards with more flexible selectors
     const summaryCards = page.locator('[class*="card"], div[data-card]');
     await expect(summaryCards.first()).toBeVisible({ timeout: 10000 });
-    
+
     // Look for various labels that might be present
     const expectedLabels = [
       'text="Total Donors"',
-      'text="Generated Emails"', 
+      'text="Generated Emails"',
       'text="Sent Emails"',
       'text="Donors"',
       'text="Emails"',
-      'text=/\\d+.*generated/i',
-      'text=/total.*\\d+/i'
+      "text=/\\d+.*generated/i",
+      "text=/total.*\\d+/i",
     ];
-    
+
     let foundLabels = 0;
     for (const label of expectedLabels) {
       const element = page.locator(label).first();
@@ -390,7 +394,7 @@ test.describe("Campaign CRUD Operations", () => {
         foundLabels++;
       }
     }
-    
+
     // Should find at least some summary information
     expect(foundLabels).toBeGreaterThan(0);
 
@@ -405,10 +409,10 @@ test.describe("Campaign CRUD Operations", () => {
     // Verify some content exists on the page
     const contentAreas = page.locator(
       "[data-email-preview], .email-preview, " +
-      "div[class*='email'], table tbody tr, " +
-      "div[class*='content'], div[class*='empty']"
+        "div[class*='email'], table tbody tr, " +
+        "div[class*='content'], div[class*='empty']"
     );
-    
+
     expect(await contentAreas.count()).toBeGreaterThan(0);
   });
 
@@ -454,7 +458,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Navigate to existing campaigns
     await page.goto("/existing-campaigns");
     await page.waitForLoadState("networkidle");
-    
+
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
@@ -465,8 +469,8 @@ test.describe("Campaign CRUD Operations", () => {
     for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const statusBadge = row.locator('[class*="badge"], span[data-status]');
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         const status = await statusBadge.first().textContent();
         if (status && (status.includes("Ready to Send") || status.includes("Completed"))) {
           targetRow = row;
@@ -491,10 +495,10 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Verify dialog shows campaign details
     await expect(dialog.locator("text=/save.*draft|draft.*save/i").first()).toBeVisible({ timeout: 5000 });
-    
+
     // Look for email count in dialog
     const emailCount = dialog.locator("text=/\\d+.*email|email.*\\d+/i");
-    if (await emailCount.count() > 0) {
+    if ((await emailCount.count()) > 0) {
       await expect(emailCount.first()).toBeVisible();
     }
 
@@ -503,7 +507,9 @@ test.describe("Campaign CRUD Operations", () => {
     await confirmButton.last().click();
 
     // Wait for success message
-    const successToast = page.locator('[data-sonner-toast], [role="status"], div[data-toast]').filter({ hasText: /saved|success/i });
+    const successToast = page
+      .locator('[data-sonner-toast], [role="status"], div[data-toast]')
+      .filter({ hasText: /saved|success/i });
     await expect(successToast.first()).toBeVisible({ timeout: 15000 });
   });
 
@@ -511,7 +517,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Navigate to existing campaigns
     await page.goto("/existing-campaigns");
     await page.waitForLoadState("networkidle");
-    
+
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
@@ -522,13 +528,13 @@ test.describe("Campaign CRUD Operations", () => {
     for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const statusBadge = row.locator('[class*="badge"], span[data-status]');
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         const status = await statusBadge.first().textContent();
         if (status && (status.includes("Failed") || status.includes("Pending"))) {
           // Check if retry button exists
           const retryBtn = row.locator('button:has-text("Retry")');
-          if (await retryBtn.count() > 0) {
+          if ((await retryBtn.count()) > 0) {
             retryableRow = row;
             break;
           }
@@ -545,7 +551,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Get initial status
     const initialStatusBadge = retryableRow.locator('[class*="badge"], span[data-status]').first();
     const initialStatus = await initialStatusBadge.textContent();
-    
+
     // Click Retry button
     const retryButton = retryableRow.locator('button:has-text("Retry")');
     await retryButton.waitFor({ state: "visible", timeout: 5000 });
@@ -553,11 +559,11 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Wait for status change with polling
     await page.waitForTimeout(3000);
-    
+
     // Check if status changed
     const newStatusBadge = retryableRow.locator('[class*="badge"], span[data-status]').first();
     const newStatus = await newStatusBadge.textContent();
-    
+
     // Status should change from initial status
     expect(newStatus).not.toBe(initialStatus);
     expect(newStatus).toMatch(/Pending|In Progress|Generating|Processing/i);
