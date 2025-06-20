@@ -26,7 +26,7 @@ test.describe("Authentication State Tests", () => {
       console.log("User appears to be authenticated or on public page");
 
       // Verify we're on our application
-      expect(currentUrl).toMatch(/localhost:3001/);
+      expect(currentUrl).toMatch(/localhost:5001/);
 
       // Check that the page has content
       const bodyText = await page.textContent("body");
@@ -52,7 +52,7 @@ test.describe("Authentication State Tests", () => {
     } else {
       // If user is authenticated, should be able to access donors page
       console.log("User authenticated - accessing donors page");
-      expect(currentUrl).toMatch(/localhost:3001.*donors/);
+      expect(currentUrl).toMatch(/localhost:5001.*donors/);
 
       // Should have some content on the page
       const hasContent = await page.locator("main, body, .content").first().isVisible();
@@ -75,7 +75,7 @@ test.describe("Authentication State Tests", () => {
     } else {
       // If authenticated, should access campaign page
       console.log("User authenticated - accessing campaign page");
-      expect(currentUrl).toMatch(/localhost:3001.*campaign/);
+      expect(currentUrl).toMatch(/localhost:5001.*campaign/);
 
       const hasContent = await page.locator("main, body, .content").first().isVisible();
       expect(hasContent).toBe(true);
@@ -101,7 +101,7 @@ test.describe("Authentication State Tests", () => {
       expect(urlAfterRefresh).toMatch(/(sign-in|accounts\.dev)/);
     } else {
       // If was authenticated before, should maintain that state
-      expect(urlAfterRefresh).toMatch(/localhost:3001/);
+      expect(urlAfterRefresh).toMatch(/localhost:5001/);
       expect(urlAfterRefresh).not.toContain("sign-in");
     }
   });

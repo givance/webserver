@@ -153,7 +153,7 @@ test.describe("Dashboard", () => {
             // Should navigate somewhere
             const newUrl = page.url();
             console.log(`Navigated to: ${newUrl}`);
-            expect(newUrl).toMatch(/localhost:3001/);
+            expect(newUrl).toMatch(/localhost:5001/);
             break;
           } catch (error) {
             console.log(`Navigation click failed: ${error}`);

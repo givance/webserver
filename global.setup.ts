@@ -22,7 +22,7 @@ setup("authenticate and save state to storage", async ({ page }) => {
       cookies: [],
       origins: [
         {
-          origin: "http://localhost:3001",
+          origin: "http://localhost:5001",
           localStorage: [],
         },
       ],

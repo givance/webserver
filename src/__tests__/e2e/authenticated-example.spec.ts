@@ -27,7 +27,7 @@ test.describe("Application Features", () => {
     } else {
       // If user is authenticated, should access donors page
       console.log("User authenticated - accessing donors page");
-      expect(currentUrl).toMatch(/localhost:3001.*donors/);
+      expect(currentUrl).toMatch(/localhost:5001.*donors/);
 
       // Look for page elements that indicate successful load
       const pageElements = ["h1", "main", "body", "table", ".content"];
@@ -62,7 +62,7 @@ test.describe("Application Features", () => {
     } else {
       // If authenticated, should access campaign page
       console.log("User authenticated - accessing campaign page");
-      expect(currentUrl).toMatch(/localhost:3001.*campaign/);
+      expect(currentUrl).toMatch(/localhost:5001.*campaign/);
 
       // Should be able to see campaign interface
       const campaignElements = ["h1", "main", "body", "button", ".content"];

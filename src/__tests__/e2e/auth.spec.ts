@@ -37,7 +37,7 @@ test.describe("Authentication Flow", () => {
     } else {
       // If not on sign-in, the app might handle auth differently
       // Just ensure the page loads without errors
-      expect(page.url()).toMatch(/localhost:3001/);
+      expect(page.url()).toMatch(/localhost:5001/);
     }
   });
 

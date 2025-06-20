@@ -302,7 +302,7 @@ This project uses Playwright for end-to-end testing with proper Clerk authentica
    
    # Other test environment variables
    NODE_ENV=test
-   PLAYWRIGHT_BASE_URL=http://localhost:3001
+   PLAYWRIGHT_BASE_URL=http://localhost:5001
    ```
 
 2. **Create Test User in Clerk Dashboard**
