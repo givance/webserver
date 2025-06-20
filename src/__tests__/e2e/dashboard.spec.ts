@@ -1,33 +1,23 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard", () => {
-  test.beforeEach(async ({ page }) => {
-    // Mock authentication
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.setItem("__clerk_db_jwt", "mock-jwt-token");
-    });
-    await page.waitForLoadState("networkidle");
-  });
+  // No beforeEach needed - authentication state is already loaded from storage
 
-  test("should load dashboard page", async ({ page }) => {
+  test("should load dashboard page with authenticated content", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Check if we're redirected to auth
+    // With proper authentication, we should not be redirected to sign-in
     const currentUrl = page.url();
-    if (currentUrl.includes("sign-in") || currentUrl.includes("auth")) {
-      // If redirected to auth, that's expected behavior
-      expect(currentUrl).toMatch(/(sign-in|auth|login)/);
-      return;
-    }
+    expect(currentUrl).not.toContain("sign-in");
+    expect(currentUrl).not.toContain("accounts.dev");
 
-    // If not redirected, check that the page loads with content
+    // Page should have substantial content
     const bodyText = await page.textContent("body");
     expect(bodyText).toBeTruthy();
     expect(bodyText!.length).toBeGreaterThan(100);
 
-    // Look for any main content elements
+    // Look for main content elements that indicate a working dashboard
     const contentElements = [
       "main",
       ".main-content",
@@ -50,7 +40,6 @@ test.describe("Dashboard", () => {
       }
     }
 
-    // Should have some main content
     expect(hasContent).toBe(true);
   });
 
@@ -169,13 +158,7 @@ test.describe("Dashboard", () => {
 });
 
 test.describe("Quick Actions", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.setItem("__clerk_db_jwt", "mock-jwt-token");
-    });
-    await page.waitForLoadState("networkidle");
-  });
+  // No beforeEach needed - authentication state is already loaded from storage
 
   test("should handle basic page functionality", async ({ page }) => {
     await page.goto("/");

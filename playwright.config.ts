@@ -6,6 +6,12 @@ import path from "path";
 dotenv.config({ path: path.resolve(__dirname, ".env.test") });
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
+// Debug environment variables
+console.log("🔍 Environment check:");
+console.log("E2E_CLERK_USER_USERNAME:", process.env.E2E_CLERK_USER_USERNAME ? "✅ Set" : "❌ Missing");
+console.log("E2E_CLERK_USER_PASSWORD:", process.env.E2E_CLERK_USER_PASSWORD ? "✅ Set" : "❌ Missing");
+console.log("CLERK_PUBLISHABLE_KEY:", process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? "✅ Set" : "❌ Missing");
+
 // Ensure Clerk env vars are set
 process.env.CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY;
 process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
@@ -42,36 +48,10 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-    // Global setup project
+    // Setup - runs clerk setup and authentication
     {
-      name: "global setup",
-      testMatch: /global\.setup\.ts/,
-    },
-
-    // Core essential tests (no auth required)
-    {
-      name: "Core tests",
-      use: {
-        ...devices["Desktop Chrome"],
-      },
-      testMatch: [
-        "**/database-only.spec.ts", // SQLite database tests (working)
-        "**/auth.spec.ts", // Fixed auth tests
-        "**/dashboard.spec.ts", // Fixed dashboard tests
-        "**/smoke-tests.spec.ts", // Basic smoke tests
-      ],
-      testIgnore: [
-        "**/authenticated-*.spec.ts",
-        "**/login.spec.ts",
-        "**/database-integration.spec.ts",
-        "**/real-*.spec.ts",
-        "**/clerk-*.spec.ts",
-        "**/simple-auth.spec.ts",
-        "**/campaign-management.spec.ts",
-        "**/donor-management.spec.ts",
-        "**/accessibility.spec.ts",
-      ],
-      dependencies: ["global setup"],
+      name: "setup",
+      testMatch: "**/setup/auth.setup.ts",
     },
 
     // Authenticated tests (requires auth state)
@@ -83,17 +63,30 @@ export default defineConfig({
         storageState: "playwright/.clerk/user.json",
       },
       testMatch: [
-        "**/authenticated-example.spec.ts",
-        "**/login.spec.ts", // Updated login tests
+        "**/authenticated-*.spec.ts",
+        "**/dashboard.spec.ts",
+        "**/campaign-management.spec.ts",
+        "**/donor-management.spec.ts",
+        "**/login.spec.ts",
       ],
+      dependencies: ["setup"],
+    },
+
+    // Core tests (no auth required)
+    {
+      name: "Core tests",
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+      testMatch: ["**/database-only.spec.ts", "**/auth.spec.ts", "**/smoke-tests.spec.ts", "**/accessibility.spec.ts"],
       testIgnore: [
-        "**/database-integration.spec.ts", // Skip until Clerk setup is complete
-        "**/real-*.spec.ts",
-        "**/clerk-*.spec.ts",
-        "**/simple-auth.spec.ts",
-        "**/authenticated-flow.spec.ts",
+        "**/authenticated-*.spec.ts",
+        "**/dashboard.spec.ts",
+        "**/campaign-management.spec.ts",
+        "**/donor-management.spec.ts",
+        "**/login.spec.ts",
       ],
-      dependencies: ["global setup"],
+      dependencies: ["setup"],
     },
   ],
 
