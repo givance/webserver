@@ -21,11 +21,13 @@ test.describe("Projects CRUD Operations", () => {
     const tableOrEmptyState = page.locator('table, text:has-text("No projects"), text:has-text("No results")');
     await expect(tableOrEmptyState.first()).toBeVisible();
 
-    // Verify page size selector
-    await expect(page.locator('button[aria-label*="page size"], button:has-text("rows")')).toBeVisible();
+    // Verify page size selector - it's a Select component
+    const pageSizeSelector = page.locator('button[role="combobox"]').filter({ hasText: /items per page/i });
+    await expect(pageSizeSelector).toBeVisible();
 
-    // Verify Campaign button is present
-    await expect(page.locator('button').filter({ hasText: /campaign/i })).toBeVisible();
+    // Verify Campaign button is present - it's in the main content area
+    const mainCampaignButton = page.getByRole('main').getByRole('button', { name: 'Campaign' });
+    await expect(mainCampaignButton).toBeVisible();
   });
 
   test("should create a new project", async ({ page }) => {
@@ -45,14 +47,17 @@ test.describe("Projects CRUD Operations", () => {
       tags: ["test", "e2e"],
     };
 
-    // Fill project name
-    await page.fill('input[name="name"]', testProject.name);
+    // Fill project name - the form uses react-hook-form, so look for the input by its label
+    const nameInput = page.locator('input').filter({ has: page.locator('..').filter({ hasText: 'Name' }) }).first();
+    await nameInput.fill(testProject.name);
 
     // Fill description
-    await page.fill('textarea[name="description"]', testProject.description);
+    const descriptionTextarea = page.locator('textarea').filter({ has: page.locator('..').filter({ hasText: 'Description' }) }).first();
+    await descriptionTextarea.fill(testProject.description);
 
     // Fill goal amount
-    await page.fill('input[name="goal"]', testProject.goal);
+    const goalInput = page.locator('input[type="number"]').filter({ has: page.locator('..').filter({ hasText: 'Fundraising Goal' }) }).first();
+    await goalInput.fill(testProject.goal);
 
     // Add tags (if the tag input is available)
     const tagInput = page.locator('input[placeholder*="tag"]');
@@ -64,9 +69,9 @@ test.describe("Projects CRUD Operations", () => {
       }
     }
 
-    // Verify active checkbox is checked by default
-    const activeCheckbox = page.locator('input[type="checkbox"][name="active"]');
-    await expect(activeCheckbox).toBeChecked();
+    // Verify active switch is checked by default - it's a Switch component, not a checkbox
+    const activeSwitch = page.locator('button[role="switch"]');
+    await expect(activeSwitch).toHaveAttribute('data-state', 'checked');
 
     // Submit the form
     await page.click('button:has-text("Create Project")');
@@ -121,8 +126,9 @@ test.describe("Projects CRUD Operations", () => {
     await expect(page.locator('button:has-text("Edit")')).toBeVisible();
     await expect(page.locator('button:has-text("Delete")')).toBeVisible();
 
-    // Verify project details card
-    await expect(page.locator('h2:has-text("Project Details"), h3:has-text("Project Details")')).toBeVisible();
+    // Verify project details card - might use CardTitle which renders as h3
+    const projectDetailsTitle = page.locator('h2, h3').filter({ hasText: 'Project Details' });
+    await expect(projectDetailsTitle.first()).toBeVisible();
 
     // Verify project information sections
     await expect(page.locator('h3:has-text("Description")')).toBeVisible();
