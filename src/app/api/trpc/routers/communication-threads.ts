@@ -21,8 +21,8 @@ const threadDetailsSchema = z.object({
 
 const listThreadsSchema = z.object({
   channel: z.enum(["email", "phone", "text"]).optional(),
-  staffId: z.number().optional(),
-  donorId: z.number().optional(),
+  staffId: z.number().nullable().optional(),
+  donorId: z.number().nullable().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   includeStaff: z.boolean().optional(),

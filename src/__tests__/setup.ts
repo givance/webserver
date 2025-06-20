@@ -1,20 +1,9 @@
 import "@testing-library/jest-dom";
 import { loadEnvConfig } from "@next/env";
 import "./mocks/env.mock";
-import { JSDOM } from "jsdom";
-import { TextEncoder, TextDecoder } from "util";
 
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
-
-// Setup DOM globals
-const dom = new JSDOM();
-global.document = dom.window.document;
-global.window = dom.window as any;
-global.navigator = dom.window.navigator;
-global.HTMLElement = dom.window.HTMLElement;
-global.Text = dom.window.Text;
-global.Range = dom.window.Range;
 
 // Mock console to reduce noise in tests
 global.console = {
@@ -31,16 +20,7 @@ describe("Test setup", () => {
   });
 });
 
-// Polyfill for Node.js environment
-import "whatwg-fetch";
-
-// Polyfill TextEncoder/TextDecoder for Node.js
-if (typeof globalThis.TextEncoder === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const util = require("util");
-  globalThis.TextEncoder = util.TextEncoder;
-  globalThis.TextDecoder = util.TextDecoder;
-}
+// Polyfills are loaded in setupFiles, so no need to duplicate here
 
 // Mock environment variables for tests
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";

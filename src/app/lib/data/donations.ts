@@ -104,8 +104,8 @@ export async function deleteDonation(id: number): Promise<void> {
  */
 export async function listDonations(
   options: {
-    donorId?: number;
-    projectId?: number;
+    donorId?: number | null;
+    projectId?: number | null;
     startDate?: Date;
     endDate?: Date;
     limit?: number;
@@ -132,10 +132,10 @@ export async function listDonations(
     } = options;
 
     const conditions: SQL[] = [];
-    if (donorId !== undefined) {
+    if (donorId !== undefined && donorId !== null) {
       conditions.push(eq(donations.donorId, donorId));
     }
-    if (projectId !== undefined) {
+    if (projectId !== undefined && projectId !== null) {
       conditions.push(eq(donations.projectId, projectId));
     }
     if (startDate) {

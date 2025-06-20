@@ -139,8 +139,8 @@ export class CommunicationsService {
   async listAuthorizedThreads(
     options: {
       channel?: "email" | "phone" | "text";
-      staffId?: number;
-      donorId?: number;
+      staffId?: number | null;
+      donorId?: number | null;
       limit?: number;
       offset?: number;
       includeStaff?: boolean;
@@ -157,12 +157,20 @@ export class CommunicationsService {
     // Filter threads to only include those matching the staff/donor filters
     const filteredThreads = threads.filter((thread) => {
       // Apply staff filter
-      if (options.staffId && !thread.staff?.some((s) => s.staffId === options.staffId)) {
+      if (
+        options.staffId !== undefined &&
+        options.staffId !== null &&
+        !thread.staff?.some((s) => s.staffId === options.staffId)
+      ) {
         return false;
       }
 
       // Apply donor filter
-      if (options.donorId && !thread.donors?.some((d) => d.donorId === options.donorId)) {
+      if (
+        options.donorId !== undefined &&
+        options.donorId !== null &&
+        !thread.donors?.some((d) => d.donorId === options.donorId)
+      ) {
         return false;
       }
 

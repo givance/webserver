@@ -65,8 +65,8 @@ const updateDonationSchema = z.object({
 });
 
 const listDonationsSchema = z.object({
-  donorId: z.number().optional(),
-  projectId: z.number().optional(),
+  donorId: z.number().nullable().optional(),
+  projectId: z.number().nullable().optional(),
   startDate: z.date().optional(),
   endDate: z.date().optional(),
   limit: z.number().min(1).max(100).optional(),

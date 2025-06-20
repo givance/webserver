@@ -8,6 +8,7 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   // Add more setup options before each test is run
+  setupFiles: ['<rootDir>/src/polyfills.ts'],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
 
   // if using TypeScript with a baseUrl set to the root directory then you need the below for alias' to work
