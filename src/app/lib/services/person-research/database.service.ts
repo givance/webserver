@@ -1,8 +1,8 @@
-import { eq, and, desc } from "drizzle-orm";
 import { db } from "@/app/lib/db";
 import { personResearch } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
-import { SavePersonResearchInput, GetPersonResearchInput, PersonResearchDBRecord, PersonResearchResult } from "./types";
+import { and, desc, eq } from "drizzle-orm";
+import { GetPersonResearchInput, PersonResearchDBRecord, SavePersonResearchInput } from "./types";
 
 /**
  * PersonResearchDatabaseService - Service for saving and retrieving person research data

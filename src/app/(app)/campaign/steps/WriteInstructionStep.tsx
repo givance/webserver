@@ -484,10 +484,6 @@ export function WriteInstructionStep({
       sessionId,
       saveGeneratedEmail,
       saveChatHistory,
-      campaignName,
-      selectedDonors,
-      templateId,
-      saveDraft,
     ]
   );
 
@@ -662,6 +658,9 @@ export function WriteInstructionStep({
     generateEmails,
     referenceContexts,
     chatMessages,
+    saveChatHistory,
+    saveGeneratedEmail,
+    sessionId,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history
