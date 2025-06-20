@@ -2,10 +2,10 @@ import { setupTestDatabase, createTestSchema, cleanupTestDatabase } from "./setu
 
 // Test the database setup
 async function verifyDatabaseSetup() {
-  console.log("🧪 Testing SQLite database setup...");
+  console.log("🧪 Testing PostgreSQL database setup...");
 
-  const { db, sqlite, dbPath } = setupTestDatabase();
-  createTestSchema(sqlite);
+  const { db, pool, dbPath } = setupTestDatabase();
+  await createTestSchema(pool);
 
   // Test data
   const TEST_USER_ID = "test_user_123";
@@ -13,74 +13,68 @@ async function verifyDatabaseSetup() {
 
   try {
     // Test user creation
-    sqlite
-      .prepare(
-        `
-      INSERT INTO users (id, firstName, lastName, email)
-      VALUES (?, ?, ?, ?)
-    `
-      )
-      .run(TEST_USER_ID, "Test", "User", "test@example.com");
+    await pool.query(
+      `
+      INSERT INTO users (id, "firstName", "lastName", email)
+      VALUES ($1, $2, $3, $4)
+    `,
+      [TEST_USER_ID, "Test", "User", "test@example.com"]
+    );
 
     console.log("✅ User created successfully");
 
     // Test organization creation
-    sqlite
-      .prepare(
-        `
-      INSERT INTO organizations (id, name, slug, description, createdBy)
-      VALUES (?, ?, ?, ?, ?)
-    `
-      )
-      .run(TEST_ORG_ID, "Test Org", "test-org", "Test organization", TEST_USER_ID);
+    await pool.query(
+      `
+      INSERT INTO organizations (id, name, slug, description, "createdBy")
+      VALUES ($1, $2, $3, $4, $5)
+    `,
+      [TEST_ORG_ID, "Test Org", "test-org", "Test organization", TEST_USER_ID]
+    );
 
     console.log("✅ Organization created successfully");
 
     // Test membership creation
-    sqlite
-      .prepare(
-        `
-      INSERT INTO organizationMemberships (organizationId, userId, role)
-      VALUES (?, ?, ?)
-    `
-      )
-      .run(TEST_ORG_ID, TEST_USER_ID, "admin");
+    await pool.query(
+      `
+      INSERT INTO "organizationMemberships" ("organizationId", "userId", role)
+      VALUES ($1, $2, $3)
+    `,
+      [TEST_ORG_ID, TEST_USER_ID, "admin"]
+    );
 
     console.log("✅ Organization membership created successfully");
 
     // Test donor creation
-    sqlite
-      .prepare(
-        `
-      INSERT INTO donors (firstName, lastName, email, organizationId, totalDonated, tier, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-      )
-      .run("John", "Doe", "john@example.com", TEST_ORG_ID, 100000, "gold", "active");
+    await pool.query(
+      `
+      INSERT INTO donors ("firstName", "lastName", email, "organizationId", "totalDonated", tier, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `,
+      ["John", "Doe", "john@example.com", TEST_ORG_ID, 100000, "gold", "active"]
+    );
 
     console.log("✅ Donor created successfully");
 
     // Verify data
-    const users = sqlite.prepare("SELECT * FROM users").all();
-    const orgs = sqlite.prepare("SELECT * FROM organizations").all();
-    const donors = sqlite.prepare("SELECT * FROM donors").all();
+    const usersResult = await pool.query("SELECT * FROM users");
+    const orgsResult = await pool.query("SELECT * FROM organizations");
+    const donorsResult = await pool.query("SELECT * FROM donors");
 
     console.log(`
 📊 Database contents:
-   Users: ${users.length}
-   Organizations: ${orgs.length}
-   Donors: ${donors.length}
+   Users: ${usersResult.rows.length}
+   Organizations: ${orgsResult.rows.length}
+   Donors: ${donorsResult.rows.length}
     `);
 
     // Cleanup
-    sqlite.close();
-    cleanupTestDatabase(dbPath);
+    await cleanupTestDatabase(pool);
 
     console.log("✅ All database operations successful!");
   } catch (error) {
     console.error("❌ Database test failed:", error);
-    sqlite.close();
-    cleanupTestDatabase(dbPath);
+    await cleanupTestDatabase(pool);
     throw error;
   }
 }
