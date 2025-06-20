@@ -50,47 +50,98 @@ export default defineConfig({
       testMatch: "**/setup/auth.setup.ts",
     },
 
-    // Authenticated tests (requires auth state)
+    // Authentication tests
     {
-      name: "Authenticated tests",
+      name: "auth",
       use: {
         ...devices["Desktop Chrome"],
-        // Use prepared Clerk auth state
         storageState: "playwright/.clerk/user.json",
       },
-      testMatch: [
-        "**/authenticated-*.spec.ts",
-        "**/dashboard.spec.ts",
-        "**/campaign-management.spec.ts",
-        "**/donor-management.spec.ts",
-        "**/donor-management-*.spec.ts",
-        "**/donation-management-*.spec.ts",
-        "**/project-management-*.spec.ts",
-        "**/staff-management-*.spec.ts",
-        "**/login.spec.ts",
-      ],
+      testMatch: "**/auth/**/*.spec.ts",
       dependencies: ["setup"],
     },
 
-    // Core tests (no auth required)
+    // Campaign tests (requires auth)
     {
-      name: "Core tests",
+      name: "campaigns",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/campaigns/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // Donor tests (requires auth)
+    {
+      name: "donors",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/donors/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // Donation tests (requires auth)
+    {
+      name: "donations",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/donations/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // Project tests (requires auth)
+    {
+      name: "projects",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/projects/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // Staff tests (requires auth)
+    {
+      name: "staff",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/staff/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // Core tests (database, dashboard, smoke tests, accessibility)
+    {
+      name: "core",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/core/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
+    // All authenticated tests (legacy compatibility)
+    {
+      name: "authenticated",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
       },
       testMatch: [
-        "**/database-only.spec.ts",
-        "**/database-integration.spec.ts",
-        "**/auth.spec.ts",
-        "**/smoke-tests.spec.ts",
-        "**/accessibility.spec.ts",
-      ],
-      testIgnore: [
-        "**/authenticated-*.spec.ts",
-        "**/dashboard.spec.ts",
-        "**/campaign-management.spec.ts",
-        "**/donor-management.spec.ts",
-        "**/login.spec.ts",
+        "**/auth/**/*.spec.ts",
+        "**/campaigns/**/*.spec.ts",
+        "**/donors/**/*.spec.ts",
+        "**/donations/**/*.spec.ts",
+        "**/projects/**/*.spec.ts",
+        "**/staff/**/*.spec.ts",
+        "**/core/**/*.spec.ts",
       ],
       dependencies: ["setup"],
     },
