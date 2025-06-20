@@ -1,57 +1,16 @@
 import React from "react";
 import { render, RenderOptions } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider } from "@clerk/nextjs";
-import { Toaster } from "react-hot-toast";
 
-
-// Create test query client with disabled retries
-export const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        gcTime: 0,
-        staleTime: 0,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
-
-interface TestProviderProps {
-  children: React.ReactNode;
-  queryClient?: QueryClient;
+// Simplified test wrapper - just render children without any providers
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
-// Custom render function with all providers
-type CustomRenderOptions = Omit<RenderOptions, "wrapper"> & {
-  queryClient?: QueryClient;
-};
-
-export function createWrapper(queryClient?: QueryClient) {
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    const client = queryClient || createTestQueryClient();
-    
-    // Skip TRPC provider in tests - we'll mock at the hook level
-    return (
-      <ClerkProvider>
-        <QueryClientProvider client={client}>
-          {children}
-          <Toaster position="top-center" />
-        </QueryClientProvider>
-      </ClerkProvider>
-    );
-  };
-}
+// Custom render function
+type CustomRenderOptions = Omit<RenderOptions, "wrapper">;
 
 export function renderWithProviders(ui: React.ReactElement, options?: CustomRenderOptions) {
-  const { queryClient, ...renderOptions } = options || {};
-  const Wrapper = createWrapper(queryClient);
-  return {
-    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
-  };
+  return render(ui, { wrapper: TestWrapper, ...options });
 }
 
 // Re-export everything from React Testing Library
