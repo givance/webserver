@@ -40,9 +40,19 @@
     "src/__tests__/**/*",
     "playwright/**/*",
     "playwright.config.ts",
+    "playwright.config.headless.ts",
     "global.setup.ts",
     "global.teardown.ts",
+    "jest.config.js",
+    "run-component-tests.js",
     "e2e/**/*",
-    "test-db/**/*"
+    "test-db/**/*",
+    "test-results/**/*",
+    "playwright-report/**/*",
+    "coverage/**/*",
+    "test-*.js",
+    "test-*.ts",
+    "**/*.setup.ts",
+    "**/*.teardown.ts"
   ]
 }
