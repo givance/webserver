@@ -20,7 +20,7 @@ jest.mock("@/trigger/jobs/sendSingleEmail", () => ({
 
 describe("EmailSchedulingService", () => {
   let service: EmailSchedulingService;
-  
+
   beforeEach(() => {
     service = new EmailSchedulingService();
     jest.clearAllMocks();
@@ -120,13 +120,9 @@ describe("EmailSchedulingService", () => {
     });
 
     it("should throw error for invalid daily limit", async () => {
-      await expect(
-        service.updateScheduleConfig("org-123", { dailyLimit: 600 })
-      ).rejects.toThrow(TRPCError);
+      await expect(service.updateScheduleConfig("org-123", { dailyLimit: 600 })).rejects.toThrow(TRPCError);
 
-      await expect(
-        service.updateScheduleConfig("org-123", { dailyLimit: 0 })
-      ).rejects.toThrow(TRPCError);
+      await expect(service.updateScheduleConfig("org-123", { dailyLimit: 0 })).rejects.toThrow(TRPCError);
     });
 
     it("should throw error if max gap is less than min gap", async () => {
@@ -157,7 +153,7 @@ describe("EmailSchedulingService", () => {
 
       // Mock getOrCreateScheduleConfig
       jest.spyOn(service, "getOrCreateScheduleConfig").mockResolvedValue(mockConfig as any);
-      
+
       // Mock getEmailsSentToday
       jest.spyOn(service, "getEmailsSentToday").mockResolvedValue(0);
 
@@ -260,9 +256,9 @@ describe("EmailSchedulingService", () => {
         }),
       } as any);
 
-      await expect(
-        service.scheduleEmailCampaign(1, "org-123", "user-123")
-      ).rejects.toThrow("No approved emails to schedule");
+      await expect(service.scheduleEmailCampaign(1, "org-123", "user-123")).rejects.toThrow(
+        "No emails are ready to be scheduled. No emails found for this campaign."
+      );
     });
   });
 
@@ -300,19 +296,13 @@ describe("EmailSchedulingService", () => {
         }),
       } as any);
 
-      await expect(
-        service.pauseCampaign(1, "org-123")
-      ).rejects.toThrow("No scheduled emails to pause");
+      await expect(service.pauseCampaign(1, "org-123")).rejects.toThrow("No scheduled emails to pause");
     });
   });
 
   describe("resumeCampaign", () => {
     it("should reschedule paused emails with fresh delays", async () => {
-      const mockPausedEmails = [
-        { id: 1 },
-        { id: 2 },
-        { id: 3 },
-      ];
+      const mockPausedEmails = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
       jest.mocked(db.select).mockReturnValue({
         from: jest.fn().mockReturnValue({
@@ -347,9 +337,7 @@ describe("EmailSchedulingService", () => {
         }),
       } as any);
 
-      await expect(
-        service.resumeCampaign(1, "org-123", "user-123")
-      ).rejects.toThrow("No paused emails to resume");
+      await expect(service.resumeCampaign(1, "org-123", "user-123")).rejects.toThrow("No paused emails to resume");
     });
   });
 
@@ -441,9 +429,7 @@ describe("EmailSchedulingService", () => {
         }),
       } as any);
 
-      await expect(
-        service.getCampaignSchedule(1, "org-123")
-      ).rejects.toThrow("Campaign not found");
+      await expect(service.getCampaignSchedule(1, "org-123")).rejects.toThrow("Campaign not found");
     });
   });
 });

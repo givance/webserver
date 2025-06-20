@@ -69,7 +69,27 @@ jest.mock("@/app/hooks/use-projects", () => ({
   })),
 }));
 
-// Removed global mock for use-communications to avoid conflicts with individual test mocks
+// Mock use-communications hook
+jest.mock("@/app/hooks/use-communications", () => ({
+  useCommunications: jest.fn(() => ({
+    getSession: jest.fn(),
+    getSessionStatus: jest.fn(),
+    listCampaigns: jest.fn(),
+    getEmailStatus: jest.fn(),
+    generateEmails: jest.fn(),
+    createSession: jest.fn(),
+    saveToDraft: jest.fn(),
+    sendEmails: jest.fn(),
+    deleteCampaign: jest.fn(),
+    updateEmail: jest.fn(),
+    updateCampaign: jest.fn(),
+    enhanceEmail: jest.fn(),
+    regenerateAllEmails: jest.fn(),
+    saveDraft: jest.fn(),
+    saveGeneratedEmail: jest.fn(),
+    retryCampaign: jest.fn(),
+  })),
+}));
 
 // Mock environment variables for tests
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";

@@ -1,27 +1,27 @@
-import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
-import { db } from '@/app/lib/db';
-import { EmailGenerationService } from '@/app/lib/utils/email-generator/service';
-import { getDonorCommunicationHistory } from '@/app/lib/data/communications';
-import { listDonations, getMultipleComprehensiveDonorStats } from '@/app/lib/data/donations';
-import { getOrganizationMemories } from '@/app/lib/data/organizations';
-import { getUserMemories, getDismissedMemories } from '@/app/lib/data/users';
-import { logger as triggerLogger } from '@trigger.dev/sdk/v3';
-import { PersonResearchService } from '@/app/lib/services/person-research.service';
+import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
+import { db } from "@/app/lib/db";
+import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
+import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
+import { listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
+import { getOrganizationMemories } from "@/app/lib/data/organizations";
+import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
+import { logger as triggerLogger } from "@trigger.dev/sdk/v3";
+import { PersonResearchService } from "@/app/lib/services/person-research.service";
 
 // Mock PersonResearchService
-jest.mock('@/app/lib/services/person-research.service');
+jest.mock("@/app/lib/services/person-research.service");
 
 // Mock dependencies
-jest.mock('@/app/lib/db');
-jest.mock('@/app/lib/utils/email-generator/service');
-jest.mock('@/app/lib/data/communications');
-jest.mock('@/app/lib/data/donations');
-jest.mock('@/app/lib/data/organizations');
-jest.mock('@/app/lib/data/users');
+jest.mock("@/app/lib/db");
+jest.mock("@/app/lib/utils/email-generator/service");
+jest.mock("@/app/lib/data/communications");
+jest.mock("@/app/lib/data/donations");
+jest.mock("@/app/lib/data/organizations");
+jest.mock("@/app/lib/data/users");
 
 // Mock the Trigger.dev SDK's task function
 const mockTaskRun = jest.fn();
-jest.mock('@trigger.dev/sdk/v3', () => ({
+jest.mock("@trigger.dev/sdk/v3", () => ({
   task: (config: any) => ({
     id: config.id,
     run: config.run || mockTaskRun,
@@ -51,22 +51,27 @@ const mockGenerateEmails = jest.fn();
 
 // Test data
 const mockOrganization = {
-  id: 'org123',
-  name: 'Test Foundation',
-  websiteSummary: 'We are a test foundation',
+  id: "org123",
+  name: "Test Foundation",
+  websiteSummary: "We are a test foundation",
   writingInstructions: null,
 };
 
 const mockUser = {
-  id: 'user123',
-  firstName: 'John',
-  emailSignature: 'John Smith\nFundraising Director',
+  id: "user123",
+  firstName: "John",
+  emailSignature: "John Smith\nFundraising Director",
 };
 
 const mockDonors = [
-  { id: 1, firstName: 'John', lastName: 'Doe', assignedStaff: null },
-  { id: 2, firstName: 'Jane', lastName: 'Smith', assignedStaff: { id: 10, firstName: 'Sarah', signature: 'Sarah Jones' } },
-  { id: 3, firstName: 'Bob', lastName: 'Johnson', assignedStaff: { id: 11, firstName: 'Mike', signature: null } },
+  { id: 1, firstName: "John", lastName: "Doe", assignedStaff: null },
+  {
+    id: 2,
+    firstName: "Jane",
+    lastName: "Smith",
+    assignedStaff: { id: 10, firstName: "Sarah", signature: "Sarah Jones" },
+  },
+  { id: 3, firstName: "Bob", lastName: "Johnson", assignedStaff: { id: 11, firstName: "Mike", signature: null } },
 ];
 
 // Setup mock chain
@@ -75,91 +80,87 @@ const setupMockChain = () => {
   mockUpdate.mockReturnValue({ set: mockSet });
   mockSet.mockReturnValue({ where: mockWhere });
   mockWhere.mockResolvedValue(undefined);
-  
+
   // For select queries - need to handle both organization/user queries and existing emails query
   mockSelect.mockReturnValue({ from: mockFrom });
   mockFrom.mockReturnValue({ where: mockWhere });
-  
+
   // Setup a chain that returns either limit or the final result
   mockWhere.mockImplementation(() => ({
     limit: mockLimit,
     // This allows mockWhere to also resolve directly for the existing emails query
     then: (resolve: any) => resolve([]),
   }));
-  
+
   mockInsert.mockReturnValue({ values: mockValues });
   mockValues.mockResolvedValue(undefined);
 };
 
 // Helper function to setup database mocks for tests
-const setupDatabaseMocks = (options: {
-  organization?: any,
-  user?: any,
-  existingEmails?: any[]
-} = {}) => {
-  const { 
-    organization = mockOrganization, 
-    user = mockUser, 
-    existingEmails = [] 
-  } = options;
-  
+const setupDatabaseMocks = (
+  options: {
+    organization?: any;
+    user?: any;
+    existingEmails?: any[];
+  } = {}
+) => {
+  const { organization = mockOrganization, user = mockUser, existingEmails = [] } = options;
+
   // Mock db.update
   mockUpdate.mockReturnValue({ set: mockSet });
   mockSet.mockReturnValue({ where: mockWhere });
   mockWhere.mockResolvedValue(undefined);
-  
+
   // Mock db.select for different queries
   let selectCount = 0;
   mockSelect.mockImplementation(() => {
     selectCount++;
-    return { 
+    return {
       from: jest.fn().mockReturnValue({
         where: jest.fn().mockImplementation(() => {
           if (selectCount <= 2) {
             return {
-              limit: jest.fn().mockResolvedValue(
-                selectCount === 1 
-                  ? (organization ? [organization] : [])
-                  : (user ? [user] : [])
-              )
+              limit: jest
+                .fn()
+                .mockResolvedValue(selectCount === 1 ? (organization ? [organization] : []) : user ? [user] : []),
             };
           } else {
             return Promise.resolve(existingEmails);
           }
-        })
-      })
+        }),
+      }),
     };
   });
-  
+
   // Mock db.insert
   mockInsert.mockReturnValue({ values: mockValues });
   mockValues.mockResolvedValue(undefined);
-  
+
   // Setup db mock
   (db as any).update = mockUpdate;
   (db as any).select = mockSelect;
   (db as any).insert = mockInsert;
 };
 
-describe('generateBulkEmailsTask', () => {
+describe("generateBulkEmailsTask", () => {
   const mockPayload = {
     sessionId: 1,
-    organizationId: 'org123',
-    userId: 'user123',
-    instruction: 'Write thank you emails',
-    refinedInstruction: 'Write personalized thank you emails',
+    organizationId: "org123",
+    userId: "user123",
+    instruction: "Write thank you emails",
+    refinedInstruction: "Write personalized thank you emails",
     selectedDonorIds: [1, 2, 3],
     previewDonorIds: [1],
     chatHistory: [
-      { role: 'user' as const, content: 'Create campaign' },
-      { role: 'assistant' as const, content: 'I will help create a campaign' },
+      { role: "user" as const, content: "Create campaign" },
+      { role: "assistant" as const, content: "I will help create a campaign" },
     ],
     templateId: undefined,
   };
 
   const mockContext = {
     ctx: {
-      run: { id: 'job123' },
+      run: { id: "job123" },
     },
   };
 
@@ -179,7 +180,7 @@ describe('generateBulkEmailsTask', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       staff: {
-        findFirst: jest.fn().mockResolvedValue({ id: 100, firstName: 'Primary', signature: 'Primary Staff' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 100, firstName: "Primary", signature: "Primary Staff" }),
       },
     };
 
@@ -197,28 +198,28 @@ describe('generateBulkEmailsTask', () => {
     (getDismissedMemories as jest.Mock).mockResolvedValue([]);
   });
 
-  describe('successful email generation', () => {
-    it('should generate emails for all selected donors', async () => {
+  describe("successful email generation", () => {
+    it("should generate emails for all selected donors", async () => {
       // Setup database mocks
       setupDatabaseMocks();
 
       mockGenerateEmails.mockResolvedValue([
         {
           donorId: 1,
-          subject: 'Thank you John',
-          structuredContent: [{ piece: 'Dear John,', references: [], addNewlineAfter: true }],
+          subject: "Thank you John",
+          structuredContent: [{ piece: "Dear John,", references: [], addNewlineAfter: true }],
           referenceContexts: {},
         },
         {
           donorId: 2,
-          subject: 'Thank you Jane',
-          structuredContent: [{ piece: 'Dear Jane,', references: [], addNewlineAfter: true }],
+          subject: "Thank you Jane",
+          structuredContent: [{ piece: "Dear Jane,", references: [], addNewlineAfter: true }],
           referenceContexts: {},
         },
         {
           donorId: 3,
-          subject: 'Thank you Bob',
-          structuredContent: [{ piece: 'Dear Bob,', references: [], addNewlineAfter: true }],
+          subject: "Thank you Bob",
+          structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
           referenceContexts: {},
         },
       ]);
@@ -230,34 +231,36 @@ describe('generateBulkEmailsTask', () => {
       // Verify session status updates
       expect(mockUpdate).toHaveBeenCalledTimes(2); // Initial and final update
       expect(mockSet).toHaveBeenNthCalledWith(1, {
-        status: 'GENERATING',
-        triggerJobId: 'job123',
+        status: "GENERATING",
+        triggerJobId: "job123",
         updatedAt: expect.any(Date),
       });
       expect(mockSet).toHaveBeenNthCalledWith(2, {
-        status: 'IN_PROGRESS',
+        status: "COMPLETED",
         completedDonors: 3,
-        refinedInstruction: 'Write personalized thank you emails',
+        refinedInstruction: "Write personalized thank you emails",
+        completedAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
 
       // Verify email generation was called 3 times (once per donor)
       expect(mockGenerateEmails).toHaveBeenCalledTimes(3);
-      
+
       // Verify each call had the correct structure (checking just the first call)
-      expect(mockGenerateEmails).toHaveBeenNthCalledWith(1,
+      expect(mockGenerateEmails).toHaveBeenNthCalledWith(
+        1,
         expect.arrayContaining([
           expect.objectContaining({
             id: 1,
-            firstName: 'John',
-            lastName: 'Doe'
-          })
+            firstName: "John",
+            lastName: "Doe",
+          }),
         ]),
-        'Write personalized thank you emails',
-        'Test Foundation',
+        "Write personalized thank you emails",
+        "Test Foundation",
         expect.objectContaining({
-          id: 'org123',
-          name: 'Test Foundation',
+          id: "org123",
+          name: "Test Foundation",
         }),
         undefined, // organizationWritingInstructions
         expect.any(Object), // communicationHistories
@@ -267,48 +270,53 @@ describe('generateBulkEmailsTask', () => {
         [], // personalMemories
         [], // organizationalMemories
         undefined, // currentDate
-        'John Smith\nFundraising Director' // emailSignature
+        "John Smith\nFundraising Director" // emailSignature
       );
 
       // Verify emails were saved
       expect(mockInsert).toHaveBeenCalledTimes(1);
-      expect(mockValues).toHaveBeenCalledWith(expect.arrayContaining([
-        expect.objectContaining({
-          sessionId: 1,
-          donorId: expect.any(Number),
-          subject: expect.any(String),
-          structuredContent: expect.any(Array),
-          status: 'APPROVED',
-        }),
-      ]));
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            sessionId: 1,
+            donorId: expect.any(Number),
+            subject: expect.any(String),
+            structuredContent: expect.any(Array),
+            status: "APPROVED",
+          }),
+        ])
+      );
     });
 
-    it('should append appropriate signatures based on staff assignment', async () => {
+    it("should append appropriate signatures based on staff assignment", async () => {
       // Setup database mocks
       setupDatabaseMocks();
 
-      mockGenerateEmails.mockResolvedValueOnce([
-        {
-          donorId: 1,
-          subject: 'Test',
-          structuredContent: [{ piece: 'Content', references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-      ]).mockResolvedValueOnce([
-        {
-          donorId: 2,
-          subject: 'Test',
-          structuredContent: [{ piece: 'Content', references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-      ]).mockResolvedValueOnce([
-        {
-          donorId: 3,
-          subject: 'Test',
-          structuredContent: [{ piece: 'Content', references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-      ]);
+      mockGenerateEmails
+        .mockResolvedValueOnce([
+          {
+            donorId: 1,
+            subject: "Test",
+            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+            referenceContexts: {},
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            donorId: 2,
+            subject: "Test",
+            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+            referenceContexts: {},
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            donorId: 3,
+            subject: "Test",
+            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+            referenceContexts: {},
+          },
+        ]);
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
@@ -317,16 +325,16 @@ describe('generateBulkEmailsTask', () => {
       // Check signatures appended - all emails are inserted in one call
       const insertCall = mockValues.mock.calls[0][0];
       expect(insertCall).toHaveLength(3);
-      
+
       // Find emails by donorId
       const email1 = insertCall.find((e: any) => e.donorId === 1);
       const email2 = insertCall.find((e: any) => e.donorId === 2);
       const email3 = insertCall.find((e: any) => e.donorId === 3);
-      
+
       // Donor 1 - No assigned staff, should use primary staff signature
       expect(email1.structuredContent).toContainEqual(
         expect.objectContaining({
-          piece: 'Primary Staff',
+          piece: "Primary Staff",
           references: [],
         })
       );
@@ -334,7 +342,7 @@ describe('generateBulkEmailsTask', () => {
       // Donor 2 - Has assigned staff with custom signature
       expect(email2.structuredContent).toContainEqual(
         expect.objectContaining({
-          piece: 'Sarah Jones',
+          piece: "Sarah Jones",
           references: [],
         })
       );
@@ -342,58 +350,52 @@ describe('generateBulkEmailsTask', () => {
       // Donor 3 - Has assigned staff but no custom signature, should use "Best,\nMike"
       expect(email3.structuredContent).toContainEqual(
         expect.objectContaining({
-          piece: 'Best,\nMike',
+          piece: "Best,\nMike",
           references: [],
         })
       );
     });
   });
 
-  describe('error handling', () => {
-    it('should handle organization not found error', async () => {
+  describe("error handling", () => {
+    it("should handle organization not found error", async () => {
       setupDatabaseMocks({ organization: null });
 
       const runFunction = (generateBulkEmailsTask as any).run;
-      await expect(
-        runFunction(mockPayload, mockContext)
-      ).rejects.toThrow('Organization org123 not found');
+      await expect(runFunction(mockPayload, mockContext)).rejects.toThrow("Organization org123 not found");
 
       // Verify session was updated to FAILED
       expect(mockSet).toHaveBeenLastCalledWith({
-        status: 'FAILED',
-        errorMessage: 'Organization org123 not found',
+        status: "FAILED",
+        errorMessage: "Organization org123 not found",
         updatedAt: expect.any(Date),
       });
     });
 
-    it('should handle user not found error', async () => {
+    it("should handle user not found error", async () => {
       setupDatabaseMocks({ user: null });
 
       const runFunction = (generateBulkEmailsTask as any).run;
-      await expect(
-        runFunction(mockPayload, mockContext)
-      ).rejects.toThrow('User user123 not found');
+      await expect(runFunction(mockPayload, mockContext)).rejects.toThrow("User user123 not found");
 
       expect(mockSet).toHaveBeenLastCalledWith({
-        status: 'FAILED',
-        errorMessage: 'User user123 not found',
+        status: "FAILED",
+        errorMessage: "User user123 not found",
         updatedAt: expect.any(Date),
       });
     });
 
-    it('should handle missing donors', async () => {
+    it("should handle missing donors", async () => {
       setupDatabaseMocks();
-      
+
       // Return only 2 donors instead of 3
       (db as any).query.donors.findMany.mockResolvedValue([mockDonors[0], mockDonors[1]]);
 
       const runFunction = (generateBulkEmailsTask as any).run;
-      await expect(
-        runFunction(mockPayload, mockContext)
-      ).rejects.toThrow('Some donors not found. Expected 3, found 2');
+      await expect(runFunction(mockPayload, mockContext)).rejects.toThrow("Some donors not found. Expected 3, found 2");
     });
 
-    it('should handle email generation errors', async () => {
+    it("should handle email generation errors", async () => {
       setupDatabaseMocks();
 
       // Mock errors for some donors
@@ -401,43 +403,38 @@ describe('generateBulkEmailsTask', () => {
         .mockResolvedValueOnce([
           {
             donorId: 1,
-            subject: 'Test',
-            structuredContent: [{ piece: 'Content', references: [], addNewlineAfter: true }],
+            subject: "Test",
+            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
             referenceContexts: {},
           },
         ])
-        .mockRejectedValueOnce(new Error('AI generation failed'))
-        .mockRejectedValueOnce(new Error('Token limit exceeded'));
+        .mockRejectedValueOnce(new Error("AI generation failed"))
+        .mockRejectedValueOnce(new Error("Token limit exceeded"));
 
       // Should throw error on failed generation
       const runFunction = (generateBulkEmailsTask as any).run;
-      await expect(
-        runFunction(mockPayload, mockContext)
-      ).rejects.toThrow();
+      await expect(runFunction(mockPayload, mockContext)).rejects.toThrow();
 
       // Should update status to FAILED
       expect(mockSet).toHaveBeenLastCalledWith({
-        status: 'FAILED',
+        status: "FAILED",
         errorMessage: expect.any(String),
         updatedAt: expect.any(Date),
       });
     });
   });
 
-  describe('duplicate email handling', () => {
-    it('should skip donors with existing approved emails', async () => {
+  describe("duplicate email handling", () => {
+    it("should skip donors with existing approved emails", async () => {
       setupDatabaseMocks({
-        existingEmails: [
-          { donorId: 1 },
-          { donorId: 2 },
-        ]
+        existingEmails: [{ donorId: 1 }, { donorId: 2 }],
       });
 
       mockGenerateEmails.mockResolvedValue([
         {
           donorId: 3,
-          subject: 'Thank you Bob',
-          structuredContent: [{ piece: 'Dear Bob,', references: [], addNewlineAfter: true }],
+          subject: "Thank you Bob",
+          structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
           referenceContexts: {},
         },
       ]);
@@ -451,9 +448,9 @@ describe('generateBulkEmailsTask', () => {
         expect.arrayContaining([
           expect.objectContaining({
             id: 3,
-            firstName: 'Bob',
-            lastName: 'Johnson'
-          })
+            firstName: "Bob",
+            lastName: "Johnson",
+          }),
         ]),
         expect.any(String),
         expect.any(String),
@@ -473,13 +470,9 @@ describe('generateBulkEmailsTask', () => {
       expect(mockInsert).toHaveBeenCalledTimes(1);
     });
 
-    it('should mark session as COMPLETED if all emails already exist', async () => {
+    it("should mark session as COMPLETED if all emails already exist", async () => {
       setupDatabaseMocks({
-        existingEmails: [
-          { donorId: 1 },
-          { donorId: 2 },
-          { donorId: 3 },
-        ]
+        existingEmails: [{ donorId: 1 }, { donorId: 2 }, { donorId: 3 }],
       });
 
       // Access the run function from the task configuration
@@ -491,26 +484,22 @@ describe('generateBulkEmailsTask', () => {
 
       // Should update status to COMPLETED
       expect(mockSet).toHaveBeenLastCalledWith({
-        status: 'COMPLETED',
+        status: "COMPLETED",
         completedDonors: 3,
-        refinedInstruction: 'Write personalized thank you emails',
+        refinedInstruction: "Write personalized thank you emails",
         completedAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
     });
   });
 
-  describe('comprehensive data fetching', () => {
-    it('should fetch and include all donor data', async () => {
+  describe("comprehensive data fetching", () => {
+    it("should fetch and include all donor data", async () => {
       setupDatabaseMocks();
 
-      const mockCommunicationHistory = [
-        { content: [{ content: 'Previous email content' }] },
-      ];
+      const mockCommunicationHistory = [{ content: [{ content: "Previous email content" }] }];
       const mockDonations = {
-        donations: [
-          { amount: 10000, date: new Date('2023-12-01') },
-        ],
+        donations: [{ amount: 10000, date: new Date("2023-12-01") }],
       };
       const mockStats = {
         1: { totalAmount: 10000, totalDonations: 1 },
@@ -524,24 +513,30 @@ describe('generateBulkEmailsTask', () => {
 
       // Mock individual email generation for each donor
       mockGenerateEmails
-        .mockResolvedValueOnce([{
-          donorId: 1,
-          subject: 'Test John',
-          structuredContent: [],
-          referenceContexts: {},
-        }])
-        .mockResolvedValueOnce([{
-          donorId: 2,
-          subject: 'Test Jane',
-          structuredContent: [],
-          referenceContexts: {},
-        }])
-        .mockResolvedValueOnce([{
-          donorId: 3,
-          subject: 'Test Bob',
-          structuredContent: [],
-          referenceContexts: {},
-        }]);
+        .mockResolvedValueOnce([
+          {
+            donorId: 1,
+            subject: "Test John",
+            structuredContent: [],
+            referenceContexts: {},
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            donorId: 2,
+            subject: "Test Jane",
+            structuredContent: [],
+            referenceContexts: {},
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            donorId: 3,
+            subject: "Test Bob",
+            structuredContent: [],
+            referenceContexts: {},
+          },
+        ]);
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
@@ -549,7 +544,7 @@ describe('generateBulkEmailsTask', () => {
 
       // Verify communication history was fetched for each donor
       expect(getDonorCommunicationHistory).toHaveBeenCalledTimes(3);
-      
+
       // Verify donation data was fetched
       expect(listDonations).toHaveBeenCalled();
       expect(getMultipleComprehensiveDonorStats).toHaveBeenCalled();

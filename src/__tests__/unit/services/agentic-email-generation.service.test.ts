@@ -66,7 +66,7 @@ describe("AgenticEmailGenerationService", () => {
   const mockFlowResult = {
     steps: [
       {
-        type: "initial" as const,
+        type: "question" as const,
         content: "Starting flow",
         questions: ["Question 1?"],
         canProceed: true,
@@ -108,8 +108,9 @@ describe("AgenticEmailGenerationService", () => {
 
     beforeEach(() => {
       // Mock file system for best practices
-      const mockFs = jest.requireActual("fs/promises");
-      mockFs.readFile = jest.fn().mockResolvedValue("Best practices content");
+      (fs.readFile as jest.Mock).mockResolvedValue(
+        "Best practices content that is much longer than 100 characters to satisfy the test requirement. This mock content contains detailed best practices for email generation including personalization strategies, tone guidelines, formatting standards, and other important recommendations that would typically be found in a comprehensive best practices document."
+      );
 
       // Mock database queries
       const mockOrg = {
@@ -162,8 +163,25 @@ describe("AgenticEmailGenerationService", () => {
         donations: [{ amount: 100, date: "2023-01-01" }],
       });
       mockPersonResearchService.getPersonResearch.mockResolvedValue({
+        answer: "Research data",
+        citations: [],
+        summaries: [],
+        totalLoops: 1,
+        totalSources: 1,
         researchTopic: "John Doe background",
-        data: "Research data",
+        timestamp: new Date(),
+        tokenUsage: {
+          queryGeneration: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+          webSearchSummaries: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+          reflection: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+          answerSynthesis: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+          structuredDataExtraction: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+          total: { promptTokens: 50, completionTokens: 50, totalTokens: 100 },
+        },
+        structuredData: {
+          highPotentialDonor: true,
+          highPotentialDonorRationale: "Research indicates potential",
+        },
       });
 
       // Mock orchestrator
@@ -182,7 +200,7 @@ describe("AgenticEmailGenerationService", () => {
             role: "assistant",
             content: "Starting flow",
             timestamp: expect.any(Date),
-            stepType: "initial",
+            stepType: "question",
           },
           {
             role: "assistant",
