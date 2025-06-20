@@ -1158,8 +1158,8 @@ export function WriteInstructionStep({
               Confirm Campaign Launch
             </DialogTitle>
             <DialogDescription>
-              You're about to launch a campaign to generate personalized emails for all selected donors based on your
-              current instruction.
+              You&apos;re about to launch a campaign to generate personalized emails for all selected donors based on
+              your current instruction.
             </DialogDescription>
           </DialogHeader>
 
@@ -1201,8 +1201,8 @@ export function WriteInstructionStep({
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                This will launch your campaign for all {selectedDonors.length} selected donors. You'll be redirected to
-                the communication jobs page where you can monitor the progress.
+                This will launch your campaign for all {selectedDonors.length} selected donors. You&apos;ll be
+                redirected to the communication jobs page where you can monitor the progress.
               </p>
             </div>
           </div>

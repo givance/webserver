@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+playwright/.clerk
+test-db/*.sqlite
 
 # next.js
 /.next/
@@ -51,3 +53,5 @@ worktrees
 
 # clerk configuration (can include secrets)
 /.clerk/
+playwright-report/
+test-results/
