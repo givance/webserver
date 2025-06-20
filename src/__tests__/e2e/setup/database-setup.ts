@@ -8,6 +8,7 @@ import {
   donors,
   projects,
   emailGenerationSessions,
+  generatedEmails,
   staff,
 } from "../../../app/lib/db/schema";
 import * as dotenv from "dotenv";
@@ -230,7 +231,7 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
     .returning();
 
   console.log("📧 Creating test email campaigns...");
-  await db.insert(emailGenerationSessions).values([
+  const campaigns = await db.insert(emailGenerationSessions).values([
     {
       organizationId: testOrgId,
       userId: testUserId,
@@ -272,7 +273,68 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
       jobName: "E2E Test Campaign 2",
       templateId: null,
     },
-  ]);
+  ]).returning();
+
+  console.log("📧 Creating test generated emails...");
+  console.log(`Campaign 1 ID: ${campaigns[0].id}`);
+  console.log(`Campaign 1 status: ${campaigns[0].status}`);
+  console.log(`Donor 1 ID: ${donor1.id}`);
+  console.log(`Donor 2 ID: ${donor2.id}`);
+  
+  // Create generated emails for the completed campaign (campaign 1) so it has editable content
+  const insertedEmails = await db.insert(generatedEmails).values([
+    {
+      sessionId: campaigns[0].id,
+      donorId: donor1.id,
+      subject: "Thank you for your generous support, Alice!",
+      structuredContent: JSON.stringify([
+        {
+          type: "paragraph",
+          content: "Dear Alice Johnson,\n\nThank you so much for your generous donation of $5,000 to our cause. Your support has made a tremendous impact on our mission to help those in need."
+        },
+        {
+          type: "paragraph", 
+          content: "Thanks to supporters like you, we've been able to provide meals to over 1,000 families this month. Your contribution directly funded 100 of those meals."
+        },
+        {
+          type: "paragraph",
+          content: "We are deeply grateful for your continued support.\n\nWith heartfelt appreciation,\nThe Development Team"
+        }
+      ]),
+      referenceContexts: JSON.stringify({}),
+      status: "PENDING_APPROVAL",
+      isPreview: true,
+      isSent: false,
+    },
+    {
+      sessionId: campaigns[0].id,
+      donorId: donor2.id,
+      subject: "Your major gift is changing lives, Bob!",
+      structuredContent: JSON.stringify([
+        {
+          type: "paragraph",
+          content: "Dear Bob Smith,\n\nWe are incredibly grateful for your major gift of $25,000. Your generosity exemplifies the spirit of giving that drives our organization forward."
+        },
+        {
+          type: "paragraph",
+          content: "Your contribution has enabled us to expand our educational programs, directly benefiting 500 students this semester. We're also able to provide scholarships to 25 deserving students who otherwise wouldn't have access to higher education."
+        },
+        {
+          type: "paragraph",
+          content: "Thank you for believing in our mission and making such a significant impact.\n\nWith sincere gratitude,\nThe Development Team"
+        }
+      ]),
+      referenceContexts: JSON.stringify({}),
+      status: "APPROVED",
+      isPreview: false,
+      isSent: false,
+    },
+  ]).returning();
+  
+  console.log(`📧 Created ${insertedEmails.length} generated emails:`);
+  insertedEmails.forEach((email, index) => {
+    console.log(`  Email ${index + 1}: ID=${email.id}, SessionID=${email.sessionId}, DonorID=${email.donorId}, Status=${email.status}`);
+  });
 
   console.log("✅ Test data creation complete");
 }
