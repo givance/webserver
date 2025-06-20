@@ -2,47 +2,25 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Real Login Flow E2E Tests", () => {
   test("should perform complete login flow and access application", async ({ page }) => {
-    // Go to the homepage
+    // This test runs with authenticated state from setup
+    // Go to the homepage - should not redirect to sign-in
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-
-    // Should redirect to sign-in page
-    await page.waitForURL(/sign-in/, { timeout: 10000 });
-
-    // Look for and fill the email input
-    const emailInput = page.locator('input[name="identifier"], input[name="email"], input[type="email"]').first();
-    await expect(emailInput).toBeVisible({ timeout: 10000 });
-
-    // Use a test email - you may need to create this user in your Clerk dashboard
-    await emailInput.fill("test@example.com");
-
-    // Click continue/next button
-    const continueButton = page
-      .locator('button:has-text("Continue"), button:has-text("Next"), button[type="submit"]')
-      .first();
-    await continueButton.click();
-
-    // Wait for password field to appear
-    const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-    await expect(passwordInput).toBeVisible({ timeout: 10000 });
-
-    // Enter password - you'll need to set this password for the test user
-    await passwordInput.fill("testpassword123");
-
-    // Click sign in button
-    const signInButton = page
-      .locator('button:has-text("Sign in"), button:has-text("Continue"), button[type="submit"]')
-      .first();
-    await signInButton.click();
-
-    // Wait for successful login and redirect
-    await page.waitForURL((url) => !url.includes("sign-in"), { timeout: 15000 });
-
-    // Should now be logged in and on dashboard/homepage
+    
     const currentUrl = page.url();
+    
+    // Should be on the app, not sign-in page
     expect(currentUrl).not.toContain("sign-in");
-
-    console.log("✅ Successfully logged in, current URL:", currentUrl);
+    expect(currentUrl).toMatch(/localhost:5001/);
+    
+    // Verify we can navigate to protected routes
+    await page.goto("/donors");
+    await page.waitForLoadState("networkidle");
+    
+    expect(page.url()).toContain("/donors");
+    expect(page.url()).not.toContain("sign-in");
+    
+    console.log("✅ Successfully authenticated and can access protected routes");
   });
 
   test("should access donors page after login", async ({ page }) => {

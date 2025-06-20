@@ -14,7 +14,6 @@
     "test:working:watch": "jest --watch --testPathPatterns=\"(basic|simple-utils|email-validation|simple-button)\\.test\\.(ts|tsx)\"",
     "test:working:coverage": "jest --coverage --testPathPatterns=\"(basic|simple-utils|email-validation|simple-button)\\.test\\.(ts|tsx)\"",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
     "test:e2e:auth": "playwright test --project=auth",
     "test:e2e:campaigns": "playwright test --project=campaigns",
     "test:e2e:donors": "playwright test --project=donors",
