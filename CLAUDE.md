@@ -150,6 +150,164 @@ When fixing build errors:
 
 Never run `pnpm build` unless explicitly requested by the user.
 
+## Component Development Patterns
+
+### React Component Conventions
+- **Functional Components Only**: Use arrow functions with TypeScript interfaces
+- **File Naming**: PascalCase for components (`ProjectForm.tsx`, `DonorCard.tsx`)
+- **Props Pattern**: Define explicit interfaces for all component props
+  ```typescript
+  interface ProjectFormProps {
+    defaultValues?: Partial<ProjectFormValues>;
+    onSubmit: (data: ProjectFormValues) => void;
+    submitLabel?: string;
+  }
+  ```
+
+### Shadcn/ui Component Usage
+- **Class Variance Authority**: Use `cva()` for component variants
+- **Composition Pattern**: Leverage Radix UI's `asChild` prop for flexibility
+- **Styling**: Use `cn()` utility for conditional Tailwind classes
+  ```typescript
+  const buttonVariants = cva("base-classes", {
+    variants: { variant: { default: "...", destructive: "..." } }
+  });
+  ```
+
+### Form Development Patterns
+- **React Hook Form + Zod**: Standard form validation pipeline
+- **Form Components**: Use Shadcn form field pattern consistently
+  ```typescript
+  <FormField
+    control={form.control}
+    name="fieldName"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Label</FormLabel>
+        <FormControl><Input {...field} /></FormControl>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+  ```
+
+## Service Layer Architecture
+
+### Service Class Patterns
+- **Class-Based Services**: Stateless service classes with dependency injection
+- **Error Handling**: Use `wrapDatabaseOperation()` for consistent error handling
+- **Multi-Tenant**: Always scope operations to `organizationId`
+  ```typescript
+  export class OrganizationsService {
+    async getOrganization(organizationId: string) {
+      return await wrapDatabaseOperation(/* ... */);
+    }
+  }
+  ```
+
+### Business Logic Organization
+- **Domain-Driven Boundaries**: Services aligned with business capabilities
+- **Service Composition**: Complex operations compose multiple services
+- **State Management**: Explicit state transitions for complex workflows (campaigns)
+
+### AI Service Integration
+- **Provider Abstraction**: Azure OpenAI with consistent client setup
+- **Token Tracking**: Comprehensive usage monitoring across all AI operations
+- **Pipeline Architecture**: Multi-stage AI workflows with reflection and refinement
+
+## Testing Strategy
+
+### Test Organization
+```
+src/__tests__/
+├── unit/           # Service layer and utility tests
+├── components/     # React component tests  
+├── e2e/           # Playwright end-to-end tests
+├── mocks/         # Mock implementations
+└── factories/     # Test data generation
+```
+
+### Testing Patterns
+- **Unit Tests**: Mock all external dependencies with `jest.mock()`
+- **Component Tests**: Limited due to React 19/Jest compatibility issues
+- **E2E Tests**: Full Playwright setup with Clerk authentication
+- **Database Tests**: Real PostgreSQL for E2E, mocked for unit tests
+
+### Mock Strategies
+- **tRPC Mocking**: Type-safe mock client with procedure mocking
+- **Database Mocking**: Drizzle ORM mocked with realistic responses
+- **AI Services**: Mocked with expected response structures
+
+## Database Development
+
+### Drizzle ORM Patterns
+- **Schema Organization**: Single schema file with explicit relations
+- **Type Inference**: Heavy use of `InferSelectModel` and `InferInsertModel`
+- **Query Building**: Mix of query builder and raw SQL for complex operations
+  ```typescript
+  export type Organization = InferSelectModel<typeof organizations>;
+  export type NewOrganization = InferInsertModel<typeof organizations>;
+  ```
+
+### Migration Management
+- **Schema Changes**: Always use `npm run db:generate` for migrations
+- **Multi-tenant Data**: Organization-scoped queries in all operations
+- **Transaction Support**: Use for multi-table operations
+
+## Background Job Patterns
+
+### Trigger.dev Integration
+- **Job Definitions**: Located in `src/trigger/jobs/`
+- **Concurrency Control**: Controlled batching to prevent resource exhaustion
+- **State Management**: Track progress and handle failures gracefully
+  ```typescript
+  export const generateBulkEmailsTask = task({
+    id: "generate-bulk-emails",
+    run: async (payload, { ctx }) => {
+      await processConcurrently(items, processor, MAX_CONCURRENCY);
+    },
+  });
+  ```
+
+## Security Requirements
+
+### Multi-Tenant Security
+- **Organization Scoping**: Every database query must include organization validation
+- **Authorization**: Use `ctx.auth.user.organizationId` in all tRPC procedures
+- **Data Isolation**: Never allow cross-organization data access
+
+### Type Safety Enforcement
+- **Strict TypeScript**: Never use `any` - use proper interfaces
+- **Zod Validation**: Three-layer validation (environment, API, forms)
+- **Input Validation**: All tRPC procedures must validate inputs
+
+## Common Pitfalls & Gotchas
+
+### Critical Security Issues
+⚠️ **Organization ID Verification**: Most critical - always verify organization access
+⚠️ **Direct Database Access**: Never query without organization scoping
+⚠️ **Cross-Tenant Leaks**: Validate data belongs to requesting organization
+
+### TypeScript Gotchas
+- Avoid type casting with `as` - use proper type guards
+- Always define Zod schemas for tRPC inputs/outputs
+- Use consistent date handling (ISO strings vs Date objects)
+
+### Database Performance
+- Watch for N+1 queries - use Drizzle's `with` for relations
+- Implement proper bulk operations for large datasets
+- Add database indexes for frequently queried fields
+
+### AI Integration Issues
+- Implement token usage tracking to prevent bill shock
+- Add rate limiting for AI API calls
+- Handle AI service timeouts and failures gracefully
+
+### Background Job Issues
+- Implement proper concurrency limits
+- Add idempotency for retry scenarios
+- Track job progress and handle partial failures
+
 ## Documentation
 
 Comprehensive documentation is available in the `/docs` directory:
