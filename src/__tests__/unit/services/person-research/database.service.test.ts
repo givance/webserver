@@ -15,6 +15,8 @@ jest.mock('drizzle-orm', () => ({
   and: jest.fn((...conditions) => ({ type: 'and', conditions })),
   desc: jest.fn((column) => ({ type: 'desc', column })),
   eq: jest.fn((a, b) => ({ type: 'eq', a, b })),
+  sql: jest.fn((strings, ...values) => ({ type: 'sql', strings, values })),
+  relations: jest.fn(() => ({})),
 }));
 
 describe('PersonResearchDatabaseService', () => {

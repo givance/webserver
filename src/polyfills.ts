@@ -10,6 +10,26 @@ if (typeof global.TextDecoder === "undefined") {
   global.TextDecoder = TextDecoder as any;
 }
 
+// Polyfill for ReadableStream (needed for undici/fetch)
+if (typeof global.ReadableStream === "undefined") {
+  // Simple mock for ReadableStream
+  global.ReadableStream = class ReadableStream {
+    constructor() {}
+    cancel() { return Promise.resolve(); }
+    getReader() { 
+      return {
+        read: () => Promise.resolve({ done: true, value: undefined }),
+        cancel: () => Promise.resolve(),
+        releaseLock: () => {},
+      };
+    }
+    pipeThrough() { return this; }
+    pipeTo() { return Promise.resolve(); }
+    tee() { return [this, this]; }
+    locked = false;
+  } as any;
+}
+
 // Polyfill for TransformStream (needed for eventsource-parser)
 if (typeof global.TransformStream === "undefined") {
   // Simple mock for TransformStream

@@ -9,6 +9,8 @@ jest.mock('drizzle-orm', () => ({
   eq: jest.fn((a, b) => ({ type: 'eq', a, b })),
   and: jest.fn((...conditions) => ({ type: 'and', conditions })),
   desc: jest.fn((column) => ({ type: 'desc', column })),
+  sql: jest.fn((strings, ...values) => ({ type: 'sql', strings, values })),
+  relations: jest.fn(() => ({})),
 }));
 
 describe('WhatsAppStaffLoggingService', () => {

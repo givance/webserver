@@ -9,6 +9,8 @@ jest.mock('drizzle-orm', () => ({
   desc: jest.fn((column) => ({ type: 'desc', column })),
   eq: jest.fn((a, b) => ({ type: 'eq', a, b })),
   and: jest.fn((...conditions) => ({ type: 'and', conditions: conditions.filter(Boolean) })),
+  sql: jest.fn((strings, ...values) => ({ type: 'sql', strings, values })),
+  relations: jest.fn(() => ({})),
 }));
 
 describe('WhatsAppHistoryService', () => {
@@ -32,15 +34,19 @@ describe('WhatsAppHistoryService', () => {
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockResolvedValue(undefined);
 
+    const mockChainObject = {
+      orderBy: mockOrderBy,
+      limit: mockLimit,
+    };
+
     mockSelect.mockReturnValue({ from: mockFrom });
     mockSelectDistinct.mockReturnValue({ from: mockFrom });
     mockFrom.mockReturnValue({ where: mockWhere });
-    mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+    mockWhere.mockReturnValue(mockChainObject);
     mockOrderBy.mockReturnValue({ limit: mockLimit });
     mockLimit.mockResolvedValue([]);
 
     mockDelete.mockReturnValue({ where: mockWhere });
-    mockWhere.mockResolvedValue(undefined);
 
     (db.insert as jest.Mock).mockImplementation(mockInsert);
     (db.select as jest.Mock).mockImplementation(mockSelect);
@@ -294,16 +300,50 @@ describe('WhatsAppHistoryService', () => {
 
   describe('cleanupOldHistory', () => {
     beforeEach(() => {
-      // Mock for selectDistinct
-      mockFrom.mockReturnValueOnce({
+      // Reset mocks for cleanup tests
+      mockSelectDistinct.mockReset();
+      mockSelect.mockReset();
+      mockFrom.mockReset();
+      mockWhere.mockReset();
+      mockOrderBy.mockReset();
+      mockDelete.mockReset();
+
+      // Setup base mock chain for selectDistinct
+      mockSelectDistinct.mockReturnValue({ from: mockFrom });
+      mockFrom.mockReturnValue({
         where: jest.fn().mockResolvedValue([
           { fromPhoneNumber: '+1111111111' },
           { fromPhoneNumber: '+2222222222' },
         ]),
       });
+
+      // Setup base mock chain for select
+      mockSelect.mockReturnValue({ from: mockFrom });
+      mockFrom.mockReturnValue({ where: mockWhere });
+      mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+
+      // Setup delete mock
+      mockDelete.mockReturnValue({ where: mockWhere });
+      mockWhere.mockResolvedValue(undefined);
     });
 
     it('should cleanup old messages when exceeding limit', async () => {
+      // Setup separate mocks for this test
+      const mockSelectDistinctFrom = jest.fn();
+      const mockSelectFrom = jest.fn();
+      
+      mockSelectDistinct.mockReturnValue({ from: mockSelectDistinctFrom });
+      mockSelectDistinctFrom.mockReturnValue({
+        where: jest.fn().mockResolvedValue([
+          { fromPhoneNumber: '+1111111111' },
+          { fromPhoneNumber: '+2222222222' },
+        ]),
+      });
+
+      mockSelect.mockReturnValue({ from: mockSelectFrom });
+      mockSelectFrom.mockReturnValue({ where: mockWhere });
+      mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+
       // Mock messages for first phone number (more than limit)
       const phone1Messages = Array.from({ length: 150 }, (_, i) => ({ id: i + 1 }));
       
@@ -343,6 +383,21 @@ describe('WhatsAppHistoryService', () => {
     });
 
     it('should use default keepLastN value', async () => {
+      // Setup separate mocks for this test
+      const mockSelectDistinctFrom = jest.fn();
+      const mockSelectFrom = jest.fn();
+      
+      mockSelectDistinct.mockReturnValue({ from: mockSelectDistinctFrom });
+      mockSelectDistinctFrom.mockReturnValue({
+        where: jest.fn().mockResolvedValue([
+          { fromPhoneNumber: '+1111111111' },
+        ]),
+      });
+
+      mockSelect.mockReturnValue({ from: mockSelectFrom });
+      mockSelectFrom.mockReturnValue({ where: mockWhere });
+      mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+
       const messages = Array.from({ length: 120 }, (_, i) => ({ id: i + 1 }));
       mockOrderBy.mockResolvedValue(messages);
 
@@ -369,7 +424,10 @@ describe('WhatsAppHistoryService', () => {
     });
 
     it('should handle empty phone numbers list', async () => {
-      mockFrom.mockReturnValueOnce({
+      const mockSelectDistinctFrom = jest.fn();
+      
+      mockSelectDistinct.mockReturnValue({ from: mockSelectDistinctFrom });
+      mockSelectDistinctFrom.mockReturnValue({
         where: jest.fn().mockResolvedValue([]),
       });
 
