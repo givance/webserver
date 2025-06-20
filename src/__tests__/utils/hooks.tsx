@@ -1,9 +1,9 @@
 import { renderHook, RenderHookOptions } from "@testing-library/react";
 import React from "react";
 
-interface CustomRenderHookOptions<TProps>
-  extends Omit<RenderHookOptions<TProps>, "wrapper"> {
+interface CustomRenderHookOptions<TProps> extends Omit<RenderHookOptions<TProps>, "wrapper"> {
   // Add any custom options here
+  initialProps?: TProps;
 }
 
 function TestWrapper({ children }: { children: React.ReactNode }) {

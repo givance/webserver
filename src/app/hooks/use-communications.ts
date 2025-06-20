@@ -22,6 +22,8 @@ export function useCommunications() {
   const getSessionStatus = trpc.communications.campaigns.getSessionStatus.useQuery;
   const listCampaigns = trpc.communications.campaigns.listCampaigns.useQuery;
   const getEmailStatus = trpc.communications.campaigns.getEmailStatus.useQuery;
+  const getEmailSchedule = trpc.communications.campaigns.getEmailSchedule.useQuery;
+  const getScheduleConfig = trpc.communications.campaigns.getScheduleConfig.useQuery;
 
   // Mutation hooks - Communication Threads
   const createThread = trpc.communications.threads.createThread.useMutation({
@@ -121,6 +123,39 @@ export function useCommunications() {
     },
   });
 
+  // Email scheduling mutation hooks
+  const scheduleEmailSend = trpc.communications.campaigns.scheduleEmailSend.useMutation({
+    onSuccess: (data, variables) => {
+      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+    },
+  });
+
+  const pauseEmailSending = trpc.communications.campaigns.pauseEmailSending.useMutation({
+    onSuccess: (data, variables) => {
+      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+    },
+  });
+
+  const resumeEmailSending = trpc.communications.campaigns.resumeEmailSending.useMutation({
+    onSuccess: (data, variables) => {
+      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+    },
+  });
+
+  const cancelEmailSending = trpc.communications.campaigns.cancelEmailSending.useMutation({
+    onSuccess: (data, variables) => {
+      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+    },
+  });
+
+  const updateScheduleConfig = trpc.communications.campaigns.updateScheduleConfig.useMutation({
+    onSuccess: () => {
+      utils.communications.campaigns.getScheduleConfig.invalidate();
+    },
+  });
+
   return {
     // Query hooks
     listThreads,
@@ -130,6 +165,8 @@ export function useCommunications() {
     getSessionStatus,
     listCampaigns,
     getEmailStatus,
+    getEmailSchedule,
+    getScheduleConfig,
 
     // Mutation hooks
     createThread,
@@ -148,5 +185,10 @@ export function useCommunications() {
     saveDraft,
     saveGeneratedEmail,
     retryCampaign,
+    scheduleEmailSend,
+    pauseEmailSending,
+    resumeEmailSending,
+    cancelEmailSending,
+    updateScheduleConfig,
   };
 }

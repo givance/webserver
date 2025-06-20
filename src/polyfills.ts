@@ -44,5 +44,33 @@ if (typeof global.TransformStream === "undefined") {
   } as any;
 }
 
+// Polyfill for MessagePort (needed for undici)
+if (typeof global.MessagePort === "undefined") {
+  global.MessagePort = class MessagePort {
+    onmessage: any;
+    onmessageerror: any;
+    
+    postMessage() {}
+    close() {}
+    start() {}
+    addEventListener() {}
+    removeEventListener() {}
+    dispatchEvent() { return true; }
+  } as any;
+}
+
+// Polyfill for MessageChannel
+if (typeof global.MessageChannel === "undefined") {
+  global.MessageChannel = class MessageChannel {
+    port1: any;
+    port2: any;
+    
+    constructor() {
+      this.port1 = new (global as any).MessagePort();
+      this.port2 = new (global as any).MessagePort();
+    }
+  } as any;
+}
+
 // Polyfill for whatwg-fetch in test environment
 import "whatwg-fetch";

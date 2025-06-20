@@ -566,6 +566,52 @@ export const generatedEmails = pgTable("generated_emails", {
   isPreview: boolean("is_preview").default(false).notNull(), // Whether this was a preview email
   isSent: boolean("is_sent").default(false).notNull(), // Whether this email has been sent
   sentAt: timestamp("sent_at"), // When this email was sent (null if not sent)
+  // Scheduling fields
+  sendJobId: integer("send_job_id"), // References emailSendJobs.id when scheduled
+  scheduledSendTime: timestamp("scheduled_send_time"), // When this email is scheduled to be sent
+  sendStatus: text("send_status").default("pending"), // 'pending', 'scheduled', 'sending', 'sent', 'failed', 'cancelled', 'paused'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Email schedule configuration table for organization-level settings
+ */
+export const emailScheduleConfig = pgTable("email_schedule_config", {
+  id: serial("id").primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  dailyLimit: integer("daily_limit").notNull().default(150), // Default daily email limit
+  maxDailyLimit: integer("max_daily_limit").notNull().default(500), // Maximum allowed daily limit
+  minGapMinutes: integer("min_gap_minutes").notNull().default(1), // Minimum gap between emails in minutes
+  maxGapMinutes: integer("max_gap_minutes").notNull().default(3), // Maximum gap between emails in minutes
+  timezone: text("timezone").notNull().default("America/New_York"), // Organization timezone for daily limits
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Email send jobs table to track individual scheduled email sends
+ */
+export const emailSendJobs = pgTable("email_send_jobs", {
+  id: serial("id").primaryKey(),
+  emailId: integer("email_id")
+    .references(() => generatedEmails.id, { onDelete: "cascade" })
+    .notNull(),
+  sessionId: integer("session_id")
+    .references(() => emailGenerationSessions.id, { onDelete: "cascade" })
+    .notNull(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  triggerJobId: text("trigger_job_id"), // Trigger.dev job ID
+  scheduledTime: timestamp("scheduled_time").notNull(), // When the email should be sent
+  actualSendTime: timestamp("actual_send_time"), // When the email was actually sent
+  status: text("status").notNull().default("scheduled"), // 'scheduled', 'running', 'completed', 'failed', 'cancelled'
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastError: text("last_error"), // Error message if failed
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -598,9 +644,10 @@ export const emailGenerationSessionsRelations = relations(emailGenerationSession
     references: [templates.id],
   }),
   generatedEmails: many(generatedEmails),
+  emailSendJobs: many(emailSendJobs),
 }));
 
-export const generatedEmailsRelations = relations(generatedEmails, ({ one }) => ({
+export const generatedEmailsRelations = relations(generatedEmails, ({ one, many }) => ({
   session: one(emailGenerationSessions, {
     fields: [generatedEmails.sessionId],
     references: [emailGenerationSessions.id],
@@ -608,6 +655,32 @@ export const generatedEmailsRelations = relations(generatedEmails, ({ one }) => 
   donor: one(donors, {
     fields: [generatedEmails.donorId],
     references: [donors.id],
+  }),
+  sendJobs: many(emailSendJobs), // Email can have multiple send jobs (if retried)
+}));
+
+/**
+ * Relations for email scheduling tables
+ */
+export const emailScheduleConfigRelations = relations(emailScheduleConfig, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [emailScheduleConfig.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const emailSendJobsRelations = relations(emailSendJobs, ({ one }) => ({
+  email: one(generatedEmails, {
+    fields: [emailSendJobs.emailId],
+    references: [generatedEmails.id],
+  }),
+  session: one(emailGenerationSessions, {
+    fields: [emailSendJobs.sessionId],
+    references: [emailGenerationSessions.id],
+  }),
+  organization: one(organizations, {
+    fields: [emailSendJobs.organizationId],
+    references: [organizations.id],
   }),
 }));
 

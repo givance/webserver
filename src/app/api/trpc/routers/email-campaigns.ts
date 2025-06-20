@@ -2,6 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { EmailGenerationService, type GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
 import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
+import { EmailSchedulingService } from "@/app/lib/services/email-scheduling.service";
 import { AgenticEmailGenerationService } from "@/app/lib/services/agentic-email-generation.service";
 import { env } from "@/app/lib/env";
 
@@ -328,4 +329,107 @@ export const emailCampaignsRouter = router({
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.retryCampaign(input.campaignId, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
+
+  /**
+   * Schedule email sending for a campaign
+   */
+  scheduleEmailSend: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.scheduleEmailCampaign(
+        input.sessionId,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
+    }),
+
+  /**
+   * Get email schedule and status for a campaign
+   */
+  getEmailSchedule: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.getCampaignSchedule(input.sessionId, ctx.auth.user.organizationId);
+    }),
+
+  /**
+   * Pause email sending for a campaign
+   */
+  pauseEmailSending: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.pauseCampaign(input.sessionId, ctx.auth.user.organizationId);
+    }),
+
+  /**
+   * Resume email sending for a paused campaign
+   */
+  resumeEmailSending: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.resumeCampaign(
+        input.sessionId,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
+    }),
+
+  /**
+   * Cancel all remaining emails in a campaign
+   */
+  cancelEmailSending: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.cancelCampaign(input.sessionId, ctx.auth.user.organizationId);
+    }),
+
+  /**
+   * Get or create email schedule configuration
+   */
+  getScheduleConfig: protectedProcedure.query(async ({ ctx }) => {
+    const schedulingService = new EmailSchedulingService();
+    return await schedulingService.getOrCreateScheduleConfig(ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Update email schedule configuration
+   */
+  updateScheduleConfig: protectedProcedure
+    .input(
+      z.object({
+        dailyLimit: z.number().min(1).max(500).optional(),
+        minGapMinutes: z.number().min(0).optional(),
+        maxGapMinutes: z.number().min(0).optional(),
+        timezone: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedulingService = new EmailSchedulingService();
+      return await schedulingService.updateScheduleConfig(ctx.auth.user.organizationId, input);
+    }),
 });

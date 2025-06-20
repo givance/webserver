@@ -98,7 +98,7 @@ export function EmailListViewer({
   // Helper function to get donor data
   const getDonorData = useCallback(
     (donorId: number) => {
-      return donors.find((donor) => donor.id === donorId);
+      return donors?.find((donor) => donor.id === donorId);
     },
     [donors]
   );
@@ -106,7 +106,7 @@ export function EmailListViewer({
   // Helper function to get tracking stats
   const getDonorTrackingStats = useCallback(
     (donorId: number) => {
-      return trackingStats.find((stats) => stats.donorId === donorId);
+      return trackingStats?.find((stats) => stats.donorId === donorId);
     },
     [trackingStats]
   );
@@ -127,13 +127,13 @@ export function EmailListViewer({
   // Filter emails based on search term
   const filteredEmails = useMemo(() => {
     if (!searchTerm.trim()) {
-      return emails;
+      return emails || [];
     }
 
     const searchLower = searchTerm.toLowerCase().trim();
     const textExtractor = getSearchableText || defaultGetSearchableText;
 
-    return emails.filter((email) => {
+    return (emails || []).filter((email) => {
       const donor = getDonorData(email.donorId);
       if (!donor) return false;
 
@@ -143,10 +143,11 @@ export function EmailListViewer({
   }, [emails, searchTerm, getDonorData, getSearchableText, defaultGetSearchableText]);
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredEmails.length / emailsPerPage);
+  const safeFilteredEmails = filteredEmails || [];
+  const totalPages = Math.ceil(safeFilteredEmails.length / emailsPerPage);
   const startIndex = (currentPage - 1) * emailsPerPage;
   const endIndex = startIndex + emailsPerPage;
-  const paginatedEmails = showPagination ? filteredEmails.slice(startIndex, endIndex) : filteredEmails;
+  const paginatedEmails = showPagination ? safeFilteredEmails.slice(startIndex, endIndex) : safeFilteredEmails;
 
   // Handle search change
   const handleSearchChange = (value: string) => {
@@ -191,7 +192,7 @@ export function EmailListViewer({
           </div>
           {searchTerm && (
             <p className="text-xs text-muted-foreground mt-1">
-              {filteredEmails.length} result{filteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}&quot;
+              {safeFilteredEmails.length} result{safeFilteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}&quot;
             </p>
           )}
         </div>
@@ -208,13 +209,13 @@ export function EmailListViewer({
           >
             <div
               className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden"
-              style={{ maxHeight: maxHeight }}
+              style={{ height: maxHeight, minHeight: "500px" }}
             >
-              <div className="border-r bg-background flex flex-col h-full" style={{ maxHeight: maxHeight }}>
+              <div className="border-r bg-background flex flex-col h-full">
                 <div className="p-3 border-b bg-muted/30 flex-shrink-0">
                   <h3 className="font-medium text-sm text-muted-foreground">
                     Recipients ({paginatedEmails.length}
-                    {showPagination && filteredEmails.length !== paginatedEmails.length
+                    {showPagination && safeFilteredEmails.length !== paginatedEmails.length
                       ? ` of ${filteredEmails.length}`
                       : ""}
                     )
@@ -274,7 +275,7 @@ export function EmailListViewer({
                   <div className="p-3 border-t bg-muted/30 flex-shrink-0">
                     <div className="flex flex-col space-y-2">
                       <p className="text-xs text-muted-foreground text-center">
-                        {startIndex + 1}-{Math.min(endIndex, filteredEmails.length)} of {filteredEmails.length}
+                        {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of {safeFilteredEmails.length}
                       </p>
                       <div className="flex items-center justify-center space-x-2">
                         <Button
