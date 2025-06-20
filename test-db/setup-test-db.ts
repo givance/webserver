@@ -1,128 +1,83 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import fs from "fs";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import * as dotenv from "dotenv";
 import path from "path";
 
-// Database file path
-const TEST_DB_PATH = path.join(__dirname, "test.sqlite");
+// Load test environment variables
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test") });
 
+/**
+ * Setup PostgreSQL test database for standalone testing
+ * This is a wrapper around the main database setup for backward compatibility
+ */
 export function setupTestDatabase() {
-  console.log("🗄️ Setting up SQLite test database...");
+  console.log("🗄️ Setting up PostgreSQL test database...");
 
-  // Remove existing test database if it exists
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
-    console.log("Removed existing test database");
+  // Get database URL from test environment
+  const testDatabaseUrl = process.env.DATABASE_URL;
+  if (!testDatabaseUrl) {
+    throw new Error("DATABASE_URL not found in .env.test file");
   }
 
-  // Create new SQLite database
-  const sqlite = new Database(TEST_DB_PATH);
-  const db = drizzle(sqlite);
+  console.log(`📡 Connecting to: ${testDatabaseUrl.replace(/\/\/.*@/, "//***@")}`);
 
-  // Enable foreign keys
-  sqlite.pragma("foreign_keys = ON");
+  // Create PostgreSQL connection
+  const pool = new Pool({
+    connectionString: testDatabaseUrl,
+  });
 
-  console.log("✅ SQLite test database created at:", TEST_DB_PATH);
+  const db = drizzle(pool);
 
-  return { db, sqlite, dbPath: TEST_DB_PATH };
+  console.log("✅ PostgreSQL test database connection established");
+
+  return { db, pool, dbPath: testDatabaseUrl };
 }
 
-export function createTestSchema(sqlite: Database.Database) {
+/**
+ * Create test schema using Drizzle migrations
+ */
+export async function createTestSchema(pool: Pool) {
   console.log("📋 Creating database schema...");
 
-  // Create tables using raw SQLite exec
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      firstName TEXT,
-      lastName TEXT,
-      email TEXT UNIQUE,
-      createdAt INTEGER DEFAULT (unixepoch()),
-      updatedAt INTEGER DEFAULT (unixepoch())
-    );
+  const db = drizzle(pool);
 
-    CREATE TABLE IF NOT EXISTS organizations (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      createdBy TEXT,
-      createdAt INTEGER DEFAULT (unixepoch()),
-      updatedAt INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (createdBy) REFERENCES users(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS organizationMemberships (
-      id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
-      organizationId TEXT NOT NULL,
-      userId TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'member',
-      createdAt INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (organizationId) REFERENCES organizations(id) ON DELETE CASCADE,
-      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(organizationId, userId)
-    );
-
-    CREATE TABLE IF NOT EXISTS donors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      firstName TEXT,
-      lastName TEXT,
-      email TEXT,
-      phone TEXT,
-      organizationId TEXT NOT NULL,
-      totalDonated INTEGER DEFAULT 0,
-      tier TEXT,
-      status TEXT DEFAULT 'active',
-      createdAt INTEGER DEFAULT (unixepoch()),
-      updatedAt INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (organizationId) REFERENCES organizations(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      organizationId TEXT NOT NULL,
-      goal INTEGER,
-      active INTEGER DEFAULT 1,
-      createdAt INTEGER DEFAULT (unixepoch()),
-      updatedAt INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (organizationId) REFERENCES organizations(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS emailGenerationSessions (
-      id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
-      organizationId TEXT NOT NULL,
-      userId TEXT NOT NULL,
-      jobName TEXT,
-      instruction TEXT,
-      chatHistory TEXT DEFAULT '[]',
-      selectedDonorIds TEXT DEFAULT '[]',
-      previewDonorIds TEXT DEFAULT '[]',
-      totalDonors INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'DRAFT',
-      createdAt INTEGER DEFAULT (unixepoch()),
-      updatedAt INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (organizationId) REFERENCES organizations(id) ON DELETE CASCADE,
-      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
-
-  console.log("✅ Database schema created successfully");
-}
-
-export function cleanupTestDatabase(dbPath: string) {
-  console.log("🧹 Cleaning up test database...");
-  if (fs.existsSync(dbPath)) {
-    fs.unlinkSync(dbPath);
-    console.log("✅ Test database cleaned up");
+  try {
+    // Run migrations to create schema
+    await migrate(db, { migrationsFolder: "./drizzle/migrations" });
+    console.log("✅ Database schema created successfully");
+  } catch (error) {
+    console.error("❌ Schema creation failed:", error);
+    throw error;
   }
 }
 
-// If run directly
+/**
+ * Clean up PostgreSQL test database
+ */
+export async function cleanupTestDatabase(pool: Pool) {
+  console.log("🧹 Cleaning up test database...");
+
+  try {
+    await pool.end();
+    console.log("✅ Test database connection closed");
+  } catch (error) {
+    console.error("❌ Database cleanup failed:", error);
+  }
+}
+
+// If run directly (for backward compatibility)
 if (require.main === module) {
-  const { db, sqlite, dbPath } = setupTestDatabase();
-  createTestSchema(sqlite);
-  sqlite.close();
-  console.log("✅ Test database setup complete");
+  (async () => {
+    try {
+      const { pool } = setupTestDatabase();
+      await createTestSchema(pool);
+      await cleanupTestDatabase(pool);
+      console.log("✅ Test database setup complete");
+      process.exit(0);
+    } catch (error) {
+      console.error("❌ Test database setup failed:", error);
+      process.exit(1);
+    }
+  })();
 }

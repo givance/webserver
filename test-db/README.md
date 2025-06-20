@@ -1,133 +1,192 @@
-# SQLite Test Database Setup
+# PostgreSQL Test Database Setup
 
-## ✅ **Successfully Configured!**
+This directory contains utilities for setting up and managing the PostgreSQL test database used in end-to-end tests.
 
-This directory contains a complete SQLite test database setup for your nonprofit webserver application. The tests are working and passing!
+## Overview
 
-## 📁 **Files Overview**
+The test database setup has been migrated from SQLite to PostgreSQL for better consistency with the production environment. The setup uses Drizzle ORM for type-safe database operations and migrations.
 
-### Core Files
-- **`setup-test-db.ts`** - Main database setup script that creates SQLite database and schema
-- **`verify-db.ts`** - Verification script to test database operations
-- **`test.sqlite`** - The actual SQLite database file (auto-generated, ignored in git)
+## Quick Start
 
-### Test Files
-- **`src/__tests__/e2e/database-only.spec.ts`** - Pure database tests (no auth required)
-- **`src/__tests__/e2e/database-integration.spec.ts`** - Full integration tests (requires Clerk auth)
+### 1. Prerequisites
 
-## 🚀 **What's Working**
+- PostgreSQL server running locally
+- Node.js version 22.4.0 (`nvm use 22.4.0`)
+- pnpm package manager
 
-### ✅ Database Operations
-- ✅ Table creation and schema setup
-- ✅ Data insertion with proper foreign key relationships
-- ✅ Query operations (SELECT, UPDATE, JOIN)
-- ✅ Foreign key constraint enforcement
-- ✅ Clean setup and teardown for each test
+### 2. Create Test Database
 
-### ✅ Test Suite
-- ✅ 4 database tests all passing
-- ✅ Proper test isolation (each test gets fresh data)
-- ✅ Comprehensive verification of database functionality
-- ✅ Error handling and constraint testing
-
-## 📊 **Test Results**
-```
-Running 4 tests using 1 worker
-✅ should create and verify database tables
-✅ should verify SQLite database contains test data
-✅ should handle database queries and updates  
-✅ should respect foreign key constraints
-4 passed (2.6s)
-```
-
-## 🛠 **Usage**
-
-### Run Database Tests
 ```bash
-# Run all database tests
-npx playwright test database-only.spec.ts --project="Main tests"
+# Connect to PostgreSQL as superuser
+psql -U postgres
 
-# Run with detailed output
-npx playwright test database-only.spec.ts --project="Main tests" --reporter=line
-
-# Run a specific test
-npx playwright test database-only.spec.ts -g "should verify SQLite database contains test data"
+# Create test database and user
+CREATE DATABASE givance_test;
+CREATE USER test WITH ENCRYPTED PASSWORD 'test';
+GRANT ALL PRIVILEGES ON DATABASE givance_test TO test;
+\q
 ```
 
-### Manual Database Operations
+### 3. Set Environment Variables
+
+Create a `.env.test` file in the project root:
+
+```env
+# PostgreSQL Test Database
+DATABASE_URL=postgresql://test:test@localhost:5432/givance_test
+
+# Clerk Test Configuration
+CLERK_PUBLISHABLE_KEY=pk_test_your_test_key_here
+CLERK_SECRET_KEY=sk_test_your_test_key_here
+
+# Other test environment variables...
+```
+
+### 4. Run Tests
+
 ```bash
-# Setup database manually
-npx tsx test-db/setup-test-db.ts
+# Run all E2E tests (includes database setup)
+pnpm test:e2e
 
-# Verify database setup
-npx tsx test-db/verify-db.ts
+# Run specific database integration tests
+pnpm test:e2e database-integration
 ```
 
-## 🗄️ **Database Schema**
+## Database Setup Process
 
-The SQLite database includes these tables:
-- **users** - User accounts
-- **organizations** - Nonprofit organizations
-- **organizationMemberships** - User-organization relationships
-- **donors** - Donor information
-- **projects** - Fundraising projects
-- **emailGenerationSessions** - Email campaign data
+The test database setup follows this sequence:
 
-### Key Features
-- **Foreign key constraints** enabled and enforced
-- **Automatic timestamps** using SQLite's `unixepoch()`
-- **Proper data types** (TEXT, INTEGER, with INTEGER for booleans)
-- **Cascade deletes** for data integrity
+1. **Connection**: Connects to PostgreSQL using `DATABASE_URL` from `.env.test`
+2. **Cleanup**: Removes existing test data (safe for repeated runs)
+3. **Migrations**: Runs all Drizzle migrations to create tables
+4. **Test Data**: Inserts comprehensive test data including:
+   - Test users and organizations
+   - Sample donors with various states and classifications
+   - Staff members
+   - Email campaigns
+   - Projects
 
-## 🔧 **Technical Details**
+## Test Data Structure
 
-### SQLite Advantages for Testing
-- **Fast** - In-memory or file-based, very quick setup/teardown
-- **Isolated** - Each test gets its own database
-- **No dependencies** - No need for external PostgreSQL server
-- **Portable** - Works on any system with Node.js
+### Test Organization
+- **ID**: `org_2yl9dNO866AsVhdsRMmTr2CtJ4a`
+- **Name**: "Test Org"
+- **Admin User**: `user_2yl6QlrDHV2dq83Yql2WS9LZWpo`
 
-### Differences from PostgreSQL
-- Uses `INTEGER` instead of `BOOLEAN` (1/0 instead of true/false)
-- Uses `unixepoch()` for timestamps instead of `now()`
-- Slightly different SQL syntax for some operations
+### Test Donors
+1. **Alice Johnson** (CA) - Engaged donor, regular pattern
+2. **Bob Smith** (NY) - High potential, committed donor
+3. **Carol Davis** (TX) - New donor, growth potential
 
-## 🎯 **Integration with Your App**
+### Test Campaigns  
+1. **E2E Test Campaign 1** - Completed thank you emails
+2. **E2E Test Campaign 2** - Pending year-end appeal
 
-### For E2E Tests
-The database tests are configured to:
-1. Create a fresh SQLite database for each test run
-2. Insert realistic test data (users, organizations, donors, campaigns)
-3. Verify the data can be queried and manipulated correctly
-4. Clean up after tests complete
+## Files Structure
 
-### For Development
-You can use this same setup for:
-- Local development testing
-- CI/CD pipeline testing
-- Database schema validation
-- Performance testing with SQLite
+```
+test-db/
+├── setup-test-db.ts          # Standalone PostgreSQL setup (backward compatibility)
+└── README.md                 # This file
 
-## 📋 **Next Steps**
+src/__tests__/e2e/setup/
+└── database-setup.ts         # Main PostgreSQL test database setup
+```
 
-### To Use with Clerk Authentication
-1. Set up environment variables in `.env.test`
-2. Create a test user in your Clerk dashboard
-3. Run the full integration tests: `npx playwright test database-integration.spec.ts`
+## Key Features
 
-### To Extend Testing
-1. Add more test scenarios in `database-only.spec.ts`
-2. Create specific tests for your business logic
-3. Add performance benchmarks
-4. Test data migration scenarios
+### Type-Safe Operations
+- Uses Drizzle ORM for all database operations
+- Full TypeScript support with proper schema types
+- No raw SQL queries (except for verification tests)
 
-## 🎉 **Success!**
+### Production Consistency
+- PostgreSQL matches production database
+- Same migration system as production
+- Consistent data types and constraints
 
-Your SQLite test database is fully functional and ready to use. All tests are passing and the setup handles:
-- ✅ Proper foreign key relationships
-- ✅ Data integrity constraints  
-- ✅ Complex queries and joins
-- ✅ Clean test isolation
-- ✅ Automatic cleanup
+### Parallel Test Support
+- Proper connection pooling
+- Clean setup/teardown between test runs
+- Safe concurrent access patterns
 
-You now have a robust, fast, and reliable test database setup for your nonprofit webserver application! 
+### Comprehensive Test Data
+- Realistic donor profiles with various states
+- Multiple campaign scenarios
+- Organization hierarchy with proper memberships
+
+## Troubleshooting
+
+### Database Connection Issues
+
+```bash
+# Check PostgreSQL is running
+pg_isready -h localhost -p 5432
+
+# Test connection manually  
+psql -h localhost -p 5432 -U test -d givance_test
+```
+
+### Migration Issues
+
+```bash
+# Check migration status
+pnpm drizzle-kit studio
+
+# Reset and recreate database
+dropdb -U postgres givance_test
+createdb -U postgres givance_test
+```
+
+### Environment Variables
+
+Ensure `.env.test` exists with correct `DATABASE_URL`:
+- Format: `postgresql://username:password@host:port/database`
+- Test user must have full privileges on test database
+
+### Common Issues
+
+1. **"DATABASE_URL not found"**: Create `.env.test` file with proper PostgreSQL URL
+2. **"Connection refused"**: Ensure PostgreSQL server is running on localhost:5432
+3. **"Permission denied"**: Grant privileges to test user on test database
+4. **"Migration failed"**: Check that schema files are properly compiled
+
+## Integration with Tests
+
+The database setup integrates with Playwright tests through:
+
+1. **Global Setup**: `global.setup.ts` runs database setup before all tests
+2. **Test Integration**: E2E tests connect to the same PostgreSQL database
+3. **Data Verification**: Tests can query database directly for verification
+4. **Cleanup**: Automatic cleanup between test runs
+
+## Development Workflow
+
+### Adding Test Data
+
+1. Update `createTestData()` function in `database-setup.ts`
+2. Add new test data using Drizzle ORM insert operations
+3. Update test expectations to match new data
+
+### Schema Changes
+
+1. Create new migration: `pnpm drizzle-kit generate`
+2. Test migration on test database
+3. Update test data creation if needed
+4. Run tests to verify compatibility
+
+### Debugging
+
+1. Enable SQL logging in database setup
+2. Use Drizzle Studio to inspect test data: `pnpm drizzle-kit studio`
+3. Check Playwright test output for database connection logs
+4. Use PostgreSQL logs for connection debugging
+
+## Performance Considerations
+
+- Database setup runs once per test session
+- Connection pooling minimizes overhead
+- Proper cleanup prevents data accumulation
+- Indexes maintained from production schema
+
+The PostgreSQL test setup provides a robust foundation for comprehensive end-to-end testing with production-like data and schema consistency. 

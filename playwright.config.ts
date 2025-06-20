@@ -15,6 +15,8 @@ process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
  */
 export default defineConfig({
   testDir: "./src/__tests__/e2e",
+  /* Global setup - runs once before all tests */
+  globalSetup: require.resolve("./global.setup.ts"),
   /* Run tests in files in parallel */
   fullyParallel: false, // Disable for database tests
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -72,7 +74,13 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
       },
-      testMatch: ["**/database-only.spec.ts", "**/auth.spec.ts", "**/smoke-tests.spec.ts", "**/accessibility.spec.ts"],
+      testMatch: [
+        "**/database-only.spec.ts",
+        "**/database-integration.spec.ts",
+        "**/auth.spec.ts",
+        "**/smoke-tests.spec.ts",
+        "**/accessibility.spec.ts",
+      ],
       testIgnore: [
         "**/authenticated-*.spec.ts",
         "**/dashboard.spec.ts",
@@ -92,5 +100,10 @@ export default defineConfig({
     stdout: "pipe", // Show server output for debugging
     stderr: "pipe",
     timeout: 120000, // 2 minutes to start
+    env: {
+      ...process.env,
+      // Use PostgreSQL test database for the web server
+      DATABASE_URL: process.env.DATABASE_URL || "postgresql://test:test@localhost:5432/givance_test",
+    },
   },
 });

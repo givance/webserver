@@ -1,9 +1,17 @@
 import { clerkSetup } from "@clerk/testing/playwright";
-import { test as setup } from "@playwright/test";
+import { setupGlobalTestDatabase } from "./src/__tests__/e2e/setup/database-setup";
 
-// Configure Playwright with Clerk
-setup("global setup", async ({}) => {
+// Global setup function for Playwright
+async function globalSetup() {
+  console.log("🔧 Setting up test environment...");
+
+  console.log("🗄️ Setting up test database...");
+  await setupGlobalTestDatabase();
+
   console.log("🔧 Setting up Clerk for testing...");
   await clerkSetup();
-  console.log("✅ Clerk setup complete");
-});
+
+  console.log("✅ Global setup complete");
+}
+
+export default globalSetup;

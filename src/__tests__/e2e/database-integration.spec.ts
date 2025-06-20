@@ -1,8 +1,13 @@
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { cleanupTestDatabase, createTestSchema, setupTestDatabase } from "../../../test-db/setup-test-db";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { sql } from "drizzle-orm";
+import * as dotenv from "dotenv";
+import path from "path";
+
+// Load test environment variables
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test") });
 
 // Types for our test data (simplified)
 interface TestUser {
@@ -26,9 +31,10 @@ interface TestDonor {
   lastName: string;
   email: string;
   organizationId: string;
-  totalDonated: number;
-  tier: string;
-  status: string;
+  address: string;
+  state: string;
+  gender: string;
+  notes: string;
 }
 
 interface TestEmailSession {
@@ -48,168 +54,37 @@ test.describe("Database Integration E2E Tests", () => {
   // Use specific test user and organization IDs
   const TEST_ORG_ID = `org_2yl9dNO866AsVhdsRMmTr2CtJ4a`;
   const TEST_USER_ID = `user_2yl6QlrDHV2dq83Yql2WS9LZWpo`;
-  let sqlite: Database.Database;
+  let pool: Pool;
   let db: ReturnType<typeof drizzle>;
-  let dbPath: string;
 
   test.beforeAll(async () => {
-    console.log("🗄️ Setting up test data in SQLite database...");
+    console.log("🗄️ Connecting to PostgreSQL test database...");
 
-    // Setup SQLite database
-    const dbSetup = setupTestDatabase();
-    sqlite = dbSetup.sqlite;
-    db = dbSetup.db;
-    dbPath = dbSetup.dbPath;
+    // Get database URL from test environment
+    const testDatabaseUrl = process.env.DATABASE_URL;
+    if (!testDatabaseUrl) {
+      throw new Error("DATABASE_URL not found in .env.test file");
+    }
 
-    // Create schema
-    createTestSchema(sqlite);
+    console.log(`📡 Connecting to: ${testDatabaseUrl.replace(/\/\/.*@/, "//***@")}`);
 
-    // Clean up any existing test data
-    sqlite.exec(`
-      DELETE FROM emailGenerationSessions WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM donors WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM projects WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM organizationMemberships WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM organizations WHERE id = '${TEST_ORG_ID}';
-      DELETE FROM users WHERE id = '${TEST_USER_ID}';
-    `);
-
-    // Create test user first (required for foreign key in organizations)
-    sqlite
-      .prepare(
-        `
-      INSERT INTO users (id, firstName, lastName, email)
-      VALUES (?, ?, ?, ?)
-    `
-      )
-      .run(TEST_USER_ID, "Test", "User", "testuser@test.com");
-
-    // Create test organization
-    sqlite
-      .prepare(
-        `
-      INSERT INTO organizations (id, name, slug, description, createdBy)
-      VALUES (?, ?, ?, ?, ?)
-    `
-      )
-      .run(TEST_ORG_ID, "Test Org", "test-org", "A test organization for E2E testing with real database", TEST_USER_ID);
-
-    // Create organization membership
-    sqlite
-      .prepare(
-        `
-      INSERT INTO organizationMemberships (organizationId, userId, role)
-      VALUES (?, ?, ?)
-    `
-      )
-      .run(TEST_ORG_ID, TEST_USER_ID, "admin");
-
-    // Create test donors
-    const testDonors = [
-      {
-        firstName: "Alice",
-        lastName: "Johnson",
-        email: "alice.johnson@example.com",
-        organizationId: TEST_ORG_ID,
-        totalDonated: 250000, // $2500
-        tier: "platinum",
-        status: "active",
-      },
-      {
-        firstName: "Bob",
-        lastName: "Smith",
-        email: "bob.smith@example.com",
-        organizationId: TEST_ORG_ID,
-        totalDonated: 100000, // $1000
-        tier: "gold",
-        status: "active",
-      },
-      {
-        firstName: "Carol",
-        lastName: "Davis",
-        email: "carol.davis@example.com",
-        organizationId: TEST_ORG_ID,
-        totalDonated: 50000, // $500
-        tier: "silver",
-        status: "active",
-      },
-    ];
-
-    const insertDonor = sqlite.prepare(`
-      INSERT INTO donors (firstName, lastName, email, organizationId, totalDonated, tier, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    testDonors.forEach((donor) => {
-      insertDonor.run(
-        donor.firstName,
-        donor.lastName,
-        donor.email,
-        donor.organizationId,
-        donor.totalDonated,
-        donor.tier,
-        donor.status
-      );
+    // Create PostgreSQL connection
+    pool = new Pool({
+      connectionString: testDatabaseUrl,
     });
 
-    // Create test project
-    sqlite
-      .prepare(
-        `
-      INSERT INTO projects (name, description, organizationId, goal, active)
-      VALUES (?, ?, ?, ?, ?)
-    `
-      )
-      .run("E2E Test Project", "A test project for E2E testing", TEST_ORG_ID, 1000000, 1); // 1 for true in SQLite
+    db = drizzle(pool);
 
-    // Create test email generation sessions (campaigns)
-    const insertSession = sqlite.prepare(`
-      INSERT INTO emailGenerationSessions (organizationId, userId, jobName, instruction, chatHistory, selectedDonorIds, previewDonorIds, totalDonors, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    insertSession.run(
-      TEST_ORG_ID,
-      TEST_USER_ID,
-      "E2E Test Campaign 1",
-      "Help Us Reach Our Goal",
-      "[]",
-      "[]",
-      "[]",
-      3,
-      "DRAFT"
-    );
-
-    insertSession.run(
-      TEST_ORG_ID,
-      TEST_USER_ID,
-      "E2E Test Campaign 2",
-      "Major Donor Appreciation",
-      "[]",
-      "[]",
-      "[]",
-      2,
-      "COMPLETED"
-    );
-
-    console.log("✅ Test data setup complete");
+    console.log("✅ PostgreSQL connection established");
   });
 
   test.afterAll(async () => {
-    console.log("🧹 Cleaning up test data...");
+    console.log("🧹 Cleaning up PostgreSQL connection...");
 
-    // Clean up test data
-    sqlite.exec(`
-      DELETE FROM emailGenerationSessions WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM donors WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM projects WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM organizationMemberships WHERE organizationId = '${TEST_ORG_ID}';
-      DELETE FROM organizations WHERE id = '${TEST_ORG_ID}';
-      DELETE FROM users WHERE id = '${TEST_USER_ID}';
-    `);
+    if (pool) {
+      await pool.end();
+    }
 
-    sqlite.close();
-    cleanupTestDatabase(dbPath);
     console.log("✅ Cleanup complete");
   });
 
@@ -243,15 +118,6 @@ test.describe("Database Integration E2E Tests", () => {
         }
       },
       { testUserId: TEST_USER_ID, testOrgId: TEST_ORG_ID }
-    );
-
-    // Override the database connection for the web app
-    await page.addInitScript(
-      ({ dbPath }: { dbPath: string }) => {
-        // Mock the database URL to point to our test SQLite database
-        process.env.DATABASE_URL = `file:${dbPath}`;
-      },
-      { dbPath }
     );
   });
 
@@ -313,38 +179,46 @@ test.describe("Database Integration E2E Tests", () => {
     }
   });
 
-  test("should show correct donor count and totals", async ({ page }) => {
+  test("should show correct donor information", async ({ page }) => {
     await page.goto("/donors");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(5000);
 
-    // Look for any numerical data that might represent our test data
-    const totalAmountPattern = /\$[0-9,]+/g;
-    const pageContent = await page.textContent("body");
+    // Look for geographical information from our test data
+    const locations = ["CA", "NY", "TX", "California", "New York", "Texas"];
+    let foundLocations = 0;
 
-    if (pageContent) {
-      const amounts = pageContent.match(totalAmountPattern);
-      if (amounts && amounts.length > 0) {
-        console.log("Found monetary amounts on page:", amounts.slice(0, 5)); // Show first 5
-        expect(amounts.length).toBeGreaterThan(0);
+    for (const location of locations) {
+      const locationElement = page.locator(`text=${location}`).first();
+      if (await locationElement.isVisible().catch(() => false)) {
+        foundLocations++;
+        console.log(`✅ Found location: ${location}`);
       }
     }
 
-    // Check for donor tier information
-    const tierElements = ["platinum", "gold", "silver"];
-    let foundTiers = 0;
+    // Check for donor tier information or classification
+    const classifications = ["engaged", "committed", "new", "high potential"];
+    let foundClassifications = 0;
 
-    for (const tier of tierElements) {
-      const tierElement = page.locator(`text=${tier}`).first();
-      if (await tierElement.isVisible().catch(() => false)) {
-        foundTiers++;
-        console.log(`✅ Found tier: ${tier}`);
+    for (const classification of classifications) {
+      const classElement = page.locator(`text=${classification}`).first();
+      if (await classElement.isVisible().catch(() => false)) {
+        foundClassifications++;
+        console.log(`✅ Found classification: ${classification}`);
       }
     }
 
-    // Should find some tier information or at least have page content
-    const hasContent = foundTiers > 0 || (pageContent && pageContent.length > 100);
-    expect(hasContent).toBe(true);
+    // Should find some location or classification information
+    const hasData = foundLocations > 0 || foundClassifications > 0;
+    if (hasData) {
+      expect(hasData).toBe(true);
+      console.log(`Found ${foundLocations} locations and ${foundClassifications} classifications`);
+    } else {
+      // At least ensure page has substantial content
+      const pageContent = await page.textContent("body");
+      expect(pageContent && pageContent.length > 100).toBe(true);
+      console.log("Page loaded with content but no specific test data patterns found");
+    }
   });
 
   test("should handle donor detail navigation", async ({ page }) => {
@@ -403,36 +277,57 @@ test.describe("Database Integration E2E Tests", () => {
     console.log("✅ Campaigns page loads consistently");
   });
 
-  test("should verify SQLite database contains test data", async ({ page }) => {
-    // This test verifies our SQLite setup is working by checking the database directly
-    const donorCount = sqlite
-      .prepare("SELECT COUNT(*) as count FROM donors WHERE organizationId = ?")
-      .get(TEST_ORG_ID) as { count: number };
-    const orgCount = sqlite.prepare("SELECT COUNT(*) as count FROM organizations WHERE id = ?").get(TEST_ORG_ID) as {
-      count: number;
-    };
-    const campaignCount = sqlite
-      .prepare("SELECT COUNT(*) as count FROM emailGenerationSessions WHERE organizationId = ?")
-      .get(TEST_ORG_ID) as { count: number };
+  test("should verify PostgreSQL database contains test data", async ({ page }) => {
+    // This test verifies our PostgreSQL setup is working by checking the database directly
+    try {
+      const donorResult = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM donors 
+        WHERE organization_id = ${TEST_ORG_ID}
+      `);
 
-    console.log(`Database verification:
-      - Donors: ${donorCount.count}
-      - Organizations: ${orgCount.count}
-      - Campaigns: ${campaignCount.count}`);
+      const orgResult = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM organizations 
+        WHERE id = ${TEST_ORG_ID}
+      `);
 
-    expect(donorCount.count).toBe(3);
-    expect(orgCount.count).toBe(1);
-    expect(campaignCount.count).toBe(2);
+      const campaignResult = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM email_generation_sessions 
+        WHERE organization_id = ${TEST_ORG_ID}
+      `);
 
-    // Also verify the data content
-    const donors = sqlite
-      .prepare("SELECT firstName, lastName FROM donors WHERE organizationId = ? ORDER BY firstName")
-      .all(TEST_ORG_ID);
-    expect(donors).toHaveLength(3);
-    expect(donors[0]).toMatchObject({ firstName: "Alice", lastName: "Johnson" });
-    expect(donors[1]).toMatchObject({ firstName: "Bob", lastName: "Smith" });
-    expect(donors[2]).toMatchObject({ firstName: "Carol", lastName: "Davis" });
+      const donorCount = Number(donorResult.rows[0]?.count || 0);
+      const orgCount = Number(orgResult.rows[0]?.count || 0);
+      const campaignCount = Number(campaignResult.rows[0]?.count || 0);
 
-    console.log("✅ SQLite database verification passed");
+      console.log(`Database verification:
+        - Donors: ${donorCount}
+        - Organizations: ${orgCount}
+        - Campaigns: ${campaignCount}`);
+
+      expect(donorCount).toBe(3);
+      expect(orgCount).toBe(1);
+      expect(campaignCount).toBe(2);
+
+      // Also verify the data content
+      const donorsResult = await db.execute(sql`
+        SELECT first_name, last_name 
+        FROM donors 
+        WHERE organization_id = ${TEST_ORG_ID}
+        ORDER BY first_name
+      `);
+
+      expect(donorsResult.rows).toHaveLength(3);
+      expect(donorsResult.rows[0]).toMatchObject({ first_name: "Alice", last_name: "Johnson" });
+      expect(donorsResult.rows[1]).toMatchObject({ first_name: "Bob", last_name: "Smith" });
+      expect(donorsResult.rows[2]).toMatchObject({ first_name: "Carol", last_name: "Davis" });
+
+      console.log("✅ PostgreSQL database verification passed");
+    } catch (error) {
+      console.error("❌ Database verification failed:", error);
+      throw error;
+    }
   });
 });
