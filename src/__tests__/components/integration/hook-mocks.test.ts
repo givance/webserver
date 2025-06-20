@@ -1,3 +1,12 @@
+import { useDonors } from "@/app/hooks/use-donors";
+import { useProjects } from "@/app/hooks/use-projects";
+import { useCommunications } from "@/app/hooks/use-communications";
+import { useSearch } from "@/app/hooks/use-search";
+import { usePagination } from "@/app/hooks/use-pagination";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { toast as reactHotToast } from "react-hot-toast";
+import { toast as sonnerToast } from "sonner";
+
 describe("Hook Mocks", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -5,7 +14,6 @@ describe("Hook Mocks", () => {
 
   describe("useDonors hook mock", () => {
     it("should be mocked", () => {
-      const { useDonors } = require("@/app/hooks/use-donors");
       expect(typeof useDonors).toBe("function");
       // The hook is mocked in setup.ts to return expected shape
       const result = useDonors();
@@ -18,7 +26,6 @@ describe("Hook Mocks", () => {
 
   describe("useProjects hook mock", () => {
     it("should be mocked", () => {
-      const { useProjects } = require("@/app/hooks/use-projects");
       expect(typeof useProjects).toBe("function");
       // The hook is mocked in setup.ts to return expected shape
       const result = useProjects();
@@ -31,7 +38,6 @@ describe("Hook Mocks", () => {
 
   describe("useCommunications hook mock", () => {
     it("should be mocked", () => {
-      const { useCommunications } = require("@/app/hooks/use-communications");
       expect(typeof useCommunications).toBe("function");
       // The hook is mocked in setup.ts to return expected shape
       const result = useCommunications();
@@ -41,7 +47,6 @@ describe("Hook Mocks", () => {
 
   describe("useSearch hook mock", () => {
     it("should be mocked", () => {
-      const { useSearch } = require("@/app/hooks/use-search");
       expect(typeof useSearch).toBe("function");
       // The hook is mocked in setup.ts to return expected shape
       const result = useSearch();
@@ -54,7 +59,6 @@ describe("Hook Mocks", () => {
 
   describe("usePagination hook mock", () => {
     it("should be mocked", () => {
-      const { usePagination } = require("@/app/hooks/use-pagination");
       expect(typeof usePagination).toBe("function");
       // The hook is mocked in setup.ts to return expected shape
       const result = usePagination();
@@ -70,7 +74,6 @@ describe("Hook Mocks", () => {
 
   describe("navigation mocks", () => {
     it("should have mocked router", () => {
-      const { useRouter } = require("next/navigation");
       const router = useRouter();
 
       expect(router).toHaveProperty("push");
@@ -81,13 +84,10 @@ describe("Hook Mocks", () => {
     });
 
     it("should have mocked useParams", () => {
-      const navigation = require("next/navigation");
-      expect(navigation).toHaveProperty("useParams");
-      expect(typeof navigation.useParams).toBe("function");
+      expect(typeof useParams).toBe("function");
     });
 
     it("should have mocked useSearchParams", () => {
-      const { useSearchParams } = require("next/navigation");
       const searchParams = useSearchParams();
       expect(searchParams).toHaveProperty("get");
       expect(typeof searchParams.get).toBe("function");
@@ -96,22 +96,18 @@ describe("Hook Mocks", () => {
 
   describe("toast mocks", () => {
     it("should have mocked react-hot-toast", () => {
-      const { toast } = require("react-hot-toast");
-      
-      expect(toast).toHaveProperty("success");
-      expect(toast).toHaveProperty("error");
-      expect(toast).toHaveProperty("loading");
-      expect(typeof toast.success).toBe("function");
+      expect(reactHotToast).toHaveProperty("success");
+      expect(reactHotToast).toHaveProperty("error");
+      expect(reactHotToast).toHaveProperty("loading");
+      expect(typeof reactHotToast.success).toBe("function");
     });
 
     it("should have mocked sonner", () => {
-      const { toast } = require("sonner");
-      
-      expect(toast).toHaveProperty("success");
-      expect(toast).toHaveProperty("error");
-      expect(toast).toHaveProperty("loading");
-      expect(toast).toHaveProperty("promise");
-      expect(typeof toast.success).toBe("function");
+      expect(sonnerToast).toHaveProperty("success");
+      expect(sonnerToast).toHaveProperty("error");
+      expect(sonnerToast).toHaveProperty("loading");
+      expect(sonnerToast).toHaveProperty("promise");
+      expect(typeof sonnerToast.success).toBe("function");
     });
   });
 });

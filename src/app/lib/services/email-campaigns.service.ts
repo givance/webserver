@@ -118,6 +118,21 @@ export class EmailCampaignsService {
       let sessionId: number;
 
       if (existingDraft[0]) {
+        // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
+        const existingEmailsForSelectedDonors = await db
+          .select({ donorId: generatedEmails.donorId })
+          .from(generatedEmails)
+          .where(
+            and(
+              eq(generatedEmails.sessionId, existingDraft[0].id),
+              or(eq(generatedEmails.status, "PENDING_APPROVAL"), eq(generatedEmails.status, "APPROVED"))
+            )
+          );
+
+        // Count how many of the selected donors already have emails
+        const existingDonorIds = existingEmailsForSelectedDonors.map(e => e.donorId);
+        const currentCompletedCount = input.selectedDonorIds.filter(id => existingDonorIds.includes(id)).length;
+
         // Update existing draft to PENDING and use it
         const [updatedSession] = await db
           .update(emailGenerationSessions)
@@ -129,6 +144,7 @@ export class EmailCampaignsService {
             selectedDonorIds: input.selectedDonorIds,
             previewDonorIds: input.previewDonorIds,
             totalDonors: input.selectedDonorIds.length,
+            completedDonors: currentCompletedCount, // Set the initial completed count
             updatedAt: new Date(),
           })
           .where(eq(emailGenerationSessions.id, existingDraft[0].id))
@@ -142,11 +158,13 @@ export class EmailCampaignsService {
           .set({
             status: "APPROVED",
             isPreview: false,
+            isSent: false,
+            sendStatus: "pending",
             updatedAt: new Date(),
           })
           .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
 
-        logger.info(`Updated existing draft session ${sessionId} to PENDING for user ${userId}`);
+        logger.info(`Updated existing draft session ${sessionId} to PENDING with ${currentCompletedCount} completed donors for user ${userId}`);
       } else {
         // Create new session
         const [session] = await db
@@ -162,6 +180,7 @@ export class EmailCampaignsService {
             selectedDonorIds: input.selectedDonorIds,
             previewDonorIds: input.previewDonorIds,
             totalDonors: input.selectedDonorIds.length,
+            completedDonors: 0, // Initialize to 0 for new sessions
             status: "PENDING",
           })
           .returning();
@@ -316,6 +335,30 @@ export class EmailCampaignsService {
     if (!session) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
     }
+
+    // Failsafe: If status is PENDING or IN_PROGRESS but all donors are completed, update to COMPLETED
+    if (
+      (session.status === "PENDING" || session.status === "IN_PROGRESS" || session.status === "GENERATING") &&
+      session.completedDonors >= session.totalDonors &&
+      session.totalDonors > 0
+    ) {
+      logger.info(`Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to COMPLETED.`);
+      
+      await db
+        .update(emailGenerationSessions)
+        .set({
+          status: "COMPLETED",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, sessionId));
+
+      return {
+        ...session,
+        status: "COMPLETED",
+      };
+    }
+
     return session;
   }
 

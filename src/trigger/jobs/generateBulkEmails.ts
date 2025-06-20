@@ -367,6 +367,8 @@ export const generateBulkEmailsTask = task({
           referenceContexts: email.referenceContexts,
           status: "APPROVED",
           isPreview: false,
+          isSent: false,
+          sendStatus: "pending",
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -374,14 +376,15 @@ export const generateBulkEmailsTask = task({
 
       await db.insert(generatedEmails).values(emailInserts);
 
-      // Update session status to IN_PROGRESS (ready for sending) with total completed count including existing emails
+      // Update session status to COMPLETED since all emails are now generated
       const totalCompletedDonors = selectedDonorIds.length; // All selected donors now have emails
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "IN_PROGRESS",
+          status: "COMPLETED",
           completedDonors: totalCompletedDonors,
           refinedInstruction: refinedInstruction || instruction,
+          completedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(emailGenerationSessions.id, sessionId));

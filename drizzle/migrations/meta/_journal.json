@@ -302,6 +302,13 @@
       "when": 1750364392492,
       "tag": "0042_equal_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1750448517287,
+      "tag": "0043_flaky_madrox",
+      "breakpoints": true
     }
   ]
 }

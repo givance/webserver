@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle, Edit } from "lucide-react";
+import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle, Edit, Calendar } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useCommunications } from "@/app/hooks/use-communications";
@@ -22,6 +22,7 @@ import {
 import { trpc } from "@/app/lib/trpc/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+import { useRouter } from "next/navigation";
 
 // Enhanced status badge function
 function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any) {
@@ -51,14 +52,20 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   }
 
   // If still generating emails (actively generating or in progress)
-  if (
-    status === "GENERATING" ||
-    status === "IN_PROGRESS" ||
-    (completedDonors < totalDonors && status !== "COMPLETED")
-  ) {
+  if (completedDonors < totalDonors && status !== "COMPLETED" && status !== "FAILED") {
     return (
       <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">
         Generating ({completedDonors}/{totalDonors})
+      </Badge>
+    );
+  }
+
+  // If status shows as generating but all donors are completed, treat as ready
+  if ((status === "GENERATING" || status === "IN_PROGRESS") && completedDonors >= totalDonors && totalDonors > 0) {
+    // No emails sent yet, but all generated
+    return (
+      <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50">
+        Ready to Send
       </Badge>
     );
   }
@@ -108,6 +115,9 @@ function CampaignStatus({ campaign }: { campaign: ExistingCampaign }) {
   const { data: trackingStats } = useSessionTrackingStats(campaign.id);
   return getEnhancedStatusBadge(campaign, trackingStats);
 }
+
+// Component to show scheduled emails button
+// Removed ScheduledEmailsButton - schedule functionality moved to main campaign page
 
 // Enhanced progress component for individual campaigns
 function CampaignProgress({ campaign }: { campaign: ExistingCampaign }) {
@@ -179,6 +189,11 @@ interface ConfirmationDialogProps {
   onConfirm: (sendType?: "all" | "unsent") => void;
   isLoading: boolean;
   userEmail: string | null;
+  scheduleConfig?: {
+    dailyLimit: number;
+    minGapMinutes: number;
+    maxGapMinutes: number;
+  } | null;
 }
 
 function ConfirmationDialog({
@@ -189,6 +204,7 @@ function ConfirmationDialog({
   onConfirm,
   isLoading,
   userEmail,
+  scheduleConfig,
 }: ConfirmationDialogProps) {
   const [sendType, setSendType] = useState<"all" | "unsent">("unsent");
 
@@ -198,7 +214,7 @@ function ConfirmationDialog({
   if (!campaign) return null;
 
   const actionText = action === "draft" ? "save as drafts" : action === "send" ? "send" : "delete";
-  const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Send Emails" : "Delete Campaign";
+  const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Schedule Send" : "Delete Campaign";
 
   const unsentCount = campaign.totalEmails - campaign.sentEmails;
   const openedCount = trackingStats?.uniqueOpens || 0;
@@ -245,30 +261,34 @@ function ConfirmationDialog({
 
                 {action === "send" && (
                   <div className="space-y-3">
-                    <div className="font-medium">Send options:</div>
-                    <div className="space-y-2">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="radio"
-                          name="sendType"
-                          value="unsent"
-                          checked={sendType === "unsent"}
-                          onChange={(e) => setSendType(e.target.value as "all" | "unsent")}
-                          className="form-radio"
-                        />
-                        <span>Send only unsent emails ({unsentCount} emails)</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="radio"
-                          name="sendType"
-                          value="all"
-                          checked={sendType === "all"}
-                          onChange={(e) => setSendType(e.target.value as "all" | "unsent")}
-                          className="form-radio"
-                        />
-                        <span>Resend all emails ({campaign.totalEmails} emails)</span>
-                      </label>
+                    <div className="font-medium">Scheduling Information:</div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="font-medium">Emails to schedule:</span>
+                        <span>{unsentCount} emails (includes failed emails for retry)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Daily limit:</span>
+                        <span>{scheduleConfig?.dailyLimit || 150} emails/day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Time between emails:</span>
+                        <span>
+                          {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minutes
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Estimated duration:</span>
+                        <span>{Math.ceil(unsentCount / (scheduleConfig?.dailyLimit || 150))} days</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800">
+                        ℹ️ Emails will be sent automatically with random delays between{" "}
+                        {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minutes. Failed emails
+                        will be retried automatically. You can pause, resume, or cancel at any time from the campaign
+                        page.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -292,8 +312,8 @@ function ConfirmationDialog({
           {action === "send" && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
               <p className="text-sm text-orange-800">
-                ⚠️ <strong>Warning:</strong> This will send {sendType === "all" ? campaign.totalEmails : unsentCount}{" "}
-                emails immediately. This action cannot be undone.
+                ⚠️ <strong>Note:</strong> This will schedule {unsentCount} emails to be sent automatically. The sending
+                will start immediately and continue based on your configured limits.
               </p>
             </div>
           )}
@@ -324,6 +344,7 @@ function ConfirmationDialog({
 const DEFAULT_PAGE_SIZE = 20;
 
 function ExistingCampaignsContent() {
+  const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [confirmationDialog, setConfirmationDialog] = useState<{
@@ -332,10 +353,21 @@ function ExistingCampaignsContent() {
     action: "draft" | "send" | "delete";
   }>({ open: false, campaign: null, action: "draft" });
 
-  const { listCampaigns, saveToDraft, sendBulkEmails, deleteCampaign, retryCampaign } = useCommunications();
+  const {
+    listCampaigns,
+    saveToDraft,
+    scheduleEmailSend,
+    deleteCampaign,
+    retryCampaign,
+    getScheduleConfig,
+    getEmailSchedule,
+  } = useCommunications();
 
   // Get Gmail connection status
   const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
+
+  // Get schedule configuration
+  const { data: scheduleConfig } = getScheduleConfig();
 
   const {
     data: campaignsResponse,
@@ -426,24 +458,33 @@ function ExistingCampaignsContent() {
         toast.promise(promise, {
           loading: "Saving to drafts...",
           success: "Emails saved to drafts successfully!",
-          error: "Failed to save to drafts.",
+          error: (err) => err?.message || "Failed to save to drafts.",
         });
       } else if (action === "send") {
-        promise = sendBulkEmails.mutateAsync({
+        promise = scheduleEmailSend.mutateAsync({
           sessionId: campaign.id,
-          sendType: sendType || "unsent",
         });
         toast.promise(promise, {
-          loading: "Sending emails...",
-          success: "Emails are being sent!",
-          error: "Failed to send emails.",
+          loading: "Scheduling emails...",
+          success: (data) => {
+            // Navigate to schedule view after successful scheduling
+            setTimeout(() => {
+              router.push(`/campaign/${campaign.id}/schedule`);
+            }, 1500);
+            return `Successfully scheduled ${data.scheduled} emails! Redirecting to schedule view...`;
+          },
+          error: (err) => {
+            // Extract the actual error message from tRPC error
+            const message = err?.message || err?.data?.message || "Failed to schedule emails.";
+            return message;
+          },
         });
       } else if (action === "delete") {
         promise = deleteCampaign.mutateAsync({ campaignId: campaign.id });
         toast.promise(promise, {
           loading: "Deleting campaign...",
           success: "Campaign deleted successfully!",
-          error: "Failed to delete campaign.",
+          error: (err) => err?.message || "Failed to delete campaign.",
         });
       }
       await promise;
@@ -455,7 +496,7 @@ function ExistingCampaignsContent() {
   };
 
   const isLoadingAction =
-    saveToDraft.isPending || sendBulkEmails.isPending || deleteCampaign.isPending || retryCampaign.isPending;
+    saveToDraft.isPending || scheduleEmailSend.isPending || deleteCampaign.isPending || retryCampaign.isPending;
 
   const columns: ColumnDef<ExistingCampaign>[] = [
     {
@@ -502,8 +543,10 @@ function ExistingCampaignsContent() {
       header: "Actions",
       cell: ({ row }) => {
         const campaign = row.original;
-        const isProcessing = campaign.status === "IN_PROGRESS" || campaign.status === "GENERATING";
-        const isCompleted = campaign.status === "COMPLETED";
+        const allEmailsGenerated = campaign.completedDonors >= campaign.totalDonors && campaign.totalDonors > 0;
+        const isProcessing =
+          (campaign.status === "IN_PROGRESS" || campaign.status === "GENERATING") && !allEmailsGenerated;
+        const isCompleted = campaign.status === "COMPLETED" || allEmailsGenerated;
         const hasFailed = campaign.status === "FAILED";
         const isGmailConnected = gmailStatus?.isConnected ?? false;
         const isDisabled = isProcessing || !isGmailConnected;
@@ -518,7 +561,7 @@ function ExistingCampaignsContent() {
         return (
           <TooltipProvider>
             <div className="flex items-center">
-              <Link href={`/campaign/results/${campaign.id}`} className="mr-2">
+              <Link href={`/campaign/${campaign.id}`} className="mr-2">
                 <Button variant="outline" size="sm">
                   <Eye className="mr-2 h-4 w-4" />
                   View
@@ -541,6 +584,8 @@ function ExistingCampaignsContent() {
 
               {(isCompleted || isProcessing) && (
                 <>
+                  {/* Removed ScheduledEmailsButton - schedule functionality moved to main campaign page */}
+
                   <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent} className="mr-2">
                     <Button
                       variant="outline"
@@ -561,7 +606,7 @@ function ExistingCampaignsContent() {
                       disabled={isDisabled}
                     >
                       <Send className="mr-2 h-4 w-4" />
-                      Send Emails
+                      Schedule Send
                     </Button>
                   </ActionButtonWrapper>
                 </>
@@ -617,6 +662,7 @@ function ExistingCampaignsContent() {
         onConfirm={handleConfirmAction}
         isLoading={isLoadingAction}
         userEmail={gmailStatus?.email || null}
+        scheduleConfig={scheduleConfig}
       />
       <DataTable
         columns={columns}

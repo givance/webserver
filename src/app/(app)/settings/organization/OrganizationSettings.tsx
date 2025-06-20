@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Loader2, Pencil, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
+import { EmailScheduleSettings } from "@/app/(app)/campaign/components/EmailScheduleSettings";
 
 // Define a type for form data that excludes memory
 type FormData = {
@@ -264,6 +265,9 @@ export function OrganizationSettings() {
           </Button>
         </div>
       </form>
+
+      {/* Email Schedule Settings */}
+      <EmailScheduleSettings />
     </div>
   );
 }

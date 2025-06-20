@@ -69,11 +69,7 @@ jest.mock("@/app/hooks/use-projects", () => ({
   })),
 }));
 
-jest.mock("@/app/hooks/use-communications", () => ({
-  useCommunications: jest.fn(() => ({
-    getSession: jest.fn(),
-  })),
-}));
+// Removed global mock for use-communications to avoid conflicts with individual test mocks
 
 // Mock environment variables for tests
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";
@@ -103,14 +99,14 @@ jest.mock("sonner", () => ({
 // Mock common components
 jest.mock("@/app/components/LoadingSkeleton", () => ({
   LoadingSkeleton: () => {
-    const React = require("react");
+    const React = jest.requireActual("react");
     return React.createElement("div", { "data-testid": "loading-skeleton" }, "Loading...");
   },
 }));
 
 jest.mock("@/app/components/ErrorDisplay", () => ({
   ErrorDisplay: ({ error, title }: { error: string; title?: string }) => {
-    const React = require("react");
+    const React = jest.requireActual("react");
     return React.createElement("div", { "data-testid": "error-display" }, [
       title && React.createElement("h2", { key: "title" }, title),
       React.createElement("p", { key: "error" }, error),
@@ -120,7 +116,7 @@ jest.mock("@/app/components/ErrorDisplay", () => ({
 
 jest.mock("@/components/ui/skeleton", () => ({
   Skeleton: ({ className }: { className?: string }) => {
-    const React = require("react");
+    const React = jest.requireActual("react");
     return React.createElement("div", { "data-testid": "skeleton", className }, "Loading...");
   },
 }));
@@ -128,13 +124,15 @@ jest.mock("@/components/ui/skeleton", () => ({
 // Mock UI components that we're not testing
 jest.mock("@/components/ui/data-table/DataTable", () => ({
   DataTable: ({ data, columns }: any) => {
-    const React = require("react");
-    return React.createElement("table", { role: "table" }, 
-      React.createElement("tbody", {}, 
-        data?.map((item: any, index: number) => 
-          React.createElement("tr", { key: index }, 
-            React.createElement("td", {}, JSON.stringify(item))
-          )
+    const React = jest.requireActual("react");
+    return React.createElement(
+      "table",
+      { role: "table" },
+      React.createElement(
+        "tbody",
+        {},
+        data?.map((item: any, index: number) =>
+          React.createElement("tr", { key: index }, React.createElement("td", {}, JSON.stringify(item)))
         )
       )
     );
@@ -143,26 +141,30 @@ jest.mock("@/components/ui/data-table/DataTable", () => ({
 
 jest.mock("@/app/components/PageSizeSelector", () => ({
   PageSizeSelector: ({ pageSize, onPageSizeChange }: any) => {
-    const React = require("react");
-    return React.createElement("select", { 
-      role: "combobox",
-      onChange: (e: any) => onPageSizeChange(Number(e.target.value)),
-      value: pageSize 
-    }, [
-      React.createElement("option", { key: "10", value: "10" }, "10"),
-      React.createElement("option", { key: "25", value: "25" }, "25"),
-      React.createElement("option", { key: "50", value: "50" }, "50"),
-    ]);
+    const React = jest.requireActual("react");
+    return React.createElement(
+      "select",
+      {
+        role: "combobox",
+        onChange: (e: any) => onPageSizeChange(Number(e.target.value)),
+        value: pageSize,
+      },
+      [
+        React.createElement("option", { key: "10", value: "10" }, "10"),
+        React.createElement("option", { key: "25", value: "25" }, "25"),
+        React.createElement("option", { key: "50", value: "50" }, "50"),
+      ]
+    );
   },
 }));
 
 jest.mock("@/components/ui/step-indicator", () => ({
   StepIndicator: ({ steps, currentStep }: any) => {
-    const React = require("react");
-    return React.createElement("div", {}, 
-      steps.map((step: string, index: number) => 
-        React.createElement("div", { key: index }, step)
-      )
+    const React = jest.requireActual("react");
+    return React.createElement(
+      "div",
+      {},
+      steps.map((step: string, index: number) => React.createElement("div", { key: index }, step))
     );
   },
 }));

@@ -1,49 +1,52 @@
-import { AgenticEmailGenerationService, type AgenticEmailGenerationInput } from '@/app/lib/services/agentic-email-generation.service';
-import { EmailGenerationService } from '@/app/lib/services/email-generation.service';
-import { AgenticEmailGenerationOrchestrator } from '@/app/lib/utils/email-generator/agentic-flow';
-import { logger } from '@/app/lib/logger';
-import { db } from '@/app/lib/db';
-import * as orgData from '@/app/lib/data/organizations';
-import * as userData from '@/app/lib/data/users';
-import * as commData from '@/app/lib/data/communications';
-import * as donationData from '@/app/lib/data/donations';
-import { PersonResearchService } from '@/app/lib/services/person-research.service';
-import * as fs from 'fs/promises';
+import {
+  AgenticEmailGenerationService,
+  type AgenticEmailGenerationInput,
+} from "@/app/lib/services/agentic-email-generation.service";
+import { EmailGenerationService } from "@/app/lib/services/email-generation.service";
+import { AgenticEmailGenerationOrchestrator } from "@/app/lib/utils/email-generator/agentic-flow";
+import { logger } from "@/app/lib/logger";
+import { db } from "@/app/lib/db";
+import * as orgData from "@/app/lib/data/organizations";
+import * as userData from "@/app/lib/data/users";
+import * as commData from "@/app/lib/data/communications";
+import * as donationData from "@/app/lib/data/donations";
+import { PersonResearchService } from "@/app/lib/services/person-research.service";
+import * as fs from "fs/promises";
 
 // Mock dependencies
-jest.mock('@/app/lib/services/email-generation.service');
-jest.mock('@/app/lib/utils/email-generator/agentic-flow');
-jest.mock('@/app/lib/logger');
-jest.mock('@/app/lib/db');
-jest.mock('@/app/lib/data/organizations');
-jest.mock('@/app/lib/data/users');
-jest.mock('@/app/lib/data/communications');
-jest.mock('@/app/lib/data/donations');
-jest.mock('@/app/lib/services/person-research.service');
-jest.mock('fs/promises');
-jest.mock('drizzle-orm', () => ({
-  eq: jest.fn((a, b) => ({ type: 'eq', a, b })),
-  and: jest.fn((...conditions) => ({ type: 'and', conditions })),
-  inArray: jest.fn((column, values) => ({ type: 'inArray', column, values })),
-  sql: jest.fn((strings, ...values) => ({ type: 'sql', strings, values })),
+jest.mock("@/app/lib/services/email-generation.service");
+jest.mock("@/app/lib/utils/email-generator/agentic-flow");
+jest.mock("@/app/lib/logger");
+jest.mock("@/app/lib/db");
+jest.mock("@/app/lib/data/organizations");
+jest.mock("@/app/lib/data/users");
+jest.mock("@/app/lib/data/communications");
+jest.mock("@/app/lib/data/donations");
+jest.mock("@/app/lib/services/person-research.service");
+jest.mock("fs/promises");
+jest.mock("drizzle-orm", () => ({
+  eq: jest.fn((a, b) => ({ type: "eq", a, b })),
+  and: jest.fn((...conditions) => ({ type: "and", conditions })),
+  inArray: jest.fn((column, values) => ({ type: "inArray", column, values })),
+  sql: jest.fn((strings, ...values) => ({ type: "sql", strings, values })),
   relations: jest.fn(() => ({})),
 }));
 
-describe('AgenticEmailGenerationService', () => {
+describe("AgenticEmailGenerationService", () => {
   let service: AgenticEmailGenerationService;
   let mockOrchestrator: jest.Mocked<AgenticEmailGenerationOrchestrator>;
   let mockEmailService: jest.Mocked<EmailGenerationService>;
   let mockPersonResearchService: jest.Mocked<PersonResearchService>;
 
   const mockInput: AgenticEmailGenerationInput = {
-    instruction: 'Write a thank you email',
+    instruction: "Write a thank you email",
     donors: [
-      { id: 1, firstName: 'John', lastName: 'Doe', email: 'john@example.com' },
-      { id: 2, firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com' },
+      { id: 1, firstName: "John", lastName: "Doe", email: "john@example.com" },
+      { id: 2, firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
     ],
-    organizationName: 'Test Org',
-    organizationWritingInstructions: 'Be friendly',
-    currentDate: '2024-01-01',
+    organizationName: "Test Org",
+    organizationWritingInstructions: "Be friendly",
+    currentDate: "2024-01-01",
   };
 
   const mockContext = {
@@ -54,18 +57,18 @@ describe('AgenticEmailGenerationService', () => {
     organizationWritingInstructions: mockInput.organizationWritingInstructions,
     donationHistories: expect.any(Object),
     personResearchResults: expect.any(Object),
-    bestPractices: 'Best practices content',
-    userMemories: ['Memory 1'],
-    organizationMemories: ['Org Memory 1'],
+    bestPractices: "Best practices content",
+    userMemories: ["Memory 1"],
+    organizationMemories: ["Org Memory 1"],
     currentDate: mockInput.currentDate,
   };
 
   const mockFlowResult = {
     steps: [
       {
-        type: 'initial' as const,
-        content: 'Starting flow',
-        questions: ['Question 1?'],
+        type: "initial" as const,
+        content: "Starting flow",
+        questions: ["Question 1?"],
         canProceed: true,
       },
     ],
@@ -76,14 +79,14 @@ describe('AgenticEmailGenerationService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Setup mocks
     mockOrchestrator = {
       startFlow: jest.fn(),
       continueFlow: jest.fn(),
       generateFinalPrompt: jest.fn(),
     } as any;
-    
+
     mockEmailService = {
       generateSmartEmails: jest.fn(),
     } as any;
@@ -99,38 +102,38 @@ describe('AgenticEmailGenerationService', () => {
     service = new AgenticEmailGenerationService();
   });
 
-  describe('startAgenticFlow', () => {
-    const organizationId = 'org123';
-    const userId = 'user123';
+  describe("startAgenticFlow", () => {
+    const organizationId = "org123";
+    const userId = "user123";
 
     beforeEach(() => {
       // Mock file system for best practices
-      const mockFs = require('fs/promises');
-      mockFs.readFile = jest.fn().mockResolvedValue('Best practices content');
+      const mockFs = jest.requireActual("fs/promises");
+      mockFs.readFile = jest.fn().mockResolvedValue("Best practices content");
 
       // Mock database queries
-      const mockOrg = { 
-        id: organizationId, 
-        name: 'Test Org',
-        websiteSummary: 'Website summary',
+      const mockOrg = {
+        id: organizationId,
+        name: "Test Org",
+        websiteSummary: "Website summary",
       };
       const mockDonors = [
-        { 
-          id: 1, 
-          email: 'john@example.com',
-          firstName: 'John',
-          lastName: 'Doe',
-          notes: 'VIP donor',
-          displayName: 'John Doe',
+        {
+          id: 1,
+          email: "john@example.com",
+          firstName: "John",
+          lastName: "Doe",
+          notes: "VIP donor",
+          displayName: "John Doe",
           organizationId,
         },
-        { 
-          id: 2, 
-          email: 'jane@example.com',
-          firstName: 'Jane',
-          lastName: 'Smith',
-          notes: 'Regular donor',
-          displayName: 'Jane Smith',
+        {
+          id: 2,
+          email: "jane@example.com",
+          firstName: "Jane",
+          lastName: "Smith",
+          notes: "Regular donor",
+          displayName: "Jane Smith",
           organizationId,
         },
       ];
@@ -150,24 +153,24 @@ describe('AgenticEmailGenerationService', () => {
       };
 
       // Mock data functions
-      (orgData.getOrganizationMemories as jest.Mock).mockResolvedValue(['Org Memory 1']);
-      (userData.getUserMemories as jest.Mock).mockResolvedValue(['Memory 1']);
+      (orgData.getOrganizationMemories as jest.Mock).mockResolvedValue(["Org Memory 1"]);
+      (userData.getUserMemories as jest.Mock).mockResolvedValue(["Memory 1"]);
       (commData.getDonorCommunicationHistory as jest.Mock).mockResolvedValue([
-        { content: [{ content: 'Previous email' }] },
+        { content: [{ content: "Previous email" }] },
       ]);
       (donationData.listDonations as jest.Mock).mockResolvedValue({
-        donations: [{ amount: 100, date: '2023-01-01' }],
+        donations: [{ amount: 100, date: "2023-01-01" }],
       });
       mockPersonResearchService.getPersonResearch.mockResolvedValue({
-        researchTopic: 'John Doe background',
-        data: 'Research data',
+        researchTopic: "John Doe background",
+        data: "Research data",
       });
 
       // Mock orchestrator
       mockOrchestrator.startFlow.mockResolvedValue(mockFlowResult);
     });
 
-    it('should start a new agentic flow successfully', async () => {
+    it("should start a new agentic flow successfully", async () => {
       const result = await service.startAgenticFlow(mockInput, organizationId, userId);
 
       expect(result).toMatchObject({
@@ -176,16 +179,16 @@ describe('AgenticEmailGenerationService', () => {
         isComplete: false,
         conversation: expect.arrayContaining([
           {
-            role: 'assistant',
-            content: 'Starting flow',
+            role: "assistant",
+            content: "Starting flow",
             timestamp: expect.any(Date),
-            stepType: 'initial',
+            stepType: "initial",
           },
           {
-            role: 'assistant',
-            content: 'Question 1?',
+            role: "assistant",
+            content: "Question 1?",
             timestamp: expect.any(Date),
-            stepType: 'question',
+            stepType: "question",
           },
         ]),
         canProceed: true,
@@ -198,37 +201,37 @@ describe('AgenticEmailGenerationService', () => {
           bestPractices: expect.any(String),
         })
       );
-      
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Starting agentic email generation flow'));
+
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Starting agentic email generation flow"));
     });
 
-    it('should build context with complete donor data', async () => {
+    it("should build context with complete donor data", async () => {
       await service.startAgenticFlow(mockInput, organizationId, userId);
 
       expect(commData.getDonorCommunicationHistory).toHaveBeenCalledTimes(2);
       expect(donationData.listDonations).toHaveBeenCalledTimes(2);
       expect(mockPersonResearchService.getPersonResearch).toHaveBeenCalledTimes(2);
-      
+
       expect(mockOrchestrator.startFlow).toHaveBeenCalledWith(
         expect.objectContaining({
           donors: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
-              email: 'john@example.com',
-              notes: 'VIP donor',
+              email: "john@example.com",
+              notes: "VIP donor",
             }),
           ]),
           donationHistories: expect.objectContaining({
-            1: expect.arrayContaining([{ amount: 100, date: '2023-01-01' }]),
+            1: expect.arrayContaining([{ amount: 100, date: "2023-01-01" }]),
           }),
           personResearchResults: expect.objectContaining({
-            1: expect.objectContaining({ researchTopic: 'John Doe background' }),
+            1: expect.objectContaining({ researchTopic: "John Doe background" }),
           }),
         })
       );
     });
 
-    it('should load best practices content', async () => {
+    it("should load best practices content", async () => {
       const result = await service.startAgenticFlow(mockInput, organizationId, userId);
 
       expect(result.sessionId).toBeDefined();
@@ -237,37 +240,35 @@ describe('AgenticEmailGenerationService', () => {
           bestPractices: expect.any(String),
         })
       );
-      
+
       // Verify that best practices content was loaded (should be a long string)
       const callArgs = mockOrchestrator.startFlow.mock.calls[0][0];
       expect(callArgs.bestPractices.length).toBeGreaterThan(100);
     });
 
-    it('should handle orchestrator errors', async () => {
-      mockOrchestrator.startFlow.mockRejectedValue(new Error('Orchestrator failed'));
+    it("should handle orchestrator errors", async () => {
+      mockOrchestrator.startFlow.mockRejectedValue(new Error("Orchestrator failed"));
 
-      await expect(
-        service.startAgenticFlow(mockInput, organizationId, userId)
-      ).rejects.toThrow('Failed to start agentic email generation flow');
+      await expect(service.startAgenticFlow(mockInput, organizationId, userId)).rejects.toThrow(
+        "Failed to start agentic email generation flow"
+      );
 
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to start agentic flow'));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Failed to start agentic flow"));
     });
 
-    it('should handle missing person research gracefully', async () => {
-      mockPersonResearchService.getPersonResearch.mockRejectedValueOnce(new Error('Research not found'));
+    it("should handle missing person research gracefully", async () => {
+      mockPersonResearchService.getPersonResearch.mockRejectedValueOnce(new Error("Research not found"));
 
       const result = await service.startAgenticFlow(mockInput, organizationId, userId);
 
       expect(result.sessionId).toBeDefined();
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to fetch person research for donor')
-      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch person research for donor"));
     });
   });
 
-  describe('continueAgenticFlow', () => {
-    const sessionId = 'agentic_123_abc';
-    const userResponse = 'I want to add more personalization';
+  describe("continueAgenticFlow", () => {
+    const sessionId = "agentic_123_abc";
+    const userResponse = "I want to add more personalization";
 
     beforeEach(() => {
       // Start a session first
@@ -285,8 +286,8 @@ describe('AgenticEmailGenerationService', () => {
         steps: [
           ...mockFlowResult.steps,
           {
-            type: 'followup' as const,
-            content: 'Adding personalization',
+            type: "followup" as const,
+            content: "Adding personalization",
             canProceed: true,
           },
         ],
@@ -294,58 +295,54 @@ describe('AgenticEmailGenerationService', () => {
       mockOrchestrator.continueFlow.mockResolvedValue(continuedResult);
     });
 
-    it('should continue an existing flow', async () => {
+    it("should continue an existing flow", async () => {
       const result = await service.continueAgenticFlow(sessionId, userResponse);
 
       expect(result).toMatchObject({
         needsUserInput: true,
         isComplete: false,
         conversation: expect.arrayContaining([
-          expect.objectContaining({ content: 'Starting flow' }),
-          expect.objectContaining({ content: 'Adding personalization' }),
+          expect.objectContaining({ content: "Starting flow" }),
+          expect.objectContaining({ content: "Adding personalization" }),
         ]),
         canProceed: true,
       });
 
-      expect(mockOrchestrator.continueFlow).toHaveBeenCalledWith(
-        mockContext,
-        userResponse,
-        mockFlowResult.steps
+      expect(mockOrchestrator.continueFlow).toHaveBeenCalledWith(mockContext, userResponse, mockFlowResult.steps);
+    });
+
+    it("should throw error for non-existent session", async () => {
+      await expect(service.continueAgenticFlow("invalid-session", userResponse)).rejects.toThrow(
+        "Session not found or expired"
       );
+
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Session not found"));
     });
 
-    it('should throw error for non-existent session', async () => {
-      await expect(
-        service.continueAgenticFlow('invalid-session', userResponse)
-      ).rejects.toThrow('Session not found or expired');
+    it("should handle orchestrator errors", async () => {
+      mockOrchestrator.continueFlow.mockRejectedValue(new Error("Continue failed"));
 
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Session not found'));
+      await expect(service.continueAgenticFlow(sessionId, userResponse)).rejects.toThrow(
+        "Failed to continue agentic flow"
+      );
+
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Failed to continue agentic flow"));
     });
 
-    it('should handle orchestrator errors', async () => {
-      mockOrchestrator.continueFlow.mockRejectedValue(new Error('Continue failed'));
-
-      await expect(
-        service.continueAgenticFlow(sessionId, userResponse)
-      ).rejects.toThrow('Failed to continue agentic flow');
-
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to continue agentic flow'));
-    });
-
-    it('should update session state after continuing', async () => {
+    it("should update session state after continuing", async () => {
       await service.continueAgenticFlow(sessionId, userResponse);
 
       const updatedState = service.getSessionState(sessionId);
       expect(updatedState?.steps).toHaveLength(2);
       expect(updatedState?.steps[1]).toMatchObject({
-        type: 'followup',
-        content: 'Adding personalization',
+        type: "followup",
+        content: "Adding personalization",
       });
     });
   });
 
-  describe('generateFinalPrompt', () => {
-    const sessionId = 'agentic_123_abc';
+  describe("generateFinalPrompt", () => {
+    const sessionId = "agentic_123_abc";
 
     beforeEach(() => {
       const mockState = {
@@ -358,85 +355,78 @@ describe('AgenticEmailGenerationService', () => {
       (service as any).activeSessions.set(sessionId, mockState);
 
       mockOrchestrator.generateFinalPrompt.mockResolvedValue({
-        finalPrompt: 'Final prompt for email generation',
-        summary: 'Summary of the conversation',
-        estimatedComplexity: 'medium' as const,
+        finalPrompt: "Final prompt for email generation",
+        summary: "Summary of the conversation",
+        estimatedComplexity: "medium" as const,
       });
     });
 
-    it('should generate final prompt successfully', async () => {
+    it("should generate final prompt successfully", async () => {
       const result = await service.generateFinalPrompt(sessionId);
 
       expect(result).toEqual({
-        finalPrompt: 'Final prompt for email generation',
-        summary: 'Summary of the conversation',
-        estimatedComplexity: 'medium',
+        finalPrompt: "Final prompt for email generation",
+        summary: "Summary of the conversation",
+        estimatedComplexity: "medium",
       });
 
-      expect(mockOrchestrator.generateFinalPrompt).toHaveBeenCalledWith(
-        mockContext,
-        mockFlowResult.steps
-      );
+      expect(mockOrchestrator.generateFinalPrompt).toHaveBeenCalledWith(mockContext, mockFlowResult.steps);
     });
 
-    it('should update session with final prompt', async () => {
+    it("should update session with final prompt", async () => {
       await service.generateFinalPrompt(sessionId);
 
       const state = service.getSessionState(sessionId);
-      expect(state?.finalPrompt).toBe('Final prompt for email generation');
+      expect(state?.finalPrompt).toBe("Final prompt for email generation");
     });
 
-    it('should throw error for non-existent session', async () => {
-      await expect(
-        service.generateFinalPrompt('invalid-session')
-      ).rejects.toThrow('Session not found or expired');
+    it("should throw error for non-existent session", async () => {
+      await expect(service.generateFinalPrompt("invalid-session")).rejects.toThrow("Session not found or expired");
     });
 
-    it('should handle orchestrator errors', async () => {
-      mockOrchestrator.generateFinalPrompt.mockRejectedValue(new Error('Generation failed'));
+    it("should handle orchestrator errors", async () => {
+      mockOrchestrator.generateFinalPrompt.mockRejectedValue(new Error("Generation failed"));
 
-      await expect(
-        service.generateFinalPrompt(sessionId)
-      ).rejects.toThrow('Failed to generate final prompt');
+      await expect(service.generateFinalPrompt(sessionId)).rejects.toThrow("Failed to generate final prompt");
     });
   });
 
-  describe('executeEmailGeneration', () => {
-    const sessionId = 'agentic_123_abc';
-    const confirmedPrompt = 'Final confirmed prompt';
+  describe("executeEmailGeneration", () => {
+    const sessionId = "agentic_123_abc";
+    const confirmedPrompt = "Final confirmed prompt";
 
     beforeEach(() => {
       const mockState = {
         sessionId,
         context: {
           ...mockContext,
-          organization: { id: 'org123' },
+          organization: { id: "org123" },
           donors: [
             {
               id: 1,
-              firstName: 'John',
-              lastName: 'Doe',
-              email: 'john@example.com',
+              firstName: "John",
+              lastName: "Doe",
+              email: "john@example.com",
             },
           ],
         },
         steps: mockFlowResult.steps,
         isComplete: false,
         needsUserInput: false,
-        finalPrompt: 'Original prompt',
+        finalPrompt: "Original prompt",
       };
       (service as any).activeSessions.set(sessionId, mockState);
 
       mockEmailService.generateSmartEmails.mockResolvedValue({
-        emails: [{ donorId: 1, subject: 'Thank you', body: 'Email body' }],
+        emails: [{ donorId: 1, subject: "Thank you", body: "Email body" }],
       });
     });
 
-    it('should execute email generation successfully', async () => {
+    it("should execute email generation successfully", async () => {
       const result = await service.executeEmailGeneration(sessionId, confirmedPrompt);
 
       expect(result).toEqual({
-        emails: [{ donorId: 1, subject: 'Thank you', body: 'Email body' }],
+        emails: [{ donorId: 1, subject: "Thank you", body: "Email body" }],
       });
 
       expect(mockEmailService.generateSmartEmails).toHaveBeenCalledWith(
@@ -445,35 +435,35 @@ describe('AgenticEmailGenerationService', () => {
           donors: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
-              firstName: 'John',
-              lastName: 'Doe',
-              email: 'john@example.com',
+              firstName: "John",
+              lastName: "Doe",
+              email: "john@example.com",
             }),
           ]),
           organizationName: mockInput.organizationName,
         }),
-        'org123',
-        ''
+        "org123",
+        ""
       );
     });
 
-    it('should clean up session after execution', async () => {
+    it("should clean up session after execution", async () => {
       await service.executeEmailGeneration(sessionId, confirmedPrompt);
 
       const state = service.getSessionState(sessionId);
       expect(state).toBeNull();
     });
 
-    it('should handle missing donor names', async () => {
+    it("should handle missing donor names", async () => {
       const mockState = {
         sessionId,
         context: {
           ...mockContext,
-          organization: { id: 'org123' },
+          organization: { id: "org123" },
           donors: [
             {
               id: 1,
-              email: 'john@example.com',
+              email: "john@example.com",
             },
           ],
         },
@@ -490,35 +480,35 @@ describe('AgenticEmailGenerationService', () => {
           donors: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
-              firstName: '',
-              lastName: '',
-              email: 'john@example.com',
+              firstName: "",
+              lastName: "",
+              email: "john@example.com",
             }),
           ]),
         }),
-        'org123',
-        ''
+        "org123",
+        ""
       );
     });
 
-    it('should throw error for non-existent session', async () => {
-      await expect(
-        service.executeEmailGeneration('invalid-session', confirmedPrompt)
-      ).rejects.toThrow('Session not found or expired');
+    it("should throw error for non-existent session", async () => {
+      await expect(service.executeEmailGeneration("invalid-session", confirmedPrompt)).rejects.toThrow(
+        "Session not found or expired"
+      );
     });
 
-    it('should handle email generation errors', async () => {
-      mockEmailService.generateSmartEmails.mockRejectedValue(new Error('Email generation failed'));
+    it("should handle email generation errors", async () => {
+      mockEmailService.generateSmartEmails.mockRejectedValue(new Error("Email generation failed"));
 
-      await expect(
-        service.executeEmailGeneration(sessionId, confirmedPrompt)
-      ).rejects.toThrow('Failed to execute email generation');
+      await expect(service.executeEmailGeneration(sessionId, confirmedPrompt)).rejects.toThrow(
+        "Failed to execute email generation"
+      );
     });
   });
 
-  describe('getSessionState', () => {
-    it('should return session state when exists', () => {
-      const sessionId = 'agentic_123_abc';
+  describe("getSessionState", () => {
+    it("should return session state when exists", () => {
+      const sessionId = "agentic_123_abc";
       const mockState = {
         sessionId,
         context: mockContext,
@@ -532,50 +522,50 @@ describe('AgenticEmailGenerationService', () => {
       expect(state).toEqual(mockState);
     });
 
-    it('should return null for non-existent session', () => {
-      const state = service.getSessionState('invalid-session');
+    it("should return null for non-existent session", () => {
+      const state = service.getSessionState("invalid-session");
       expect(state).toBeNull();
     });
   });
 
-  describe('cleanupExpiredSessions', () => {
-    it('should remove completed sessions', () => {
+  describe("cleanupExpiredSessions", () => {
+    it("should remove completed sessions", () => {
       const completedSession = {
-        sessionId: 'completed',
+        sessionId: "completed",
         context: mockContext,
         steps: [],
         isComplete: true,
         needsUserInput: false,
       };
       const activeSession = {
-        sessionId: 'active',
+        sessionId: "active",
         context: mockContext,
         steps: [],
         isComplete: false,
         needsUserInput: true,
       };
 
-      (service as any).activeSessions.set('completed', completedSession);
-      (service as any).activeSessions.set('active', activeSession);
+      (service as any).activeSessions.set("completed", completedSession);
+      (service as any).activeSessions.set("active", activeSession);
 
       service.cleanupExpiredSessions();
 
-      expect(service.getSessionState('completed')).toBeNull();
-      expect(service.getSessionState('active')).toBeDefined();
+      expect(service.getSessionState("completed")).toBeNull();
+      expect(service.getSessionState("active")).toBeDefined();
     });
   });
 
-  describe('convertStepsToMessages', () => {
-    it('should convert steps to conversation messages', () => {
+  describe("convertStepsToMessages", () => {
+    it("should convert steps to conversation messages", () => {
       const steps = [
         {
-          type: 'initial' as const,
-          content: 'Step 1',
-          questions: ['Q1?', 'Q2?'],
+          type: "initial" as const,
+          content: "Step 1",
+          questions: ["Q1?", "Q2?"],
         },
         {
-          type: 'followup' as const,
-          content: 'Step 2',
+          type: "followup" as const,
+          content: "Step 2",
         },
       ];
 
@@ -583,30 +573,30 @@ describe('AgenticEmailGenerationService', () => {
 
       expect(messages).toHaveLength(4); // 2 steps + 2 questions
       expect(messages[0]).toMatchObject({
-        role: 'assistant',
-        content: 'Step 1',
-        stepType: 'initial',
+        role: "assistant",
+        content: "Step 1",
+        stepType: "initial",
       });
       expect(messages[1]).toMatchObject({
-        role: 'assistant',
-        content: 'Q1?',
-        stepType: 'question',
+        role: "assistant",
+        content: "Q1?",
+        stepType: "question",
       });
       expect(messages[2]).toMatchObject({
-        role: 'assistant',
-        content: 'Q2?',
-        stepType: 'question',
+        role: "assistant",
+        content: "Q2?",
+        stepType: "question",
       });
       expect(messages[3]).toMatchObject({
-        role: 'assistant',
-        content: 'Step 2',
-        stepType: 'followup',
+        role: "assistant",
+        content: "Step 2",
+        stepType: "followup",
       });
     });
   });
 
-  describe('generateSessionId', () => {
-    it('should generate unique session IDs', () => {
+  describe("generateSessionId", () => {
+    it("should generate unique session IDs", () => {
       const id1 = (service as any).generateSessionId();
       const id2 = (service as any).generateSessionId();
 
