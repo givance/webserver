@@ -1,14 +1,14 @@
-import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, lt, sql, isNull, or } from "drizzle-orm";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, emailScheduleConfig, emailSendJobs } from "@/app/lib/db/schema";
-import type { InferSelectModel } from "drizzle-orm";
-
-type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
-type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
+import { emailGenerationSessions, emailScheduleConfig, emailSendJobs, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { sendSingleEmailTask } from "@/trigger/jobs/sendSingleEmail";
 import { runs } from "@trigger.dev/sdk/v3";
+import { TRPCError } from "@trpc/server";
+import type { InferSelectModel } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+
+type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
+type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
 
 /**
  * Service for managing email scheduling and sending

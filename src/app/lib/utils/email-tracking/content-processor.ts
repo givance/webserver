@@ -118,6 +118,21 @@ export function convertStructuredContentToText(structuredContent: EmailPiece[]):
 }
 
 /**
+ * Encodes a string using RFC 2047 MIME encoded-word syntax for email headers
+ * This is needed for non-ASCII characters in subject lines
+ */
+function encodeEmailHeaderValue(value: string): string {
+  // Check if the string contains only ASCII characters
+  if (/^[\x00-\x7F]*$/.test(value)) {
+    return value;
+  }
+
+  // Encode using base64 with UTF-8 charset per RFC 2047
+  const encoded = Buffer.from(value, 'utf8').toString('base64');
+  return `=?UTF-8?B?${encoded}?=`;
+}
+
+/**
  * Creates a complete HTML email with proper structure
  */
 export function createHtmlEmail(
@@ -127,6 +142,9 @@ export function createHtmlEmail(
   textContent: string,
   from?: string
 ): string {
+  // Encode the subject line to handle special characters like smart quotes
+  const encodedSubject = encodeEmailHeaderValue(subject);
+  
   // Simple HTML with minimal styling to avoid quoted-printable
   const htmlBody = `<!DOCTYPE html>
 <html>
@@ -139,11 +157,11 @@ ${htmlContent}
 </body>
 </html>`;
 
-  // Build the email headers
+  // Build the email headers with properly encoded subject
   let headers = `MIME-Version: 1.0
 Content-Type: text/html; charset=utf-8
 To: ${to}
-Subject: ${subject}`;
+Subject: ${encodedSubject}`;
 
   // Add From header if provided to ensure correct sender
   if (from) {
@@ -151,7 +169,7 @@ Subject: ${subject}`;
 Content-Type: text/html; charset=utf-8
 From: ${from}
 To: ${to}
-Subject: ${subject}`;
+Subject: ${encodedSubject}`;
   }
 
   return `${headers}
@@ -163,15 +181,18 @@ ${htmlBody}`;
  * Creates a simple text email (fallback)
  */
 export function createTextEmail(to: string, subject: string, textContent: string, from?: string): string {
-  // Build the email headers
+  // Encode the subject line to handle special characters like smart quotes
+  const encodedSubject = encodeEmailHeaderValue(subject);
+  
+  // Build the email headers with properly encoded subject
   let headers = `To: ${to}
-Subject: ${subject}`;
+Subject: ${encodedSubject}`;
 
   // Add From header if provided to ensure correct sender
   if (from) {
     headers = `From: ${from}
 To: ${to}
-Subject: ${subject}`;
+Subject: ${encodedSubject}`;
   }
 
   return `${headers}
