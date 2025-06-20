@@ -55,3 +55,4 @@ worktrees
 /.clerk/
 playwright-report/
 test-results/
+index.html
