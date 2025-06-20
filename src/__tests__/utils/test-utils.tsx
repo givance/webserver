@@ -1,29 +1,16 @@
 import React from "react";
 import { render, RenderOptions } from "@testing-library/react";
 
-// Test utilities
-describe("Test utilities", () => {
-  it("should be available for testing", () => {
-    expect(true).toBe(true);
-  });
-});
-
-// Simplified test utilities without complex providers
-
-// Custom render function with basic setup
-type CustomRenderOptions = Omit<RenderOptions, "wrapper">;
-
-function createWrapper() {
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <>{children}</>;
-  };
+// Simplified test wrapper - just render children without any providers
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
+// Custom render function
+type CustomRenderOptions = Omit<RenderOptions, "wrapper">;
+
 export function renderWithProviders(ui: React.ReactElement, options?: CustomRenderOptions) {
-  const Wrapper = createWrapper();
-  return {
-    ...render(ui, { wrapper: Wrapper, ...options }),
-  };
+  return render(ui, { wrapper: TestWrapper, ...options });
 }
 
 // Re-export everything from React Testing Library

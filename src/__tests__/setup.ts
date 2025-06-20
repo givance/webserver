@@ -22,9 +22,150 @@ describe("Test setup", () => {
 
 // Polyfills are loaded in setupFiles, so no need to duplicate here
 
+// Mock custom hooks to avoid React state issues in tests
+jest.mock("@/app/hooks/use-search", () => ({
+  useSearch: () => ({
+    searchTerm: "",
+    debouncedSearchTerm: "",
+    setSearchTerm: jest.fn(),
+    clearSearch: jest.fn(),
+  }),
+}));
+
+jest.mock("@/app/hooks/use-pagination", () => ({
+  usePagination: () => ({
+    currentPage: 1,
+    pageSize: 25,
+    setCurrentPage: jest.fn(),
+    setPageSize: jest.fn(),
+    getOffset: () => 0,
+    getPageCount: (total: number) => Math.ceil(total / 25),
+    resetToFirstPage: jest.fn(),
+  }),
+  PAGE_SIZE_OPTIONS: [10, 25, 50, 100],
+}));
+
+jest.mock("use-debounce", () => ({
+  useDebounce: (value: any) => [value],
+}));
+
+// Mock custom hooks for donors, projects, and communications
+jest.mock("@/app/hooks/use-donors", () => ({
+  useDonors: jest.fn(() => ({
+    listDonors: jest.fn(),
+    createDonor: jest.fn(),
+    updateDonor: jest.fn(),
+    deleteDonor: jest.fn(),
+    getDonorQuery: jest.fn(),
+  })),
+}));
+
+jest.mock("@/app/hooks/use-projects", () => ({
+  useProjects: jest.fn(() => ({
+    listProjects: jest.fn(),
+    createProject: jest.fn(),
+    updateProject: jest.fn(),
+    deleteProject: jest.fn(),
+  })),
+}));
+
+jest.mock("@/app/hooks/use-communications", () => ({
+  useCommunications: jest.fn(() => ({
+    getSession: jest.fn(),
+  })),
+}));
+
 // Mock environment variables for tests
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";
 process.env.TEST_DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";
+
+// Mock react-hot-toast
+jest.mock("react-hot-toast", () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+    loading: jest.fn(),
+  },
+  Toaster: () => null,
+}));
+
+// Mock sonner
+jest.mock("sonner", () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+    loading: jest.fn(),
+    promise: jest.fn(),
+  },
+  Toaster: () => null,
+}));
+
+// Mock common components
+jest.mock("@/app/components/LoadingSkeleton", () => ({
+  LoadingSkeleton: () => {
+    const React = require("react");
+    return React.createElement("div", { "data-testid": "loading-skeleton" }, "Loading...");
+  },
+}));
+
+jest.mock("@/app/components/ErrorDisplay", () => ({
+  ErrorDisplay: ({ error, title }: { error: string; title?: string }) => {
+    const React = require("react");
+    return React.createElement("div", { "data-testid": "error-display" }, [
+      title && React.createElement("h2", { key: "title" }, title),
+      React.createElement("p", { key: "error" }, error),
+    ]);
+  },
+}));
+
+jest.mock("@/components/ui/skeleton", () => ({
+  Skeleton: ({ className }: { className?: string }) => {
+    const React = require("react");
+    return React.createElement("div", { "data-testid": "skeleton", className }, "Loading...");
+  },
+}));
+
+// Mock UI components that we're not testing
+jest.mock("@/components/ui/data-table/DataTable", () => ({
+  DataTable: ({ data, columns }: any) => {
+    const React = require("react");
+    return React.createElement("table", { role: "table" }, 
+      React.createElement("tbody", {}, 
+        data?.map((item: any, index: number) => 
+          React.createElement("tr", { key: index }, 
+            React.createElement("td", {}, JSON.stringify(item))
+          )
+        )
+      )
+    );
+  },
+}));
+
+jest.mock("@/app/components/PageSizeSelector", () => ({
+  PageSizeSelector: ({ pageSize, onPageSizeChange }: any) => {
+    const React = require("react");
+    return React.createElement("select", { 
+      role: "combobox",
+      onChange: (e: any) => onPageSizeChange(Number(e.target.value)),
+      value: pageSize 
+    }, [
+      React.createElement("option", { key: "10", value: "10" }, "10"),
+      React.createElement("option", { key: "25", value: "25" }, "25"),
+      React.createElement("option", { key: "50", value: "50" }, "50"),
+    ]);
+  },
+}));
+
+jest.mock("@/components/ui/step-indicator", () => ({
+  StepIndicator: ({ steps, currentStep }: any) => {
+    const React = require("react");
+    return React.createElement("div", {}, 
+      steps.map((step: string, index: number) => 
+        React.createElement("div", { key: index }, step)
+      )
+    );
+  },
+}));
 
 // Mock Next.js router
 jest.mock("next/navigation", () => ({
@@ -38,6 +179,7 @@ jest.mock("next/navigation", () => ({
     get: jest.fn(),
   }),
   usePathname: () => "/",
+  useParams: () => ({}),
 }));
 
 // Mock Clerk authentication
