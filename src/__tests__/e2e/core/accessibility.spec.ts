@@ -123,12 +123,12 @@ test.describe('Accessibility Tests', () => {
         const textContent = await element.textContent()
         
         if (textContent && textContent.trim().length > 0) {
-          // Check if element is visible and in viewport
+          // Check if element is visible and has dimensions
           const isVisible = await element.isVisible().catch(() => false)
-          const isInViewport = await element.isInViewport().catch(() => false)
+          const boundingBox = await element.boundingBox().catch(() => null)
           
-          // Only test elements that are actually visible and in viewport
-          if (isVisible && isInViewport) {
+          // Only test elements that are actually visible and have dimensions
+          if (isVisible && boundingBox && boundingBox.width > 0 && boundingBox.height > 0) {
             visibleElementsChecked++
             
             // Element should have some opacity
