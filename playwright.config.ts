@@ -6,12 +6,6 @@ import path from "path";
 dotenv.config({ path: path.resolve(__dirname, ".env.test") });
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
-// Debug environment variables
-console.log("🔍 Environment check:");
-console.log("E2E_CLERK_USER_USERNAME:", process.env.E2E_CLERK_USER_USERNAME ? "✅ Set" : "❌ Missing");
-console.log("E2E_CLERK_USER_PASSWORD:", process.env.E2E_CLERK_USER_PASSWORD ? "✅ Set" : "❌ Missing");
-console.log("CLERK_PUBLISHABLE_KEY:", process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? "✅ Set" : "❌ Missing");
-
 // Ensure Clerk env vars are set
 process.env.CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY;
 process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
