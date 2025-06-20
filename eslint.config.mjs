@@ -20,7 +20,9 @@ const eslintConfig = [
       "**/*.spec.tsx",
       "**/__tests__/**/*",
       "**/test/**/*",
-      "src/__tests__/**/*"
+      "src/__tests__/**/*",
+      "global.setup.ts",
+      "*.setup.ts"
     ]
   },
   {

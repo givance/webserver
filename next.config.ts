@@ -36,6 +36,12 @@ const nextConfig: NextConfig = {
       loader: "ignore-loader",
     });
 
+    // Exclude setup files
+    config.module.rules.push({
+      test: /\.setup\.(js|jsx|ts|tsx)$/,
+      loader: "ignore-loader",
+    });
+
     return config;
   },
 };
