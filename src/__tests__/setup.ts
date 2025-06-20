@@ -49,6 +49,32 @@ jest.mock("use-debounce", () => ({
   useDebounce: (value: any) => [value],
 }));
 
+// Mock custom hooks for donors, projects, and communications
+jest.mock("@/app/hooks/use-donors", () => ({
+  useDonors: jest.fn(() => ({
+    listDonors: jest.fn(),
+    createDonor: jest.fn(),
+    updateDonor: jest.fn(),
+    deleteDonor: jest.fn(),
+    getDonorQuery: jest.fn(),
+  })),
+}));
+
+jest.mock("@/app/hooks/use-projects", () => ({
+  useProjects: jest.fn(() => ({
+    listProjects: jest.fn(),
+    createProject: jest.fn(),
+    updateProject: jest.fn(),
+    deleteProject: jest.fn(),
+  })),
+}));
+
+jest.mock("@/app/hooks/use-communications", () => ({
+  useCommunications: jest.fn(() => ({
+    getSession: jest.fn(),
+  })),
+}));
+
 // Mock environment variables for tests
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";
 process.env.TEST_DATABASE_URL = "postgresql://test:test@localhost:5432/givance_test";
@@ -153,6 +179,7 @@ jest.mock("next/navigation", () => ({
     get: jest.fn(),
   }),
   usePathname: () => "/",
+  useParams: () => ({}),
 }));
 
 // Mock Clerk authentication
