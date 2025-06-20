@@ -26,7 +26,7 @@ test.describe("Projects CRUD Operations", () => {
     await expect(pageSizeSelector).toBeVisible();
 
     // Verify Campaign button is present - it's in the main content area
-    const mainCampaignButton = page.getByRole('main').getByRole('button', { name: 'Campaign' });
+    const mainCampaignButton = page.getByRole("main").getByRole("button", { name: "Campaign" });
     await expect(mainCampaignButton).toBeVisible();
   });
 
@@ -48,15 +48,24 @@ test.describe("Projects CRUD Operations", () => {
     };
 
     // Fill project name - the form uses react-hook-form, so look for the input by its label
-    const nameInput = page.locator('input').filter({ has: page.locator('..').filter({ hasText: 'Name' }) }).first();
+    const nameInput = page
+      .locator("input")
+      .filter({ has: page.locator("..").filter({ hasText: "Name" }) })
+      .first();
     await nameInput.fill(testProject.name);
 
     // Fill description
-    const descriptionTextarea = page.locator('textarea').filter({ has: page.locator('..').filter({ hasText: 'Description' }) }).first();
+    const descriptionTextarea = page
+      .locator("textarea")
+      .filter({ has: page.locator("..").filter({ hasText: "Description" }) })
+      .first();
     await descriptionTextarea.fill(testProject.description);
 
     // Fill goal amount
-    const goalInput = page.locator('input[type="number"]').filter({ has: page.locator('..').filter({ hasText: 'Fundraising Goal' }) }).first();
+    const goalInput = page
+      .locator('input[type="number"]')
+      .filter({ has: page.locator("..").filter({ hasText: "Fundraising Goal" }) })
+      .first();
     await goalInput.fill(testProject.goal);
 
     // Add tags (if the tag input is available)
@@ -71,7 +80,7 @@ test.describe("Projects CRUD Operations", () => {
 
     // Verify active switch is checked by default - it's a Switch component, not a checkbox
     const activeSwitch = page.locator('button[role="switch"]');
-    await expect(activeSwitch).toHaveAttribute('data-state', 'checked');
+    await expect(activeSwitch).toHaveAttribute("data-state", "checked");
 
     // Submit the form
     await page.click('button:has-text("Create Project")');
@@ -128,7 +137,7 @@ test.describe("Projects CRUD Operations", () => {
 
     // Verify we're on the project detail page
     await expect(page.url()).toMatch(/\/projects\/\d+$/);
-    
+
     // Verify project information is displayed
     // Look for any content that indicates we're viewing project details
     const detailPageElements = [
@@ -138,9 +147,9 @@ test.describe("Projects CRUD Operations", () => {
       'text="Active"',
       'text="Created"',
       '[data-slot="card"]',
-      '.card'
+      ".card",
     ];
-    
+
     let foundDetailElement = false;
     for (const selector of detailPageElements) {
       const element = page.locator(selector).first();
@@ -150,7 +159,7 @@ test.describe("Projects CRUD Operations", () => {
         break;
       }
     }
-    
+
     expect(foundDetailElement).toBe(true);
   });
 
@@ -189,7 +198,7 @@ test.describe("Projects CRUD Operations", () => {
     const timestamp = Date.now();
     await page.fill('input[name="name"]', `Updated Project ${timestamp}`);
     await page.fill('textarea[name="description"]', `Updated description at ${timestamp}`);
-    
+
     // Update goal if field exists
     const goalInput = page.locator('input[name="goal"]');
     if (await goalInput.isVisible()) {
@@ -209,14 +218,14 @@ test.describe("Projects CRUD Operations", () => {
 
     // Check for success indicators - could be a toast, alert, or the form closing
     const successIndicators = [
-      'text=/updated.*success/i',
-      'text=/saved.*success/i',
-      'text=/project.*updated/i',
+      "text=/updated.*success/i",
+      "text=/saved.*success/i",
+      "text=/project.*updated/i",
       '[role="alert"]',
-      '.toast',
-      '.alert'
+      ".toast",
+      ".alert",
     ];
-    
+
     let foundSuccess = false;
     for (const selector of successIndicators) {
       const element = page.locator(selector).first();
@@ -225,16 +234,19 @@ test.describe("Projects CRUD Operations", () => {
         break;
       }
     }
-    
+
     // If no explicit success message, check if edit form closed (which also indicates success)
-    const editFormClosed = await page.locator('button:has-text("Edit")').isVisible().catch(() => false);
-    
+    const editFormClosed = await page
+      .locator('button:has-text("Edit")')
+      .isVisible()
+      .catch(() => false);
+
     expect(foundSuccess || editFormClosed).toBe(true);
 
     // Verify the update was successful by checking we're back on the detail page
     // The edit form should be closed
     await expect(page.locator('button:has-text("Edit")')).toBeVisible({ timeout: 10000 });
-    
+
     // Optionally check if the updated name is visible somewhere on the page
     // This is less strict as the UI might show it differently
     const updatedElements = [
@@ -242,9 +254,9 @@ test.describe("Projects CRUD Operations", () => {
       `h1:has-text("Updated Project")`,
       `h2:has-text("Updated Project")`,
       'text="Project updated"',
-      'text="Successfully updated"'
+      'text="Successfully updated"',
     ];
-    
+
     let foundUpdatedContent = false;
     for (const selector of updatedElements) {
       const element = page.locator(selector).first();
@@ -254,7 +266,7 @@ test.describe("Projects CRUD Operations", () => {
         break;
       }
     }
-    
+
     // The key success indicator is that we're back to viewing mode (Edit button visible)
     console.log(`Update appears successful, found updated content: ${foundUpdatedContent}`);
   });
@@ -279,13 +291,13 @@ test.describe("Projects CRUD Operations", () => {
 
     // Check if pagination controls exist
     const paginationControls = page.locator('[aria-label*="pagination"], [class*="pagination"]');
-    
+
     if (await paginationControls.isVisible()) {
       // Test page size selector
       const pageSizeSelector = page.locator('button[aria-label*="page size"], button:has-text("rows")').first();
       if (await pageSizeSelector.isVisible()) {
         await pageSizeSelector.click();
-        
+
         // Select a different page size
         const option = page.locator('[role="option"]:has-text("10")');
         if (await option.isVisible()) {
@@ -307,7 +319,7 @@ test.describe("Projects CRUD Operations", () => {
       await page.click('button:has-text("Create Project")');
       await page.waitForURL("**/projects");
       await page.waitForTimeout(1000);
-      
+
       // Search for the newly created project
       await page.fill('input[placeholder*="Search projects"]', `Delete Test Project ${timestamp}`);
       await page.waitForTimeout(1000);
@@ -316,20 +328,20 @@ test.describe("Projects CRUD Operations", () => {
     // Find the delete button in the project row
     const projectRow = page.locator("table tbody tr").first();
     const deleteButton = projectRow.locator('button[aria-label*="Delete"], button:has(svg.lucide-trash)');
-    
+
     if (await deleteButton.isVisible()) {
       await deleteButton.click();
-      
+
       // Confirm deletion in the dialog
       const confirmDialog = page.locator('[role="alertdialog"]');
       await expect(confirmDialog).toBeVisible();
-      
+
       const confirmButton = confirmDialog.locator('button:has-text("Delete")').last();
       await confirmButton.click();
-      
+
       // Wait for deletion to complete
       await page.waitForTimeout(1000);
-      
+
       // Verify project is no longer in the list
       await expect(projectRow).not.toBeVisible();
     }
@@ -340,9 +352,9 @@ test.describe("Projects CRUD Operations", () => {
     await page.waitForTimeout(1000);
 
     // Check if there are any projects
-    const projectRows = page.locator('table tbody tr');
+    const projectRows = page.locator("table tbody tr");
     const rowCount = await projectRows.count();
-    
+
     if (rowCount === 0) {
       // Create a project if none exist
       await test.step("Create a project for donations navigation", async () => {
@@ -357,27 +369,27 @@ test.describe("Projects CRUD Operations", () => {
     }
 
     // Try to find a donations button or link
-    const firstRow = page.locator('table tbody tr').first();
+    const firstRow = page.locator("table tbody tr").first();
     const donationsButton = firstRow.locator('button:has-text("Donations"), a:has-text("Donations")');
-    
-    if (await donationsButton.count() > 0) {
+
+    if ((await donationsButton.count()) > 0) {
       await donationsButton.first().click();
       await page.waitForTimeout(1000);
 
       // Check if we navigated to a donations-related page
       const currentUrl = page.url();
-      
+
       // Verify we're on a page that shows donations
       const donationIndicators = [
         'text="Donations"',
         'text="Amount"',
         'text="Date"',
         'text="No donations"',
-        'table',
-        'h1',
-        'h2'
+        "table",
+        "h1",
+        "h2",
       ];
-      
+
       let foundDonationElement = false;
       for (const selector of donationIndicators) {
         const element = page.locator(selector).first();
@@ -387,7 +399,7 @@ test.describe("Projects CRUD Operations", () => {
           break;
         }
       }
-      
+
       expect(foundDonationElement).toBe(true);
     } else {
       // If no donations button exists, that's also acceptable
@@ -411,11 +423,11 @@ test.describe("Projects CRUD Operations", () => {
       'text="Required"',
       'text="Please enter a name"',
       '[role="alert"]',
-      '.error',
-      '.invalid-feedback',
-      '[aria-invalid="true"]'
+      ".error",
+      ".invalid-feedback",
+      '[aria-invalid="true"]',
     ];
-    
+
     let foundValidationError = false;
     for (const selector of validationErrorSelectors) {
       const element = page.locator(selector).first();
@@ -425,10 +437,10 @@ test.describe("Projects CRUD Operations", () => {
         break;
       }
     }
-    
+
     // If no explicit validation error, check if form is still on same page (didn't submit)
-    const stillOnAddPage = page.url().includes('/projects/add');
-    
+    const stillOnAddPage = page.url().includes("/projects/add");
+
     expect(foundValidationError || stillOnAddPage).toBe(true);
 
     // Fill valid name and submit
@@ -452,11 +464,13 @@ test.describe("Projects CRUD Operations", () => {
       const firstRow = tableRows.first();
 
       // Verify status badge
-      const statusBadge = firstRow.locator('div[class*="rounded-full"]').filter({ hasText: /active|completed|on.hold/i });
+      const statusBadge = firstRow
+        .locator('div[class*="rounded-full"]')
+        .filter({ hasText: /active|completed|on.hold/i });
       await expect(statusBadge).toBeVisible();
 
       // Verify goal amount column
-      const goalCell = firstRow.locator('td').filter({ hasText: /\$/ }).first();
+      const goalCell = firstRow.locator("td").filter({ hasText: /\$/ }).first();
       await expect(goalCell).toBeVisible();
 
       // Check for progress indicators - could be progress bar or text
@@ -465,9 +479,9 @@ test.describe("Projects CRUD Operations", () => {
         'div[class*="bar"]',
         '[role="progressbar"]',
         'text="%"', // Percentage text
-        'span:has-text("%")'
+        'span:has-text("%")',
       ];
-      
+
       let foundProgressElement = false;
       for (const selector of progressElements) {
         const element = firstRow.locator(selector).first();
@@ -477,7 +491,7 @@ test.describe("Projects CRUD Operations", () => {
           break;
         }
       }
-      
+
       // Progress indicators are optional - not all projects may have them
       console.log(`Progress element found: ${foundProgressElement}`);
     }

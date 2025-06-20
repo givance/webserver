@@ -38,8 +38,8 @@ export default defineConfig({
     /* Screenshot on failure */
     screenshot: "only-on-failure",
 
-    /* Show browser by default (remove this line to run headless) */
-    headless: false,
+    /* Run in headless mode by default */
+    headless: true,
   },
 
   /* Configure projects for major browsers */
@@ -124,25 +124,6 @@ export default defineConfig({
         storageState: "playwright/.clerk/user.json",
       },
       testMatch: "**/core/**/*.spec.ts",
-      dependencies: ["setup"],
-    },
-
-    // All authenticated tests (legacy compatibility)
-    {
-      name: "authenticated",
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "playwright/.clerk/user.json",
-      },
-      testMatch: [
-        "**/auth/**/*.spec.ts",
-        "**/campaigns/**/*.spec.ts",
-        "**/donors/**/*.spec.ts",
-        "**/donations/**/*.spec.ts",
-        "**/projects/**/*.spec.ts",
-        "**/staff/**/*.spec.ts",
-        "**/core/**/*.spec.ts",
-      ],
       dependencies: ["setup"],
     },
   ],
