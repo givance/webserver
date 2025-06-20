@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Textarea } from "@/components/ui/textarea";
 import { Column, ColumnDef, Row } from "@tanstack/react-table";
 import { ArrowUpDown, MoreHorizontal, Star, Trash2, Edit, Save, X } from "lucide-react";
+import { InlineTextEdit } from "@/components/ui/inline-edit";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -59,6 +60,36 @@ export type Donor = DonorNameFields & {
   highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
   notes?: string | null; // Notes about the donor
 };
+
+// EmailEditCell component for inline email editing
+function EmailEditCell({ donor }: { donor: Donor }) {
+  const { updateDonor } = useDonors();
+
+  const validateEmail = (email: string): string | null => {
+    if (!email) return "Email is required";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "Invalid email format";
+    return null;
+  };
+
+  const handleSaveEmail = async (newEmail: string) => {
+    await updateDonor({
+      id: parseInt(donor.id),
+      email: newEmail.trim(),
+    });
+  };
+
+  return (
+    <InlineTextEdit
+      value={donor.email}
+      onSave={handleSaveEmail}
+      type="email"
+      validation={validateEmail}
+      emptyText="Add email"
+      className="w-full max-w-[250px]"
+    />
+  );
+}
 
 // NotesEditCell component for inline notes editing
 function NotesEditCell({ donor }: { donor: Donor }) {
@@ -220,6 +251,7 @@ export const getColumns = (
   {
     accessorKey: "email",
     header: "Email",
+    cell: ({ row }: { row: Row<Donor> }) => <EmailEditCell donor={row.original} />,
   },
   {
     accessorKey: "phone",
