@@ -1,6 +1,28 @@
 import { test, expect } from "@playwright/test";
 import { cleanupBetweenTests } from "../setup/test-cleanup";
 import { createTestCampaign, generateTestName } from "../utils/test-data-factory";
+import {
+  navigateToCampaigns,
+  navigateToCampaignCreation,
+  selectDonors,
+  setCampaignName,
+  selectTemplate,
+  writeInstructions,
+  generateEmails,
+  verifyEmailGeneration,
+  findCampaignRow,
+  findEditButton,
+  findViewButton,
+  handleConfirmDialog,
+  saveCampaignToDrafts,
+  retryCampaign,
+  deleteCampaign,
+  clickNextButton,
+  clickContinueButton,
+  verifyCampaignStatus,
+  waitForCampaignData,
+  verifyCampaignStatistics,
+} from "./helper";
 
 test.describe("Campaign CRUD Operations", () => {
   test.beforeEach(async ({ page }) => {
@@ -16,8 +38,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should display existing campaigns list", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Verify page elements - be more flexible with the heading
     const headingSelectors = [
@@ -81,8 +102,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should create a new campaign - full workflow", async ({ page }) => {
     // Navigate to campaign creation
-    await page.goto("/campaign");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaignCreation(page);
 
     // Step 1: Select Donors
     await test.step("Select donors for campaign", async () => {
@@ -142,133 +162,51 @@ test.describe("Campaign CRUD Operations", () => {
       }
 
       // Select first 2 donors
-      const selectCount = Math.min(2, checkboxCount);
-      for (let i = 0; i < selectCount; i++) {
-        const checkbox = donorCheckboxes.nth(i);
-        await checkbox.scrollIntoViewIfNeeded();
-        await checkbox.check({ force: true });
-        await page.waitForTimeout(500); // Increased wait for state update
-      }
+      await selectDonors(page, 2);
 
-      // Verify selection count is shown with retry logic
-      const selectedCount = page.locator("text=/\\d+ donor.*selected/i");
-      await expect(selectedCount).toBeVisible({ timeout: 5000 });
-
-      // Click Next and wait for navigation - the URL doesn't change in the single page app
-      const nextButton = page.locator('button:has-text("Next")');
-      await nextButton.click();
-      await page.waitForTimeout(2000);
+      // Click Next and wait for navigation
+      await clickNextButton(page);
     });
 
     // Step 2: Campaign Name
     await test.step("Set campaign name", async () => {
-      await expect(page.locator('h3:has-text("Name Your Campaign")')).toBeVisible({ timeout: 10000 });
-
       // Fill campaign name
       const testCampaign = createTestCampaign();
-      const nameInput = page.locator("input#campaignName");
-      await nameInput.waitFor({ state: "visible", timeout: 5000 });
-      await nameInput.click();
-      await nameInput.fill(testCampaign.name);
-
-      // Verify character counter
-      await expect(page.locator("text=/\\d+\\/255/i")).toBeVisible({ timeout: 3000 });
+      await setCampaignName(page, testCampaign.name);
 
       // Verify summary card shows donor count
       await expect(page.locator("text=/\\d+ donor/i")).toBeVisible({ timeout: 3000 });
 
       // Click Continue and wait for transition
-      const continueButton = page.locator('button:has-text("Continue")');
-      await continueButton.click();
-      await page.waitForTimeout(2000);
+      await clickContinueButton(page);
     });
 
     // Step 3: Select Template
     await test.step("Select email template", async () => {
-      // Look for template selection UI - it might have different headings
-      const templateHeadings = [
-        'h3:has-text("Select Template")',
-        'h3:has-text("Choose Template")',
-        'h2:has-text("Template")',
-        'h3:has-text("Template")',
-      ];
-
-      let foundHeading = false;
-      for (const selector of templateHeadings) {
-        const element = page.locator(selector);
-        if (await element.isVisible().catch(() => false)) {
-          foundHeading = true;
-          break;
-        }
-      }
-
-      if (foundHeading) {
-        // Wait for template options to load
-        await page.waitForTimeout(1000);
-
-        // Select first available template or skip
-        const templateOptions = page.locator('input[type="radio"]');
-        const templateCount = await templateOptions.count();
-
-        if (templateCount > 0) {
-          // Click the first template option
-          const firstTemplate = templateOptions.first();
-          await firstTemplate.scrollIntoViewIfNeeded();
-          await firstTemplate.click({ force: true });
-          await page.waitForTimeout(500);
-        }
-
-        // Click Next to continue
-        const nextButton = page.locator('button:has-text("Next")');
-        if (await nextButton.isVisible()) {
-          await nextButton.click();
-          await page.waitForTimeout(2000);
-        }
-      } else {
-        // Skip template step if it doesn't exist or isn't visible
-        console.log("Template selection step not found or not visible, skipping...");
+      await selectTemplate(page, true);
+      
+      // Click Next to continue if visible
+      const nextButton = page.locator('button:has-text("Next")');
+      if (await nextButton.isVisible()) {
+        await clickNextButton(page);
       }
     });
 
     // Step 4: Write Instructions
     await test.step("Write instructions and generate preview", async () => {
-      await expect(page.locator('h3:has-text("Write Instructions")')).toBeVisible({ timeout: 10000 });
-
-      // Type instructions
-      const instructionInput = page.locator('textarea[placeholder*="instruction"], textarea').first();
-      await instructionInput.waitFor({ state: "visible", timeout: 5000 });
-      await instructionInput.click();
-      await instructionInput.fill(
-        "Write a brief thank you email to each donor for their support. Keep it personal and warm."
-      );
-
-      // Send instructions
-      const sendButton = page.locator('button:has-text("Send")');
-      await sendButton.waitFor({ state: "visible", timeout: 5000 });
-      await sendButton.click();
-
-      // Wait for AI response with proper timeout and retry
-      const previewSection = page.locator('text="Preview Emails", h3:has-text("Preview"), div:has-text("Preview")');
-      await expect(previewSection.first()).toBeVisible({ timeout: 60000 }); // Increased timeout for AI
-
-      // Wait for preview content to load
-      await page.waitForTimeout(2000);
-
-      // Verify we can start bulk generation
-      const bulkGenerateButton = page.locator('button:has-text("Start Bulk Generation"), button:has-text("Generate")');
-      await expect(bulkGenerateButton.first()).toBeVisible({ timeout: 10000 });
-
-      // For testing, we won't actually start bulk generation as it's expensive
-      // Instead, verify the UI is ready
-      const previewIndicator = page.locator("text=/preview.*email|email.*preview/i, div[data-testid='email-preview']");
-      await expect(previewIndicator.first()).toBeVisible({ timeout: 5000 });
+      await writeInstructions(page, "Write a brief thank you email to each donor for their support. Keep it personal and warm.");
+      
+      // Generate preview emails
+      await generateEmails(page);
+      
+      // Verify email generation succeeded
+      await verifyEmailGeneration(page);
     });
   });
 
   test("should edit an existing campaign", async ({ page }) => {
     // First, navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
@@ -298,35 +236,20 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     // Click Edit button
-    const editButton = editableRow.locator('button:has-text("Edit")');
-    await editButton.waitFor({ state: "visible", timeout: 5000 });
+    const editButton = await findEditButton(page, editableRow);
     await editButton.click();
 
     // Should navigate to edit page
     await page.waitForURL(/\/campaign\/edit\/\d+/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
 
-    // Verify we're in edit mode - should go directly to Write Instructions step
-    await expect(page.locator('h3:has-text("Write Instructions")')).toBeVisible({ timeout: 10000 });
-
-    // Verify campaign data is loaded
-    const instructionInput = page.locator('textarea[placeholder*="instruction"], textarea').first();
-    await instructionInput.waitFor({ state: "visible", timeout: 5000 });
-
-    // Add new instruction
-    await instructionInput.click();
-    const currentText = await instructionInput.inputValue();
-    await instructionInput.fill(currentText + "\n\nAlso mention our upcoming events.");
-
-    // Send the updated instruction
-    const sendButton = page.locator('button:has-text("Send")');
-    await sendButton.waitFor({ state: "visible", timeout: 5000 });
-    await sendButton.click();
-
-    // Wait for AI response
-    await page.waitForTimeout(5000);
-
-    // Verify we can generate more emails - look for various possible buttons
+    // Verify we're in edit mode and add new instructions
+    await writeInstructions(page, "Also mention our upcoming events.");
+    
+    // Generate updated emails
+    await generateEmails(page);
+    
+    // Verify generation options are available
     const generateButtons = page.locator(
       'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
     );
@@ -335,8 +258,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should view campaign results and details", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Wait for table to load
     await page.waitForTimeout(2000);
@@ -367,19 +289,14 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     // Click View button
-    const viewButton = viewableRow.locator('button:has-text("View")');
-    await viewButton.waitFor({ state: "visible", timeout: 5000 });
+    const viewButton = await findViewButton(page, viewableRow);
     await viewButton.click();
 
-    // Should navigate to campaign view page (note: it's /campaign/ID not /campaign/results/ID)
+    // Should navigate to campaign view page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 10000 });
-    await page.waitForLoadState("networkidle");
-
-    // Verify campaign results page elements
-    await expect(page.locator("h1").first()).toBeVisible({ timeout: 10000 });
-
-    // Wait for the campaign data to load - give it time to fetch from API
-    await page.waitForTimeout(3000);
+    
+    // Wait for campaign data to load
+    await waitForCampaignData(page);
 
     // Verify summary information is displayed - be more flexible about structure
     const summaryElements = page.locator(
@@ -449,8 +366,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should handle campaign status changes", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Look for campaigns with different statuses - use more flexible selectors
     const statusElements = page.locator("span, div").filter({ hasText: /^(Draft|Pending|Ready to Send|Failed)$/i });
@@ -485,8 +401,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should save generated emails to drafts", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
@@ -513,39 +428,13 @@ test.describe("Campaign CRUD Operations", () => {
       throw new Error("No campaigns found with enabled Save to Drafts buttons for saving to drafts test");
     }
 
-    // Click Save to Drafts button
-    const saveButton = targetRow.locator('button:has-text("Save to Drafts"), button:has-text("Save")');
-    await saveButton.waitFor({ state: "visible", timeout: 5000 });
-    await saveButton.click();
-
-    // Handle confirmation dialog
-    const dialog = page.locator('[role="dialog"], [role="alertdialog"], div[data-state="open"]');
-    await expect(dialog.first()).toBeVisible({ timeout: 10000 });
-
-    // Verify dialog shows campaign details
-    await expect(dialog.locator("text=/save.*draft|draft.*save/i").first()).toBeVisible({ timeout: 5000 });
-
-    // Look for email count in dialog
-    const emailCount = dialog.locator("text=/\\d+.*email|email.*\\d+/i");
-    if ((await emailCount.count()) > 0) {
-      await expect(emailCount.first()).toBeVisible();
-    }
-
-    // Click confirm button
-    const confirmButton = dialog.locator('button:has-text("Save"), button:has-text("Confirm"), button:has-text("Yes")');
-    await confirmButton.last().click();
-
-    // Wait for success message
-    const successToast = page
-      .locator('[data-sonner-toast], [role="status"], div[data-toast]')
-      .filter({ hasText: /saved|success/i });
-    await expect(successToast.first()).toBeVisible({ timeout: 15000 });
+    // Save campaign to drafts
+    await saveCampaignToDrafts(page, targetRow);
   });
 
   test("should retry failed campaign generation", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
@@ -572,13 +461,11 @@ test.describe("Campaign CRUD Operations", () => {
     const initialStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
     const initialStatus = await initialStatusCell.textContent();
 
-    // Click Retry button
-    const retryButton = retryableRow.locator('button:has-text("Retry")');
-    await retryButton.waitFor({ state: "visible", timeout: 5000 });
-    await retryButton.click();
-
-    // Wait for status change with polling
-    await page.waitForTimeout(3000);
+    // Retry the campaign
+    await retryCampaign(page, retryableRow);
+    
+    // Wait for status change
+    await page.waitForTimeout(1000);
 
     // Check if status changed
     const newStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
@@ -590,8 +477,7 @@ test.describe("Campaign CRUD Operations", () => {
 
   test("should delete a campaign", async ({ page }) => {
     // Navigate to existing campaigns to find a deletable campaign
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Find a campaign to delete - look for any campaign with a Delete button
     const campaignRows = page.locator("table tbody tr");
@@ -613,33 +499,13 @@ test.describe("Campaign CRUD Operations", () => {
       );
     }
 
-    // Click Delete button
-    const deleteButton = deleteRow.locator('button:has-text("Delete")');
-    await deleteButton.click();
-
-    // Handle confirmation dialog
-    const dialog = page.locator('[role="dialog"], [role="alertdialog"]');
-    await expect(dialog).toBeVisible({ timeout: 5000 });
-
-    // Verify delete confirmation message
-    await expect(dialog.locator("text=/delete.*campaign/i").first()).toBeVisible();
-    await expect(dialog.locator("text=/cannot.*undone/i").first()).toBeVisible();
-
-    // Click confirm delete
-    const confirmButton = dialog.locator('button:has-text("Delete")').last();
-    await confirmButton.click();
-
-    // Wait for deletion
-    await page.waitForTimeout(2000);
-
-    // Verify campaign is removed from list
-    await expect(deleteRow).not.toBeVisible();
+    // Delete the campaign
+    await deleteCampaign(page, deleteRow);
   });
 
   test("should search and paginate campaigns", async ({ page }) => {
     // Navigate to existing campaigns
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Check if there are campaigns
     const table = page.locator("table");

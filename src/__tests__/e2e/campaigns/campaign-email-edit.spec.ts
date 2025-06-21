@@ -1,12 +1,21 @@
 import { test, expect } from "@playwright/test";
+import {
+  navigateToCampaigns,
+  navigateToCampaignDetails,
+  findViewButton,
+  findEditButton,
+  waitForCampaignData,
+  selectDonorTab,
+  editEmailInModal,
+  waitForModalToClose,
+} from "./helper";
 
 // This test verifies that editing an email in the campaign detail page
 // immediately reflects the changes without requiring a page refresh
 test.describe("Campaign Email Editing", () => {
   test("should update email content immediately after saving changes", async ({ page }) => {
     // Navigate to existing campaigns page
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Find campaigns that have a View button
     const rows = page.locator("tr");
@@ -27,72 +36,20 @@ test.describe("Campaign Email Editing", () => {
     }
 
     // Click the View button
-    const viewButton = viewableRow.locator('button:has-text("View")');
+    const viewButton = await findViewButton(page, viewableRow);
     await viewButton.click();
 
     // Wait for navigation to campaign detail page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 15000 });
-    await page.waitForLoadState("networkidle");
+    
+    // Wait for campaign data to load
+    await waitForCampaignData(page);
 
-    // Wait for the campaign data to fully load by waiting for specific content
-    await page.waitForSelector("h1", { timeout: 15000 });
+    // Select the first donor tab
+    await selectDonorTab(page, 0);
 
-    // Wait for the tRPC data to load - look for donor information or email content
-    await page.waitForTimeout(2000); // Give React time to render the data
-
-    // Look for donor tabs or email content - be more flexible about what we find
-    const donorTabs = page.locator('[role="tab"]');
-    await donorTabs.first().waitFor({ state: "visible", timeout: 10000 });
-
-    const tabCount = await donorTabs.count();
-    console.log(`Found ${tabCount} donor tabs`);
-
-    if (tabCount === 0) {
-      throw new Error("No donor tabs found. Campaign may not have generated emails.");
-    }
-
-    // Click on the first donor tab and wait for it to stabilize
-    const firstTab = donorTabs.first();
-    await firstTab.waitFor({ state: "visible" });
-    await firstTab.waitFor({ state: "attached" });
-
-    // Use force click to avoid stability issues
-    await firstTab.click({ force: true });
-
-    // Wait longer for the tab content to load and stabilize
-    await page.waitForTimeout(3000);
-
-    // Look for Edit button - be more flexible about finding it
-    let editButton = page.locator('button:has-text("Edit")').first();
-
-    // If no Edit button found, try looking for buttons with edit-like content
-    const editButtonCount = await editButton.count();
-    if (editButtonCount === 0) {
-      // Debug what buttons are available
-      const allButtons = page.locator("button");
-      const buttonCount = await allButtons.count();
-      console.log(`Found ${buttonCount} total buttons`);
-
-      for (let i = 0; i < Math.min(buttonCount, 20); i++) {
-        const buttonText = await allButtons.nth(i).textContent();
-        console.log(`Button ${i}: "${buttonText}"`);
-      }
-
-      // Try alternative selectors for edit functionality
-      const possibleEditButtons = page.locator(
-        'button[aria-label*="edit" i], button[title*="edit" i], button:has(svg + text*="Edit")'
-      );
-      const altEditCount = await possibleEditButtons.count();
-
-      if (altEditCount > 0) {
-        editButton = possibleEditButtons.first();
-        console.log("Found edit button using alternative selector");
-      } else {
-        throw new Error("No Edit buttons found. Emails may not be properly rendered or editable.");
-      }
-    }
-
-    // Wait for edit button to be ready
+    // Find and wait for Edit button
+    const editButton = await findEditButton(page);
     await editButton.waitFor({ state: "visible", timeout: 10000 });
     await editButton.waitFor({ state: "attached" });
 
@@ -123,39 +80,7 @@ test.describe("Campaign Email Editing", () => {
     // Click the Edit button
     await editButton.click();
 
-    // Wait for the edit modal to appear
-    const editModal = page.locator('[role="dialog"]').first();
-    await expect(editModal).toBeVisible({ timeout: 15000 });
-
-    // Wait for modal content to load
-    await page.waitForTimeout(1000);
-
-    // Find the email content textarea - try multiple selectors
-    const textareaSelectors = [
-      'textarea[placeholder*="content" i]',
-      'textarea[placeholder*="email" i]',
-      'textarea:not([placeholder*="subject" i])',
-      "textarea",
-    ];
-
-    let contentTextarea = null;
-    for (const selector of textareaSelectors) {
-      const textareas = editModal.locator(selector);
-      const count = await textareas.count();
-      if (count > 0) {
-        // Get the largest textarea (content is usually larger than subject)
-        contentTextarea = textareas.last();
-        break;
-      }
-    }
-
-    if (!contentTextarea) {
-      throw new Error("Could not find email content textarea in edit modal");
-    }
-
-    await expect(contentTextarea).toBeVisible();
-
-    // Clear and enter new content
+    // Edit the email content
     const testContent = `EDITED EMAIL CONTENT - Test ${Date.now()}
 
 This email has been modified by the integration test to verify that changes appear immediately without page refresh.
@@ -164,16 +89,9 @@ Original content preview: ${originalContent.substring(0, 50)}...
 
 This tests the cache invalidation fix in the updateEmail mutation.`;
 
-    await contentTextarea.fill(testContent);
-
-    // Find and click Save button
-    const saveButton = editModal.locator('button:has-text("Save")').first();
-    await expect(saveButton).toBeVisible();
-    await saveButton.click();
-
-    // Wait for modal to close
-    await expect(editModal).toBeHidden({ timeout: 15000 });
-
+    await editEmailInModal(page, testContent);
+    await waitForModalToClose(page);
+    
     // Wait a moment for React to process the update
     await page.waitForTimeout(2000);
 
@@ -210,45 +128,30 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
 
   test("should persist email changes after page refresh", async ({ page }) => {
     // Navigate to existing campaigns page
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Find and click View button
-    const viewButton = page.locator('button:has-text("View")').first();
+    const viewButton = await findViewButton(page);
     await viewButton.click();
 
     // Wait for campaign detail page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 15000 });
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(2000);
+    await waitForCampaignData(page);
 
     // Click first donor tab
-    const firstTab = page.locator('[role="tab"]').first();
-    await firstTab.waitFor({ state: "visible" });
-    await firstTab.click({ force: true });
-    await page.waitForTimeout(2000);
+    await selectDonorTab(page, 0);
 
     // Click Edit button
-    const editButton = page.locator('button:has-text("Edit")').first();
-    await editButton.waitFor({ state: "visible", timeout: 10000 });
+    const editButton = await findEditButton(page);
     await editButton.click();
 
-    // Wait for modal and edit content
-    const editModal = page.locator('[role="dialog"]').first();
-    await expect(editModal).toBeVisible({ timeout: 15000 });
-
+    // Edit and save content
     const persistContent = `PERSISTENT TEST CONTENT - ${Date.now()}
 
 This content should persist after page refresh, proving the database was actually updated.`;
 
-    const contentTextarea = editModal.locator("textarea").last();
-    await contentTextarea.fill(persistContent);
-
-    // Save changes
-    const saveButton = editModal.locator('button:has-text("Save")').first();
-    await saveButton.click();
-    await expect(editModal).toBeHidden({ timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await editEmailInModal(page, persistContent);
+    await waitForModalToClose(page);
 
     // Refresh the page
     await page.reload();

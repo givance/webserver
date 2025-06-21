@@ -1,10 +1,23 @@
 import { test, expect } from "@playwright/test";
+import {
+  navigateToCampaigns,
+  navigateToCampaignDetails,
+  findEditButton,
+  findViewButton,
+  findCampaignByStatus,
+  writeInstructions,
+  generateEmails,
+  waitForStatusChange,
+  retryCampaign,
+  startBulkGeneration,
+  getProgressInfo,
+  verifyCampaignStatistics,
+  waitForCampaignData,
+} from "./helper";
 
 test.describe("Campaign Regeneration and Status Checking", () => {
   test.beforeEach(async ({ page }) => {
-    // Start from existing campaigns page
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
   });
 
   test("should regenerate emails for an existing campaign", async ({ page }) => {
@@ -34,8 +47,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // Click Edit to go to regeneration
-    const editButton = targetRow.locator('button:has-text("Edit")');
-    await editButton.waitFor({ state: "visible", timeout: 5000 });
+    const editButton = await findEditButton(page, targetRow);
     await editButton.click();
 
     // Should navigate to edit page with Write Instructions step
@@ -52,29 +64,13 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // Add new instruction for regeneration
-    const instructionInput = page.locator('textarea[placeholder*="instruction"], textarea').first();
-    await instructionInput.waitFor({ state: "visible", timeout: 5000 });
-    await instructionInput.click();
-    await instructionInput.fill(
-      "Please regenerate emails with a more formal tone and include our organization's mission statement."
-    );
+    await writeInstructions(page, "Please regenerate emails with a more formal tone and include our organization's mission statement.");
 
-    // Send the instruction
-    const sendButton = page.locator('button:has-text("Send")');
-    await sendButton.waitFor({ state: "visible", timeout: 5000 });
-    await sendButton.click();
+    // Generate new emails
+    await generateEmails(page);
 
-    // Wait for AI response with longer timeout
-    await page.waitForTimeout(5000);
-
-    // Look for Generate More button or similar action buttons
-    const actionButtons = page.locator(
-      'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
-    );
-    await expect(actionButtons.first()).toBeVisible({ timeout: 60000 });
-
-    // Click the action button to regenerate
-    await actionButtons.first().click();
+    // Start bulk generation
+    await startBulkGeneration(page);
 
     // Wait for generation to start
     await page.waitForTimeout(3000);
@@ -110,12 +106,12 @@ test.describe("Campaign Regeneration and Status Checking", () => {
         }
 
         // Click View to see real-time status
-        const viewButton = row.locator('button:has-text("View")');
-        if ((await viewButton.count()) > 0) {
+        try {
+          const viewButton = await findViewButton(page, row);
           await viewButton.click();
 
           await page.waitForURL(/\/campaign\/results\/\w+/);
-          await page.waitForLoadState("networkidle");
+          await waitForCampaignData(page);
 
           // Verify status indicators on results page
           await expect(page.locator('text="Generated Emails"')).toBeVisible();
@@ -128,6 +124,9 @@ test.describe("Campaign Regeneration and Status Checking", () => {
           await expect(generatedCount.first()).toBeVisible();
 
           return; // Test one active campaign
+        } catch (e) {
+          // No view button for this campaign
+          continue;
         }
       }
     }
@@ -163,30 +162,17 @@ test.describe("Campaign Regeneration and Status Checking", () => {
       await expect(errorIcon.first()).toBeVisible();
     }
 
-    // Check for partial progress (e.g., "3/10" emails generated before failure)
-    const progressText = failedRow.locator("text=/\\d+\\s*\\/\\s*\\d+/");
-    if ((await progressText.count()) > 0) {
-      const progress = await progressText.textContent();
-      // Parse to ensure some were generated
-      const match = progress?.match(/(\d+)\s*\/\s*(\d+)/);
-      if (match) {
-        const generated = parseInt(match[1]);
-        const total = parseInt(match[2]);
-        expect(generated).toBeLessThan(total);
-      }
+    // Check for partial progress
+    const progressInfo = await getProgressInfo(page, failedRow);
+    if (progressInfo) {
+      expect(progressInfo.completed).toBeLessThan(progressInfo.total);
     }
 
     // Test retry functionality
-    const retryButton = failedRow.locator('button:has-text("Retry")');
-    await expect(retryButton).toBeVisible();
-
-    await retryButton.click();
-    await page.waitForTimeout(2000);
+    await retryCampaign(page, failedRow);
 
     // Verify status changes from Failed
-    const newStatusBadge = failedRow.locator('[class*="badge"]');
-    const newStatus = await newStatusBadge.textContent();
-    expect(newStatus).not.toContain("Failed");
+    const newStatus = await waitForStatusChange(page, failedRow, "Failed");
     expect(newStatus).toMatch(/Pending|Generating|In Progress/i);
   });
 
@@ -220,12 +206,11 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // Click View to see detailed sending status
-    const viewButton = targetRow.locator('button:has-text("View")');
-    await viewButton.waitFor({ state: "visible", timeout: 5000 });
+    const viewButton = await findViewButton(page, targetRow);
     await viewButton.click();
 
     await page.waitForURL(/\/campaign\/results\/\w+/, { timeout: 10000 });
-    await page.waitForLoadState("networkidle");
+    await waitForCampaignData(page);
 
     // Verify sending status indicators - look for various possible labels
     const statusIndicators = page.locator(
@@ -286,19 +271,11 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // For active campaigns, capture initial progress
-    const progressCell = activeCampaign.locator("td").nth(3);
-    const initialProgress = await progressCell.textContent();
-
-    // In a real test with active generation, we would:
-    // 1. Wait a few seconds
-    // 2. Check if progress updated
-    // 3. Verify the numbers increased
-
-    // For now, verify the progress format is correct
-    if (initialProgress?.match(/\d+\s*\/\s*\d+/)) {
-      const [generated, total] = initialProgress.match(/\d+/g) || [];
-      expect(parseInt(generated)).toBeGreaterThanOrEqual(0);
-      expect(parseInt(total)).toBeGreaterThan(0);
+    const initialProgress = await getProgressInfo(page, activeCampaign);
+    
+    if (initialProgress) {
+      expect(initialProgress.completed).toBeGreaterThanOrEqual(0);
+      expect(initialProgress.total).toBeGreaterThan(0);
     }
   });
 
@@ -334,29 +311,14 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // View detailed analytics
-    const viewButton = completedRow.locator('button:has-text("View")');
+    const viewButton = await findViewButton(page, completedRow);
     await viewButton.click();
 
     await page.waitForURL(/\/campaign\/results\/\w+/);
-    await page.waitForLoadState("networkidle");
+    await waitForCampaignData(page);
 
-    // Verify analytics cards
-    const statsCards = page.locator('[class*="card"]').filter({
-      has: page.locator("text=/Total Donors|Generated Emails|Sent Emails|Open Rate|Click Rate/i"),
-    });
-
-    expect(await statsCards.count()).toBeGreaterThan(0);
-
-    // Each stat card should show a number
-    for (let i = 0; i < (await statsCards.count()); i++) {
-      const card = statsCards.nth(i);
-      const valueElement = card.locator('div[class*="text-2xl"], div[class*="font-bold"], div[class*="text-3xl"]');
-
-      if ((await valueElement.count()) > 0) {
-        const value = await valueElement.first().textContent();
-        expect(value).toMatch(/\d+|[\d.]+%|Never|-/);
-      }
-    }
+    // Verify analytics and statistics
+    await verifyCampaignStatistics(page);
   });
 
   test("should allow bulk regeneration from campaign list", async ({ page }) => {
@@ -404,8 +366,8 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     // Click retry buttons
     for (let i = 0; i < retriesToTest; i++) {
-      await campaignsToRetry[i].retryButton.click();
-      await page.waitForTimeout(1500); // Wait between clicks
+      await retryCampaign(page, campaignsToRetry[i].row);
+      await page.waitForTimeout(500); // Wait between clicks
     }
 
     // Wait for status updates

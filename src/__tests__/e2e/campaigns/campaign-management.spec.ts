@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import {
+  navigateToCampaignCreation,
+} from "./helper";
 
 test.describe("Campaign Management", () => {
   test.beforeEach(async ({ page }) => {
@@ -64,11 +67,8 @@ test.describe("Campaign Management", () => {
   });
 
   test("should load campaign creation wizard", async ({ page }) => {
-    // Try different possible routes for campaign creation
-    const campaignRoutes = ["/campaigns/new", "/campaign/new", "/campaigns/create", "/campaign/create"];
-
-    for (const route of campaignRoutes) {
-      await page.goto(route);
+    // Navigate to campaign creation
+    await navigateToCampaignCreation(page);
 
       if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
         // Check if campaign creation elements exist
@@ -103,7 +103,7 @@ test.describe("Campaign Management", () => {
   });
 
   test("should handle campaign wizard steps", async ({ page }) => {
-    await page.goto("/campaigns/new");
+    await navigateToCampaignCreation(page);
 
     if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
       // Look for wizard steps or navigation
@@ -150,7 +150,7 @@ test.describe("Campaign Email Generation", () => {
   });
 
   test("should handle email template selection", async ({ page }) => {
-    await page.goto("/campaigns/new");
+    await navigateToCampaignCreation(page);
 
     if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
       // Look for template selection elements
@@ -187,7 +187,7 @@ test.describe("Campaign Email Generation", () => {
   });
 
   test("should handle donor selection for campaigns", async ({ page }) => {
-    await page.goto("/campaigns/new");
+    await navigateToCampaignCreation(page);
 
     if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
       // Look for donor selection elements
@@ -223,7 +223,7 @@ test.describe("Campaign Email Generation", () => {
   });
 
   test("should handle email preview and sending", async ({ page }) => {
-    await page.goto("/campaigns/new");
+    await navigateToCampaignCreation(page);
 
     if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
       // Look for preview and send elements
