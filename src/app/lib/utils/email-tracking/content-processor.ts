@@ -198,28 +198,65 @@ export async function processEmailContentWithTracking(
         // For signatures, ensure proper HTML structure and convert data URLs
         if (isSignature) {
           // Debug: Log the original signature content
-          console.log("[SIGNATURE DEBUG] Original signature content:", processedPiece.substring(0, 200) + "...");
+          console.log("[SIGNATURE DEBUG] Processing signature piece");
+          console.log("[SIGNATURE DEBUG] Original length:", processedPiece.length);
+          console.log("[SIGNATURE DEBUG] First 500 chars:", processedPiece.substring(0, 500));
           console.log("[SIGNATURE DEBUG] Contains img tag:", processedPiece.includes("<img"));
           console.log("[SIGNATURE DEBUG] Contains src attribute:", processedPiece.includes("src="));
           console.log("[SIGNATURE DEBUG] Contains data:image:", processedPiece.includes("data:image"));
+          console.log("[SIGNATURE DEBUG] Contains hosted URL:", processedPiece.includes("/api/signature-image/"));
+          
+          // Extract and log all img tags for detailed debugging
+          const imgMatches = processedPiece.match(/<img[^>]*>/gi);
+          if (imgMatches) {
+            console.log(`[SIGNATURE DEBUG] Found ${imgMatches.length} image(s) in signature`);
+            imgMatches.forEach((img, index) => {
+              console.log(`[SIGNATURE DEBUG] Image ${index + 1} full tag:`, img);
+              
+              // Extract src attribute
+              const srcMatch = img.match(/src=["']([^"']+)["']/i);
+              if (srcMatch) {
+                console.log(`[SIGNATURE DEBUG] Image ${index + 1} src:`, srcMatch[1]);
+              } else {
+                console.log(`[SIGNATURE DEBUG] Image ${index + 1} has NO src attribute!`);
+              }
+              
+              // Extract class attribute
+              const classMatch = img.match(/class=["']([^"']+)["']/i);
+              if (classMatch) {
+                console.log(`[SIGNATURE DEBUG] Image ${index + 1} class:`, classMatch[1]);
+              }
+            });
+          } else {
+            console.log("[SIGNATURE DEBUG] No images found in signature");
+          }
 
           // Convert data: URLs to hosted URLs for Gmail compatibility
           processedPiece = await convertDataUrlsToHostedUrls(processedPiece, baseUrl);
 
           // Clean up the HTML to ensure proper structure
           processedPiece = processedPiece.trim();
+          
+          // Remove empty paragraphs with only &nbsp; or whitespace
+          processedPiece = processedPiece.replace(/<p[^>]*>(\s|&nbsp;|&#160;|&#xA0;)*<\/p>/gi, '');
 
-          // If signature doesn't start with a block element, wrap it in a div with minimal spacing
-          if (
-            !processedPiece.startsWith("<div") &&
-            !processedPiece.startsWith("<p") &&
-            !processedPiece.startsWith("<table")
-          ) {
-            processedPiece = `<div style="margin-top: 0.5em; margin-bottom: 0;">${processedPiece}</div>`;
-          }
+          // Always wrap signature in a div with controlled spacing
+          // This ensures all signature content is contained and styled together
+          processedPiece = `<div class="email-signature" style="margin-top: 0; margin-bottom: 0;">${processedPiece}</div>`;
 
           // Debug: Log the final processed signature content
-          console.log("[SIGNATURE DEBUG] Final signature content:", processedPiece.substring(0, 200) + "...");
+          console.log("[SIGNATURE DEBUG] After cleaning and wrapping:");
+          console.log("[SIGNATURE DEBUG] Final length:", processedPiece.length);
+          console.log("[SIGNATURE DEBUG] Final content (first 500 chars):", processedPiece.substring(0, 500));
+          
+          // Check final image tags
+          const finalImgMatches = processedPiece.match(/<img[^>]*>/gi);
+          if (finalImgMatches) {
+            console.log(`[SIGNATURE DEBUG] Final signature has ${finalImgMatches.length} image(s)`);
+            finalImgMatches.forEach((img, index) => {
+              console.log(`[SIGNATURE DEBUG] Final image ${index + 1}:`, img);
+            });
+          }
         }
 
         // Return HTML content as-is (no paragraph wrapping)
@@ -303,9 +340,12 @@ export function createHtmlEmail(
   }
   p { margin: 0 0 1em 0; }
   img { max-width: 100%; height: auto; }
-  .signature-image { max-height: 150px; width: auto; }
+  .signature-image { max-height: 150px; width: auto; display: inline-block; }
   a { color: #007bff; text-decoration: none; }
   a:hover { text-decoration: underline; }
+  /* Signature-specific styles to reduce spacing */
+  .email-signature p { margin: 0; padding: 0; }
+  .email-signature p + p { margin-top: 0.5em; }
 </style>
 </head>
 <body>
