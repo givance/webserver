@@ -3,9 +3,10 @@ import { signatureImages } from "@/app/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest, { params }: { params: { imageId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ imageId: string }> }) {
   try {
-    const imageId = parseInt(params.imageId);
+    const resolvedParams = await params;
+    const imageId = parseInt(resolvedParams.imageId);
 
     if (isNaN(imageId)) {
       return new NextResponse("Invalid image ID", { status: 400 });

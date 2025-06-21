@@ -59,7 +59,7 @@ test.describe("Campaign Draft Completion Status", () => {
     await page.waitForTimeout(2000);
 
     // Step 3: Select Template (skip for now)
-    const templateNextButton = page.locator('button:has-text("Next")');
+    const templateNextButton = page.locator('button:has-text("Continue")');
     if (await templateNextButton.isVisible()) {
       await templateNextButton.click();
       await page.waitForTimeout(2000);
@@ -164,7 +164,7 @@ test.describe("Campaign Draft Completion Status", () => {
     await page.waitForTimeout(2000);
 
     // Step 3: Skip template
-    const templateNextButton = page.locator('button:has-text("Next")');
+    const templateNextButton = page.locator('button:has-text("Continue")');
     if (await templateNextButton.isVisible()) {
       await templateNextButton.click();
       await page.waitForTimeout(2000);
