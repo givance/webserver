@@ -335,7 +335,7 @@ describe("generateBulkEmailsTask", () => {
       expect(email1.structuredContent).toContainEqual(
         expect.objectContaining({
           piece: "Primary Staff",
-          references: [],
+          references: ["signature"],
         })
       );
 
@@ -343,7 +343,7 @@ describe("generateBulkEmailsTask", () => {
       expect(email2.structuredContent).toContainEqual(
         expect.objectContaining({
           piece: "Sarah Jones",
-          references: [],
+          references: ["signature"],
         })
       );
 
@@ -351,7 +351,7 @@ describe("generateBulkEmailsTask", () => {
       expect(email3.structuredContent).toContainEqual(
         expect.objectContaining({
           piece: "Best,\nMike",
-          references: [],
+          references: ["signature"],
         })
       );
     });
@@ -364,12 +364,14 @@ describe("generateBulkEmailsTask", () => {
       const runFunction = (generateBulkEmailsTask as any).run;
       await expect(runFunction(mockPayload, mockContext)).rejects.toThrow("Organization org123 not found");
 
-      // Verify session was updated to FAILED
-      expect(mockSet).toHaveBeenLastCalledWith({
-        status: "FAILED",
-        errorMessage: "Organization org123 not found",
-        updatedAt: expect.any(Date),
-      });
+      // Verify session was updated with error message
+      expect(mockSet).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          errorMessage: "Organization org123 not found",
+          updatedAt: expect.any(Date),
+        })
+      );
     });
 
     it("should handle user not found error", async () => {
@@ -378,11 +380,13 @@ describe("generateBulkEmailsTask", () => {
       const runFunction = (generateBulkEmailsTask as any).run;
       await expect(runFunction(mockPayload, mockContext)).rejects.toThrow("User user123 not found");
 
-      expect(mockSet).toHaveBeenLastCalledWith({
-        status: "FAILED",
-        errorMessage: "User user123 not found",
-        updatedAt: expect.any(Date),
-      });
+      expect(mockSet).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          errorMessage: "User user123 not found",
+          updatedAt: expect.any(Date),
+        })
+      );
     });
 
     it("should handle missing donors", async () => {
@@ -415,12 +419,14 @@ describe("generateBulkEmailsTask", () => {
       const runFunction = (generateBulkEmailsTask as any).run;
       await expect(runFunction(mockPayload, mockContext)).rejects.toThrow();
 
-      // Should update status to FAILED
-      expect(mockSet).toHaveBeenLastCalledWith({
-        status: "FAILED",
-        errorMessage: expect.any(String),
-        updatedAt: expect.any(Date),
-      });
+      // Should update session with error message
+      expect(mockSet).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          errorMessage: expect.any(String),
+          updatedAt: expect.any(Date),
+        })
+      );
     });
   });
 

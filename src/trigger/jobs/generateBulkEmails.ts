@@ -1,7 +1,15 @@
 import { task, logger as triggerLogger } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, donors, organizations, users, staff } from "@/app/lib/db/schema";
+import {
+  emailGenerationSessions,
+  generatedEmails,
+  donors,
+  organizations,
+  users,
+  staff,
+  EmailGenerationSessionStatus,
+} from "@/app/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
@@ -84,7 +92,7 @@ export const generateBulkEmailsTask = task({
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "GENERATING",
+          status: EmailGenerationSessionStatus.GENERATING,
           triggerJobId: ctx.run.id,
           updatedAt: new Date(),
         })
@@ -139,7 +147,7 @@ export const generateBulkEmailsTask = task({
         await db
           .update(emailGenerationSessions)
           .set({
-            status: "COMPLETED",
+            status: EmailGenerationSessionStatus.COMPLETED,
             completedDonors: selectedDonorIds.length,
             refinedInstruction: refinedInstruction || instruction,
             completedAt: new Date(),
@@ -329,7 +337,7 @@ export const generateBulkEmailsTask = task({
         // Create the appropriate signature
         let signature: string;
         let signatureSource: string = "default";
-        
+
         if (assignedStaff?.signature && assignedStaff.signature.trim()) {
           // Use custom signature if it exists and is not empty
           signature = assignedStaff.signature;
@@ -349,66 +357,62 @@ export const generateBulkEmailsTask = task({
         } else {
           // Fallback to user signature if no staff assigned and no primary staff
           signature = user.emailSignature || `Best,\n${user.firstName}`;
-          signatureSource = user.emailSignature ? `user (${user.firstName} ${user.lastName})` : `user default (${user.firstName})`;
+          signatureSource = user.emailSignature
+            ? `user (${user.firstName} ${user.lastName})`
+            : `user default (${user.firstName})`;
         }
-        
+
         // Log detailed signature information
+        triggerLogger.info(`[SIGNATURE] Donor ${email.donorId} - Using signature from: ${signatureSource}`);
+        triggerLogger.info(`[SIGNATURE] Donor ${email.donorId} - Signature length: ${signature.length} chars`);
         triggerLogger.info(
-          `[SIGNATURE] Donor ${email.donorId} - Using signature from: ${signatureSource}`
+          `[SIGNATURE] Donor ${email.donorId} - Contains <img>: ${signature.includes(
+            "<img"
+          )}, Contains src=: ${signature.includes("src=")}`
         );
-        triggerLogger.info(
-          `[SIGNATURE] Donor ${email.donorId} - Signature length: ${signature.length} chars`
-        );
-        triggerLogger.info(
-          `[SIGNATURE] Donor ${email.donorId} - Contains <img>: ${signature.includes("<img")}, Contains src=: ${signature.includes('src=')}`
-        );
-        
+
         // Log first 500 chars of signature for debugging
         triggerLogger.info(
-          `[SIGNATURE] Donor ${email.donorId} - First 500 chars: ${signature.substring(0, 500).replace(/\n/g, '\\n')}`
+          `[SIGNATURE] Donor ${email.donorId} - First 500 chars: ${signature.substring(0, 500).replace(/\n/g, "\\n")}`
         );
-        
+
         // Extract and log image tags if present
         const imgMatches = signature.match(/<img[^>]*>/gi);
         if (imgMatches) {
-          triggerLogger.info(
-            `[SIGNATURE] Donor ${email.donorId} - Found ${imgMatches.length} image tag(s)`
-          );
+          triggerLogger.info(`[SIGNATURE] Donor ${email.donorId} - Found ${imgMatches.length} image tag(s)`);
           imgMatches.forEach((img, index) => {
-            triggerLogger.info(
-              `[SIGNATURE] Donor ${email.donorId} - Image ${index + 1}: ${img}`
-            );
+            triggerLogger.info(`[SIGNATURE] Donor ${email.donorId} - Image ${index + 1}: ${img}`);
           });
         }
 
         // Append signature to the structured content
         // Check if we need spacing before signature
-        const needsSpacing = email.structuredContent.length > 0 && 
-                           email.structuredContent[email.structuredContent.length - 1].addNewlineAfter === false;
-        
-        const signaturePieces = needsSpacing ? [
-          {
-            piece: "", // Empty piece for spacing only if needed
-            references: [],
-            addNewlineAfter: true,
-          },
-          {
-            piece: signature,
-            references: ["signature"], // Mark as signature for proper HTML processing
-            addNewlineAfter: false,
-          },
-        ] : [
-          {
-            piece: signature,
-            references: ["signature"], // Mark as signature for proper HTML processing
-            addNewlineAfter: false,
-          },
-        ];
-        
-        const enhancedStructuredContent = [
-          ...email.structuredContent,
-          ...signaturePieces,
-        ];
+        const needsSpacing =
+          email.structuredContent.length > 0 &&
+          email.structuredContent[email.structuredContent.length - 1].addNewlineAfter === false;
+
+        const signaturePieces = needsSpacing
+          ? [
+              {
+                piece: "", // Empty piece for spacing only if needed
+                references: [],
+                addNewlineAfter: true,
+              },
+              {
+                piece: signature,
+                references: ["signature"], // Mark as signature for proper HTML processing
+                addNewlineAfter: false,
+              },
+            ]
+          : [
+              {
+                piece: signature,
+                references: ["signature"], // Mark as signature for proper HTML processing
+                addNewlineAfter: false,
+              },
+            ];
+
+        const enhancedStructuredContent = [...email.structuredContent, ...signaturePieces];
 
         return {
           sessionId,
@@ -432,7 +436,7 @@ export const generateBulkEmailsTask = task({
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "COMPLETED",
+          status: EmailGenerationSessionStatus.COMPLETED,
           completedDonors: totalCompletedDonors,
           refinedInstruction: refinedInstruction || instruction,
           completedAt: new Date(),
@@ -459,7 +463,6 @@ export const generateBulkEmailsTask = task({
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "FAILED",
           errorMessage: error instanceof Error ? error.message : "Unknown error",
           updatedAt: new Date(),
         })

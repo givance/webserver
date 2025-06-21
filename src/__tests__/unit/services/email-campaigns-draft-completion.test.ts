@@ -27,8 +27,8 @@ describe("EmailCampaignsService - Draft Completion", () => {
     jest.clearAllMocks();
   });
 
-  describe("createSession from draft with all emails", () => {
-    it("should mark session as COMPLETED when all donors already have emails", async () => {
+  describe("launchCampaign from draft with all emails", () => {
+    it("should mark session as READY_TO_SEND when all donors already have emails", async () => {
       const mockDraft = {
         id: 1,
         organizationId: mockOrgId,
@@ -54,27 +54,25 @@ describe("EmailCampaignsService - Draft Completion", () => {
         }),
       });
 
-      // Mock counting existing emails - all donors have emails
+      // Mock counting existing emails for selected donors - all donors have emails
       (db.select as jest.Mock).mockReturnValueOnce({
         from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue([
-            { donorId: 1 },
-            { donorId: 2 },
-            { donorId: 3 },
-          ]),
+          where: jest.fn().mockResolvedValue([{ donorId: 1 }, { donorId: 2 }, { donorId: 3 }]),
         }),
       });
 
-      // Mock update draft to PENDING with completedDonors count
+      // Mock update draft to READY_TO_SEND with completedDonors count
       (db.update as jest.Mock).mockReturnValueOnce({
         set: jest.fn().mockReturnValue({
           where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([{
-              id: 1,
-              status: "PENDING",
-              totalDonors: 3,
-              completedDonors: 3,
-            }]),
+            returning: jest.fn().mockResolvedValue([
+              {
+                id: 1,
+                status: "READY_TO_SEND",
+                totalDonors: 3,
+                completedDonors: 3,
+              },
+            ]),
           }),
         }),
       });
@@ -86,37 +84,29 @@ describe("EmailCampaignsService - Draft Completion", () => {
         }),
       });
 
-      // Mock getting existing emails for trigger check - all have emails
+      // Mock getting existing approved emails - all have emails
       (db.select as jest.Mock).mockReturnValueOnce({
         from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue([
-            { donorId: 1 },
-            { donorId: 2 },
-            { donorId: 3 },
-          ]),
+          where: jest.fn().mockResolvedValue([{ donorId: 1 }, { donorId: 2 }, { donorId: 3 }]),
         }),
       });
 
-      // Mock update to COMPLETED status
+      // Mock final update to READY_TO_SEND (in else block when no donors to generate)
       (db.update as jest.Mock).mockReturnValueOnce({
         set: jest.fn().mockReturnValue({
           where: jest.fn().mockResolvedValue([]),
         }),
       });
 
-      const result = await service.createSession(input, mockOrgId, mockUserId);
+      // Mock checkAndUpdateCampaignCompletion call
+      jest.spyOn(service, "checkAndUpdateCampaignCompletion").mockResolvedValue(undefined);
+
+      const result = await service.launchCampaign(input, mockOrgId, mockUserId);
 
       expect(result.sessionId).toBe(1);
 
       // Verify the update calls
       expect(db.update).toHaveBeenCalled();
-      
-      // Find the call that updates to COMPLETED
-      const updateCalls = (db.update as jest.Mock).mock.calls;
-      const completedUpdateCall = updateCalls.find(call => {
-        // Check if this is updating emailGenerationSessions
-        return call[0] === emailGenerationSessions || call[0]?.name === 'email_generation_sessions';
-      });
 
       // Verify that no trigger job was created (all emails already exist)
       expect(generateBulkEmailsTask.trigger).not.toHaveBeenCalled();
@@ -148,28 +138,30 @@ describe("EmailCampaignsService - Draft Completion", () => {
         }),
       });
 
-      // Mock counting existing emails - only 3 of 5 donors have emails
+      // Mock counting existing emails for selected donors - only 3 out of 5 donors have emails
       (db.select as jest.Mock).mockReturnValueOnce({
         from: jest.fn().mockReturnValue({
           where: jest.fn().mockResolvedValue([
             { donorId: 1 },
             { donorId: 2 },
             { donorId: 3 },
-            { donorId: 7 }, // This donor is not in selectedDonorIds
+            { donorId: 7 }, // This donor is not in selectedDonorIds so doesn't count
           ]),
         }),
       });
 
-      // Mock update draft to PENDING
+      // Mock update draft to GENERATING
       (db.update as jest.Mock).mockReturnValueOnce({
         set: jest.fn().mockReturnValue({
           where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([{
-              id: 1,
-              status: "PENDING",
-              totalDonors: 5,
-              completedDonors: 3,
-            }]),
+            returning: jest.fn().mockResolvedValue([
+              {
+                id: 1,
+                status: "GENERATING",
+                totalDonors: 5,
+                completedDonors: 3,
+              },
+            ]),
           }),
         }),
       });
@@ -181,13 +173,59 @@ describe("EmailCampaignsService - Draft Completion", () => {
         }),
       });
 
-      // Mock getting existing emails for trigger check
+      // Mock getting existing approved emails for trigger check
       (db.select as jest.Mock).mockReturnValueOnce({
         from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue([
-            { donorId: 1 },
-            { donorId: 2 },
-            { donorId: 3 },
+          where: jest.fn().mockResolvedValue([{ donorId: 1 }, { donorId: 2 }, { donorId: 3 }]),
+        }),
+      });
+
+      // Mock checkAndUpdateCampaignCompletion call (no additional update mock needed for this path)
+      jest.spyOn(service, "checkAndUpdateCampaignCompletion").mockResolvedValue(undefined);
+
+      const result = await service.launchCampaign(input, mockOrgId, mockUserId);
+
+      expect(result.sessionId).toBe(1);
+
+      // Verify that trigger was called for the 2 donors without emails
+      expect(generateBulkEmailsTask.trigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          selectedDonorIds: [4, 5], // Only donors 4 and 5 need emails
+        })
+      );
+    });
+  });
+
+  describe("createSession draft functionality", () => {
+    it("should create a new draft session", async () => {
+      const selectedDonorIds = [1, 2, 3];
+      const input = {
+        campaignName: "Test Campaign",
+        instruction: "Test instruction",
+        chatHistory: [],
+        selectedDonorIds,
+        previewDonorIds: [],
+      };
+
+      // Mock no existing draft
+      (db.select as jest.Mock).mockReturnValueOnce({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      // Mock insert new session
+      (db.insert as jest.Mock).mockReturnValueOnce({
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([
+            {
+              id: 1,
+              status: "DRAFT",
+              totalDonors: 3,
+              completedDonors: 0,
+            },
           ]),
         }),
       });
@@ -195,13 +233,55 @@ describe("EmailCampaignsService - Draft Completion", () => {
       const result = await service.createSession(input, mockOrgId, mockUserId);
 
       expect(result.sessionId).toBe(1);
-      
-      // Verify that trigger was called for the 2 donors without emails
-      expect(generateBulkEmailsTask.trigger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          selectedDonorIds: [4, 5], // Only donors 4 and 5 need emails
-        })
-      );
+      expect(db.insert).toHaveBeenCalled();
+    });
+
+    it("should update existing draft session", async () => {
+      const mockDraft = {
+        id: 1,
+        organizationId: mockOrgId,
+        jobName: "Test Campaign",
+        status: "DRAFT",
+      };
+
+      const selectedDonorIds = [1, 2, 3, 4];
+      const input = {
+        campaignName: "Test Campaign",
+        instruction: "Updated instruction",
+        chatHistory: [],
+        selectedDonorIds,
+        previewDonorIds: [],
+      };
+
+      // Mock finding existing draft
+      (db.select as jest.Mock).mockReturnValueOnce({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockDraft]),
+          }),
+        }),
+      });
+
+      // Mock update existing draft
+      (db.update as jest.Mock).mockReturnValueOnce({
+        set: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            returning: jest.fn().mockResolvedValue([
+              {
+                id: 1,
+                status: "DRAFT",
+                totalDonors: 4,
+                completedDonors: 0,
+              },
+            ]),
+          }),
+        }),
+      });
+
+      const result = await service.createSession(input, mockOrgId, mockUserId);
+
+      expect(result.sessionId).toBe(1);
+      expect(db.update).toHaveBeenCalled();
     });
   });
 
@@ -240,7 +320,7 @@ describe("EmailCampaignsService - Draft Completion", () => {
     it("should not update status when donors are not all completed", async () => {
       const mockSession = {
         id: 1,
-        status: "IN_PROGRESS",
+        status: "READY_TO_SEND",
         totalDonors: 5,
         completedDonors: 3,
       };
@@ -251,7 +331,7 @@ describe("EmailCampaignsService - Draft Completion", () => {
 
       expect(result).toMatchObject({
         id: 1,
-        status: "IN_PROGRESS",
+        status: "READY_TO_SEND",
         totalDonors: 5,
         completedDonors: 3,
       });

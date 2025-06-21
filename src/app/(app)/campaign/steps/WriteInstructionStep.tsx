@@ -187,6 +187,7 @@ export function WriteInstructionStep({
   const {
     generateEmails,
     createSession,
+    launchCampaign,
     updateCampaign,
     regenerateAllEmails,
     saveGeneratedEmail,
@@ -976,8 +977,8 @@ export function WriteInstructionStep({
 
         toast.success("Campaign updated! Redirecting to communication jobs...");
       } else {
-        // Create new campaign session
-        response = await createSession.mutateAsync({
+        // Launch new campaign (this will create as DRAFT and immediately launch)
+        response = await launchCampaign.mutateAsync({
           campaignName: campaignName,
           instruction: currentSessionData.finalInstruction,
           chatHistory: currentSessionData.chatHistory,
@@ -988,10 +989,10 @@ export function WriteInstructionStep({
         });
 
         if (!response?.sessionId) {
-          throw new Error("Failed to create session");
+          throw new Error("Failed to launch campaign");
         }
 
-        toast.success("Campaign started! Redirecting to communication jobs...");
+        toast.success("Campaign launched! Redirecting to communication jobs...");
       }
 
       setShowBulkGenerationDialog(false);

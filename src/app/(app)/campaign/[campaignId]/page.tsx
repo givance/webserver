@@ -137,23 +137,19 @@ export default function CampaignDetailPage() {
   }
 
   const { session } = sessionData;
-  const canEdit = session.status !== "GENERATING" && session.status !== "IN_PROGRESS";
+  const canEdit = session.status !== "GENERATING";
   const hasSchedule = scheduleData && scheduleData.stats.total > 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "DRAFT":
         return <Badge variant="outline">Draft</Badge>;
-      case "PENDING":
-        return <Badge variant="secondary">Pending</Badge>;
       case "GENERATING":
         return <Badge variant="default">Generating</Badge>;
-      case "IN_PROGRESS":
-        return <Badge>In Progress</Badge>;
+      case "READY_TO_SEND":
+        return <Badge>Ready to Send</Badge>;
       case "COMPLETED":
         return <Badge variant="default">Completed</Badge>;
-      case "FAILED":
-        return <Badge variant="destructive">Failed</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }

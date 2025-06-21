@@ -48,6 +48,13 @@ export function useCommunications() {
     },
   });
 
+  const launchCampaign = trpc.communications.campaigns.launchCampaign.useMutation({
+    onSuccess: () => {
+      // Invalidate campaigns list to reflect the launched campaign
+      utils.communications.campaigns.listCampaigns.invalidate();
+    },
+  });
+
   // Gmail mutation hooks
   const saveToDraft = trpc.gmail.saveToDraft.useMutation();
   const sendEmails = trpc.gmail.sendEmails.useMutation();
@@ -210,6 +217,7 @@ export function useCommunications() {
     addMessage,
     generateEmails,
     createSession,
+    launchCampaign,
     saveToDraft,
     sendEmails,
     deleteCampaign,

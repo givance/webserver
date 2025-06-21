@@ -506,6 +506,24 @@ export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one, man
 }));
 
 /**
+ * Email generation session status enum
+ */
+export const emailGenerationSessionStatusEnum = pgEnum("email_generation_session_status", [
+  "DRAFT",
+  "GENERATING",
+  "READY_TO_SEND",
+  "COMPLETED",
+]);
+
+// Export the enum values for use in other files
+export const EmailGenerationSessionStatus = {
+  DRAFT: "DRAFT" as const,
+  GENERATING: "GENERATING" as const,
+  READY_TO_SEND: "READY_TO_SEND" as const,
+  COMPLETED: "COMPLETED" as const,
+} as const;
+
+/**
  * Templates table to store reusable communication prompts
  */
 export const templates = pgTable("templates", {
@@ -539,7 +557,7 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
   chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
   selectedDonorIds: jsonb("selected_donor_ids").notNull(), // Array of donor IDs
   previewDonorIds: jsonb("preview_donor_ids").notNull(), // Array of donor IDs used for preview
-  status: text("status").notNull().default("PENDING"), // 'DRAFT', 'PENDING', 'GENERATING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'
+  status: emailGenerationSessionStatusEnum("status").notNull().default("DRAFT"), // 'DRAFT', 'GENERATING', 'READY_TO_SEND', 'COMPLETED'
   triggerJobId: text("trigger_job_id"), // ID of the trigger job
   totalDonors: integer("total_donors").notNull(),
   completedDonors: integer("completed_donors").default(0).notNull(),

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, count, sql, or } from "drizzle-orm";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
+import { emailGenerationSessions, generatedEmails, EmailGenerationSessionStatus } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 
@@ -24,7 +24,7 @@ export interface CreateSessionInput {
 export interface ListCampaignsInput {
   limit?: number;
   offset?: number;
-  status?: "DRAFT" | "PENDING" | "GENERATING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  status?: keyof typeof EmailGenerationSessionStatus;
 }
 
 export interface UpdateEmailInput {
@@ -94,13 +94,13 @@ export interface SaveGeneratedEmailInput {
  */
 export class EmailCampaignsService {
   /**
-   * Creates a new email generation session and triggers bulk generation
-   * @param input - Session creation parameters
+   * Launch an existing draft campaign (transition from DRAFT to GENERATING/READY_TO_SEND)
+   * @param input - Launch parameters
    * @param organizationId - The organization ID
    * @param userId - The user ID
-   * @returns The created session
+   * @returns The launched session
    */
-  async createSession(input: CreateSessionInput, organizationId: string, userId: string) {
+  async launchCampaign(input: CreateSessionInput, organizationId: string, userId: string) {
     try {
       // First check if there's an existing draft with the same name
       const existingDraft = await db
@@ -110,7 +110,7 @@ export class EmailCampaignsService {
           and(
             eq(emailGenerationSessions.organizationId, organizationId),
             eq(emailGenerationSessions.jobName, input.campaignName),
-            eq(emailGenerationSessions.status, "DRAFT")
+            eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT)
           )
         )
         .limit(1);
@@ -130,14 +130,31 @@ export class EmailCampaignsService {
           );
 
         // Count how many of the selected donors already have emails
-        const existingDonorIds = existingEmailsForSelectedDonors.map(e => e.donorId);
-        const currentCompletedCount = input.selectedDonorIds.filter(id => existingDonorIds.includes(id)).length;
+        const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
+        const currentCompletedCount = input.selectedDonorIds.filter((id) => existingDonorIds.includes(id)).length;
 
-        // Update existing draft to PENDING and use it
+        // Determine the appropriate status based on whether emails need to be generated
+        const allEmailsExist = currentCompletedCount === input.selectedDonorIds.length;
+        const newStatus = allEmailsExist
+          ? EmailGenerationSessionStatus.READY_TO_SEND
+          : EmailGenerationSessionStatus.GENERATING;
+
+        // Update existing draft with appropriate status
+        logger.info(`[createSession] Updating existing draft ${existingDraft[0].id} to ${newStatus} status`, {
+          draftId: existingDraft[0].id,
+          oldStatus: existingDraft[0].status,
+          newStatus,
+          totalDonors: input.selectedDonorIds.length,
+          currentCompletedCount,
+          allEmailsExist,
+          organizationId,
+          userId,
+        });
+
         const [updatedSession] = await db
           .update(emailGenerationSessions)
           .set({
-            status: "PENDING",
+            status: newStatus,
             instruction: input.instruction,
             refinedInstruction: input.refinedInstruction,
             chatHistory: input.chatHistory,
@@ -164,9 +181,11 @@ export class EmailCampaignsService {
           })
           .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
 
-        logger.info(`Updated existing draft session ${sessionId} to PENDING with ${currentCompletedCount} completed donors for user ${userId}`);
+        logger.info(
+          `Updated existing draft session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
+        );
       } else {
-        // Create new session
+        // Create new session - new sessions always need generation
         const [session] = await db
           .insert(emailGenerationSessions)
           .values({
@@ -181,12 +200,14 @@ export class EmailCampaignsService {
             previewDonorIds: input.previewDonorIds,
             totalDonors: input.selectedDonorIds.length,
             completedDonors: 0, // Initialize to 0 for new sessions
-            status: "PENDING",
+            status: EmailGenerationSessionStatus.GENERATING, // New sessions always start generating
           })
           .returning();
 
         sessionId = session.id;
-        logger.info(`Created new email generation session ${sessionId} for user ${userId}`);
+        logger.info(
+          `Created new email generation session ${sessionId} with ${EmailGenerationSessionStatus.GENERATING} status for user ${userId}`
+        );
       }
 
       // Get the list of donors that already have approved emails
@@ -227,11 +248,10 @@ export class EmailCampaignsService {
             }`
           );
 
-          // Update session status to FAILED if trigger fails
+          // Update session with error message if trigger fails (keep status as GENERATING)
           await db
             .update(emailGenerationSessions)
             .set({
-              status: "FAILED",
               errorMessage: `Failed to start background job: ${
                 triggerError instanceof Error ? triggerError.message : String(triggerError)
               }`,
@@ -245,18 +265,33 @@ export class EmailCampaignsService {
           });
         }
       } else {
-        logger.info(`All donors already have emails, marking session as in progress (ready to send)`);
+        logger.info(
+          `[createSession] All donors already have emails, marking session ${sessionId} as ${EmailGenerationSessionStatus.READY_TO_SEND} (ready to send)`,
+          {
+            sessionId,
+            totalDonors: input.selectedDonorIds.length,
+            completedDonors: input.selectedDonorIds.length,
+            organizationId,
+            userId,
+          }
+        );
 
         // If all donors already have emails, mark session as ready to send
         await db
           .update(emailGenerationSessions)
           .set({
-            status: "IN_PROGRESS",
+            status: EmailGenerationSessionStatus.READY_TO_SEND,
             completedDonors: input.selectedDonorIds.length,
             updatedAt: new Date(),
           })
           .where(eq(emailGenerationSessions.id, sessionId));
       }
+
+      // Call checkAndUpdateCampaignCompletion to ensure proper status after session creation/update
+      logger.info(
+        `[createSession] Calling checkAndUpdateCampaignCompletion for session ${sessionId} to ensure proper status`
+      );
+      await this.checkAndUpdateCampaignCompletion(sessionId, organizationId);
 
       return { sessionId };
     } catch (error) {
@@ -272,6 +307,79 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to create email generation session",
+      });
+    }
+  }
+
+  /**
+   * Creates a new draft email generation session (does not trigger generation)
+   * @param input - Session creation parameters
+   * @param organizationId - The organization ID
+   * @param userId - The user ID
+   * @returns The created draft session
+   */
+  async createSession(input: CreateSessionInput, organizationId: string, userId: string) {
+    try {
+      // Check if there's already a draft with the same name
+      const existingDraft = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.organizationId, organizationId),
+            eq(emailGenerationSessions.jobName, input.campaignName),
+            eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT)
+          )
+        )
+        .limit(1);
+
+      if (existingDraft[0]) {
+        // Update existing draft
+        const [updatedSession] = await db
+          .update(emailGenerationSessions)
+          .set({
+            instruction: input.instruction,
+            refinedInstruction: input.refinedInstruction,
+            chatHistory: input.chatHistory,
+            selectedDonorIds: input.selectedDonorIds,
+            previewDonorIds: input.previewDonorIds,
+            totalDonors: input.selectedDonorIds.length,
+            completedDonors: 0,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, existingDraft[0].id))
+          .returning();
+
+        logger.info(`Updated existing draft session ${updatedSession.id} for user ${userId}`);
+        return { sessionId: updatedSession.id };
+      } else {
+        // Create new draft session
+        const [session] = await db
+          .insert(emailGenerationSessions)
+          .values({
+            organizationId,
+            userId,
+            templateId: input.templateId,
+            jobName: input.campaignName,
+            instruction: input.instruction,
+            refinedInstruction: input.refinedInstruction,
+            chatHistory: input.chatHistory,
+            selectedDonorIds: input.selectedDonorIds,
+            previewDonorIds: input.previewDonorIds,
+            totalDonors: input.selectedDonorIds.length,
+            completedDonors: 0,
+            status: EmailGenerationSessionStatus.DRAFT, // Always create as DRAFT
+          })
+          .returning();
+
+        logger.info(`Created new draft session ${session.id} for user ${userId}`);
+        return { sessionId: session.id };
+      }
+    } catch (error) {
+      logger.error("Error in createSession:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create session",
       });
     }
   }
@@ -335,18 +443,21 @@ export class EmailCampaignsService {
       throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
     }
 
-    // Failsafe: If status is PENDING or IN_PROGRESS but all donors are completed, update to COMPLETED
+    // Failsafe: If status is GENERATING or READY_TO_SEND but all donors are completed, update to COMPLETED
     if (
-      (session.status === "PENDING" || session.status === "IN_PROGRESS" || session.status === "GENERATING") &&
+      (session.status === EmailGenerationSessionStatus.GENERATING ||
+        session.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
       session.completedDonors >= session.totalDonors &&
       session.totalDonors > 0
     ) {
-      logger.info(`Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to COMPLETED.`);
-      
+      logger.info(
+        `Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to ${EmailGenerationSessionStatus.COMPLETED}.`
+      );
+
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "COMPLETED",
+          status: EmailGenerationSessionStatus.COMPLETED,
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -354,7 +465,7 @@ export class EmailCampaignsService {
 
       return {
         ...session,
-        status: "COMPLETED",
+        status: EmailGenerationSessionStatus.COMPLETED,
       };
     }
 
@@ -398,7 +509,10 @@ export class EmailCampaignsService {
     const campaignsWithCounts = await Promise.all(
       campaigns.map(async (campaign) => {
         // Check and fix stuck campaigns before returning data
-        if (campaign.status === "PENDING" || campaign.status === "IN_PROGRESS") {
+        if (
+          campaign.status === EmailGenerationSessionStatus.GENERATING ||
+          campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
+        ) {
           try {
             await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
           } catch (error) {
@@ -523,7 +637,9 @@ export class EmailCampaignsService {
         .where(eq(generatedEmails.id, emailId))
         .returning();
 
-      logger.info(`Updated email ${emailId} status from ${existingEmail.currentStatus} to ${status} for organization ${organizationId}`);
+      logger.info(
+        `Updated email ${emailId} status from ${existingEmail.currentStatus} to ${status} for organization ${organizationId}`
+      );
 
       return {
         success: true,
@@ -639,7 +755,9 @@ export class EmailCampaignsService {
         .where(eq(generatedEmails.id, input.emailId))
         .returning();
 
-      logger.info(`Updated email ${input.emailId} for organization ${organizationId}: subject="${input.subject}" and reset status to PENDING_APPROVAL`);
+      logger.info(
+        `Updated email ${input.emailId} for organization ${organizationId}: subject="${input.subject}" and reset status to PENDING_APPROVAL`
+      );
 
       return {
         success: true,
@@ -686,7 +804,10 @@ export class EmailCampaignsService {
         });
       }
 
-      if (existingCampaign.status === "GENERATING" || existingCampaign.status === "IN_PROGRESS") {
+      if (
+        existingCampaign.status === EmailGenerationSessionStatus.GENERATING ||
+        existingCampaign.status === EmailGenerationSessionStatus.READY_TO_SEND
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Cannot edit a campaign that is currently processing",
@@ -775,9 +896,8 @@ export class EmailCampaignsService {
       }
 
       if (
-        existingSession.status === "GENERATING" ||
-        existingSession.status === "IN_PROGRESS" ||
-        existingSession.status === "PENDING"
+        existingSession.status === EmailGenerationSessionStatus.GENERATING ||
+        existingSession.status === EmailGenerationSessionStatus.READY_TO_SEND
       ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -811,7 +931,7 @@ export class EmailCampaignsService {
           instruction: finalInstruction,
           refinedInstruction: finalRefinedInstruction,
           chatHistory: finalChatHistory,
-          status: "PENDING",
+          status: EmailGenerationSessionStatus.GENERATING,
           completedDonors: 0,
           completedAt: null,
           errorMessage: null,
@@ -1041,12 +1161,27 @@ export class EmailCampaignsService {
       const totalDonors = selectedDonorIds.length;
 
       // Handle different status scenarios
-      if (session.status === "PENDING" && emailStats.approvedEmails > 0) {
+      logger.info(`[checkAndUpdateCampaignCompletion] Checking campaign ${sessionId} status`, {
+        sessionId,
+        currentStatus: session.status,
+        totalDonors,
+        completedDonors: session.completedDonors,
+        totalEmails: emailStats.totalEmails,
+        sentEmails: emailStats.sentEmails,
+        approvedEmails: emailStats.approvedEmails,
+        organizationId,
+      });
+
+      if (session.status === EmailGenerationSessionStatus.GENERATING && emailStats.approvedEmails > 0) {
         // Campaign is stuck in PENDING but has generated emails - move to IN_PROGRESS
+        logger.info(
+          `[checkAndUpdateCampaignCompletion] Campaign ${sessionId} stuck in PENDING with ${emailStats.approvedEmails} generated emails - moving to IN_PROGRESS`
+        );
+
         await db
           .update(emailGenerationSessions)
           .set({
-            status: "IN_PROGRESS",
+            status: EmailGenerationSessionStatus.READY_TO_SEND,
             completedDonors: emailStats.approvedEmails,
             updatedAt: new Date(),
           })
@@ -1059,7 +1194,8 @@ export class EmailCampaignsService {
 
       // Check for completion (works for both IN_PROGRESS and campaigns that were just updated)
       if (
-        (session.status === "IN_PROGRESS" || (session.status === "PENDING" && emailStats.approvedEmails > 0)) &&
+        (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
+          (session.status === EmailGenerationSessionStatus.GENERATING && emailStats.approvedEmails > 0)) &&
         emailStats.totalEmails > 0 &&
         emailStats.totalEmails === emailStats.sentEmails
       ) {
@@ -1075,16 +1211,17 @@ export class EmailCampaignsService {
 
         logger.info(`Campaign ${sessionId} marked as COMPLETED - all ${emailStats.totalEmails} emails have been sent`);
       } else if (
-        (session.status === "IN_PROGRESS" || session.status === "PENDING") &&
+        (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
+          session.status === EmailGenerationSessionStatus.GENERATING) &&
         emailStats.approvedEmails === totalDonors &&
         emailStats.sentEmails === 0
       ) {
         // All emails generated but none sent yet - ensure status is IN_PROGRESS
-        if (session.status === "PENDING") {
+        if (session.status === EmailGenerationSessionStatus.GENERATING) {
           await db
             .update(emailGenerationSessions)
             .set({
-              status: "IN_PROGRESS",
+              status: EmailGenerationSessionStatus.READY_TO_SEND,
               completedDonors: totalDonors,
               updatedAt: new Date(),
             })
@@ -1146,18 +1283,20 @@ export class EmailCampaignsService {
         return { success: true, email: updatedEmail };
       } else {
         // Create new email
-        const [newEmail] = await db.insert(generatedEmails).values({
-          sessionId: input.sessionId,
-          donorId: input.donorId,
-          subject: input.subject,
-          structuredContent: input.structuredContent,
-          referenceContexts: input.referenceContexts,
-          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
-          isPreview: input.isPreview || false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning();
+        const [newEmail] = await db
+          .insert(generatedEmails)
+          .values({
+            sessionId: input.sessionId,
+            donorId: input.donorId,
+            subject: input.subject,
+            structuredContent: input.structuredContent,
+            referenceContexts: input.referenceContexts,
+            status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+            isPreview: input.isPreview || false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
 
         console.log(`Created new email for donor ${input.donorId} in session ${input.sessionId}`);
         return { success: true, email: newEmail };
@@ -1194,7 +1333,7 @@ export class EmailCampaignsService {
       }
 
       // Only retry if status is PENDING or FAILED
-      if (session.status !== "PENDING" && session.status !== "FAILED") {
+      if (session.status !== EmailGenerationSessionStatus.GENERATING && true) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Cannot retry campaign with status: ${session.status}`,
@@ -1207,7 +1346,7 @@ export class EmailCampaignsService {
       await db
         .update(emailGenerationSessions)
         .set({
-          status: "PENDING",
+          status: EmailGenerationSessionStatus.GENERATING,
           errorMessage: null,
           updatedAt: new Date(),
         })
@@ -1252,7 +1391,7 @@ export class EmailCampaignsService {
           await db
             .update(emailGenerationSessions)
             .set({
-              status: "FAILED",
+              status: EmailGenerationSessionStatus.GENERATING,
               errorMessage: `Retry failed: ${
                 triggerError instanceof Error ? triggerError.message : String(triggerError)
               }`,
@@ -1307,7 +1446,10 @@ export class EmailCampaignsService {
         .where(
           and(
             eq(emailGenerationSessions.organizationId, organizationId),
-            or(eq(emailGenerationSessions.status, "PENDING"), eq(emailGenerationSessions.status, "IN_PROGRESS"))
+            or(
+              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.GENERATING),
+              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.READY_TO_SEND)
+            )
           )
         );
 

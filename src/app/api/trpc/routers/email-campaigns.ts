@@ -47,6 +47,21 @@ const createSessionSchema = z.object({
   templateId: z.number().optional(),
 });
 
+const launchCampaignSchema = z.object({
+  campaignName: z.string().min(1).max(255),
+  instruction: z.string().min(1),
+  chatHistory: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    })
+  ),
+  selectedDonorIds: z.array(z.number()),
+  previewDonorIds: z.array(z.number()),
+  refinedInstruction: z.string().optional(),
+  templateId: z.number().optional(),
+});
+
 const getSessionSchema = z.object({
   sessionId: z.number(),
 });
@@ -58,7 +73,7 @@ const getSessionStatusSchema = z.object({
 const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  status: z.enum(["DRAFT", "PENDING", "GENERATING", "IN_PROGRESS", "COMPLETED", "FAILED"]).optional(),
+  status: z.enum(["DRAFT", "GENERATING", "READY_TO_SEND", "COMPLETED"]).optional(),
 });
 
 const deleteCampaignSchema = z.object({
@@ -220,11 +235,19 @@ export const emailCampaignsRouter = router({
     }),
 
   /**
-   * Creates a new email generation session and triggers bulk generation
+   * Creates a new draft email generation session (does not trigger generation)
    */
   createSession: protectedProcedure.input(createSessionSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.createSession(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+  }),
+
+  /**
+   * Launch a draft campaign (transition from DRAFT to GENERATING/READY_TO_SEND)
+   */
+  launchCampaign: protectedProcedure.input(launchCampaignSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.launchCampaign(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
@@ -442,4 +465,12 @@ export const emailCampaignsRouter = router({
       const schedulingService = new EmailSchedulingService();
       return await schedulingService.updateScheduleConfig(ctx.auth.user.organizationId, input);
     }),
+
+  /**
+   * Fix stuck campaigns by checking and updating their status
+   */
+  fixStuckCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.fixStuckCampaigns(ctx.auth.user.organizationId);
+  }),
 });
