@@ -1,7 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { DonorsHelper } from "../helpers/donors";
 
 test.describe("Donor Management", () => {
+  let donors: DonorsHelper;
+
   test.beforeEach(async ({ page }) => {
+    donors = new DonorsHelper(page);
     // Mock authentication
     await page.goto("/");
     await page.evaluate(() => {
@@ -10,7 +14,7 @@ test.describe("Donor Management", () => {
   });
 
   test("should load donors page", async ({ page }) => {
-    await page.goto("/donors");
+    await donors.navigateToDonorsPage();
 
     // Should either load donors page or redirect to auth
     const currentUrl = page.url();
@@ -42,7 +46,7 @@ test.describe("Donor Management", () => {
   });
 
   test("should handle donor search functionality", async ({ page }) => {
-    await page.goto("/donors");
+    await donors.navigateToDonorsPage();
 
     // Look for search input
     const searchInput = page
@@ -50,11 +54,7 @@ test.describe("Donor Management", () => {
       .first();
 
     if (await searchInput.isVisible().catch(() => false)) {
-      await searchInput.fill("John");
-      await page.keyboard.press("Enter");
-
-      // Wait for potential results or no results message
-      await page.waitForTimeout(1000);
+      await donors.searchDonors("John");
 
       // Should not show any critical error messages (allow informational alerts)
       const criticalErrors = page.locator('.error:has-text("Error"), .alert-error, [role="alert"]:has-text("Error")');
@@ -63,7 +63,7 @@ test.describe("Donor Management", () => {
   });
 
   test("should handle donor profile navigation", async ({ page }) => {
-    await page.goto("/donors");
+    await donors.navigateToDonorsPage();
 
     // Look for donor links or profile buttons
     const donorLinks = page.locator('a[href*="/donors/"], button:has-text("View"), .donor-row a').first();
