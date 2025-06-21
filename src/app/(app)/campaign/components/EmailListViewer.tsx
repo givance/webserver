@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, X, ChevronLeft, ChevronRight, Mail, Eye } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, Mail, Eye, Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
 
@@ -21,6 +21,7 @@ export interface BaseGeneratedEmail {
   }>;
   referenceContexts: Record<string, string>;
   id?: number; // Optional for campaign results
+  status?: "PENDING_APPROVAL" | "APPROVED"; // Approval status
 }
 
 // Base donor interface
@@ -68,6 +69,10 @@ export interface EmailListViewerProps {
   emptyStateDescription?: string;
   searchEmptyStateTitle?: string;
   searchEmptyStateDescription?: string;
+
+  // Approval functionality
+  onEmailStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
+  isUpdatingStatus?: boolean;
 }
 
 export function EmailListViewer({
@@ -91,6 +96,8 @@ export function EmailListViewer({
   emptyStateDescription = "No emails have been generated yet.",
   searchEmptyStateTitle = "No emails found",
   searchEmptyStateDescription = "No emails match your search criteria.",
+  onEmailStatusChange,
+  isUpdatingStatus = false,
 }: EmailListViewerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -248,12 +255,26 @@ export function EmailListViewer({
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
-                              {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
-                                <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-2">
-                                  <Eye className="h-3 w-3" />
-                                  {trackingStatsData.uniqueOpens}
-                                </Badge>
-                              )}
+                              <div className="flex items-center gap-1">
+                                {/* Approval status badge */}
+                                {email.status === "APPROVED" ? (
+                                  <Badge variant="default" className="text-xs flex items-center gap-1 bg-green-500">
+                                    <Check className="h-3 w-3" />
+                                    Approved
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Pending
+                                  </Badge>
+                                )}
+                                {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
+                                  <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
+                                    <Eye className="h-3 w-3" />
+                                    {trackingStatsData.uniqueOpens}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <div className="w-full space-y-1">
                               {assignedStaffName && (
@@ -328,7 +349,10 @@ export function EmailListViewer({
                           donorId={email.donorId}
                           sessionId={sessionId}
                           showSendButton={showSendButton}
-                          showEditButton={showEditButton}
+                          showEditButton={true}
+                          approvalStatus={email.status}
+                          onStatusChange={onEmailStatusChange}
+                          isUpdatingStatus={isUpdatingStatus}
                         />
                       </ScrollArea>
                     </TabsContent>

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit } from "lucide-react";
+import { Edit, Check, Clock } from "lucide-react";
 import { useState } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
@@ -27,6 +27,9 @@ interface EmailDisplayProps {
   sessionId?: number;
   showSendButton?: boolean; // Control whether to show the send button
   showEditButton?: boolean; // Control whether to show the edit button
+  approvalStatus?: "PENDING_APPROVAL" | "APPROVED";
+  onStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
+  isUpdatingStatus?: boolean;
 }
 
 interface ReferencesDisplayProps {
@@ -80,6 +83,9 @@ export function EmailDisplay({
   sessionId,
   showSendButton = true,
   showEditButton = true,
+  approvalStatus = "PENDING_APPROVAL",
+  onStatusChange,
+  isUpdatingStatus = false,
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { getEmailStatus } = useCommunications();
@@ -89,6 +95,52 @@ export function EmailDisplay({
 
   return (
     <div className="space-y-4">
+      {/* Approval status and controls */}
+      {onStatusChange && emailId && !emailStatus?.isSent && (
+        <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
+          <div className="flex items-center gap-2">
+            {approvalStatus === "APPROVED" ? (
+              <>
+                <Badge variant="default" className="bg-green-500">
+                  <Check className="h-3 w-3 mr-1" />
+                  Approved
+                </Badge>
+                <span className="text-sm text-muted-foreground">This email has been approved</span>
+              </>
+            ) : (
+              <>
+                <Badge variant="secondary">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Pending Approval
+                </Badge>
+                <span className="text-sm text-muted-foreground">This email needs review</span>
+              </>
+            )}
+          </div>
+          <Button
+            variant={approvalStatus === "APPROVED" ? "outline" : "default"}
+            size="sm"
+            onClick={() => onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED")}
+            disabled={isUpdatingStatus}
+            className="min-w-[120px]"
+          >
+            {isUpdatingStatus ? (
+              "Updating..."
+            ) : approvalStatus === "APPROVED" ? (
+              <>
+                <Clock className="h-4 w-4 mr-1" />
+                Mark Pending
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 mr-1" />
+                Approve Email
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
       <Card className="p-4">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">

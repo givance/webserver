@@ -59,6 +59,14 @@ export function useCommunications() {
       utils.communications.campaigns.getSession.invalidate();
     },
   });
+
+  const updateEmailStatus = trpc.communications.campaigns.updateEmailStatus.useMutation({
+    onSuccess: () => {
+      // Optionally invalidate session to refetch updated statuses
+      utils.communications.campaigns.getSession.invalidate();
+    },
+  });
+
   const updateCampaign = trpc.communications.campaigns.updateCampaign.useMutation({
     onSuccess: () => {
       utils.communications.campaigns.listCampaigns.invalidate();
@@ -184,6 +192,7 @@ export function useCommunications() {
     sendIndividualEmail,
     sendBulkEmails,
     updateEmail,
+    updateEmailStatus,
     updateCampaign,
     enhanceEmail,
     regenerateAllEmails,

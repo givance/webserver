@@ -65,6 +65,7 @@ const EMAILS_PER_PAGE = 10;
 const GENERATE_MORE_COUNT = 50;
 
 interface GeneratedEmail {
+  id?: number; // ID from database after saving
   donorId: number;
   subject: string;
   structuredContent: Array<{
@@ -160,6 +161,17 @@ export function WriteInstructionStep({
   const [activeTab, setActiveTab] = useState("chat");
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+  const [emailStatuses, setEmailStatuses] = useState<Record<number, "PENDING_APPROVAL" | "APPROVED">>(() => {
+    // Initialize email statuses from existing emails
+    const statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+    initialGeneratedEmails.forEach(email => {
+      // If email has a status property, use it, otherwise default to PENDING_APPROVAL
+      statuses[email.donorId] = (email as any).status || "PENDING_APPROVAL";
+    });
+    return statuses;
+  });
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // Signature-related state
   const [selectedSignatureType, setSelectedSignatureType] = useState<"none" | "custom" | "staff">("none");
@@ -172,7 +184,7 @@ export function WriteInstructionStep({
   const lastPersistedData = useRef<string>("");
 
   const { getOrganization } = useOrganization();
-  const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail, saveDraft } =
+  const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail, saveDraft, updateEmailStatus } =
     useCommunications();
   const { listProjects } = useProjects();
   const { listStaff } = useStaff();
@@ -420,6 +432,13 @@ export function WriteInstructionStep({
             setGeneratedEmails(emailResult.emails);
             setPreviousInstruction(emailResult.refinedInstruction);
 
+            // Initialize all emails as pending approval
+            const initialStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+            emailResult.emails.forEach((email) => {
+              initialStatuses[email.donorId] = "PENDING_APPROVAL";
+            });
+            setEmailStatuses(initialStatuses);
+
             setReferenceContexts(
               emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
                 acc[email.donorId] = email.referenceContexts;
@@ -617,12 +636,16 @@ export function WriteInstructionStep({
         setAllGeneratedEmails(newEmails);
         setGeneratedEmails(newEmails);
 
-        // Update reference contexts
+        // Update reference contexts and initialize statuses
         const newReferenceContexts = { ...referenceContexts };
+        const newStatuses = { ...emailStatuses };
         emailResult.emails.forEach((email) => {
           newReferenceContexts[email.donorId] = email.referenceContexts;
+          // Initialize all new emails as pending approval
+          newStatuses[email.donorId] = "PENDING_APPROVAL";
         });
         setReferenceContexts(newReferenceContexts);
+        setEmailStatuses(newStatuses);
 
         // Save newly generated emails incrementally if we have a sessionId
         if (sessionId) {
@@ -700,10 +723,11 @@ export function WriteInstructionStep({
     saveChatHistory,
     saveGeneratedEmail,
     sessionId,
+    emailStatuses,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history
-  const handleRegenerateAllEmails = async () => {
+  const handleRegenerateAllEmails = async (onlyUnapproved = false) => {
     if (isRegenerating || !organization) return;
 
     const finalInstruction = previousInstruction || instruction;
@@ -712,6 +736,7 @@ export function WriteInstructionStep({
       instruction,
       finalInstruction,
       existingCampaignId,
+      onlyUnapproved,
     });
 
     if (!finalInstruction || finalInstruction.trim().length === 0) {
@@ -723,14 +748,42 @@ export function WriteInstructionStep({
     setShowRegenerateDialog(false);
 
     try {
-      // Clear existing emails and contexts
-      setGeneratedEmails([]);
-      setAllGeneratedEmails([]);
-      setReferenceContexts({});
-      setSuggestedMemories([]);
+      // Determine which donors to regenerate
+      let donorsToRegenerate = previewDonorIds;
+      let preservedEmails: GeneratedEmail[] = [];
+      const preservedStatuses = { ...emailStatuses };
+      const preservedContexts = { ...referenceContexts };
 
-      // Prepare donor data for the API call - use only preview donors
-      const donorData = previewDonorIds.map((donorId) => {
+      if (onlyUnapproved) {
+        // Only regenerate emails for donors with pending approval status
+        donorsToRegenerate = previewDonorIds.filter(donorId => 
+          emailStatuses[donorId] !== "APPROVED"
+        );
+        
+        // Preserve approved emails
+        preservedEmails = allGeneratedEmails.filter(email => 
+          emailStatuses[email.donorId] === "APPROVED"
+        );
+
+        // Don't clear contexts for approved emails
+        const newContexts: Record<number, Record<string, string>> = {};
+        preservedEmails.forEach(email => {
+          newContexts[email.donorId] = referenceContexts[email.donorId] || {};
+        });
+        setReferenceContexts(newContexts);
+        
+        toast.info(`Regenerating ${donorsToRegenerate.length} unapproved emails, keeping ${preservedEmails.length} approved emails`);
+      } else {
+        // Clear everything for full regeneration
+        setGeneratedEmails([]);
+        setAllGeneratedEmails([]);
+        setReferenceContexts({});
+        setSuggestedMemories([]);
+        setEmailStatuses({});
+      }
+
+      // Prepare donor data for the API call
+      const donorData = donorsToRegenerate.map((donorId) => {
         const donor = donorsData?.find((d) => d.id === donorId);
         if (!donor) throw new Error(`Donor data not found for ID: ${donorId}`);
 
@@ -763,16 +816,47 @@ export function WriteInstructionStep({
 
       if (result && !("isAgenticFlow" in result)) {
         const emailResult = result as GenerateEmailsResponse;
-        setAllGeneratedEmails(emailResult.emails);
-        setGeneratedEmails(emailResult.emails);
+        
+        if (onlyUnapproved) {
+          // Combine preserved approved emails with newly generated ones
+          const combinedEmails = [...preservedEmails, ...emailResult.emails];
+          setAllGeneratedEmails(combinedEmails);
+          setGeneratedEmails(combinedEmails);
+          
+          // Update statuses for new emails as pending
+          const newStatuses = { ...preservedStatuses };
+          emailResult.emails.forEach((email) => {
+            newStatuses[email.donorId] = "PENDING_APPROVAL";
+          });
+          setEmailStatuses(newStatuses);
+          
+          // Merge reference contexts
+          const combinedContexts = { ...preservedContexts };
+          emailResult.emails.forEach((email) => {
+            combinedContexts[email.donorId] = email.referenceContexts;
+          });
+          setReferenceContexts(combinedContexts);
+        } else {
+          // Full regeneration - replace everything
+          setAllGeneratedEmails(emailResult.emails);
+          setGeneratedEmails(emailResult.emails);
+          
+          // Initialize all as pending
+          const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+          emailResult.emails.forEach((email) => {
+            newStatuses[email.donorId] = "PENDING_APPROVAL";
+          });
+          setEmailStatuses(newStatuses);
+          
+          setReferenceContexts(
+            emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+              acc[email.donorId] = email.referenceContexts;
+              return acc;
+            }, {})
+          );
+        }
+        
         setPreviousInstruction(emailResult.refinedInstruction);
-
-        setReferenceContexts(
-          emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-            acc[email.donorId] = email.referenceContexts;
-            return acc;
-          }, {})
-        );
 
         // Save generated emails incrementally if we have a sessionId
         if (sessionId) {
@@ -838,10 +922,8 @@ export function WriteInstructionStep({
       return;
     }
 
-    if (allGeneratedEmails.length === 0) {
-      toast.error("No emails to generate");
-      return;
-    }
+    // Remove the check that prevents launching when no emails need generation
+    // The backend will handle marking the campaign as COMPLETED if all emails exist
 
     const finalInstruction = previousInstruction || instruction;
     if (!finalInstruction || finalInstruction.trim().length === 0) {
@@ -951,10 +1033,46 @@ export function WriteInstructionStep({
     }
   };
 
+  // Handle email status change
+  const handleEmailStatusChange = useCallback(
+    async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
+      if (!sessionId) return;
+
+      setIsUpdatingStatus(true);
+      try {
+        await updateEmailStatus.mutateAsync({
+          emailId,
+          status,
+        });
+
+        // Update local state
+        const email = allGeneratedEmails.find(e => e.id === emailId);
+        if (email) {
+          setEmailStatuses(prev => ({
+            ...prev,
+            [email.donorId]: status,
+          }));
+        }
+
+        toast.success(status === "APPROVED" ? "Email approved" : "Email marked as pending");
+      } catch (error) {
+        console.error("Error updating email status:", error);
+        toast.error("Failed to update email status");
+      } finally {
+        setIsUpdatingStatus(false);
+      }
+    },
+    [sessionId, updateEmailStatus, allGeneratedEmails]
+  );
+
   // Check if we can generate more emails
   const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
   const remainingDonors = selectedDonors.filter((id) => !alreadyGeneratedDonorIds.has(id));
   const canGenerateMore = remainingDonors.length > 0;
+
+  // Count approved vs pending emails
+  const approvedCount = Object.values(emailStatuses).filter(status => status === "APPROVED").length;
+  const pendingCount = Object.values(emailStatuses).filter(status => status === "PENDING_APPROVAL").length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -1252,7 +1370,10 @@ export function WriteInstructionStep({
                 ) : allGeneratedEmails.length > 0 ? (
                   <div className="h-full p-6">
                     <EmailListViewer
-                      emails={allGeneratedEmails}
+                      emails={allGeneratedEmails.map(email => ({
+                        ...email,
+                        status: emailStatuses[email.donorId] || "PENDING_APPROVAL"
+                      }))}
                       donors={
                         donorsData
                           ?.filter((donor) => !!donor)
@@ -1270,7 +1391,7 @@ export function WriteInstructionStep({
                       showTracking={false}
                       showStaffAssignment={false}
                       showSendButton={false}
-                      showEditButton={false}
+                      showEditButton={true}
                       emailsPerPage={EMAILS_PER_PAGE}
                       maxHeight="calc(100vh - 280px)"
                       emptyStateTitle="No emails generated yet"
@@ -1279,6 +1400,9 @@ export function WriteInstructionStep({
                           ? "Generating emails from template..."
                           : "Switch to the Chat & Generate tab to generate emails"
                       }
+                      onEmailStatusChange={handleEmailStatusChange}
+                      isUpdatingStatus={isUpdatingStatus}
+                      sessionId={sessionId}
                     />
                   </div>
                 ) : (
@@ -1386,14 +1510,25 @@ export function WriteInstructionStep({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Total Donors</p>
+                    <p className="text-sm font-medium">Total Campaign</p>
                     <p className="text-2xl font-bold">{selectedDonors.length}</p>
+                    <p className="text-xs text-muted-foreground">donors</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Preview Donors</p>
-                    <p className="text-2xl font-bold">{previewDonorIds.length}</p>
+                    <p className="text-sm font-medium text-green-600">Already Reviewed</p>
+                    <p className="text-2xl font-bold text-green-600">{allGeneratedEmails.length}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {approvedCount} approved, {pendingCount} pending
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-blue-600">To Be Generated</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {selectedDonors.length - allGeneratedEmails.length}
+                    </p>
+                    <p className="text-xs text-muted-foreground">new emails</p>
                   </div>
                 </div>
 
@@ -1431,8 +1566,20 @@ export function WriteInstructionStep({
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                This will launch your campaign for all {selectedDonors.length} selected donors. You&apos;ll be
-                redirected to the communication jobs page where you can monitor the progress.
+                {allGeneratedEmails.length > 0 ? (
+                  <>
+                    This will launch your campaign for all {selectedDonors.length} selected donors.
+                    {" "}<strong>{approvedCount} approved emails</strong> will be kept exactly as they are.
+                    {selectedDonors.length - allGeneratedEmails.length > 0 ? (
+                      <>{" "}<strong>{selectedDonors.length - allGeneratedEmails.length} new emails</strong> will be generated for the remaining donors.</>
+                    ) : (
+                      <>{" "}All selected donors already have generated emails.</>
+                    )}
+                  </>
+                ) : (
+                  <>This will launch your campaign to generate personalized emails for all {selectedDonors.length} selected donors.</>
+                )}
+                {" "}You&apos;ll be redirected to the communication jobs page where you can monitor the progress.
               </p>
             </div>
           </div>
@@ -1454,20 +1601,71 @@ export function WriteInstructionStep({
 
       {/* Regenerate Confirmation Dialog */}
       <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5" />
               Regenerate Emails
             </DialogTitle>
-            <DialogDescription>This will regenerate all emails with the same instructions.</DialogDescription>
+            <DialogDescription>Choose which emails you want to regenerate</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="space-y-3">
+              <Label>Regeneration Options</Label>
+              <div className="space-y-2">
+                <div 
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    regenerateOption === "all" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                  )}
+                  onClick={() => setRegenerateOption("all")}
+                >
+                  <input
+                    type="radio"
+                    checked={regenerateOption === "all"}
+                    onChange={() => setRegenerateOption("all")}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">Regenerate ALL emails ({allGeneratedEmails.length} total)</div>
+                    <div className="text-sm text-muted-foreground">This will replace all existing emails</div>
+                  </div>
+                </div>
+                
+                <div 
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    regenerateOption === "unapproved" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50",
+                    pendingCount === 0 && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={() => pendingCount > 0 && setRegenerateOption("unapproved")}
+                >
+                  <input
+                    type="radio"
+                    checked={regenerateOption === "unapproved"}
+                    onChange={() => setRegenerateOption("unapproved")}
+                    disabled={pendingCount === 0}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">
+                      Regenerate only unapproved emails ({pendingCount} emails)
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Keep your {approvedCount} approved emails unchanged
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                This will regenerate all {allGeneratedEmails.length} emails for {selectedDonors.length} donors using the
-                exact same instructions as before.
+                {regenerateOption === "all" 
+                  ? `This will regenerate all ${allGeneratedEmails.length} emails using the same instructions.`
+                  : `This will regenerate ${pendingCount} unapproved emails. Your ${approvedCount} approved emails will remain unchanged.`
+                }
               </p>
             </div>
           </div>
@@ -1476,7 +1674,10 @@ export function WriteInstructionStep({
             <Button variant="outline" onClick={() => setShowRegenerateDialog(false)} disabled={isRegenerating}>
               Cancel
             </Button>
-            <Button onClick={handleRegenerateAllEmails} disabled={isRegenerating}>
+            <Button 
+              onClick={() => handleRegenerateAllEmails(regenerateOption === "unapproved")} 
+              disabled={isRegenerating || (regenerateOption === "unapproved" && pendingCount === 0)}
+            >
               {isRegenerating ? "Regenerating..." : "Regenerate"}
             </Button>
           </DialogFooter>
