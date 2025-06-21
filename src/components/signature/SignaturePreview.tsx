@@ -75,14 +75,17 @@ export function SignaturePreview({ signature, staffName = "Staff Member", classN
                   className={cn(
                     "prose prose-sm max-w-none",
                     "prose-headings:font-semibold prose-headings:text-foreground prose-headings:mb-2 prose-headings:mt-4",
-                    "prose-p:text-foreground prose-p:leading-relaxed prose-p:mb-2",
+                    "prose-p:text-foreground prose-p:leading-relaxed prose-p:mb-2 prose-p:my-0",
                     "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
                     "prose-strong:text-foreground prose-strong:font-semibold",
                     "prose-ul:text-foreground prose-ol:text-foreground prose-ul:my-2 prose-ol:my-2",
                     "prose-li:text-foreground prose-li:my-0",
-                    "[&_img]:max-w-full [&_img]:h-auto [&_img]:my-2",
+                    "[&_img]:max-w-full [&_img]:h-auto [&_img]:my-2 [&_img]:inline-block",
                     "[&_p:first-child]:mt-0",
-                    "[&_*:last-child]:mb-0"
+                    "[&_*:last-child]:mb-0",
+                    // Reset default prose font styles to match app fonts
+                    "[&_*]:font-sans",
+                    "text-sm" // Match the default text size
                   )}
                   dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                 />
