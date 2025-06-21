@@ -1129,7 +1129,7 @@ export class EmailCampaignsService {
 
       if (existingEmail) {
         // Update existing email
-        await db
+        const [updatedEmail] = await db
           .update(generatedEmails)
           .set({
             subject: input.subject,
@@ -1139,12 +1139,14 @@ export class EmailCampaignsService {
             isPreview: input.isPreview || false,
             updatedAt: new Date(),
           })
-          .where(eq(generatedEmails.id, existingEmail.id));
+          .where(eq(generatedEmails.id, existingEmail.id))
+          .returning();
 
         console.log(`Updated existing email for donor ${input.donorId} in session ${input.sessionId}`);
+        return { success: true, email: updatedEmail };
       } else {
         // Create new email
-        await db.insert(generatedEmails).values({
+        const [newEmail] = await db.insert(generatedEmails).values({
           sessionId: input.sessionId,
           donorId: input.donorId,
           subject: input.subject,
@@ -1154,12 +1156,12 @@ export class EmailCampaignsService {
           isPreview: input.isPreview || false,
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        })
+        .returning();
 
         console.log(`Created new email for donor ${input.donorId} in session ${input.sessionId}`);
+        return { success: true, email: newEmail };
       }
-
-      return { success: true };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
       logger.error(`Failed to save generated email: ${error instanceof Error ? error.message : String(error)}`);

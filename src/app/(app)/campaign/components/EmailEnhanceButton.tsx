@@ -51,9 +51,7 @@ export function EmailEnhanceButton({
 
     try {
       // Filter out signature pieces before enhancement
-      const contentWithoutSignature = currentContent.filter(
-        (piece) => !piece.references.includes("signature")
-      );
+      const contentWithoutSignature = currentContent.filter((piece) => !piece.references.includes("signature"));
 
       const result = await enhanceEmail.mutateAsync({
         emailId,

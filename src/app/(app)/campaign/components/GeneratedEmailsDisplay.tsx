@@ -37,6 +37,7 @@ interface GeneratedEmailsDisplayProps {
   generatedEmails: GeneratedEmailData[];
   donors: DonorData[]; // Expecting an array of DonorData
   referenceContexts: Record<number, Record<string, string>>;
+  showEditButton?: boolean; // Control whether to show edit/enhance buttons
 }
 
 export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
@@ -44,6 +45,7 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
   generatedEmails,
   donors,
   referenceContexts,
+  showEditButton = true,
 }) => {
   if (isGenerating) {
     return (
@@ -109,6 +111,7 @@ export const GeneratedEmailsDisplay: React.FC<GeneratedEmailsDisplayProps> = ({
                   content={email.structuredContent}
                   referenceContexts={referenceContexts[email.donorId] || {}}
                   showSendButton={false}
+                  showEditButton={showEditButton}
                 />
               </TabsContent>
             );

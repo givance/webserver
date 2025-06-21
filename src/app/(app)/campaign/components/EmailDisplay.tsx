@@ -3,12 +3,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Check, Clock } from "lucide-react";
-import { useState } from "react";
+import { Edit, Check, Clock, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
 import { EmailEnhanceButton } from "./EmailEnhanceButton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface EmailPiece {
   piece: string;
@@ -30,11 +41,120 @@ interface EmailDisplayProps {
   approvalStatus?: "PENDING_APPROVAL" | "APPROVED";
   onStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
   isUpdatingStatus?: boolean;
+  // Preview mode props
+  isPreviewMode?: boolean; // When true, enables edit/enhance without emailId
+  onPreviewEdit?: (donorId: number, subject: string, content: EmailPiece[]) => void;
+  onPreviewEnhance?: (donorId: number, instruction: string) => void;
+  onPreviewStatusChange?: (donorId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
 }
 
 interface ReferencesDisplayProps {
   references: string[];
   referenceContexts: Record<string, string>;
+}
+
+// Simple edit modal for preview mode
+interface PreviewEditModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  donorId: number;
+  initialSubject: string;
+  initialContent: EmailPiece[];
+  donorName: string;
+  donorEmail: string;
+  onSave: (subject: string, content: EmailPiece[]) => void;
+}
+
+function PreviewEditModal({
+  open,
+  onOpenChange,
+  donorId,
+  initialSubject,
+  initialContent,
+  donorName,
+  donorEmail,
+  onSave,
+}: PreviewEditModalProps) {
+  const [subject, setSubject] = useState(initialSubject);
+  const [content, setContent] = useState("");
+
+  // Convert structured content to plain text
+  const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
+    return structuredContent
+      .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
+      .join("")
+      .trim();
+  };
+
+  // Convert plain text to structured content
+  const plainTextToStructured = (text: string): EmailPiece[] => {
+    if (!text.trim()) {
+      return [{ piece: "", references: [], addNewlineAfter: false }];
+    }
+
+    // Split by double newlines to create paragraphs
+    const paragraphs = text.split(/\n\s*\n/);
+
+    return paragraphs.map((paragraph, index) => ({
+      piece: paragraph.trim(),
+      references: [], // We lose reference information in the simplified editor
+      addNewlineAfter: index < paragraphs.length - 1, // Add newline after all except the last
+    }));
+  };
+
+  // Initialize content when modal opens
+  useEffect(() => {
+    if (open) {
+      setSubject(initialSubject);
+      setContent(structuredToPlainText(initialContent));
+    }
+  }, [open, initialSubject, initialContent]);
+
+  const handleSave = () => {
+    const structuredContent = plainTextToStructured(content);
+    onSave(subject, structuredContent);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Email</DialogTitle>
+          <DialogDescription>
+            Edit the email content for {donorName} ({donorEmail})
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Enter email subject..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="content">Email Content</Label>
+            <Textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Enter email content..."
+              className="min-h-[300px]"
+            />
+            <p className="text-xs text-muted-foreground">Use double line breaks to create paragraphs</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayProps) {
@@ -86,8 +206,14 @@ export function EmailDisplay({
   approvalStatus = "PENDING_APPROVAL",
   onStatusChange,
   isUpdatingStatus = false,
+  isPreviewMode = false,
+  onPreviewEdit,
+  onPreviewEnhance,
+  onPreviewStatusChange,
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [previewSubject, setPreviewSubject] = useState(subject);
+  const [previewContent, setPreviewContent] = useState(content);
   const { getEmailStatus } = useCommunications();
 
   // Get email status to check if sent - only query if emailId exists
@@ -96,7 +222,7 @@ export function EmailDisplay({
   return (
     <div className="space-y-4">
       {/* Approval status and controls */}
-      {onStatusChange && emailId && !emailStatus?.isSent && (
+      {((onStatusChange && emailId) || (isPreviewMode && onPreviewStatusChange && donorId)) && !emailStatus?.isSent && (
         <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
           <div className="flex items-center gap-2">
             {approvalStatus === "APPROVED" ? (
@@ -120,7 +246,13 @@ export function EmailDisplay({
           <Button
             variant={approvalStatus === "APPROVED" ? "outline" : "default"}
             size="sm"
-            onClick={() => onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED")}
+            onClick={() => {
+              if (isPreviewMode && onPreviewStatusChange && donorId) {
+                onPreviewStatusChange(donorId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
+              } else if (onStatusChange && emailId) {
+                onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
+              }
+            }}
             disabled={isUpdatingStatus}
             className="min-w-[120px]"
           >
@@ -148,17 +280,41 @@ export function EmailDisplay({
               <CardTitle className="text-sm">
                 To: {donorName} ({donorEmail})
               </CardTitle>
-              <div className="text-sm font-medium mt-2">Subject: {subject}</div>
+              <div className="text-sm font-medium mt-2">Subject: {isPreviewMode ? previewSubject : subject}</div>
             </div>
-            {emailId && !emailStatus?.isSent && showEditButton && (
+            {((emailId && !emailStatus?.isSent) || isPreviewMode) && showEditButton && (
               <div className="flex items-center gap-2">
                 <EmailEnhanceButton
-                  emailId={emailId}
+                  emailId={emailId || 0}
                   sessionId={sessionId}
                   currentSubject={subject}
                   currentContent={content}
                   currentReferenceContexts={referenceContexts}
                 />
+                {isPreviewMode && onPreviewEnhance && donorId ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // For preview mode, we'll handle enhance directly
+                      const instruction = prompt("How would you like to enhance this email?");
+                      if (instruction) {
+                        onPreviewEnhance(donorId, instruction);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    AI Enhance
+                  </Button>
+                ) : emailId ? (
+                  <EmailEnhanceButton
+                    emailId={emailId}
+                    currentSubject={subject}
+                    currentContent={content}
+                    currentReferenceContexts={referenceContexts}
+                  />
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
@@ -174,7 +330,7 @@ export function EmailDisplay({
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm font-sans">
-            {content.map((piece, index) => {
+            {(isPreviewMode ? previewContent : content).map((piece, index) => {
               // Check if this is signature content or contains HTML
               const isSignature = piece.references.includes("signature");
               const containsHTML = /<[^>]+>/.test(piece.piece);
@@ -208,7 +364,26 @@ export function EmailDisplay({
       {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}
 
       {/* Email Edit Modal */}
-      {emailId && (
+      {isPreviewMode && !emailId ? (
+        // Preview mode edit modal
+        <PreviewEditModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          donorId={donorId || 0}
+          initialSubject={previewSubject}
+          initialContent={previewContent}
+          donorName={donorName}
+          donorEmail={donorEmail}
+          onSave={(newSubject, newContent) => {
+            setPreviewSubject(newSubject);
+            setPreviewContent(newContent);
+            if (onPreviewEdit && donorId) {
+              onPreviewEdit(donorId, newSubject, newContent);
+            }
+            setIsEditModalOpen(false);
+          }}
+        />
+      ) : emailId ? (
         <EmailEditModal
           open={isEditModalOpen}
           onOpenChange={setIsEditModalOpen}
@@ -219,7 +394,7 @@ export function EmailDisplay({
           donorName={donorName}
           donorEmail={donorEmail}
         />
-      )}
+      ) : null}
     </div>
   );
 }
