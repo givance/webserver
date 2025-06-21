@@ -7,6 +7,7 @@ import { CampaignNameStep } from "../steps/CampaignNameStep";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
+import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
 import { toast } from "react-hot-toast";
 
 const STEPS = ["Select Donors", "Campaign Name", "Select Template", "Write Instructions"] as const;
@@ -56,6 +57,42 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>([]);
   const router = useRouter();
 
+  // Navigation auto-save hook
+  const { autoSave: navigationAutoSave } = useCampaignAutoSave({
+    onSessionIdChange: setSessionId,
+  });
+
+  // Enhanced navigation handlers with auto-save
+  const handleStepNavigation = useCallback(
+    async (newStep: number) => {
+      // Auto-save current state before navigation if we have enough data
+      if (campaignName && selectedDonors.length > 0) {
+        await navigationAutoSave({
+          sessionId,
+          campaignName,
+          selectedDonorIds: selectedDonors,
+          templateId: selectedTemplateId,
+          instruction,
+          chatHistory: persistedChatHistory,
+          refinedInstruction: existingCampaignData?.refinedInstruction,
+          previewDonorIds: persistedPreviewDonorIds,
+        });
+      }
+      setCurrentStep(newStep);
+    },
+    [
+      campaignName,
+      selectedDonors,
+      sessionId,
+      selectedTemplateId,
+      instruction,
+      persistedChatHistory,
+      existingCampaignData?.refinedInstruction,
+      persistedPreviewDonorIds,
+      navigationAutoSave,
+    ]
+  );
+
   const handleDonorsSelected = (donorIds: number[]) => {
     setSelectedDonors(donorIds);
     // Removed automatic step advancement - user must click Next button explicitly
@@ -63,7 +100,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
 
   const handleCampaignNameSet = (name: string) => {
     setCampaignName(name);
-    setCurrentStep(2);
+    handleStepNavigation(2);
   };
 
   const handleTemplateSelected = (templateId: number | null, templatePrompt?: string) => {
@@ -71,7 +108,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     if (templatePrompt) {
       setInstruction(templatePrompt);
     }
-    setCurrentStep(3);
+    handleStepNavigation(3);
   };
 
   const handleSessionDataChange = useCallback(
@@ -108,7 +145,11 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           <SelectDonorsStep
             selectedDonors={selectedDonors}
             onDonorsSelected={handleDonorsSelected}
-            onNext={() => setCurrentStep(1)}
+            onNext={() => handleStepNavigation(1)}
+            sessionId={sessionId}
+            onSessionIdChange={setSessionId}
+            campaignName={campaignName}
+            templateId={selectedTemplateId}
           />
         );
       case 1:
@@ -117,8 +158,8 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             selectedDonors={selectedDonors}
             campaignName={campaignName}
             onCampaignNameChange={handleCampaignNameSet}
-            onBack={() => setCurrentStep(0)}
-            onNext={() => setCurrentStep(2)}
+            onBack={() => handleStepNavigation(0)}
+            onNext={() => handleStepNavigation(2)}
             sessionId={sessionId}
             onSessionIdChange={setSessionId}
             templateId={selectedTemplateId}
@@ -129,8 +170,12 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           <SelectTemplateStep
             selectedTemplateId={selectedTemplateId}
             onTemplateSelected={handleTemplateSelected}
-            onBack={() => setCurrentStep(1)}
-            onNext={() => setCurrentStep(3)}
+            onBack={() => handleStepNavigation(1)}
+            onNext={() => handleStepNavigation(3)}
+            sessionId={sessionId}
+            onSessionIdChange={setSessionId}
+            campaignName={campaignName}
+            selectedDonorIds={selectedDonors}
           />
         );
       case 3:
@@ -138,7 +183,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           <WriteInstructionStep
             instruction={instruction}
             onInstructionChange={setInstruction}
-            onBack={() => setCurrentStep(2)}
+            onBack={() => handleStepNavigation(2)}
             onNext={() => {
               /* This is the final step, onNext could trigger a summary view or be disabled */
             }}

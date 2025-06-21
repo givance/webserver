@@ -11,15 +11,29 @@ import { Badge } from "@/components/ui/badge";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useLists } from "@/app/hooks/use-lists";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { Users, List } from "lucide-react";
+import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
+import { Users, List, Check, Loader2 } from "lucide-react";
 
 interface SelectDonorsStepProps {
   selectedDonors: number[];
   onDonorsSelected: (donorIds: number[]) => void;
   onNext: () => void;
+  // Auto-save props
+  sessionId?: number;
+  onSessionIdChange?: (sessionId: number) => void;
+  campaignName?: string;
+  templateId?: number;
 }
 
-export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: SelectDonorsStepProps) {
+export function SelectDonorsStep({ 
+  selectedDonors, 
+  onDonorsSelected, 
+  onNext,
+  sessionId,
+  onSessionIdChange,
+  campaignName,
+  templateId
+}: SelectDonorsStepProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [listSearchTerm, setListSearchTerm] = useState("");
   const [selectedLists, setSelectedLists] = useState<number[]>([]);
@@ -27,10 +41,27 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
   const prevDonorIdsFromListsRef = useRef<number[]>([]);
   const selectedDonorsRef = useRef<number[]>(selectedDonors);
 
+  // Auto-save hook
+  const { autoSave, isSaving } = useCampaignAutoSave({
+    onSessionIdChange,
+  });
+
   // Keep ref in sync with prop
   useEffect(() => {
     selectedDonorsRef.current = selectedDonors;
   }, [selectedDonors]);
+
+  // Auto-save when selected donors change
+  useEffect(() => {
+    if (campaignName && selectedDonors.length > 0) {
+      autoSave({
+        sessionId,
+        campaignName,
+        selectedDonorIds: selectedDonors,
+        templateId,
+      });
+    }
+  }, [selectedDonors, campaignName, sessionId, templateId, autoSave]);
 
   const [debouncedSearchTerm] = useDebounce(searchTerm, 500);
   const [debouncedListSearchTerm] = useDebounce(listSearchTerm, 500);
@@ -270,6 +301,22 @@ export function SelectDonorsStep({ selectedDonors, onDonorsSelected, onNext }: S
             {individualDonors > 0 && (
               <div>
                 • {individualDonors} individual donor{individualDonors !== 1 ? "s" : ""}
+              </div>
+            )}
+            {/* Auto-save indicator */}
+            {campaignName && selectedDonors.length > 0 && (
+              <div className="flex items-center gap-1">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-3 w-3" />
+                    <span>Saved</span>
+                  </>
+                )}
               </div>
             )}
           </div>

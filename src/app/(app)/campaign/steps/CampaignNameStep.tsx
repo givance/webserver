@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, ArrowRight, ArrowLeft, Check, Loader2 } from "lucide-react";
-import { useCommunications } from "@/app/hooks/use-communications";
+import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
 import { toast } from "react-hot-toast";
 
 interface CampaignNameStepProps {
@@ -40,83 +40,20 @@ export function CampaignNameStep({
 
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
   const [error, setError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedName, setLastSavedName] = useState(campaignName);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { saveDraft } = useCommunications();
-  console.log("[CampaignNameStep] saveDraft mutation available:", !!saveDraft);
+  const { autoSave, isSaving } = useCampaignAutoSave({
+    onSessionIdChange,
+  });
 
-  // Auto-save logic with debouncing
+  // Auto-save when campaign name or related data changes
   useEffect(() => {
-    console.log("[CampaignNameStep] Auto-save effect triggered", {
-      localCampaignName,
-      lastSavedName,
+    autoSave({
       sessionId,
-      selectedDonorsCount: selectedDonors.length,
+      campaignName: localCampaignName,
+      selectedDonorIds: selectedDonors,
       templateId,
-      isEmpty: !localCampaignName.trim(),
-      isSame: localCampaignName === lastSavedName,
     });
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Don't auto-save if empty or same as last saved
-    if (!localCampaignName.trim() || localCampaignName === lastSavedName) {
-      console.log("[CampaignNameStep] Skipping auto-save - empty or unchanged");
-      return;
-    }
-
-    console.log("[CampaignNameStep] Setting up auto-save timeout");
-
-    // Set up new timeout for auto-save (1 second delay)
-    saveTimeoutRef.current = setTimeout(async () => {
-      console.log("[CampaignNameStep] Auto-save timeout fired, starting save");
-      setIsSaving(true);
-      try {
-        const payload = {
-          sessionId,
-          campaignName: localCampaignName.trim(),
-          selectedDonorIds: selectedDonors || [],
-          templateId,
-        };
-        console.log("[CampaignNameStep] Calling saveDraft.mutateAsync with payload:", payload);
-
-        // Extra validation
-        if (!payload.selectedDonorIds || payload.selectedDonorIds.length === 0) {
-          console.warn("[CampaignNameStep] Warning: selectedDonorIds is empty!");
-        }
-
-        const result = await saveDraft.mutateAsync(payload);
-
-        console.log("[CampaignNameStep] saveDraft result:", result);
-
-        // Update session ID if this was a new draft
-        if (!sessionId && result.sessionId && onSessionIdChange) {
-          console.log("[CampaignNameStep] Updating sessionId from", sessionId, "to", result.sessionId);
-          onSessionIdChange(result.sessionId);
-        }
-
-        setLastSavedName(localCampaignName.trim());
-        console.log("[CampaignNameStep] Auto-save successful, lastSavedName updated to:", localCampaignName.trim());
-      } catch (error) {
-        console.error("[CampaignNameStep] Failed to auto-save draft:", error);
-        toast.error("Failed to save draft. Please try again.");
-      } finally {
-        setIsSaving(false);
-      }
-    }, 1000);
-
-    // Cleanup on unmount
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [localCampaignName, selectedDonors, sessionId, templateId, lastSavedName, saveDraft, onSessionIdChange]);
+  }, [localCampaignName, selectedDonors, sessionId, templateId, autoSave]);
 
   const handleNext = () => {
     if (!localCampaignName.trim()) {
@@ -193,7 +130,7 @@ export function CampaignNameStep({
                   <span>Saving...</span>
                 </div>
               )}
-              {!isSaving && lastSavedName === localCampaignName.trim() && localCampaignName.trim() !== "" && (
+              {!isSaving && localCampaignName.trim() !== "" && (
                 <div className="flex items-center gap-1 text-sm text-green-600">
                   <Check className="h-3 w-3" />
                   <span>Saved</span>

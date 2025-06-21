@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, ArrowLeft, ArrowRight } from "lucide-react";
+import { FileText, Plus, ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useTemplates } from "@/app/hooks/use-templates";
+import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -17,6 +18,11 @@ interface SelectTemplateStepProps {
   onTemplateSelected: (templateId: number | null, templatePrompt?: string) => void;
   onBack: () => void;
   onNext: () => void;
+  // Auto-save props
+  sessionId?: number;
+  onSessionIdChange?: (sessionId: number) => void;
+  campaignName?: string;
+  selectedDonorIds?: number[];
 }
 
 export function SelectTemplateStep({
@@ -24,12 +30,33 @@ export function SelectTemplateStep({
   onTemplateSelected,
   onBack,
   onNext,
+  sessionId,
+  onSessionIdChange,
+  campaignName,
+  selectedDonorIds,
 }: SelectTemplateStepProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(selectedTemplateId || null);
   const [selectedTemplatePrompt, setSelectedTemplatePrompt] = useState<string>("");
 
+  // Auto-save hook
+  const { autoSave, isSaving } = useCampaignAutoSave({
+    onSessionIdChange,
+  });
+
   const { listTemplates } = useTemplates();
   const { data: templates, isLoading, error } = listTemplates({});
+
+  // Auto-save when template selection changes
+  useEffect(() => {
+    if (campaignName && selectedDonorIds && selectedDonorIds.length > 0) {
+      autoSave({
+        sessionId,
+        campaignName,
+        selectedDonorIds,
+        templateId: selectedTemplate || undefined,
+      });
+    }
+  }, [selectedTemplate, campaignName, selectedDonorIds, sessionId, autoSave]);
 
   const handleTemplateChange = (value: string) => {
     if (value === "none") {
@@ -167,6 +194,23 @@ export function SelectTemplateStep({
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Auto-save indicator */}
+      {campaignName && selectedDonorIds && selectedDonorIds.length > 0 && (
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          {isSaving ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <Check className="h-3 w-3 text-green-600" />
+              <span className="text-green-600">Saved</span>
+            </>
+          )}
+        </div>
       )}
 
       <div className="flex justify-between">
