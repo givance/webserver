@@ -408,9 +408,12 @@ export class EmailGenerationService {
     });
 
     // Extract signature from the original email if it exists
-    const originalSignaturePiece = emailData.structuredContent?.find((piece: any) =>
-      piece.references?.includes("signature")
-    );
+    const structuredContent = emailData.structuredContent as Array<{
+      piece: string;
+      references: string[];
+      addNewlineAfter: boolean;
+    }>;
+    const originalSignaturePiece = structuredContent?.find((piece: any) => piece.references?.includes("signature"));
 
     // Re-append signature to enhanced content if it existed
     let finalStructuredContent = result.structuredContent;

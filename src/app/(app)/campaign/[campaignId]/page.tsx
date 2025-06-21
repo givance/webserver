@@ -72,6 +72,11 @@ export default function CampaignDetailPage() {
       }>,
       // Type cast referenceContexts from unknown to the proper type
       referenceContexts: email.referenceContexts as Record<string, string>,
+      // Type cast status to proper union type
+      status:
+        email.status === "PENDING_APPROVAL" || email.status === "APPROVED"
+          ? (email.status as "PENDING_APPROVAL" | "APPROVED")
+          : undefined,
     }));
   }, [sessionData?.emails]);
 

@@ -170,8 +170,8 @@ export function buildStructuredDonorContext(
   let projectsPrompt = "";
   if (donationHistoryInput && donationHistoryInput.length > 0) {
     const uniqueProjects = new Map<number, DonationWithDetails["project"]>();
-    
-    donationHistoryInput.forEach(donation => {
+
+    donationHistoryInput.forEach((donation) => {
       if (donation.project && donation.project.id) {
         uniqueProjects.set(donation.project.id, donation.project);
       }
@@ -180,12 +180,14 @@ export function buildStructuredDonorContext(
     if (uniqueProjects.size > 0) {
       projectsPrompt = "\nProjects Donated To:";
       uniqueProjects.forEach((project) => {
-        projectsPrompt += `\n- ${project.name}`;
-        if (project.description) {
-          projectsPrompt += `\n  Description: ${project.description}`;
-        }
-        if (project.notes) {
-          projectsPrompt += `\n  Notes: ${project.notes}`;
+        if (project) {
+          projectsPrompt += `\n- ${project.name}`;
+          if (project.description) {
+            projectsPrompt += `\n  Description: ${project.description}`;
+          }
+          if (project.notes) {
+            projectsPrompt += `\n  Notes: ${project.notes}`;
+          }
         }
       });
       projectsPrompt += "\n";

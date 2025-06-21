@@ -471,13 +471,7 @@ export function WriteInstructionStep({
                     isPreview: true,
                   });
 
-                  // Update the email with the returned ID
-                  if (result.email) {
-                    console.log(
-                      `[WriteInstructionStep] Successfully saved email for donor ${email.donorId} with ID ${result.email.id}`
-                    );
-                    return { ...email, id: result.email.id };
-                  }
+                  // The service only returns { success: boolean }, no email object
                   console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
                   return email;
                 } catch (error) {
@@ -486,27 +480,10 @@ export function WriteInstructionStep({
                 }
               });
 
-              // Save all emails in parallel and update with returned IDs
+              // Save all emails in parallel
               Promise.all(savePromises)
                 .then((savedEmails) => {
                   console.log(`[WriteInstructionStep] Successfully saved ${emailResult.emails.length} emails to draft`);
-
-                  // Update the generated emails with the returned IDs
-                  const emailsWithIds = savedEmails.filter((email) => email.id);
-                  if (emailsWithIds.length > 0) {
-                    setAllGeneratedEmails((prev) => {
-                      return prev.map((email) => {
-                        const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                        return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                      });
-                    });
-                    setGeneratedEmails((prev) => {
-                      return prev.map((email) => {
-                        const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                        return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                      });
-                    });
-                  }
                 })
                 .catch((error) => {
                   console.error(`[WriteInstructionStep] Error saving some emails:`, error);
@@ -694,10 +671,8 @@ export function WriteInstructionStep({
                 isPreview: true,
               });
 
-              // Return email with ID if available
-              if (result.email) {
-                return { ...email, id: result.email.id };
-              }
+              // The service only returns { success: boolean }, no email object
+              console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
               return email;
             } catch (error) {
               console.error(`Failed to save email for donor ${email.donorId}:`, error);
@@ -705,26 +680,9 @@ export function WriteInstructionStep({
             }
           });
 
-          // Save all emails in parallel and update with returned IDs
+          // Save all emails in parallel
           Promise.all(savePromises).then((savedEmails) => {
             console.log(`Saved ${emailResult.emails.length} more emails to draft`);
-
-            // Update the generated emails with the returned IDs
-            const emailsWithIds = savedEmails.filter((email) => email.id);
-            if (emailsWithIds.length > 0) {
-              setAllGeneratedEmails((prev) => {
-                return prev.map((email) => {
-                  const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                  return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                });
-              });
-              setGeneratedEmails((prev) => {
-                return prev.map((email) => {
-                  const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                  return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                });
-              });
-            }
           });
         }
 
@@ -922,7 +880,6 @@ export function WriteInstructionStep({
 
           const savePromises = emailResult.emails.map(async (email) => {
             try {
-              console.log(`[WriteInstructionStep] Saving regenerated email for donor ${email.donorId}`);
               const result = await saveGeneratedEmail.mutateAsync({
                 sessionId,
                 donorId: email.donorId,
@@ -932,13 +889,8 @@ export function WriteInstructionStep({
                 isPreview: true,
               });
 
-              if (result.email) {
-                console.log(
-                  `[WriteInstructionStep] Successfully saved regenerated email for donor ${email.donorId} with ID ${result.email.id}`
-                );
-                return { ...email, id: result.email.id };
-              }
-              console.log(`[WriteInstructionStep] Successfully saved regenerated email for donor ${email.donorId}`);
+              // The service only returns { success: boolean }, no email object
+              console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
               return email;
             } catch (error) {
               console.error(
@@ -949,36 +901,12 @@ export function WriteInstructionStep({
             }
           });
 
-          // Save all emails in parallel and update with returned IDs
+          // Save all emails in parallel
           Promise.all(savePromises)
             .then((savedEmails) => {
               console.log(
                 `[WriteInstructionStep] Successfully saved ${emailResult.emails.length} regenerated emails to draft`
               );
-
-              // Update the generated emails with the returned IDs
-              const emailsWithIds = savedEmails.filter((email) => email.id);
-              if (emailsWithIds.length > 0) {
-                if (onlyUnapproved) {
-                  // For partial regeneration, update both preservedEmails and new emails
-                  setAllGeneratedEmails((prev) => {
-                    return prev.map((email) => {
-                      const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                      return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                    });
-                  });
-                  setGeneratedEmails((prev) => {
-                    return prev.map((email) => {
-                      const savedEmail = emailsWithIds.find((e) => e.donorId === email.donorId);
-                      return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
-                    });
-                  });
-                } else {
-                  // For full regeneration, replace with emails that have IDs
-                  setAllGeneratedEmails(savedEmails);
-                  setGeneratedEmails(savedEmails);
-                }
-              }
             })
             .catch((error) => {
               console.error(`[WriteInstructionStep] Error saving some regenerated emails:`, error);
