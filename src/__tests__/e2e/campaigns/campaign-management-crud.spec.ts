@@ -22,6 +22,7 @@ import {
   verifyCampaignStatus,
   waitForCampaignData,
   verifyCampaignStatistics,
+  continueWithoutTemplate,
 } from "./helper";
 
 test.describe("Campaign CRUD Operations", () => {
@@ -175,7 +176,7 @@ test.describe("Campaign CRUD Operations", () => {
       await setCampaignName(page, testCampaign.name);
 
       // Verify summary card shows donor count
-      await expect(page.locator("text=/\\d+ donor/i")).toBeVisible({ timeout: 3000 });
+      await expect(page.locator("text=/\\d+ donor/i").first()).toBeVisible({ timeout: 3000 });
 
       // Click Continue and wait for transition
       await clickContinueButton(page);
@@ -183,22 +184,19 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Step 3: Select Template
     await test.step("Select email template", async () => {
-      await selectTemplate(page, true);
-      
-      // Click Next to continue if visible
-      const nextButton = page.locator('button:has-text("Next")');
-      if (await nextButton.isVisible()) {
-        await clickNextButton(page);
-      }
+      await continueWithoutTemplate(page);
     });
 
     // Step 4: Write Instructions
     await test.step("Write instructions and generate preview", async () => {
-      await writeInstructions(page, "Write a brief thank you email to each donor for their support. Keep it personal and warm.");
-      
+      await writeInstructions(
+        page,
+        "Write a brief thank you email to each donor for their support. Keep it personal and warm."
+      );
+
       // Generate preview emails
       await generateEmails(page);
-      
+
       // Verify email generation succeeded
       await verifyEmailGeneration(page);
     });
@@ -245,10 +243,10 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Verify we're in edit mode and add new instructions
     await writeInstructions(page, "Also mention our upcoming events.");
-    
+
     // Generate updated emails
     await generateEmails(page);
-    
+
     // Verify generation options are available
     const generateButtons = page.locator(
       'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
@@ -294,7 +292,7 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Should navigate to campaign view page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 10000 });
-    
+
     // Wait for campaign data to load
     await waitForCampaignData(page);
 
@@ -463,7 +461,7 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Retry the campaign
     await retryCampaign(page, retryableRow);
-    
+
     // Wait for status change
     await page.waitForTimeout(1000);
 

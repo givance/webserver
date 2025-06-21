@@ -60,6 +60,12 @@ export async function setCampaignName(page: Page, name: string) {
   await expect(page.locator("text=/\\d+\\/255/i")).toBeVisible({ timeout: 3000 });
 }
 
+export async function continueWithoutTemplate(page: Page) {
+  const continueButton = page.locator('button:has-text("Continue")');
+  await continueButton.click();
+  await page.waitForTimeout(2000);
+}
+
 export async function selectTemplate(page: Page, skipIfNotVisible = true) {
   const templateHeadings = [
     'h3:has-text("Select Template")',
@@ -163,7 +169,7 @@ export async function generateEmails(page: Page) {
   await page.waitForTimeout(10000);
 
   // Wait for preview section
-  const previewSection = page.locator('text="Preview Emails", h3:has-text("Preview"), div:has-text("Preview")');
+  const previewSection = page.locator('button:has-text("Email Preview")');
   await expect(previewSection.first()).toBeVisible({ timeout: 60000 });
 }
 
