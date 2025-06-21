@@ -25,11 +25,6 @@ if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI)
   );
 }
 
-// Debug logging for redirect URIs
-console.log("Staff Microsoft OAuth Configuration:");
-console.log("- Original REDIRECT_URI:", MICROSOFT_REDIRECT_URI);
-console.log("- Staff REDIRECT_URI:", STAFF_MICROSOFT_REDIRECT_URI);
-
 export const staffMicrosoftRouter = router({
   /**
    * Get Microsoft authentication URL for a specific staff member
