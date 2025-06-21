@@ -112,6 +112,21 @@ export function EmailEnhanceButton({
                 Examples: &quot;Add one line of greeting&quot;, &quot;Make the tone more friendly&quot;, &quot;Include a personal touch&quot;
               </p>
             </div>
+
+            {/* Current Email Preview */}
+            <div className="space-y-2">
+              <Label>Current Email Content</Label>
+              <div className="border rounded-lg p-3 bg-muted/20 max-h-[200px] overflow-y-auto">
+                <div className="text-sm font-medium mb-2">Subject: {currentSubject}</div>
+                <div className="text-sm space-y-2">
+                  {currentContent.map((piece, index) => (
+                    <div key={index} className={piece.addNewlineAfter ? "mb-3" : ""}>
+                      <span className="whitespace-pre-wrap">{piece.piece}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

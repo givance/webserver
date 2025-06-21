@@ -118,20 +118,16 @@ export const generateBulkEmailsTask = task({
         throw new Error(`Some donors not found. Expected ${selectedDonorIds.length}, found ${selectedDonors.length}`);
       }
 
-      // Check which donors already have approved emails in this session
+      // Check which donors already have ANY emails in this session (regardless of status)
+      // This prevents regenerating emails that were already reviewed/generated
       const existingEmails = await db
         .select({ donorId: generatedEmails.donorId })
         .from(generatedEmails)
-        .where(
-          and(
-            eq(generatedEmails.sessionId, sessionId),
-            eq(generatedEmails.status, "APPROVED")
-          )
-        );
+        .where(eq(generatedEmails.sessionId, sessionId));
 
       const donorsWithExistingEmails = new Set(existingEmails.map((email) => email.donorId));
 
-      // Filter out donors who already have approved emails
+      // Filter out donors who already have emails (approved or pending)
       const donorsToGenerate = selectedDonors.filter((donor) => !donorsWithExistingEmails.has(donor.id));
 
       if (donorsToGenerate.length === 0) {

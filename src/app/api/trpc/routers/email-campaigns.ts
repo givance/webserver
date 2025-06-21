@@ -163,6 +163,11 @@ const saveGeneratedEmailSchema = z.object({
   isPreview: z.boolean().optional().default(true),
 });
 
+const updateEmailStatusSchema = z.object({
+  emailId: z.number(),
+  status: z.enum(["PENDING_APPROVAL", "APPROVED"]),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -268,6 +273,14 @@ export const emailCampaignsRouter = router({
   updateEmail: protectedProcedure.input(updateEmailSchema).mutation(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.updateEmail(input, ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Update email approval status
+   */
+  updateEmailStatus: protectedProcedure.input(updateEmailStatusSchema).mutation(async ({ ctx, input }) => {
+    const campaignsService = new EmailCampaignsService();
+    return await campaignsService.updateEmailStatus(input.emailId, input.status, ctx.auth.user.organizationId);
   }),
 
   /**

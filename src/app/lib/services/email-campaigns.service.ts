@@ -479,6 +479,69 @@ export class EmailCampaignsService {
   }
 
   /**
+   * Updates email approval status
+   * @param emailId - The email ID
+   * @param status - The new status (PENDING_APPROVAL or APPROVED)
+   * @param organizationId - The organization ID for authorization
+   * @returns The updated email
+   */
+  async updateEmailStatus(emailId: number, status: "PENDING_APPROVAL" | "APPROVED", organizationId: string) {
+    try {
+      // First verify the email exists and belongs to the user's organization
+      const [existingEmail] = await db
+        .select({
+          id: generatedEmails.id,
+          sessionId: generatedEmails.sessionId,
+          isSent: generatedEmails.isSent,
+          currentStatus: generatedEmails.status,
+        })
+        .from(generatedEmails)
+        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+        .where(and(eq(generatedEmails.id, emailId), eq(emailGenerationSessions.organizationId, organizationId)))
+        .limit(1);
+
+      if (!existingEmail) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Email not found",
+        });
+      }
+
+      if (existingEmail.isSent) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot change status of an email that has already been sent",
+        });
+      }
+
+      // Update the email status
+      const [updatedEmail] = await db
+        .update(generatedEmails)
+        .set({
+          status,
+          updatedAt: new Date(),
+        })
+        .where(eq(generatedEmails.id, emailId))
+        .returning();
+
+      logger.info(`Updated email ${emailId} status from ${existingEmail.currentStatus} to ${status} for organization ${organizationId}`);
+
+      return {
+        success: true,
+        email: updatedEmail,
+        message: `Email ${status === "APPROVED" ? "approved" : "marked as pending"}`,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`Failed to update email status: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update email status",
+      });
+    }
+  }
+
+  /**
    * Gets email sending status
    * @param emailId - The email ID
    * @param organizationId - The organization ID for authorization
@@ -564,24 +627,25 @@ export class EmailCampaignsService {
         });
       }
 
-      // Update the email
+      // Update the email and reset status to PENDING_APPROVAL since content was edited
       const [updatedEmail] = await db
         .update(generatedEmails)
         .set({
           subject: input.subject,
           structuredContent: input.structuredContent,
           referenceContexts: input.referenceContexts,
+          status: "PENDING_APPROVAL", // Reset status when email is edited
           updatedAt: new Date(),
         })
         .where(eq(generatedEmails.id, input.emailId))
         .returning();
 
-      logger.info(`Updated email ${input.emailId} for organization ${organizationId}: subject="${input.subject}"`);
+      logger.info(`Updated email ${input.emailId} for organization ${organizationId}: subject="${input.subject}" and reset status to PENDING_APPROVAL`);
 
       return {
         success: true,
         email: updatedEmail,
-        message: "Email updated successfully",
+        message: "Email updated successfully and marked for review",
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
