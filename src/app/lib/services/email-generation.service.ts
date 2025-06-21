@@ -407,12 +407,23 @@ export class EmailGenerationService {
       originalInstruction: emailData.session.instruction,
     });
 
+    // Extract signature from the original email if it exists
+    const originalSignaturePiece = emailData.structuredContent?.find((piece: any) =>
+      piece.references?.includes("signature")
+    );
+
+    // Re-append signature to enhanced content if it existed
+    let finalStructuredContent = result.structuredContent;
+    if (originalSignaturePiece) {
+      finalStructuredContent = [...result.structuredContent, originalSignaturePiece];
+    }
+
     // Update the email in the database with the enhanced content
     const [updatedEmail] = await db
       .update(generatedEmails)
       .set({
         subject: result.subject,
-        structuredContent: result.structuredContent,
+        structuredContent: finalStructuredContent,
         referenceContexts: result.referenceContexts,
         updatedAt: new Date(),
       })

@@ -245,15 +245,14 @@ export class EmailCampaignsService {
           });
         }
       } else {
-        logger.info(`All donors already have emails, marking session as completed`);
+        logger.info(`All donors already have emails, marking session as in progress (ready to send)`);
 
-        // If all donors already have emails, mark session as completed
+        // If all donors already have emails, mark session as ready to send
         await db
           .update(emailGenerationSessions)
           .set({
-            status: "COMPLETED",
+            status: "IN_PROGRESS",
             completedDonors: input.selectedDonorIds.length,
-            completedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(emailGenerationSessions.id, sessionId));

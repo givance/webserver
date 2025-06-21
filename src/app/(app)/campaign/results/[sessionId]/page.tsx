@@ -25,7 +25,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,16 @@ export default function EmailGenerationResultsPage() {
     isLoading: boolean;
     error: any;
   };
+
+  // Debug logging to check if data updates
+  useEffect(() => {
+    console.log("[Campaign Results] Session data updated:", {
+      sessionId,
+      emailCount: sessionData?.emails?.length,
+      firstEmailContent: sessionData?.emails?.[0]?.structuredContent?.length,
+      timestamp: new Date().toISOString()
+    });
+  }, [sessionData, sessionId]);
 
   const { getDonorsQuery } = useDonors();
 

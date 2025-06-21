@@ -75,11 +75,35 @@ export function useCommunications() {
   });
 
   const enhanceEmail = trpc.communications.campaigns.enhanceEmail.useMutation({
-    onSuccess: (data) => {
-      // Invalidate the session query to refetch updated emails
-      if (data.sessionId) {
-        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+    onSuccess: async (data, variables) => {
+      console.log("[enhanceEmail onSuccess] Called with data:", data);
+      console.log("[enhanceEmail onSuccess] Variables:", variables);
+
+      // Invalidate and refetch the session query to get updated emails immediately
+      if (data?.sessionId) {
+        console.log("[enhanceEmail onSuccess] Invalidating and refetching session:", data.sessionId);
+
+        try {
+          // First invalidate to mark as stale
+          await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+
+          // Then explicitly refetch
+          await utils.communications.campaigns.getSession.refetch({ sessionId: data.sessionId });
+
+          // Also invalidate without parameters to catch any cached versions
+          await utils.communications.campaigns.getSession.invalidate();
+          await utils.communications.campaigns.getSession.refetch();
+
+          console.log("[enhanceEmail onSuccess] Successfully invalidated and refetched");
+        } catch (error) {
+          console.error("[enhanceEmail onSuccess] Error during invalidation/refetch:", error);
+        }
+      } else {
+        console.warn("[enhanceEmail onSuccess] No sessionId in response data");
       }
+    },
+    onError: (error) => {
+      console.error("[enhanceEmail onError] Mutation failed:", error);
     },
   });
 

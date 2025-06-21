@@ -154,6 +154,7 @@ export function EmailDisplay({
               <div className="flex items-center gap-2">
                 <EmailEnhanceButton
                   emailId={emailId}
+                  sessionId={sessionId}
                   currentSubject={subject}
                   currentContent={content}
                   currentReferenceContexts={referenceContexts}
