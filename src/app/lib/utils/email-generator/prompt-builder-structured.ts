@@ -166,11 +166,37 @@ export function buildStructuredDonorContext(
     }
   }
 
+  // Extract unique projects from donation history
+  let projectsPrompt = "";
+  if (donationHistoryInput && donationHistoryInput.length > 0) {
+    const uniqueProjects = new Map<number, DonationWithDetails["project"]>();
+    
+    donationHistoryInput.forEach(donation => {
+      if (donation.project && donation.project.id) {
+        uniqueProjects.set(donation.project.id, donation.project);
+      }
+    });
+
+    if (uniqueProjects.size > 0) {
+      projectsPrompt = "\nProjects Donated To:";
+      uniqueProjects.forEach((project) => {
+        projectsPrompt += `\n- ${project.name}`;
+        if (project.description) {
+          projectsPrompt += `\n  Description: ${project.description}`;
+        }
+        if (project.notes) {
+          projectsPrompt += `\n  Notes: ${project.notes}`;
+        }
+      });
+      projectsPrompt += "\n";
+    }
+  }
+
   return `TASK: ${instruction}
 
 Donor: ${formatDonorName(donor)} (${donor.email})
 ${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statisticsPrompt}
-
+${projectsPrompt}
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 
 ${communicationHistoryPrompt ? `Past Communications:\n${communicationHistoryPrompt}\n` : ""}

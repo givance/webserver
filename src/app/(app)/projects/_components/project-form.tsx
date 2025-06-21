@@ -14,6 +14,7 @@ import { TagInput } from "@/components/ui/tag-input";
 export const projectFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
+  notes: z.string().optional(),
   active: z.boolean(),
   goal: z.number().min(0).optional(),
   tags: z.array(z.string()),
@@ -33,6 +34,7 @@ export function ProjectForm({ defaultValues, onSubmit, submitLabel = "Save Proje
     defaultValues: {
       name: "",
       description: "",
+      notes: "",
       active: true,
       goal: undefined,
       tags: [],
@@ -67,6 +69,21 @@ export function ProjectForm({ defaultValues, onSubmit, submitLabel = "Save Proje
                 <Textarea {...field} />
               </FormControl>
               <FormDescription>Provide a detailed description of the project and its goals.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes</FormLabel>
+              <FormControl>
+                <Textarea {...field} />
+              </FormControl>
+              <FormDescription>Additional notes or special information about this project.</FormDescription>
               <FormMessage />
             </FormItem>
           )}

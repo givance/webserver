@@ -118,6 +118,7 @@ export default function ProjectDetailsPage() {
               defaultValues={{
                 name: project.name,
                 description: project.description || undefined,
+                notes: project.notes || undefined,
                 active: project.active,
                 goal: project.goal || undefined,
                 tags: project.tags || [],
@@ -130,6 +131,10 @@ export default function ProjectDetailsPage() {
               <div>
                 <h3 className="font-medium">Description</h3>
                 <p className="text-muted-foreground">{project.description || "No description provided"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Notes</h3>
+                <p className="text-muted-foreground">{project.notes || "No notes provided"}</p>
               </div>
               <div>
                 <h3 className="font-medium">Status</h3>
