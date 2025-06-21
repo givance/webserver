@@ -1,4 +1,18 @@
 import { test, expect } from "@playwright/test";
+import {
+  navigateToCampaigns,
+  navigateToCampaignCreation,
+  selectDonors,
+  setCampaignName,
+  selectTemplate,
+  writeInstructions,
+  generateEmails,
+  startBulkGeneration,
+  findCampaignRow,
+  verifyCampaignStatus,
+  clickNextButton,
+  clickContinueButton,
+} from "./helper";
 
 /**
  * Test for the bug where campaigns created from drafts with all emails already generated
@@ -6,11 +20,7 @@ import { test, expect } from "@playwright/test";
  */
 test.describe("Campaign Draft Completion Status", () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the campaigns page
-    await page.goto("/existing-campaigns");
-
-    // Wait for the page to load
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
   });
 
   test("should show correct status when creating campaign from draft with all emails generated", async ({ page }) => {
@@ -18,83 +28,42 @@ test.describe("Campaign Draft Completion Status", () => {
     const campaignName = `Draft Test Campaign ${Date.now()}`;
 
     // Go to campaign creation
-    await page.goto("/campaign");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaignCreation(page);
 
     // Step 1: Select Donors
-    await page.waitForSelector('[role="checkbox"], input[type="checkbox"]', { timeout: 10000 });
-
-    // Check if there are any donors available
-    const donorCheckboxes = page.locator('[role="checkbox"], input[type="checkbox"]');
-    const donorCount = await donorCheckboxes.count();
-
-    if (donorCount === 0) {
-      throw new Error("No donors available for campaign creation test");
-    }
-
-    // Select first 3 donors
-    const selectedCount = Math.min(3, donorCount);
-    for (let i = 0; i < selectedCount; i++) {
-      const checkbox = donorCheckboxes.nth(i);
-      await checkbox.scrollIntoViewIfNeeded();
-      await checkbox.check({ force: true });
-      await page.waitForTimeout(200);
-    }
+    await selectDonors(page, 3);
 
     // Click Next to go to Campaign Name step
-    const nextButton = page.locator('button:has-text("Next")');
-    await nextButton.click();
-    await page.waitForTimeout(2000);
+    await clickNextButton(page);
 
     // Step 2: Set Campaign Name
-    await expect(page.locator('h3:has-text("Name Your Campaign")')).toBeVisible({ timeout: 10000 });
-
-    const nameInput = page.locator("input#campaignName");
-    await nameInput.waitFor({ state: "visible", timeout: 5000 });
-    await nameInput.fill(campaignName);
+    await setCampaignName(page, campaignName);
 
     // Continue to template selection
-    const continueButton = page.locator('button:has-text("Continue")');
-    await continueButton.click();
-    await page.waitForTimeout(2000);
+    await clickContinueButton(page);
 
     // Step 3: Select Template (skip for now)
+    await selectTemplate(page, true);
     const templateNextButton = page.locator('button:has-text("Continue")');
     if (await templateNextButton.isVisible()) {
-      await templateNextButton.click();
-      await page.waitForTimeout(2000);
+      await clickContinueButton(page);
     }
 
-    // Step 4: Write Instructions (Check for tabs instead of heading)
-    await expect(page.locator('button[role="tab"]:has-text("Chat & Generate")')).toBeVisible({ timeout: 10000 });
-
-    // Look for the instruction input using MentionsInput placeholder
-    const instructionInput = page.locator("div[data-mention-input], textarea, .mentions-input").first();
-    await instructionInput.waitFor({ state: "visible", timeout: 5000 });
-    await instructionInput.fill("Test email instruction for draft campaign");
+    // Step 4: Write Instructions
+    await writeInstructions(page, "Test email instruction for draft campaign");
 
     // Send the instruction to generate preview emails
-    const generateButton = page.locator('button:has-text("Generate Emails")');
-    await generateButton.click();
-
-    // Wait for email generation to complete
-    await page.waitForTimeout(10000);
+    await generateEmails(page);
 
     // Look for bulk generation or save options
-    const bulkGenerateButton = page.locator('button:has-text("Start Bulk Generation"), button:has-text("Generate")');
-    if (await bulkGenerateButton.first().isVisible({ timeout: 5000 })) {
-      await bulkGenerateButton.first().click();
-      await page.waitForTimeout(5000);
-    }
+    await startBulkGeneration(page);
 
     // Step 2: Navigate back to campaigns and check status
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
-    // Find the campaign row
-    const campaignRow = page.locator(`tr:has-text("${campaignName}")`);
-    await expect(campaignRow).toBeVisible({ timeout: 10000 });
-
+    // Find the campaign row and verify status
+    const campaignRow = await findCampaignRow(page, campaignName);
+    
     // Check the status badge
     const statusElements = campaignRow
       .locator("span, div")
@@ -129,65 +98,35 @@ test.describe("Campaign Draft Completion Status", () => {
     // This test specifically checks the completedDonors vs totalDonors issue
     const campaignName = `Donor Count Test ${Date.now()}`;
 
-    await page.goto("/campaign");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaignCreation(page);
 
     // Step 1: Select Donors
-    await page.waitForSelector('[role="checkbox"], input[type="checkbox"]', { timeout: 10000 });
-
-    const donorCheckboxes = page.locator('[role="checkbox"], input[type="checkbox"]');
-    const targetDonorCount = Math.min(5, await donorCheckboxes.count());
-
-    if (targetDonorCount === 0) {
-      throw new Error("No donors available for donor count test");
-    }
-
-    for (let i = 0; i < targetDonorCount; i++) {
-      const checkbox = donorCheckboxes.nth(i);
-      await checkbox.scrollIntoViewIfNeeded();
-      await checkbox.check({ force: true });
-      await page.waitForTimeout(200);
-    }
+    const targetDonorCount = 5;
+    await selectDonors(page, targetDonorCount);
 
     // Continue through the workflow
-    const nextButton = page.locator('button:has-text("Next")');
-    await nextButton.click();
-    await page.waitForTimeout(2000);
+    await clickNextButton(page);
 
     // Step 2: Campaign Name
-    const nameInput = page.locator("input#campaignName");
-    await nameInput.waitFor({ state: "visible", timeout: 5000 });
-    await nameInput.fill(campaignName);
-
-    const continueButton = page.locator('button:has-text("Continue")');
-    await continueButton.click();
-    await page.waitForTimeout(2000);
+    await setCampaignName(page, campaignName);
+    await clickContinueButton(page);
 
     // Step 3: Skip template
+    await selectTemplate(page, true);
     const templateNextButton = page.locator('button:has-text("Continue")');
     if (await templateNextButton.isVisible()) {
-      await templateNextButton.click();
-      await page.waitForTimeout(2000);
+      await clickContinueButton(page);
     }
 
-    // Step 4: Write Instructions (Check for tabs and proper input)
-    await expect(page.locator('button[role="tab"]:has-text("Chat & Generate")')).toBeVisible({ timeout: 10000 });
-
-    const instructionInput = page.locator("div[data-mention-input], textarea, .mentions-input").first();
-    await instructionInput.waitFor({ state: "visible", timeout: 5000 });
-    await instructionInput.fill("Test donor count tracking");
-
-    const generateButton = page.locator('button:has-text("Generate Emails")');
-    await generateButton.click();
-    await page.waitForTimeout(10000);
+    // Step 4: Write Instructions
+    await writeInstructions(page, "Test donor count tracking");
+    await generateEmails(page);
 
     // Navigate back to campaigns list
-    await page.goto("/existing-campaigns");
-    await page.waitForLoadState("networkidle");
+    await navigateToCampaigns(page);
 
     // Find the campaign and check it exists
-    const campaignRow = page.locator(`tr:has-text("${campaignName}")`);
-    await expect(campaignRow).toBeVisible({ timeout: 10000 });
+    const campaignRow = await findCampaignRow(page, campaignName);
 
     // Check if donor progress information is visible
     const progressInfo = campaignRow.locator("text=/\\d+.*donor|donor.*\\d+/i");
