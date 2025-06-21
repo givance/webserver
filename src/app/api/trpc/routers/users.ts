@@ -6,6 +6,7 @@ import { logger } from "@/app/lib/logger";
 import { db } from "@/app/lib/db";
 import { signatureImages } from "@/app/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { env } from "@/app/lib/env";
 
 export const usersRouter = router({
   /**
@@ -179,13 +180,17 @@ export const usersRouter = router({
           });
         }
 
-        // Return the image with data URL format
+        // Return the image with hosted URL instead of base64 data URL
+        // This ensures the signature will have proper image URLs that work in emails
+        const baseUrl = env.BASE_URL || "https://app.givance.ai";
+        const hostedUrl = `${baseUrl}/api/signature-image/${image.id}`;
+        
         return {
           id: image.id,
           filename: image.filename,
           mimeType: image.mimeType,
           size: image.size,
-          dataUrl: `data:${image.mimeType};base64,${image.base64Data}`,
+          dataUrl: hostedUrl, // Return hosted URL instead of base64
           createdAt: image.createdAt,
         };
       } catch (error) {
@@ -280,12 +285,16 @@ export const usersRouter = router({
         }
 
         const img = image[0];
+        // Return hosted URL instead of base64 for better email compatibility
+        const baseUrl = env.BASE_URL || "https://app.givance.ai";
+        const hostedUrl = `${baseUrl}/api/signature-image/${img.id}`;
+        
         return {
           id: img.id,
           filename: img.filename,
           mimeType: img.mimeType,
           size: img.size,
-          dataUrl: `data:${img.mimeType};base64,${img.base64Data}`,
+          dataUrl: hostedUrl, // Return hosted URL instead of base64
           createdAt: img.createdAt,
         };
       } catch (error) {

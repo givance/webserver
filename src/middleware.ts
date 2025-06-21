@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/whatsapp/webhook(.*)", // WhatsApp webhook endpoint
   "/api/track/open/(.*)", // Email open tracking - must be public for tracking pixels
   "/api/track/click/(.*)", // Email click tracking - must be public for link redirects
+  "/api/signature-image/(.*)", // Signature images - must be public for email recipients
   // Add other public pages like landing pages, about us, etc.
   // e.g., '/about', '/pricing'
 ]);
