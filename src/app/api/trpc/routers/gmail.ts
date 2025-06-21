@@ -405,6 +405,100 @@ function convertStructuredContentToText(structuredContent: Array<{ piece: string
     .trim();
 }
 
+/**
+ * Shared utility function for processing emails for sending/drafts
+ * This ensures consistent email processing across send and draft operations
+ */
+async function processEmailForDelivery(
+  email: {
+    id: number;
+    donorId: number;
+    subject: string;
+    structuredContent: any;
+    donor: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  },
+  sessionId: number,
+  organizationId: string,
+  userId: string
+) {
+  // Get Gmail client and sender info based on donor assignment
+  const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
+    email.donorId,
+    organizationId,
+    userId
+  );
+
+  // Generate unique tracking ID for this email
+  const trackingId = generateTrackingId();
+
+  // Create email tracker in database
+  await createEmailTracker({
+    id: trackingId,
+    emailId: email.id,
+    donorId: email.donorId,
+    organizationId: organizationId,
+    sessionId: sessionId,
+  });
+
+  // Process email content with tracking (this includes signature processing)
+  const processedContent = await processEmailContentWithTracking(email.structuredContent as any, trackingId);
+
+  // Debug logging for signature content
+  const signaturePieces = email.structuredContent.filter(
+    (piece: any) => piece.references && piece.references.includes("signature")
+  );
+  if (signaturePieces.length > 0) {
+    logger.info(
+      `Processing ${signaturePieces.length} signature pieces for email ${
+        email.id
+      }. First signature contains HTML: ${signaturePieces[0].piece.includes("<img")}`
+    );
+  }
+
+  // Create link trackers in database
+  if (processedContent.linkTrackers.length > 0) {
+    await createLinkTrackers(processedContent.linkTrackers);
+  }
+
+  // Create complete HTML email with tracking pixel
+  const htmlEmail = createHtmlEmail(
+    email.donor.email,
+    email.subject,
+    processedContent.htmlContent,
+    processedContent.textContent,
+    senderInfo.email || undefined
+  );
+
+  // Debug logging for final HTML content
+  if (processedContent.htmlContent.includes("<img")) {
+    logger.info(
+      `Final HTML content for email ${email.id} contains images: ${processedContent.htmlContent.includes("data:image")}`
+    );
+  }
+
+  // Encode email for Gmail API
+  const encodedMessage = Buffer.from(htmlEmail, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  return {
+    gmailClient,
+    senderInfo,
+    accountType,
+    staffId,
+    trackingId,
+    processedContent,
+    htmlEmail,
+    encodedMessage,
+  };
+}
+
 export const gmailRouter = router({
   getGmailAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
     if (!oauth2Client) {
@@ -593,49 +687,11 @@ export const gmailRouter = router({
         // Save each email as a draft using staff-specific accounts
         const draftResults = await Promise.allSettled(
           emails.map(async (email) => {
-            // Get Gmail client and sender info based on donor assignment
-            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
-              email.donorId,
-              ctx.auth.user.organizationId,
-              ctx.auth.user.id
-            );
+            // Use shared email processing utility
+            const { gmailClient, senderInfo, accountType, staffId, trackingId, processedContent, encodedMessage } =
+              await processEmailForDelivery(email, input.sessionId, session.organizationId, ctx.auth.user.id);
 
-            // Generate unique tracking ID for this email (same as send)
-            const trackingId = generateTrackingId();
-
-            // Create email tracker in database (same as send)
-            await createEmailTracker({
-              id: trackingId,
-              emailId: email.id,
-              donorId: email.donorId,
-              organizationId: session.organizationId,
-              sessionId: input.sessionId,
-            });
-
-            // Process email content with tracking (same as send)
-            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
-
-            // Create link trackers in database (same as send)
-            if (processedContent.linkTrackers.length > 0) {
-              await createLinkTrackers(processedContent.linkTrackers);
-            }
-
-            // Create complete HTML email with tracking pixel (same as send)
-            const htmlEmail = createHtmlEmail(
-              email.donor.email,
-              email.subject,
-              processedContent.htmlContent,
-              processedContent.textContent,
-              senderInfo.email || undefined
-            );
-
-            // Encode email for Gmail API (same as send)
-            const encodedMessage = Buffer.from(htmlEmail, "utf8")
-              .toString("base64")
-              .replace(/\+/g, "-")
-              .replace(/\//g, "_")
-              .replace(/=+$/, "");
-
+            // Create draft via Gmail API
             const draft = await gmailClient.users.drafts.create({
               userId: "me",
               requestBody: {
@@ -751,49 +807,9 @@ export const gmailRouter = router({
         // Send each email with tracking using staff-specific accounts
         const sendResults = await Promise.allSettled(
           emails.map(async (email) => {
-            // Get Gmail client and sender info based on donor assignment
-            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
-              email.donorId,
-              ctx.auth.user.organizationId,
-              ctx.auth.user.id
-            );
-
-            // Generate unique tracking ID for this email
-            const trackingId = generateTrackingId();
-
-            // Create email tracker in database
-            await createEmailTracker({
-              id: trackingId,
-              emailId: email.id,
-              donorId: email.donorId,
-              organizationId: session.organizationId,
-              sessionId: input.sessionId,
-            });
-
-            // Process email content with tracking
-            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
-
-            // Create link trackers in database
-            if (processedContent.linkTrackers.length > 0) {
-              await createLinkTrackers(processedContent.linkTrackers);
-            }
-
-            // Note: Signatures are now handled during email generation phase, not sending phase
-            // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(
-              email.donor.email,
-              email.subject,
-              processedContent.htmlContent,
-              processedContent.textContent,
-              senderInfo.email || undefined
-            );
-
-            // Encode email for Gmail API
-            const encodedMessage = Buffer.from(htmlEmail, "utf8")
-              .toString("base64")
-              .replace(/\+/g, "-")
-              .replace(/\//g, "_")
-              .replace(/=+$/, "");
+            // Use shared email processing utility
+            const { gmailClient, senderInfo, accountType, staffId, trackingId, processedContent, encodedMessage } =
+              await processEmailForDelivery(email, input.sessionId, session.organizationId, ctx.auth.user.id);
 
             // Send email via Gmail API
             const sentMessage = await gmailClient.users.messages.send({
@@ -925,49 +941,9 @@ export const gmailRouter = router({
           });
         }
 
-        // Get Gmail client and sender info based on donor assignment
-        const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
-          email.donorId,
-          ctx.auth.user.organizationId,
-          ctx.auth.user.id
-        );
-
-        // Generate unique tracking ID for this email
-        const trackingId = generateTrackingId();
-
-        // Create email tracker in database
-        await createEmailTracker({
-          id: trackingId,
-          emailId: email.id,
-          donorId: email.donorId,
-          organizationId: ctx.auth.user.organizationId,
-          sessionId: email.sessionId,
-        });
-
-        // Process email content with tracking
-        const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
-
-        // Create link trackers in database
-        if (processedContent.linkTrackers.length > 0) {
-          await createLinkTrackers(processedContent.linkTrackers);
-        }
-
-        // Note: Signatures are now handled during email generation phase, not sending phase
-        // Create complete HTML email with tracking pixel
-        const htmlEmail = createHtmlEmail(
-          email.donor.email,
-          email.subject,
-          processedContent.htmlContent,
-          processedContent.textContent,
-          senderInfo.email || undefined
-        );
-
-        // Encode email for Gmail API
-        const encodedMessage = Buffer.from(htmlEmail, "utf8")
-          .toString("base64")
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
+        // Use shared email processing utility
+        const { gmailClient, senderInfo, accountType, staffId, trackingId, processedContent, encodedMessage } =
+          await processEmailForDelivery(email, email.sessionId, ctx.auth.user.organizationId, ctx.auth.user.id);
 
         // Send email via Gmail API
         const sentMessage = await gmailClient.users.messages.send({
@@ -1095,49 +1071,9 @@ export const gmailRouter = router({
         // Send each email with tracking using staff-specific accounts
         const sendResults = await Promise.allSettled(
           emailsToSend.map(async (email) => {
-            // Get Gmail client and sender info based on donor assignment
-            const { gmailClient, senderInfo, accountType, staffId } = await getGmailClientForDonor(
-              email.donorId,
-              ctx.auth.user.organizationId,
-              ctx.auth.user.id
-            );
-
-            // Generate unique tracking ID for this email
-            const trackingId = generateTrackingId();
-
-            // Create email tracker in database
-            await createEmailTracker({
-              id: trackingId,
-              emailId: email.id,
-              donorId: email.donorId,
-              organizationId: session.organizationId,
-              sessionId: input.sessionId,
-            });
-
-            // Process email content with tracking
-            const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
-
-            // Create link trackers in database
-            if (processedContent.linkTrackers.length > 0) {
-              await createLinkTrackers(processedContent.linkTrackers);
-            }
-
-            // Note: Signatures are now handled during email generation phase, not sending phase
-            // Create complete HTML email with tracking pixel
-            const htmlEmail = createHtmlEmail(
-              email.donor.email,
-              email.subject,
-              processedContent.htmlContent,
-              processedContent.textContent,
-              senderInfo.email || undefined
-            );
-
-            // Encode email for Gmail API
-            const encodedMessage = Buffer.from(htmlEmail, "utf8")
-              .toString("base64")
-              .replace(/\+/g, "-")
-              .replace(/\//g, "_")
-              .replace(/=+$/, "");
+            // Use shared email processing utility
+            const { gmailClient, senderInfo, accountType, staffId, trackingId, processedContent, encodedMessage } =
+              await processEmailForDelivery(email, input.sessionId, session.organizationId, ctx.auth.user.id);
 
             // Send email via Gmail API
             const sentMessage = await gmailClient.users.messages.send({

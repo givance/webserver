@@ -549,7 +549,7 @@ export const microsoftRouter = router({
 
         // Process content with tracking
         const structuredContent = [{ piece: content, addNewlineAfter: true, references: [] }];
-        const processedContent = processEmailContentWithTracking(structuredContent as any, trackingId);
+        const processedContent = await processEmailContentWithTracking(structuredContent as any, trackingId);
 
         // Save link trackers to database
         if (processedContent.linkTrackers.length > 0) {

@@ -1165,7 +1165,7 @@ export function WriteInstructionStep({
                           />
                         ) : (
                           <p className="text-muted-foreground text-sm">
-                            Click "Edit" to create a custom signature with formatting and images.
+                            Click &ldquo;Edit&rdquo; to create a custom signature with formatting and images.
                           </p>
                         )}
                       </div>

@@ -30,7 +30,7 @@ type SendSingleEmailPayload = z.infer<typeof sendSingleEmailPayloadSchema>;
  */
 async function getGmailClientForDonor(donorId: number, organizationId: string, fallbackUserId: string) {
   const { gmailOAuthTokens, staff, users } = await import("@/app/lib/db/schema");
-  
+
   // Get donor with staff assignment
   const donorInfo = await db.query.donors.findFirst({
     where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
@@ -172,7 +172,7 @@ export const sendSingleEmailTask = task({
 
       // Check if job was cancelled (pause/cancel scenario)
       const [job] = await db.select().from(emailSendJobs).where(eq(emailSendJobs.id, jobId)).limit(1);
-      
+
       if (!job || job.status === "cancelled") {
         triggerLogger.info(`Job ${jobId} was cancelled, skipping email send`);
         return { status: "cancelled", emailId, jobId };
@@ -240,11 +240,7 @@ export const sendSingleEmailTask = task({
         .where(eq(generatedEmails.id, emailId));
 
       // Get Gmail client and sender info
-      const { gmailClient, senderInfo } = await getGmailClientForDonor(
-        email.donorId,
-        organizationId,
-        userId
-      );
+      const { gmailClient, senderInfo } = await getGmailClientForDonor(email.donorId, organizationId, userId);
 
       // Generate tracking ID
       const trackingId = generateTrackingId();
@@ -259,7 +255,7 @@ export const sendSingleEmailTask = task({
       });
 
       // Process content with tracking
-      const processedContent = processEmailContentWithTracking(email.structuredContent as any, trackingId);
+      const processedContent = await processEmailContentWithTracking(email.structuredContent as any, trackingId);
 
       // Create link trackers
       if (processedContent.linkTrackers.length > 0) {

@@ -129,7 +129,7 @@ export function EmailEditModal({
               {previewStructured.map((piece, index) => {
                 // Check if this is signature content or contains HTML
                 const isSignature = piece.references.includes("signature");
-                const containsHTML = piece.piece.includes("<") && piece.piece.includes(">");
+                const containsHTML = /<[^>]+>/.test(piece.piece);
                 const shouldRenderHTML = isSignature || containsHTML;
 
                 return (
