@@ -73,6 +73,14 @@ export interface EmailListViewerProps {
   // Approval functionality
   onEmailStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
   isUpdatingStatus?: boolean;
+  
+  // Preview mode callbacks
+  onPreviewEdit?: (donorId: number, subject: string, content: Array<{
+    piece: string;
+    references: string[];
+    addNewlineAfter: boolean;
+  }>) => void;
+  onPreviewEnhance?: (donorId: number, instruction: string) => void;
 }
 
 export function EmailListViewer({
@@ -98,6 +106,8 @@ export function EmailListViewer({
   searchEmptyStateDescription = "No emails match your search criteria.",
   onEmailStatusChange,
   isUpdatingStatus = false,
+  onPreviewEdit,
+  onPreviewEnhance,
 }: EmailListViewerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -349,10 +359,19 @@ export function EmailListViewer({
                           donorId={email.donorId}
                           sessionId={sessionId}
                           showSendButton={showSendButton}
-                          showEditButton={true}
+                          showEditButton={showEditButton}
                           approvalStatus={email.status}
                           onStatusChange={onEmailStatusChange}
                           isUpdatingStatus={isUpdatingStatus}
+                          // Enable preview mode when there's no emailId
+                          isPreviewMode={!email.id}
+                          onPreviewEdit={!email.id && onPreviewEdit ? onPreviewEdit : undefined}
+                          onPreviewEnhance={!email.id && onPreviewEnhance ? onPreviewEnhance : undefined}
+                          onPreviewStatusChange={!email.id && onEmailStatusChange ? 
+                            (donorId, status) => {
+                              // Create a temporary ID for status tracking
+                              onEmailStatusChange(donorId, status);
+                            } : undefined}
                         />
                       </ScrollArea>
                     </TabsContent>

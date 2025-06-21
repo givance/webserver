@@ -455,7 +455,7 @@ export function WriteInstructionStep({
               const savePromises = emailResult.emails.map(async (email) => {
                 try {
                   console.log(`[WriteInstructionStep] Saving email for donor ${email.donorId}`);
-                  await saveGeneratedEmail.mutateAsync({
+                  const result = await saveGeneratedEmail.mutateAsync({
                     sessionId,
                     donorId: email.donorId,
                     subject: email.subject,
@@ -463,16 +463,41 @@ export function WriteInstructionStep({
                     referenceContexts: email.referenceContexts,
                     isPreview: true,
                   });
+                  
+                  // Update the email with the returned ID
+                  if (result.email) {
+                    console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId} with ID ${result.email.id}`);
+                    return { ...email, id: result.email.id };
+                  }
                   console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
+                  return email;
                 } catch (error) {
                   console.error(`[WriteInstructionStep] Failed to save email for donor ${email.donorId}:`, error);
+                  return email;
                 }
               });
 
-              // Save all emails in parallel but don't block UI
+              // Save all emails in parallel and update with returned IDs
               Promise.all(savePromises)
-                .then(() => {
+                .then((savedEmails) => {
                   console.log(`[WriteInstructionStep] Successfully saved ${emailResult.emails.length} emails to draft`);
+                  
+                  // Update the generated emails with the returned IDs
+                  const emailsWithIds = savedEmails.filter(email => email.id);
+                  if (emailsWithIds.length > 0) {
+                    setAllGeneratedEmails(prev => {
+                      return prev.map(email => {
+                        const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                        return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                      });
+                    });
+                    setGeneratedEmails(prev => {
+                      return prev.map(email => {
+                        const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                        return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                      });
+                    });
+                  }
                 })
                 .catch((error) => {
                   console.error(`[WriteInstructionStep] Error saving some emails:`, error);
@@ -651,7 +676,7 @@ export function WriteInstructionStep({
         if (sessionId) {
           const savePromises = emailResult.emails.map(async (email) => {
             try {
-              await saveGeneratedEmail.mutateAsync({
+              const result = await saveGeneratedEmail.mutateAsync({
                 sessionId,
                 donorId: email.donorId,
                 subject: email.subject,
@@ -659,14 +684,38 @@ export function WriteInstructionStep({
                 referenceContexts: email.referenceContexts,
                 isPreview: true,
               });
+              
+              // Return email with ID if available
+              if (result.email) {
+                return { ...email, id: result.email.id };
+              }
+              return email;
             } catch (error) {
               console.error(`Failed to save email for donor ${email.donorId}:`, error);
+              return email;
             }
           });
 
-          // Save all emails in parallel but don't block UI
-          Promise.all(savePromises).then(() => {
+          // Save all emails in parallel and update with returned IDs
+          Promise.all(savePromises).then((savedEmails) => {
             console.log(`Saved ${emailResult.emails.length} more emails to draft`);
+            
+            // Update the generated emails with the returned IDs
+            const emailsWithIds = savedEmails.filter(email => email.id);
+            if (emailsWithIds.length > 0) {
+              setAllGeneratedEmails(prev => {
+                return prev.map(email => {
+                  const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                  return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                });
+              });
+              setGeneratedEmails(prev => {
+                return prev.map(email => {
+                  const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                  return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                });
+              });
+            }
           });
         }
 
@@ -867,7 +916,7 @@ export function WriteInstructionStep({
           const savePromises = emailResult.emails.map(async (email) => {
             try {
               console.log(`[WriteInstructionStep] Saving regenerated email for donor ${email.donorId}`);
-              await saveGeneratedEmail.mutateAsync({
+              const result = await saveGeneratedEmail.mutateAsync({
                 sessionId,
                 donorId: email.donorId,
                 subject: email.subject,
@@ -875,21 +924,52 @@ export function WriteInstructionStep({
                 referenceContexts: email.referenceContexts,
                 isPreview: true,
               });
+              
+              if (result.email) {
+                console.log(`[WriteInstructionStep] Successfully saved regenerated email for donor ${email.donorId} with ID ${result.email.id}`);
+                return { ...email, id: result.email.id };
+              }
               console.log(`[WriteInstructionStep] Successfully saved regenerated email for donor ${email.donorId}`);
+              return email;
             } catch (error) {
               console.error(
                 `[WriteInstructionStep] Failed to save regenerated email for donor ${email.donorId}:`,
                 error
               );
+              return email;
             }
           });
 
-          // Save all emails in parallel but don't block UI
+          // Save all emails in parallel and update with returned IDs
           Promise.all(savePromises)
-            .then(() => {
+            .then((savedEmails) => {
               console.log(
                 `[WriteInstructionStep] Successfully saved ${emailResult.emails.length} regenerated emails to draft`
               );
+              
+              // Update the generated emails with the returned IDs
+              const emailsWithIds = savedEmails.filter(email => email.id);
+              if (emailsWithIds.length > 0) {
+                if (onlyUnapproved) {
+                  // For partial regeneration, update both preservedEmails and new emails
+                  setAllGeneratedEmails(prev => {
+                    return prev.map(email => {
+                      const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                      return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                    });
+                  });
+                  setGeneratedEmails(prev => {
+                    return prev.map(email => {
+                      const savedEmail = emailsWithIds.find(e => e.donorId === email.donorId);
+                      return savedEmail && savedEmail.id ? { ...email, id: savedEmail.id } : email;
+                    });
+                  });
+                } else {
+                  // For full regeneration, replace with emails that have IDs
+                  setAllGeneratedEmails(savedEmails);
+                  setGeneratedEmails(savedEmails);
+                }
+              }
             })
             .catch((error) => {
               console.error(`[WriteInstructionStep] Error saving some regenerated emails:`, error);
@@ -1036,6 +1116,20 @@ export function WriteInstructionStep({
   // Handle email status change
   const handleEmailStatusChange = useCallback(
     async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
+      // Check if this is actually a donorId (preview mode)
+      // In preview mode, we use donorId as the identifier
+      const isPreviewMode = !allGeneratedEmails.some(e => e.id === emailId);
+      
+      if (isPreviewMode) {
+        // This is actually a donorId, just update local state
+        setEmailStatuses(prev => ({
+          ...prev,
+          [emailId]: status, // emailId is actually donorId here
+        }));
+        toast.success(status === "APPROVED" ? "Email approved" : "Email marked as pending");
+        return;
+      }
+
       if (!sessionId) return;
 
       setIsUpdatingStatus(true);
@@ -1403,6 +1497,84 @@ export function WriteInstructionStep({
                       onEmailStatusChange={handleEmailStatusChange}
                       isUpdatingStatus={isUpdatingStatus}
                       sessionId={sessionId}
+                      onPreviewEdit={(donorId, newSubject, newContent) => {
+                        // Update the local state with edited email
+                        setAllGeneratedEmails(prev => 
+                          prev.map(email => 
+                            email.donorId === donorId 
+                              ? { ...email, subject: newSubject, structuredContent: newContent }
+                              : email
+                          )
+                        );
+                        toast.success("Email updated successfully!");
+                      }}
+                      onPreviewEnhance={async (donorId, enhanceInstruction) => {
+                        // Find the email to enhance
+                        const emailToEnhance = allGeneratedEmails.find(e => e.donorId === donorId);
+                        if (!emailToEnhance || !organization) return;
+                        
+                        try {
+                          toast.info("Enhancing email with AI...");
+                          
+                          // Get donor data
+                          const donor = donorsData?.find(d => d.id === donorId);
+                          if (!donor) return;
+                          
+                          // Use the generate emails API with the enhancement instruction
+                          const result = await generateEmails.mutateAsync({
+                            instruction: `${previousInstruction || instruction}\n\nAdditional enhancement: ${enhanceInstruction}`,
+                            donors: [{
+                              id: donor.id,
+                              firstName: donor.firstName,
+                              lastName: donor.lastName,
+                              email: donor.email,
+                            }],
+                            organizationName: organization.name,
+                            organizationWritingInstructions: organization.writingInstructions ?? undefined,
+                            previousInstruction,
+                            currentDate: new Date().toLocaleDateString("en-US", {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }),
+                            chatHistory: chatMessages,
+                            signature: currentSignature,
+                          });
+                          
+                          if (result && !("isAgenticFlow" in result)) {
+                            const emailResult = result as GenerateEmailsResponse;
+                            if (emailResult.emails.length > 0) {
+                              const enhancedEmail = emailResult.emails[0];
+                              
+                              // Update the email in state
+                              setAllGeneratedEmails(prev => 
+                                prev.map(email => 
+                                  email.donorId === donorId 
+                                    ? { 
+                                        ...email, 
+                                        subject: enhancedEmail.subject, 
+                                        structuredContent: enhancedEmail.structuredContent,
+                                        referenceContexts: enhancedEmail.referenceContexts
+                                      }
+                                    : email
+                                )
+                              );
+                              
+                              // Update reference contexts
+                              setReferenceContexts(prev => ({
+                                ...prev,
+                                [donorId]: enhancedEmail.referenceContexts
+                              }));
+                              
+                              toast.success("Email enhanced successfully!");
+                            }
+                          }
+                        } catch (error) {
+                          console.error("Error enhancing email:", error);
+                          toast.error("Failed to enhance email");
+                        }
+                      }}
                     />
                   </div>
                 ) : (
