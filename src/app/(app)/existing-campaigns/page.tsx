@@ -332,7 +332,10 @@ function ConfirmationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={() => onConfirm(action === "send" ? sendType : undefined)} disabled={isLoading}>
+          <Button 
+            onClick={() => onConfirm(action === "send" ? sendType : undefined)} 
+            disabled={isLoading || (action === "send" && unsentCount === 0)}
+          >
             {isLoading ? "Processing..." : actionTitle}
           </Button>
         </DialogFooter>
