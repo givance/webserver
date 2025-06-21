@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, X, ChevronLeft, ChevronRight, Mail, Eye, Check, Clock } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, Mail, Eye, Check, Clock, RefreshCw, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
 
@@ -73,14 +73,28 @@ export interface EmailListViewerProps {
   // Approval functionality
   onEmailStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
   isUpdatingStatus?: boolean;
-  
+
   // Preview mode callbacks
-  onPreviewEdit?: (donorId: number, subject: string, content: Array<{
-    piece: string;
-    references: string[];
-    addNewlineAfter: boolean;
-  }>) => void;
+  onPreviewEdit?: (
+    donorId: number,
+    subject: string,
+    content: Array<{
+      piece: string;
+      references: string[];
+      addNewlineAfter: boolean;
+    }>
+  ) => void;
   onPreviewEnhance?: (donorId: number, instruction: string) => void;
+
+  // Regenerate and generate more functionality
+  showRegenerateButton?: boolean;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
+  canGenerateMore?: boolean;
+  onGenerateMore?: () => void;
+  isGeneratingMore?: boolean;
+  remainingDonorsCount?: number;
+  generateMoreCount?: number;
 }
 
 export function EmailListViewer({
@@ -108,6 +122,14 @@ export function EmailListViewer({
   isUpdatingStatus = false,
   onPreviewEdit,
   onPreviewEnhance,
+  showRegenerateButton = false,
+  onRegenerate,
+  isRegenerating = false,
+  canGenerateMore = false,
+  onGenerateMore,
+  isGeneratingMore = false,
+  remainingDonorsCount = 0,
+  generateMoreCount = 0,
 }: EmailListViewerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,33 +207,66 @@ export function EmailListViewer({
 
   return (
     <div className="h-full flex flex-col space-y-4">
-      {/* Search Bar - Made smaller and less intrusive */}
+      {/* Search Bar with Regenerate buttons - Made smaller and less intrusive */}
       {showSearch && (
-        <div>
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input
-              placeholder={searchPlaceholder}
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-7 pr-8 h-8 text-sm"
-            />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-7 pr-8 h-8 text-sm"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  onClick={clearSearch}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
             {searchTerm && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {safeFilteredEmails.length} result{safeFilteredEmails.length !== 1 ? "s" : ""} found for &quot;
+                {searchTerm}&quot;
+              </p>
+            )}
+          </div>
+
+          {/* Regenerate and Generate More buttons */}
+          <div className="flex items-center gap-2">
+            {showRegenerateButton && onRegenerate && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="absolute right-0 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                onClick={clearSearch}
+                onClick={onRegenerate}
+                disabled={isRegenerating}
+                className="flex items-center gap-2"
               >
-                <X className="h-3 w-3" />
+                <RefreshCw className="h-3 w-3" />
+                Regenerate
+              </Button>
+            )}
+            {canGenerateMore && onGenerateMore && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onGenerateMore}
+                disabled={isGeneratingMore}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-3 w-3" />
+                {isGeneratingMore
+                  ? "Generating..."
+                  : `Generate ${Math.min(generateMoreCount, remainingDonorsCount)} More`}
               </Button>
             )}
           </div>
-          {searchTerm && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {safeFilteredEmails.length} result{safeFilteredEmails.length !== 1 ? "s" : ""} found for &quot;{searchTerm}&quot;
-            </p>
-          )}
         </div>
       )}
 
@@ -367,11 +422,14 @@ export function EmailListViewer({
                           isPreviewMode={!email.id}
                           onPreviewEdit={!email.id && onPreviewEdit ? onPreviewEdit : undefined}
                           onPreviewEnhance={!email.id && onPreviewEnhance ? onPreviewEnhance : undefined}
-                          onPreviewStatusChange={!email.id && onEmailStatusChange ? 
-                            (donorId, status) => {
-                              // Create a temporary ID for status tracking
-                              onEmailStatusChange(donorId, status);
-                            } : undefined}
+                          onPreviewStatusChange={
+                            !email.id && onEmailStatusChange
+                              ? (donorId, status) => {
+                                  // Create a temporary ID for status tracking
+                                  onEmailStatusChange(donorId, status);
+                                }
+                              : undefined
+                          }
                         />
                       </ScrollArea>
                     </TabsContent>

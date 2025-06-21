@@ -221,58 +221,6 @@ export function EmailDisplay({
 
   return (
     <div className="space-y-4">
-      {/* Approval status and controls */}
-      {((onStatusChange && emailId) || (isPreviewMode && onPreviewStatusChange && donorId)) && !emailStatus?.isSent && (
-        <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
-          <div className="flex items-center gap-2">
-            {approvalStatus === "APPROVED" ? (
-              <>
-                <Badge variant="default" className="bg-green-500">
-                  <Check className="h-3 w-3 mr-1" />
-                  Approved
-                </Badge>
-                <span className="text-sm text-muted-foreground">This email has been approved</span>
-              </>
-            ) : (
-              <>
-                <Badge variant="secondary">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Pending Approval
-                </Badge>
-                <span className="text-sm text-muted-foreground">This email needs review</span>
-              </>
-            )}
-          </div>
-          <Button
-            variant={approvalStatus === "APPROVED" ? "outline" : "default"}
-            size="sm"
-            onClick={() => {
-              if (isPreviewMode && onPreviewStatusChange && donorId) {
-                onPreviewStatusChange(donorId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
-              } else if (onStatusChange && emailId) {
-                onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
-              }
-            }}
-            disabled={isUpdatingStatus}
-            className="min-w-[120px]"
-          >
-            {isUpdatingStatus ? (
-              "Updating..."
-            ) : approvalStatus === "APPROVED" ? (
-              <>
-                <Clock className="h-4 w-4 mr-1" />
-                Mark Pending
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4 mr-1" />
-                Approve Email
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-
       <Card className="p-4">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -284,6 +232,39 @@ export function EmailDisplay({
             </div>
             {((emailId && !emailStatus?.isSent) || isPreviewMode) && showEditButton && (
               <div className="flex items-center gap-2">
+                {((onStatusChange && emailId) || (isPreviewMode && onPreviewStatusChange && donorId)) &&
+                  !emailStatus?.isSent && (
+                    <Button
+                      variant={approvalStatus === "APPROVED" ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => {
+                        if (isPreviewMode && onPreviewStatusChange && donorId) {
+                          onPreviewStatusChange(
+                            donorId,
+                            approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED"
+                          );
+                        } else if (onStatusChange && emailId) {
+                          onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
+                        }
+                      }}
+                      disabled={isUpdatingStatus}
+                      className="flex items-center gap-2"
+                    >
+                      {isUpdatingStatus ? (
+                        "Updating..."
+                      ) : approvalStatus === "APPROVED" ? (
+                        <>
+                          <Clock className="h-4 w-4" />
+                          Mark Pending
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4" />
+                          Approve Email
+                        </>
+                      )}
+                    </Button>
+                  )}
                 <EmailEnhanceButton
                   emailId={emailId || 0}
                   sessionId={sessionId}
@@ -291,30 +272,6 @@ export function EmailDisplay({
                   currentContent={content}
                   currentReferenceContexts={referenceContexts}
                 />
-                {isPreviewMode && onPreviewEnhance && donorId ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // For preview mode, we'll handle enhance directly
-                      const instruction = prompt("How would you like to enhance this email?");
-                      if (instruction) {
-                        onPreviewEnhance(donorId, instruction);
-                      }
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    AI Enhance
-                  </Button>
-                ) : emailId ? (
-                  <EmailEnhanceButton
-                    emailId={emailId}
-                    currentSubject={subject}
-                    currentContent={content}
-                    currentReferenceContexts={referenceContexts}
-                  />
-                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
