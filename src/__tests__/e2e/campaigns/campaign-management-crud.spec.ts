@@ -105,18 +105,18 @@ test.describe("Campaign CRUD Operations", () => {
       }
 
       if (!headingFound) {
-        // Skip if we can't find the page
-        test.skip();
-        return;
+        // Fail if we can't find the campaign creation page
+        throw new Error("Campaign creation page not found - no heading elements detected");
       }
 
       // Wait for donor table to load with multiple selectors
       try {
         await page.waitForSelector('table tbody tr, [data-testid="donor-table"], .donor-list', { timeout: 10000 });
       } catch (e) {
-        // If no table, skip test
-        test.skip();
-        return;
+        // If no table, this is a failure - the donor table should exist
+        throw new Error(
+          "Donor table not found on campaign creation page - this indicates a problem with the application or test data setup"
+        );
       }
 
       // Check if there are any donors available
@@ -129,9 +129,8 @@ test.describe("Campaign CRUD Operations", () => {
       const checkboxCount = await donorCheckboxes.count();
 
       if (checkboxCount === 0) {
-        // If no donors, we need to create some first
-        test.skip();
-        return;
+        // If no donors, this is a test failure - we need donors to test campaign creation
+        throw new Error("No donors available for campaign creation - test data setup is incomplete");
       }
 
       // Select first 2 donors
@@ -257,8 +256,7 @@ test.describe("Campaign CRUD Operations", () => {
     const rowCount = await campaignRows.count();
 
     if (rowCount === 0) {
-      test.skip();
-      return;
+      throw new Error("No campaigns found for editing test - application should have existing campaigns");
     }
 
     // Find a campaign that can be edited (Draft, Completed, or Failed status)
@@ -277,8 +275,9 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     if (!editableRow) {
-      test.skip();
-      return;
+      throw new Error(
+        "No editable campaigns found - need campaigns with Draft, Completed, or Failed status for editing test"
+      );
     }
 
     // Click Edit button
@@ -330,8 +329,7 @@ test.describe("Campaign CRUD Operations", () => {
     const rowCount = await campaignRows.count();
 
     if (rowCount === 0) {
-      test.skip();
-      return;
+      throw new Error("No campaigns found for viewing test - application should have existing campaigns");
     }
 
     let viewableRow = null;
@@ -356,8 +354,9 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     if (!viewableRow) {
-      test.skip();
-      return;
+      throw new Error(
+        "No viewable campaigns found - need campaigns with Ready to Send, Completed, or In Progress status"
+      );
     }
 
     // Click View button
@@ -425,9 +424,7 @@ test.describe("Campaign CRUD Operations", () => {
     const statusElements = page.locator("span, div").filter({ hasText: /^(Draft|Pending|Ready to Send|Failed)$/i });
 
     if ((await statusElements.count()) === 0) {
-      console.log("No campaign status badges found, skipping test");
-      test.skip();
-      return;
+      throw new Error("No campaign status badges found - campaigns should have visible status indicators");
     }
 
     // Just verify that status badges exist and are visible
@@ -480,8 +477,7 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     if (!targetRow) {
-      test.skip();
-      return;
+      throw new Error("No campaigns found with Ready to Send or Completed status for saving to drafts test");
     }
 
     // Click Save to Drafts button
@@ -543,9 +539,7 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     if (!retryableRow) {
-      // No campaigns to retry
-      test.skip();
-      return;
+      throw new Error("No campaigns found with Failed or Pending status that have retry buttons available");
     }
 
     // Get initial status
@@ -623,8 +617,7 @@ test.describe("Campaign CRUD Operations", () => {
     }
 
     if (!deleteRow) {
-      test.skip();
-      return;
+      throw new Error("No deletable campaigns found - need at least one campaign with Draft status for deletion test");
     }
 
     // Click Delete button
@@ -658,8 +651,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Check if there are campaigns
     const table = page.locator("table");
     if ((await table.count()) === 0) {
-      test.skip();
-      return;
+      throw new Error("No campaigns table found for search and pagination test - campaigns should exist");
     }
 
     // Test search if search input exists

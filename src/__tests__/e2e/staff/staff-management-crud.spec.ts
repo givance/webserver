@@ -294,9 +294,7 @@ test.describe("Staff CRUD Operations", () => {
     const firstRow = page.locator("table tbody tr").first();
 
     if ((await firstRow.count()) === 0) {
-      // Skip test if no staff members
-      test.skip();
-      return;
+      throw new Error("No staff members found for signature management test - staff should exist for testing");
     }
 
     // Check if signature edit is available in the table
@@ -466,8 +464,7 @@ test.describe("Staff CRUD Operations", () => {
     const firstRow = page.locator("table tbody tr").first();
 
     if ((await firstRow.count()) === 0) {
-      test.skip();
-      return;
+      throw new Error("No staff members found for WhatsApp management test - staff should exist for testing");
     }
 
     const dropdownTrigger = firstRow.locator('button[aria-haspopup="menu"]');

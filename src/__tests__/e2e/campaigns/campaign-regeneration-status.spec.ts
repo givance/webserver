@@ -10,19 +10,19 @@ test.describe("Campaign Regeneration and Status Checking", () => {
   test("should regenerate emails for an existing campaign", async ({ page }) => {
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
-    
+
     // Find a campaign that can be edited (preferably with some emails already generated)
     const campaignRows = page.locator("table tbody tr");
     let targetRow = null;
 
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const statusBadge = row.locator('[class*="badge"], span[data-status]');
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         const status = await statusBadge.first().textContent();
         // Look for campaigns that have been completed or are ready to send
-        if (status && ["Completed", "Ready to Send"].some(s => status.includes(s))) {
+        if (status && ["Completed", "Ready to Send"].some((s) => status.includes(s))) {
           targetRow = row;
           break;
         }
@@ -30,8 +30,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     if (!targetRow) {
-      test.skip();
-      return;
+      throw new Error("No campaigns found with Completed or Ready to Send status for regeneration test");
     }
 
     // Click Edit to go to regeneration
@@ -47,8 +46,8 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     await expect(page.locator('h1:has-text("Write Instructions")')).toBeVisible({ timeout: 10000 });
 
     // Check for existing generated emails indicator
-    const emailCount = page.locator('text=/Generated.*\\d+.*email|\\d+.*email.*generated/i');
-    if (await emailCount.count() > 0) {
+    const emailCount = page.locator("text=/Generated.*\\d+.*email|\\d+.*email.*generated/i");
+    if ((await emailCount.count()) > 0) {
       await expect(emailCount.first()).toBeVisible({ timeout: 5000 });
     }
 
@@ -56,18 +55,22 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     const instructionInput = page.locator('textarea[placeholder*="instruction"], textarea').first();
     await instructionInput.waitFor({ state: "visible", timeout: 5000 });
     await instructionInput.click();
-    await instructionInput.fill("Please regenerate emails with a more formal tone and include our organization's mission statement.");
+    await instructionInput.fill(
+      "Please regenerate emails with a more formal tone and include our organization's mission statement."
+    );
 
     // Send the instruction
     const sendButton = page.locator('button:has-text("Send")');
-    await sendButton.waitFor({ state: "enabled", timeout: 5000 });
+    await sendButton.waitFor({ state: "visible", timeout: 5000 });
     await sendButton.click();
 
     // Wait for AI response with longer timeout
     await page.waitForTimeout(5000);
 
     // Look for Generate More button or similar action buttons
-    const actionButtons = page.locator('button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")');
+    const actionButtons = page.locator(
+      'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
+    );
     await expect(actionButtons.first()).toBeVisible({ timeout: 60000 });
 
     // Click the action button to regenerate
@@ -78,12 +81,12 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     // Verify some indication of processing - could be various UI elements
     const processingIndicators = page.locator(
-      'text=/generating|processing|creating|loading/i, ' +
-      '[role="progressbar"], ' +
-      'div[data-state="loading"], ' +
-      '.animate-spin'
+      "text=/generating|processing|creating|loading/i, " +
+        '[role="progressbar"], ' +
+        'div[data-state="loading"], ' +
+        ".animate-spin"
     );
-    
+
     // At least one indicator should be visible
     const indicatorCount = await processingIndicators.count();
     expect(indicatorCount).toBeGreaterThan(0);
@@ -92,35 +95,38 @@ test.describe("Campaign Regeneration and Status Checking", () => {
   test("should monitor campaign generation status", async ({ page }) => {
     // Look for campaigns in various states
     const statuses = ["Generating", "In Progress", "Pending"];
-    
+
     for (const status of statuses) {
       const statusBadge = page.locator('[class*="badge"]').filter({ hasText: status });
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         // Found a campaign in progress
         const row = page.locator("table tbody tr").filter({ has: statusBadge.first() });
-        
+
         // Check progress indicators
-        const progressText = row.locator('text=/\\d+\\s*\\/\\s*\\d+/'); // e.g., "5/10"
-        if (await progressText.count() > 0) {
+        const progressText = row.locator("text=/\\d+\\s*\\/\\s*\\d+/"); // e.g., "5/10"
+        if ((await progressText.count()) > 0) {
           await expect(progressText.first()).toBeVisible();
         }
 
         // Click View to see real-time status
         const viewButton = row.locator('button:has-text("View")');
-        if (await viewButton.count() > 0) {
+        if ((await viewButton.count()) > 0) {
           await viewButton.click();
-          
+
           await page.waitForURL(/\/campaign\/results\/\w+/);
           await page.waitForLoadState("networkidle");
 
           // Verify status indicators on results page
           await expect(page.locator('text="Generated Emails"')).toBeVisible();
-          
+
           // Check for live updates (the count should be visible)
-          const generatedCount = page.locator('[class*="card"]').filter({ hasText: "Generated Emails" }).locator('div[class*="text-2xl"], div[class*="font-bold"]');
+          const generatedCount = page
+            .locator('[class*="card"]')
+            .filter({ hasText: "Generated Emails" })
+            .locator('div[class*="text-2xl"], div[class*="font-bold"]');
           await expect(generatedCount.first()).toBeVisible();
-          
+
           return; // Test one active campaign
         }
       }
@@ -128,41 +134,38 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     // If no active campaigns, check that completed campaigns show final status
     const completedBadge = page.locator('[class*="badge"]').filter({ hasText: "Completed" });
-    if (await completedBadge.count() > 0) {
+    if ((await completedBadge.count()) > 0) {
       const row = page.locator("table tbody tr").filter({ has: completedBadge.first() });
-      
+
       // Should show completion indicators
       const checkIcon = row.locator('svg[class*="check"], svg[class*="circle-check"]');
-      const progressText = row.locator('text=/\\d+\\s*\\/\\s*\\d+/');
-      
-      expect(
-        (await checkIcon.count() > 0) || 
-        (await progressText.count() > 0)
-      ).toBeTruthy();
+      const progressText = row.locator("text=/\\d+\\s*\\/\\s*\\d+/");
+
+      expect((await checkIcon.count()) > 0 || (await progressText.count()) > 0).toBeTruthy();
     }
   });
 
   test("should handle campaign generation failures and allow retry", async ({ page }) => {
     // Look for failed campaigns
     const failedBadge = page.locator('[class*="badge"]').filter({ hasText: "Failed" });
-    
-    if (await failedBadge.count() === 0) {
-      // No failed campaigns to test
-      test.skip();
-      return;
+
+    if ((await failedBadge.count()) === 0) {
+      throw new Error(
+        "No failed campaigns found for failure handling test - need at least one campaign with Failed status"
+      );
     }
 
     const failedRow = page.locator("table tbody tr").filter({ has: failedBadge.first() });
-    
+
     // Verify failed campaign shows error indicators
     const errorIcon = failedRow.locator('svg[class*="x"], svg[class*="error"], svg[class*="alert"]');
-    if (await errorIcon.count() > 0) {
+    if ((await errorIcon.count()) > 0) {
       await expect(errorIcon.first()).toBeVisible();
     }
 
     // Check for partial progress (e.g., "3/10" emails generated before failure)
-    const progressText = failedRow.locator('text=/\\d+\\s*\\/\\s*\\d+/');
-    if (await progressText.count() > 0) {
+    const progressText = failedRow.locator("text=/\\d+\\s*\\/\\s*\\d+/");
+    if ((await progressText.count()) > 0) {
       const progress = await progressText.textContent();
       // Parse to ensure some were generated
       const match = progress?.match(/(\d+)\s*\/\s*(\d+)/);
@@ -176,7 +179,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     // Test retry functionality
     const retryButton = failedRow.locator('button:has-text("Retry")');
     await expect(retryButton).toBeVisible();
-    
+
     await retryButton.click();
     await page.waitForTimeout(2000);
 
@@ -190,20 +193,20 @@ test.describe("Campaign Regeneration and Status Checking", () => {
   test("should track email sending status", async ({ page }) => {
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
-    
+
     // Find a campaign that's ready to send or has sent emails
     const campaignRows = page.locator("table tbody tr");
     let targetRow = null;
 
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
       const statusBadge = row.locator('[class*="badge"], span[data-status]');
-      
-      if (await statusBadge.count() > 0) {
+
+      if ((await statusBadge.count()) > 0) {
         const status = await statusBadge.first().textContent();
-        if (status && ["Ready to Send", "In Progress", "Completed"].some(s => status.includes(s))) {
+        if (status && ["Ready to Send", "In Progress", "Completed"].some((s) => status.includes(s))) {
           // Also check progress column for any indication of emails
-          const progressText = await row.locator('td').nth(3).textContent();
+          const progressText = await row.locator("td").nth(3).textContent();
           if (progressText && (progressText.includes("Generated") || progressText.match(/\d+/))) {
             targetRow = row;
             break;
@@ -213,8 +216,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     if (!targetRow) {
-      test.skip();
-      return;
+      throw new Error("No campaigns found with Ready to Send, In Progress, or Completed status for tracking test");
     }
 
     // Click View to see detailed sending status
@@ -227,30 +229,26 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     // Verify sending status indicators - look for various possible labels
     const statusIndicators = page.locator(
-      'text="Sent Emails", text="Emails Sent", ' +
-      'text="Generated Emails", text="Total Emails"'
+      'text="Sent Emails", text="Emails Sent", ' + 'text="Generated Emails", text="Total Emails"'
     );
     await expect(statusIndicators.first()).toBeVisible({ timeout: 10000 });
-    
+
     // Verify we have some content on the results page
     const contentCards = page.locator('[class*="card"], div[data-card]');
     expect(await contentCards.count()).toBeGreaterThan(0);
-    
+
     // Check for email list or status information
     const emailContent = page.locator(
-      '[data-email-preview], ' +
-      'div[class*="email"], ' +
-      'table tbody tr, ' +
-      'div[data-testid="email-list"]'
+      "[data-email-preview], " + 'div[class*="email"], ' + "table tbody tr, " + 'div[data-testid="email-list"]'
     );
-    
+
     // Should have some email-related content
-    if (await emailContent.count() > 0) {
+    if ((await emailContent.count()) > 0) {
       // Look for any status indicators
       const statusBadges = page.locator('[class*="badge"], span[class*="status"]');
-      
+
       // Just verify we have some status information displayed
-      if (await statusBadges.count() > 0) {
+      if ((await statusBadges.count()) > 0) {
         await expect(statusBadges.first()).toBeVisible();
       }
     }
@@ -266,7 +264,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     for (const status of activeStatuses) {
       const badge = page.locator('[class*="badge"]').filter({ hasText: status }).first();
-      if (await badge.count() > 0) {
+      if ((await badge.count()) > 0) {
         activeCampaign = page.locator("table tbody tr").filter({ has: badge });
         break;
       }
@@ -275,11 +273,11 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     if (!activeCampaign) {
       // Create a simple test to verify the UI is ready for updates
       const anyRow = page.locator("table tbody tr").first();
-      if (await anyRow.count() > 0) {
+      if ((await anyRow.count()) > 0) {
         // Verify progress cell exists and could show updates
-        const progressCell = anyRow.locator('td').nth(3); // Progress column
+        const progressCell = anyRow.locator("td").nth(3); // Progress column
         await expect(progressCell).toBeVisible();
-        
+
         // Progress should contain either numbers or status
         const progressText = await progressCell.textContent();
         expect(progressText).toBeTruthy();
@@ -288,7 +286,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     // For active campaigns, capture initial progress
-    const progressCell = activeCampaign.locator('td').nth(3);
+    const progressCell = activeCampaign.locator("td").nth(3);
     const initialProgress = await progressCell.textContent();
 
     // In a real test with active generation, we would:
@@ -306,28 +304,32 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
   test("should show campaign statistics and analytics", async ({ page }) => {
     // Find a completed campaign with statistics
-    const completedRow = page.locator("table tbody tr").filter({ 
-      has: page.locator('[class*="badge"]').filter({ hasText: "Completed" }) 
-    }).first();
+    const completedRow = page
+      .locator("table tbody tr")
+      .filter({
+        has: page.locator('[class*="badge"]').filter({ hasText: "Completed" }),
+      })
+      .first();
 
-    if (await completedRow.count() === 0) {
-      test.skip();
-      return;
+    if ((await completedRow.count()) === 0) {
+      throw new Error(
+        "No completed campaigns found for statistics test - need at least one campaign with Completed status"
+      );
     }
 
     // Check progress column for statistics
-    const progressCell = completedRow.locator('td').nth(3);
+    const progressCell = completedRow.locator("td").nth(3);
     const progressText = await progressCell.textContent();
 
     // Should show generated/sent/opened counts
     if (progressText) {
       // Could be in format like "10 Generated • 8 Sent • 3 Opened"
-      const hasStats = 
+      const hasStats =
         progressText.includes("Generated") ||
         progressText.includes("Sent") ||
         progressText.includes("Opened") ||
         progressText.match(/\d+/);
-        
+
       expect(hasStats).toBeTruthy();
     }
 
@@ -339,18 +341,18 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     await page.waitForLoadState("networkidle");
 
     // Verify analytics cards
-    const statsCards = page.locator('[class*="card"]').filter({ 
-      has: page.locator('text=/Total Donors|Generated Emails|Sent Emails|Open Rate|Click Rate/i') 
+    const statsCards = page.locator('[class*="card"]').filter({
+      has: page.locator("text=/Total Donors|Generated Emails|Sent Emails|Open Rate|Click Rate/i"),
     });
 
     expect(await statsCards.count()).toBeGreaterThan(0);
 
     // Each stat card should show a number
-    for (let i = 0; i < await statsCards.count(); i++) {
+    for (let i = 0; i < (await statsCards.count()); i++) {
       const card = statsCards.nth(i);
       const valueElement = card.locator('div[class*="text-2xl"], div[class*="font-bold"], div[class*="text-3xl"]');
-      
-      if (await valueElement.count() > 0) {
+
+      if ((await valueElement.count()) > 0) {
         const value = await valueElement.first().textContent();
         expect(value).toMatch(/\d+|[\d.]+%|Never|-/);
       }
@@ -360,21 +362,21 @@ test.describe("Campaign Regeneration and Status Checking", () => {
   test("should allow bulk regeneration from campaign list", async ({ page }) => {
     // Wait for table to load
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
-    
+
     // This tests the ability to trigger regeneration for multiple failed/incomplete campaigns
     let campaignsToRetry = [];
     const campaignRows = page.locator("table tbody tr");
-    
+
     // Find campaigns that can be retried
-    for (let i = 0; i < await campaignRows.count(); i++) {
+    for (let i = 0; i < (await campaignRows.count()); i++) {
       const row = campaignRows.nth(i);
-      
+
       // Check if row has a retry button
       const retryButton = row.locator('button:has-text("Retry")');
-      if (await retryButton.count() > 0) {
+      if ((await retryButton.count()) > 0) {
         // Check status to confirm it needs retry
         const statusBadge = row.locator('[class*="badge"], span[data-status]').first();
-        if (await statusBadge.count() > 0) {
+        if ((await statusBadge.count()) > 0) {
           const status = await statusBadge.textContent();
           if (status && (status.includes("Failed") || status.includes("Pending") || status.includes("Partial"))) {
             campaignsToRetry.push({ row, retryButton });
@@ -384,21 +386,22 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     }
 
     if (campaignsToRetry.length === 0) {
-      test.skip();
-      return;
+      throw new Error(
+        "No campaigns available for bulk retry test - need campaigns with Failed, Pending, or Partial status that have retry buttons"
+      );
     }
 
     // Test batch retry by clicking multiple retry buttons
     const retriesToTest = Math.min(2, campaignsToRetry.length);
     const initialStatuses = [];
-    
+
     // Capture initial statuses
     for (let i = 0; i < retriesToTest; i++) {
       const statusBadge = campaignsToRetry[i].row.locator('[class*="badge"], span[data-status]').first();
       const status = await statusBadge.textContent();
       initialStatuses.push(status);
     }
-    
+
     // Click retry buttons
     for (let i = 0; i < retriesToTest; i++) {
       await campaignsToRetry[i].retryButton.click();
@@ -407,18 +410,18 @@ test.describe("Campaign Regeneration and Status Checking", () => {
 
     // Wait for status updates
     await page.waitForTimeout(3000);
-    
+
     // Verify statuses changed
     let changedCount = 0;
     for (let i = 0; i < retriesToTest; i++) {
       const statusBadge = campaignsToRetry[i].row.locator('[class*="badge"], span[data-status]').first();
       const newStatus = await statusBadge.textContent();
-      
+
       if (newStatus !== initialStatuses[i]) {
         changedCount++;
       }
     }
-    
+
     // At least one should have changed status
     expect(changedCount).toBeGreaterThan(0);
   });
