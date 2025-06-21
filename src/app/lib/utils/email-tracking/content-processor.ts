@@ -50,39 +50,78 @@ export function processEmailContentWithTracking(
   const htmlPieces = structuredContent.map((piece) => {
     let processedPiece = piece.piece;
 
-    // Find and replace URLs with tracking URLs
-    processedPiece = processedPiece.replace(URL_REGEX, (match, url) => {
-      linkPosition++;
-      const linkTrackerId = generateTrackingId();
+    // Check if this piece is already HTML (e.g., signatures)
+    const isSignature = piece.references.includes("signature");
+    const containsHTML = piece.piece.includes("<") && piece.piece.includes(">");
+    const isAlreadyHTML = isSignature || containsHTML;
 
-      // Extract link text (use URL as fallback)
-      const linkText = url;
+    if (!isAlreadyHTML) {
+      // Find and replace URLs with tracking URLs for plain text content
+      processedPiece = processedPiece.replace(URL_REGEX, (match, url) => {
+        linkPosition++;
+        const linkTrackerId = generateTrackingId();
 
-      // Create link tracker
-      const linkTracker: LinkTracker = {
-        id: linkTrackerId,
-        emailTrackerId,
-        originalUrl: url,
-        linkText,
-        position: linkPosition,
-        createdAt: new Date(),
-      };
+        // Extract link text (use URL as fallback)
+        const linkText = url;
 
-      linkTrackers.push(linkTracker);
+        // Create link tracker
+        const linkTracker: LinkTracker = {
+          id: linkTrackerId,
+          emailTrackerId,
+          originalUrl: url,
+          linkText,
+          position: linkPosition,
+          createdAt: new Date(),
+        };
 
-      // Create tracking URL
-      const trackingUrl = `${trackingBaseUrl}/api/track/click/${linkTrackerId}?url=${encodeURIComponent(url)}`;
+        linkTrackers.push(linkTracker);
 
-      return `<a href="${trackingUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
-    });
+        // Create tracking URL
+        const trackingUrl = `${trackingBaseUrl}/api/track/click/${linkTrackerId}?url=${encodeURIComponent(url)}`;
 
-    // Convert line breaks to HTML <br> tags
-    processedPiece = processedPiece.replace(/\n/g, "<br>");
+        return `<a href="${trackingUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+      });
 
-    // Wrap in paragraph if it should have a newline after
-    if (piece.addNewlineAfter) {
-      return `<p>${processedPiece}</p>`;
+      // Convert line breaks to HTML <br> tags for plain text
+      processedPiece = processedPiece.replace(/\n/g, "<br>");
+
+      // Wrap in paragraph if it should have a newline after
+      if (piece.addNewlineAfter) {
+        return `<p>${processedPiece}</p>`;
+      } else {
+        return processedPiece;
+      }
     } else {
+      // For HTML content (like signatures), process embedded links but preserve HTML structure
+      processedPiece = processedPiece.replace(URL_REGEX, (match, url) => {
+        // Skip if URL is already in an href attribute
+        if (match.includes("href=")) return match;
+
+        linkPosition++;
+        const linkTrackerId = generateTrackingId();
+
+        // Extract link text (use URL as fallback)
+        const linkText = url;
+
+        // Create link tracker
+        const linkTracker: LinkTracker = {
+          id: linkTrackerId,
+          emailTrackerId,
+          originalUrl: url,
+          linkText,
+          position: linkPosition,
+          createdAt: new Date(),
+        };
+
+        linkTrackers.push(linkTracker);
+
+        // Create tracking URL
+        const trackingUrl = `${trackingBaseUrl}/api/track/click/${linkTrackerId}?url=${encodeURIComponent(url)}`;
+
+        return `<a href="${trackingUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+      });
+
+      // Return HTML content as-is (no paragraph wrapping)
       return processedPiece;
     }
   });
@@ -128,7 +167,7 @@ function encodeEmailHeaderValue(value: string): string {
   }
 
   // Encode using base64 with UTF-8 charset per RFC 2047
-  const encoded = Buffer.from(value, 'utf8').toString('base64');
+  const encoded = Buffer.from(value, "utf8").toString("base64");
   return `=?UTF-8?B?${encoded}?=`;
 }
 
@@ -144,7 +183,7 @@ export function createHtmlEmail(
 ): string {
   // Encode the subject line to handle special characters like smart quotes
   const encodedSubject = encodeEmailHeaderValue(subject);
-  
+
   // Simple HTML with minimal styling to avoid quoted-printable
   const htmlBody = `<!DOCTYPE html>
 <html>
@@ -183,7 +222,7 @@ ${htmlBody}`;
 export function createTextEmail(to: string, subject: string, textContent: string, from?: string): string {
   // Encode the subject line to handle special characters like smart quotes
   const encodedSubject = encodeEmailHeaderValue(subject);
-  
+
   // Build the email headers with properly encoded subject
   let headers = `To: ${to}
 Subject: ${encodedSubject}`;

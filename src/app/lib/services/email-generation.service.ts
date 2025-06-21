@@ -35,6 +35,7 @@ export interface GenerateEmailsInput {
     role: "user" | "assistant";
     content: string;
   }>;
+  signature?: string;
 }
 
 /**
@@ -200,7 +201,7 @@ export class EmailGenerationService {
       userMemories,
       organizationMemories,
       currentDate,
-      user?.emailSignature || undefined,
+      input.signature || user?.emailSignature || undefined, // Use provided signature or fallback to user signature
       previousInstruction, // Pass the previous instruction to enable stateful refinement
       chatHistory // Pass the chat history to the refinement agent
     );
@@ -210,7 +211,7 @@ export class EmailGenerationService {
       where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
     });
 
-    // Add staff signatures to each generated email
+    // Add signatures to each generated email
     const emailsWithSignatures = result.emails.map((email) => {
       // Find the donor to get their assigned staff info
       const donor = fullDonorData.find((d) => d.id === email.donorId);
@@ -219,8 +220,12 @@ export class EmailGenerationService {
       // Create the appropriate signature
       let signature: string;
       let signatureSource: string;
-      
-      if (assignedStaff?.signature && assignedStaff.signature.trim()) {
+
+      if (input.signature && input.signature.trim()) {
+        // Use provided signature from WriteInstructionStep if available
+        signature = input.signature;
+        signatureSource = "provided custom signature";
+      } else if (assignedStaff?.signature && assignedStaff.signature.trim()) {
         // Use custom signature if it exists and is not empty
         signature = assignedStaff.signature;
         signatureSource = `custom signature from assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
@@ -241,7 +246,7 @@ export class EmailGenerationService {
         signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
         signatureSource = user?.emailSignature ? "user email signature" : "default fallback signature";
       }
-      
+
       // Log signature usage for debugging
       logger.info(`Email for donor ${donor?.displayName || donor?.firstName}: Using ${signatureSource}`);
 
@@ -250,7 +255,7 @@ export class EmailGenerationService {
         ...email.structuredContent,
         {
           piece: signature,
-          references: [],
+          references: ["signature"], // Mark as signature content
           addNewlineAfter: false,
         },
       ];

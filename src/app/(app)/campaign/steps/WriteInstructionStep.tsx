@@ -4,6 +4,7 @@ import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useProjects } from "@/app/hooks/use-projects";
+import { useStaff } from "@/app/hooks/use-staff";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,8 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Mail, Plus, RefreshCw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Mention, MentionsInput } from "react-mentions";
@@ -25,6 +28,7 @@ import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
 import { EmailListViewer, BaseGeneratedEmail, BaseDonor } from "../components/EmailListViewer";
 import { SuggestedMemories } from "../components/SuggestedMemories";
+import { SignatureEditor, SignaturePreview } from "@/components/signature";
 import "../styles.css";
 
 interface WriteInstructionStepProps {
@@ -156,6 +160,14 @@ export function WriteInstructionStep({
   const [activeTab, setActiveTab] = useState("chat");
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+
+  // Signature-related state
+  const [selectedSignatureType, setSelectedSignatureType] = useState<"none" | "custom" | "staff">("none");
+  const [customSignature, setCustomSignature] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
+  const [showSignatureEditor, setShowSignatureEditor] = useState(false);
+  const [showSignaturePreview, setShowSignaturePreview] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const lastPersistedData = useRef<string>("");
 
@@ -163,12 +175,19 @@ export function WriteInstructionStep({
   const { generateEmails, createSession, updateCampaign, regenerateAllEmails, saveGeneratedEmail, saveDraft } =
     useCommunications();
   const { listProjects } = useProjects();
+  const { listStaff } = useStaff();
   const { userId } = useAuth();
 
   // Batch fetch donor data for all selected donors
   const { getDonorsQuery } = useDonors();
   const { data: donorsData } = getDonorsQuery(selectedDonors);
   const { data: organization } = getOrganization();
+
+  // Fetch staff data for signature selection
+  const { data: staffData } = listStaff({
+    limit: 100,
+    isRealPerson: true,
+  });
 
   // Fetch projects for mentions
   const {
@@ -191,6 +210,24 @@ export function WriteInstructionStep({
       display: project.name,
     }));
   }, [projectsData]);
+
+  // Get selected staff member for signature
+  const selectedStaff = useMemo(() => {
+    if (!selectedStaffId || !staffData?.staff) return null;
+    return staffData.staff.find((staff) => staff.id === selectedStaffId) || null;
+  }, [selectedStaffId, staffData]);
+
+  // Get current signature based on selection
+  const currentSignature = useMemo(() => {
+    switch (selectedSignatureType) {
+      case "custom":
+        return customSignature;
+      case "staff":
+        return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || "Staff"}`;
+      default:
+        return "";
+    }
+  }, [selectedSignatureType, customSignature, selectedStaff]);
 
   // Generate random subset of donors for preview on component mount (memoized to prevent recalculation)
   const initialPreviewDonors = useMemo(() => {
@@ -341,7 +378,7 @@ export function WriteInstructionStep({
           day: "numeric",
         });
 
-        // Generate emails using the hook
+        // Generate emails using the hook with signature
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
@@ -350,6 +387,7 @@ export function WriteInstructionStep({
           previousInstruction,
           currentDate, // Pass the current date
           chatHistory: chatMessages, // Pass the full chat history to the refinement agent
+          signature: currentSignature, // Pass the selected signature
         });
 
         if (result) {
@@ -484,6 +522,7 @@ export function WriteInstructionStep({
       sessionId,
       saveGeneratedEmail,
       saveChatHistory,
+      currentSignature,
     ]
   );
 
@@ -922,10 +961,14 @@ export function WriteInstructionStep({
       {/* Main Content with Tabs */}
       <div className="flex-1 min-h-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="chat" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Chat & Generate
+            </TabsTrigger>
+            <TabsTrigger value="signature" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Signature
             </TabsTrigger>
             <TabsTrigger value="preview" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
@@ -1038,6 +1081,129 @@ export function WriteInstructionStep({
             </div>
           </TabsContent>
 
+          {/* Signature Tab */}
+          <TabsContent value="signature" className="flex-1 min-h-0 mt-3">
+            <Card className="h-full flex flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Email Signature Settings
+                </CardTitle>
+                <CardDescription>Configure the signature that will be added to all generated emails.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-0 space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signature-type">Signature Type</Label>
+                    <Select
+                      value={selectedSignatureType}
+                      onValueChange={(value: "none" | "custom" | "staff") => setSelectedSignatureType(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select signature type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No signature</SelectItem>
+                        <SelectItem value="custom">Custom signature</SelectItem>
+                        <SelectItem value="staff">Staff member signature</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedSignatureType === "staff" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-select">Select Staff Member</Label>
+                      <Select
+                        value={selectedStaffId?.toString() || ""}
+                        onValueChange={(value) => setSelectedStaffId(value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a staff member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {staffData?.staff.map((staff) => (
+                            <SelectItem key={staff.id} value={staff.id.toString()}>
+                              {staff.firstName} {staff.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {selectedSignatureType === "custom" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Custom Signature</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowSignatureEditor(true)}
+                            className="flex items-center gap-2"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowSignaturePreview(true)}
+                            className="flex items-center gap-2"
+                            disabled={!customSignature.trim()}
+                          >
+                            <Eye className="h-4 w-4" />
+                            Preview
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="p-4 border rounded-lg bg-muted/50 min-h-[100px]">
+                        {customSignature ? (
+                          <div
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: customSignature }}
+                          />
+                        ) : (
+                          <p className="text-muted-foreground text-sm">
+                            Click "Edit" to create a custom signature with formatting and images.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedSignatureType === "staff" && selectedStaff && (
+                    <div className="space-y-2">
+                      <Label>Selected Staff Signature</Label>
+                      <div className="p-4 border rounded-lg bg-muted/50 min-h-[100px]">
+                        {selectedStaff.signature && selectedStaff.signature.trim() ? (
+                          <div
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: selectedStaff.signature }}
+                          />
+                        ) : (
+                          <p className="text-sm">
+                            Best,
+                            <br />
+                            {selectedStaff.firstName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedSignatureType !== "none" && currentSignature && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        This signature will be automatically added to all generated emails in this campaign.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Preview Tab */}
           <TabsContent value="preview" className="flex-1 min-h-0 mt-3">
             <Card className="h-full flex flex-col">
@@ -1148,6 +1314,54 @@ export function WriteInstructionStep({
         </Button>
       </div>
 
+      {/* Signature Editor Dialog */}
+      <Dialog open={showSignatureEditor} onOpenChange={setShowSignatureEditor}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Custom Signature</DialogTitle>
+            <DialogDescription>Create a rich signature with formatting, links, and images.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-6 max-h-[70vh] overflow-hidden">
+            <div className="space-y-4">
+              <SignatureEditor
+                value={customSignature}
+                onChange={setCustomSignature}
+                placeholder="Create your email signature..."
+              />
+            </div>
+            <div className="border-l pl-6">
+              <h4 className="font-medium mb-3">Preview</h4>
+              <SignaturePreview signature={customSignature} staffName="Your Name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSignatureEditor(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setShowSignatureEditor(false)}>Save Signature</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Preview Dialog */}
+      <Dialog open={showSignaturePreview} onOpenChange={setShowSignaturePreview}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Signature Preview</DialogTitle>
+            <DialogDescription>This is how your signature will appear in emails.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <SignaturePreview
+              signature={currentSignature}
+              staffName={selectedStaff ? `${selectedStaff.firstName} ${selectedStaff.lastName}` : "Your Name"}
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowSignaturePreview(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk Generation Confirmation Dialog */}
       <Dialog open={showBulkGenerationDialog} onOpenChange={setShowBulkGenerationDialog}>
         <DialogContent className="max-w-2xl">
@@ -1195,6 +1409,23 @@ export function WriteInstructionStep({
                     </ScrollArea>
                   </div>
                 </div>
+
+                {selectedSignatureType !== "none" && currentSignature && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Selected Signature</p>
+                    <div className="bg-muted rounded-lg p-3">
+                      <div
+                        className="prose prose-sm max-w-none text-sm"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            currentSignature.length > 200
+                              ? currentSignature.substring(0, 200) + "..."
+                              : currentSignature,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

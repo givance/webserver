@@ -29,6 +29,7 @@ const generateEmailsSchema = z.object({
       })
     )
     .optional(),
+  signature: z.string().optional(),
 });
 
 const createSessionSchema = z.object({
@@ -387,11 +388,7 @@ export const emailCampaignsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const schedulingService = new EmailSchedulingService();
-      return await schedulingService.resumeCampaign(
-        input.sessionId,
-        ctx.auth.user.organizationId,
-        ctx.auth.user.id
-      );
+      return await schedulingService.resumeCampaign(input.sessionId, ctx.auth.user.organizationId, ctx.auth.user.id);
     }),
 
   /**

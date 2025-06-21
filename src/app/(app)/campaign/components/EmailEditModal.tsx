@@ -126,11 +126,25 @@ export function EmailEditModal({
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm font-sans">
-              {previewStructured.map((piece, index) => (
-                <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
-                  <span className="whitespace-pre-wrap">{piece.piece}</span>
-                </div>
-              ))}
+              {previewStructured.map((piece, index) => {
+                // Check if this is signature content or contains HTML
+                const isSignature = piece.references.includes("signature");
+                const containsHTML = piece.piece.includes("<") && piece.piece.includes(">");
+                const shouldRenderHTML = isSignature || containsHTML;
+
+                return (
+                  <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                    {shouldRenderHTML ? (
+                      <div
+                        className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
+                        dangerouslySetInnerHTML={{ __html: piece.piece }}
+                      />
+                    ) : (
+                      <span className="whitespace-pre-wrap">{piece.piece}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
