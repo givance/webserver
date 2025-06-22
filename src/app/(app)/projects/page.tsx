@@ -12,7 +12,6 @@ import { usePagination } from "@/app/hooks/use-pagination";
 import { useSearch } from "@/app/hooks/use-search";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
-import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import { CampaignButton } from "@/components/campaign/CampaignButton";
 import { Container } from "@/components/ui/container";
 
@@ -75,14 +74,13 @@ export default function ProjectListPage() {
             </Link>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+          <div className="mb-4">
             <Input
               placeholder="Search projects by name or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:max-w-sm"
             />
-            <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
           </div>
 
           {isLoading && !listProjectsResponse ? (
@@ -97,6 +95,7 @@ export default function ProjectListPage() {
               pageCount={pageCount}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
             />
           )}
         </div>
