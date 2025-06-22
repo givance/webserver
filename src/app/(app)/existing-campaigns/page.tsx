@@ -299,6 +299,9 @@ function ConfirmationDialog({
                         will be retried automatically. You can pause, resume, or cancel at any time from the campaign
                         page.
                       </p>
+                      <p className="text-sm text-blue-800">
+                        To change the gap and daily limit, go to the <a href="/settings/email-schedule">Settings -> Email Schedule</a> page.
+                      </p>
                     </div>
                   </div>
                 )}
