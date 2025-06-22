@@ -162,6 +162,31 @@ export function WriteInstructionStep({
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+  // Update emails when initialGeneratedEmails prop changes (important for edit mode)
+  useEffect(() => {
+    if (editMode && initialGeneratedEmails.length > 0) {
+      console.log("[WriteInstructionStep] Updating emails from props:", initialGeneratedEmails.length);
+      setAllGeneratedEmails(initialGeneratedEmails);
+      setGeneratedEmails(initialGeneratedEmails);
+      
+      // Update email statuses
+      const statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+      initialGeneratedEmails.forEach((email) => {
+        statuses[email.donorId] = email.status || "PENDING_APPROVAL";
+      });
+      setEmailStatuses(statuses);
+      
+      // Build reference contexts from emails
+      const contexts: Record<number, Record<string, string>> = {};
+      initialGeneratedEmails.forEach((email) => {
+        if (email.referenceContexts) {
+          contexts[email.donorId] = email.referenceContexts;
+        }
+      });
+      setReferenceContexts(contexts);
+    }
+  }, [editMode, initialGeneratedEmails]);
+
   const [emailStatuses, setEmailStatuses] = useState<Record<number, "PENDING_APPROVAL" | "APPROVED">>(() => {
     // Initialize email statuses from existing emails
     const statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
@@ -193,6 +218,7 @@ export function WriteInstructionStep({
     saveGeneratedEmail,
     saveDraft,
     updateEmailStatus,
+    updateEmail,
   } = useCommunications();
   const { listProjects } = useProjects();
   const { listStaff } = useStaff();
@@ -1277,7 +1303,7 @@ export function WriteInstructionStep({
                       onEmailStatusChange={handleEmailStatusChange}
                       isUpdatingStatus={isUpdatingStatus}
                       sessionId={sessionId}
-                      onPreviewEdit={(donorId, newSubject, newContent) => {
+                      onPreviewEdit={async (donorId, newSubject, newContent) => {
                         // Update the local state with edited email
                         setAllGeneratedEmails((prev) =>
                           prev.map((email) =>
@@ -1286,7 +1312,25 @@ export function WriteInstructionStep({
                               : email
                           )
                         );
-                        toast.success("Email updated successfully!");
+                        
+                        // If we have a sessionId and the email has been saved (has an id), update it in the backend
+                        const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
+                        if (sessionId && emailToUpdate && emailToUpdate.id) {
+                          try {
+                            await updateEmail.mutateAsync({
+                              emailId: emailToUpdate.id,
+                              subject: newSubject,
+                              structuredContent: newContent,
+                              referenceContexts: emailToUpdate.referenceContexts,
+                            });
+                            toast.success("Email updated successfully!");
+                          } catch (error) {
+                            console.error("Failed to update email in backend:", error);
+                            toast.error("Failed to save email changes. Changes are only saved locally.");
+                          }
+                        } else {
+                          toast.success("Email updated locally!");
+                        }
                       }}
                       onPreviewEnhance={async (donorId, enhanceInstruction) => {
                         // Find the email to enhance
