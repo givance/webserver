@@ -204,7 +204,9 @@ ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 
 ${communicationHistoryPrompt ? `Past Communications:\n${communicationHistoryPrompt}\n` : ""}
 
-${personResearchPrompt ? `Person Research:\n${personResearchPrompt}\n` : ""}`;
+${/* Person research removed from prompts
+personResearchPrompt ? `Person Research:\n${personResearchPrompt}\n` : ""
+*/""}`;
 }
 
 /**

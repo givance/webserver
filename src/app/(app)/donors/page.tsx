@@ -405,6 +405,7 @@ export default function DonorListPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold">Donor Management</h1>
+          {/* Research progress info hidden
           {researchStatistics && !isLoadingStatistics && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Info className="w-4 h-4" />
@@ -414,8 +415,10 @@ export default function DonorListPage() {
               </span>
             </div>
           )}
+          */}
         </div>
         <div className="flex gap-2">
+          {/* Research Donors button and dialog hidden
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button disabled={researchStatistics?.unresearchedDonors === 0} variant="outline">
@@ -511,6 +514,7 @@ export default function DonorListPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          */}
 
           {/* Environment-based delete buttons */}
           {isDevelopment ? (
@@ -628,7 +632,7 @@ export default function DonorListPage() {
           <PageSizeSelector pageSize={pageSize} onPageSizeChange={setPageSize} />
         </div>
 
-        {/* Second row with researched donors checkbox */}
+        {/* Second row with researched donors checkbox - hidden
         <div className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -641,6 +645,7 @@ export default function DonorListPage() {
             Show only researched donors
           </label>
         </div>
+        */}
       </div>
 
       {/* Selection controls */}

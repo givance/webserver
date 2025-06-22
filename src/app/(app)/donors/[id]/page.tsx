@@ -339,10 +339,12 @@ export default function DonorProfilePage() {
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Research button hidden
           <Button variant="outline" onClick={conductResearch} disabled={isConductingResearch}>
             <Search className="h-4 w-4 mr-2" />
             {isConductingResearch ? "Researching..." : "Research"}
           </Button>
+          */}
           <Button variant="outline" asChild>
             <Link href={`/donors/email/${donorId}`}>
               <Mail className="h-4 w-4 mr-2" />
@@ -648,7 +650,9 @@ export default function DonorProfilePage() {
         <TabsList>
           <TabsTrigger value="donations">Donations ({donationCount})</TabsTrigger>
           <TabsTrigger value="communications">Communications ({communicationCount})</TabsTrigger>
+          {/* Research tab hidden
           <TabsTrigger value="research">Research {hasResearch && <span className="ml-1 text-xs">✓</span>}</TabsTrigger>
+          */}
         </TabsList>
 
         <TabsContent value="donations">
@@ -730,9 +734,11 @@ export default function DonorProfilePage() {
           </Card>
         </TabsContent>
 
+        {/* Research tab content hidden
         <TabsContent value="research">
           <DonorResearchDisplay donorId={donorId} donorName={formatDonorName(donor)} />
         </TabsContent>
+        */}
       </Tabs>
     </div>
   );
