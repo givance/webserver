@@ -40,6 +40,7 @@ import React, { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { usePagination } from "@/app/hooks/use-pagination";
 
 /**
  * Form schema for staff editing
@@ -92,6 +93,9 @@ export default function StaffDetailPage() {
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
+
+  // Use pagination hook for donors table
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
 
   const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
   const {
@@ -937,10 +941,11 @@ export default function StaffDetailPage() {
                   columns={donorColumns}
                   data={assignedDonors}
                   totalItems={assignedDonors.length}
-                  pageSize={20}
-                  pageCount={Math.ceil(assignedDonors.length / 20)}
-                  currentPage={1}
-                  onPageChange={() => {}}
+                  pageSize={pageSize}
+                  pageCount={getPageCount(assignedDonors.length)}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
                 />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
