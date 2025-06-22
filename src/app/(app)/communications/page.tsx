@@ -149,6 +149,10 @@ function CommunicationsContent() {
             pageCount={pageCount}
             currentPage={currentPage}
             onPageChange={handlePageChange}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
           />
         )}
 

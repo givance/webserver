@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, Eye, Trash2, Mail, Send, FileText, HelpCircle, Edit, Calendar } from "lucide-react";
-import Link from "next/link";
-import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useCommunications } from "@/app/hooks/use-communications";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+
+import { trpc } from "@/app/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ColumnDef } from "@tanstack/react-table";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table/DataTable";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +15,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { trpc } from "@/app/lib/trpc/client";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+import { ColumnDef } from "@tanstack/react-table";
+import { Edit, Eye, FileText, HelpCircle, RefreshCw, Send, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import React, { Suspense, useState } from "react";
+import { toast } from "sonner";
 
 // Enhanced status badge function
 function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any) {
   const { status, totalEmails, sentEmails, totalDonors, completedDonors } = campaign;
+
+  // Debug logging for campaign status
+  console.log(`[StatusBadge] Campaign ${campaign.id} (${campaign.campaignName}):`, {
+    status,
+    totalEmails,
+    sentEmails,
+    totalDonors,
+    completedDonors,
+  });
 
   // If the campaign failed, show failed status
   if (status === "FAILED") {
@@ -332,8 +342,8 @@ function ConfirmationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button 
-            onClick={() => onConfirm(action === "send" ? sendType : undefined)} 
+          <Button
+            onClick={() => onConfirm(action === "send" ? sendType : undefined)}
             disabled={isLoading || (action === "send" && unsentCount === 0)}
           >
             {isLoading ? "Processing..." : actionTitle}
@@ -384,6 +394,18 @@ function ExistingCampaignsContent() {
   const campaigns = campaignsResponse?.campaigns || [];
   const totalCount = campaignsResponse?.totalCount || 0;
   const pageCount = Math.ceil(totalCount / pageSize);
+
+  // Debug logging
+  console.log(
+    "[ExistingCampaigns] Campaigns data:",
+    campaigns.map((c) => ({
+      id: c.id,
+      name: c.campaignName,
+      status: c.status,
+      totalDonors: c.totalDonors,
+      completedDonors: c.completedDonors,
+    }))
+  );
 
   const ActionButtonWrapper = ({
     disabled,
@@ -754,14 +776,6 @@ function ExistingCampaignsContent() {
         currentPage={currentPage}
         onPageChange={handlePageChange}
         title="Existing Campaigns"
-        // TODO: bring back create button
-        // ctaButton={
-        //   <Button asChild>
-        //     <Link href="/campaign/steps/1">
-        //       <Plus className="mr-2 h-4 w-4" /> Create Campaign
-        //     </Link>
-        //   </Button>
-        // }
       />
     </div>
   );

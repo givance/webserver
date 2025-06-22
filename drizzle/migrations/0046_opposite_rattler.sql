@@ -1,0 +1,3 @@
+-- CREATE TYPE "public"."email_generation_session_status" AS ENUM('DRAFT', 'GENERATING', 'READY_TO_SEND', 'COMPLETED');--> statement-breakpoint
+ALTER TABLE "email_generation_sessions" ALTER COLUMN "status" SET DEFAULT 'DRAFT'::"public"."email_generation_session_status";--> statement-breakpoint
+ALTER TABLE "email_generation_sessions" ALTER COLUMN "status" SET DATA TYPE "public"."email_generation_session_status" USING "status"::"public"."email_generation_session_status";

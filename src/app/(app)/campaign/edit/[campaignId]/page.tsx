@@ -12,8 +12,6 @@ export default function EditCampaignPage() {
   const router = useRouter();
   const campaignId = Number(params.campaignId);
   const { getSession } = useCommunications();
-  const [isLoading, setIsLoading] = useState(true);
-  const [campaignData, setCampaignData] = useState<any>(null);
 
   // Load existing campaign data
   const { data: sessionData, isLoading: isLoadingSession, error: sessionError } = getSession({ sessionId: campaignId });
@@ -25,17 +23,17 @@ export default function EditCampaignPage() {
       return;
     }
 
-    if (sessionData && !isLoadingSession) {
+    if (sessionData) {
       // Check if campaign is still processing
-      // Block editing if the campaign is actively generating emails or sending them
-      // All other statuses (DRAFT, PENDING, COMPLETED, FAILED) are allowed for editing
+      // Block editing if the campaign is actively generating emails
+      // All other statuses (DRAFT, READY_TO_SEND, COMPLETED) are allowed for editing
       if (sessionData.session.status === "GENERATING") {
         toast.error("Cannot edit campaign while emails are being generated");
         router.push("/existing-campaigns");
         return;
       }
 
-      console.log("[EditCampaignPage] Session data loaded:", {
+      console.log("[EditCampaignPage] Session data updated:", {
         campaignId,
         campaignName: sessionData.session.jobName,
         refinedInstruction: sessionData.session.refinedInstruction,
@@ -43,18 +41,16 @@ export default function EditCampaignPage() {
         status: sessionData.session.status,
         totalDonors: sessionData.session.totalDonors,
         completedDonors: sessionData.session.completedDonors,
+        emailCount: sessionData.emails?.length || 0,
       });
-
-      setCampaignData(sessionData);
-      setIsLoading(false);
     }
-  }, [sessionData, isLoadingSession, sessionError, router, campaignId]);
+  }, [sessionData, sessionError, router, campaignId]);
 
   const handleClose = () => {
     router.push("/existing-campaigns");
   };
 
-  if (isLoading || isLoadingSession) {
+  if (isLoadingSession) {
     return (
       <div className="container mx-auto py-8">
         <Skeleton className="h-8 w-64 mb-4" />
@@ -63,7 +59,7 @@ export default function EditCampaignPage() {
     );
   }
 
-  if (!campaignData) {
+  if (!sessionData) {
     return (
       <div className="container mx-auto py-8">
         <p className="text-red-500">Campaign not found</p>
@@ -74,23 +70,24 @@ export default function EditCampaignPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Edit Campaign: {campaignData.session.jobName}</h1>
+        <h1 className="text-2xl font-bold">Edit Campaign: {sessionData.session.jobName}</h1>
         <p className="text-gray-600">Continue editing your campaign and chat with the AI to refine your messaging.</p>
       </div>
 
       <CampaignSteps
+        key={`campaign-${campaignId}-${sessionData.emails?.length || 0}`}
         onClose={handleClose}
         editMode={true}
         existingCampaignData={{
           campaignId: campaignId,
-          campaignName: campaignData.session.jobName,
-          selectedDonorIds: campaignData.session.selectedDonorIds,
-          chatHistory: campaignData.session.chatHistory,
-          instruction: campaignData.session.instruction || "", // Pass the original instruction for fallback
-          templateId: campaignData.session.templateId,
-          refinedInstruction: campaignData.session.refinedInstruction,
+          campaignName: sessionData.session.jobName,
+          selectedDonorIds: sessionData.session.selectedDonorIds,
+          chatHistory: sessionData.session.chatHistory,
+          instruction: sessionData.session.instruction || "", // Pass the original instruction for fallback
+          templateId: sessionData.session.templateId,
+          refinedInstruction: sessionData.session.refinedInstruction,
           // Include any existing generated emails for reference
-          existingGeneratedEmails: campaignData.emails || [],
+          existingGeneratedEmails: sessionData.emails || [],
         }}
       />
     </div>

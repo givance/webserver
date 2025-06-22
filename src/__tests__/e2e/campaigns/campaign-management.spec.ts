@@ -1,7 +1,5 @@
 import { test, expect } from "@playwright/test";
-import {
-  navigateToCampaignCreation,
-} from "./helper";
+import { navigateToCampaignCreation } from "./helper";
 
 test.describe("Campaign Management", () => {
   test.beforeEach(async ({ page }) => {
@@ -70,34 +68,32 @@ test.describe("Campaign Management", () => {
     // Navigate to campaign creation
     await navigateToCampaignCreation(page);
 
-      if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
-        // Check if campaign creation elements exist
-        const creationElements = [
-          "form",
-          'input[name*="name"]',
-          'input[name*="subject"]',
-          "textarea",
-          'button:has-text("Next")',
-          'button:has-text("Create")',
-          'button:has-text("Save")',
-          ".wizard",
-          ".step",
-          ".campaign-form",
-        ];
+    if (!page.url().includes("sign-in") && !page.url().includes("auth")) {
+      // Check if campaign creation elements exist
+      const creationElements = [
+        "form",
+        'input[name*="name"]',
+        'input[name*="subject"]',
+        "textarea",
+        'button:has-text("Next")',
+        'button:has-text("Create")',
+        'button:has-text("Save")',
+        ".wizard",
+        ".step",
+        ".campaign-form",
+      ];
 
-        let hasCreationElements = false;
-        for (const selector of creationElements) {
-          const element = page.locator(selector).first();
-          if (await element.isVisible().catch(() => false)) {
-            hasCreationElements = true;
-            break;
-          }
-        }
-
-        if (hasCreationElements) {
-          expect(hasCreationElements).toBe(true);
+      let hasCreationElements = false;
+      for (const selector of creationElements) {
+        const element = page.locator(selector).first();
+        if (await element.isVisible().catch(() => false)) {
+          hasCreationElements = true;
           break;
         }
+      }
+
+      if (hasCreationElements) {
+        expect(hasCreationElements).toBe(true);
       }
     }
   });

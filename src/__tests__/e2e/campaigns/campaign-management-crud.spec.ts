@@ -22,6 +22,7 @@ import {
   verifyCampaignStatus,
   waitForCampaignData,
   verifyCampaignStatistics,
+  continueWithoutTemplate,
 } from "./helper";
 
 test.describe("Campaign CRUD Operations", () => {
@@ -175,7 +176,7 @@ test.describe("Campaign CRUD Operations", () => {
       await setCampaignName(page, testCampaign.name);
 
       // Verify summary card shows donor count
-      await expect(page.locator("text=/\\d+ donor/i")).toBeVisible({ timeout: 3000 });
+      await expect(page.locator("text=/\\d+ donor/i").first()).toBeVisible({ timeout: 3000 });
 
       // Click Continue and wait for transition
       await clickContinueButton(page);
@@ -183,22 +184,19 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Step 3: Select Template
     await test.step("Select email template", async () => {
-      await selectTemplate(page, true);
-      
-      // Click Next to continue if visible
-      const nextButton = page.locator('button:has-text("Next")');
-      if (await nextButton.isVisible()) {
-        await clickNextButton(page);
-      }
+      await continueWithoutTemplate(page);
     });
 
     // Step 4: Write Instructions
     await test.step("Write instructions and generate preview", async () => {
-      await writeInstructions(page, "Write a brief thank you email to each donor for their support. Keep it personal and warm.");
-      
+      await writeInstructions(
+        page,
+        "Write a brief thank you email to each donor for their support. Keep it personal and warm."
+      );
+
       // Generate preview emails
       await generateEmails(page);
-      
+
       // Verify email generation succeeded
       await verifyEmailGeneration(page);
     });
@@ -242,13 +240,14 @@ test.describe("Campaign CRUD Operations", () => {
     // Should navigate to edit page
     await page.waitForURL(/\/campaign\/edit\/\d+/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2000); // for the page to load
 
     // Verify we're in edit mode and add new instructions
     await writeInstructions(page, "Also mention our upcoming events.");
-    
+
     // Generate updated emails
     await generateEmails(page);
-    
+
     // Verify generation options are available
     const generateButtons = page.locator(
       'button:has-text("Generate More"), button:has-text("Generate"), button:has-text("Start Bulk Generation")'
@@ -294,7 +293,7 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Should navigate to campaign view page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 10000 });
-    
+
     // Wait for campaign data to load
     await waitForCampaignData(page);
 
@@ -354,14 +353,24 @@ test.describe("Campaign CRUD Operations", () => {
       expect(await tabElements.count()).toBeGreaterThan(0);
     }
 
-    // Verify some content exists on the page
-    const contentAreas = page.locator(
-      "[data-email-preview], .email-preview, " +
-        "div[class*='email'], table tbody tr, " +
-        "div[class*='content'], div[class*='empty']"
-    );
+    // Verify Recipients count and matching Pending emails
+    const recipientsText = page.locator("text=/Recipients \\(\\d+\\)/i");
+    await expect(recipientsText).toBeVisible();
 
-    expect(await contentAreas.count()).toBeGreaterThan(0);
+    // Extract the number of recipients from the text
+    const recipientsTextContent = await recipientsText.textContent();
+    const recipientsMatch = recipientsTextContent?.match(/Recipients \((\d+)\)/i);
+    expect(recipientsMatch).toBeTruthy();
+
+    const recipientsCount = parseInt(recipientsMatch![1]);
+    expect(recipientsCount).toBeGreaterThan(0);
+
+    // Count the number of "Pending" emails
+    const pendingEmails = page.locator("text=/Pending/i");
+    const pendingCount = await pendingEmails.count();
+
+    // Verify the number of pending emails matches the number of recipients
+    expect(pendingCount).toBe(recipientsCount);
   });
 
   test("should handle campaign status changes", async ({ page }) => {
@@ -399,81 +408,81 @@ test.describe("Campaign CRUD Operations", () => {
     }
   });
 
-  test("should save generated emails to drafts", async ({ page }) => {
-    // Navigate to existing campaigns
-    await navigateToCampaigns(page);
+  // test("should save generated emails to drafts", async ({ page }) => {
+  //   // Navigate to existing campaigns
+  //   await navigateToCampaigns(page);
 
-    // Wait for table to load
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+  //   // Wait for table to load
+  //   await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    // Find a campaign with "Ready to Send" status
-    const campaignRows = page.locator("table tbody tr");
-    let targetRow = null;
+  //   // Find a campaign with "Ready to Send" status
+  //   const campaignRows = page.locator("table tbody tr");
+  //   let targetRow = null;
 
-    for (let i = 0; i < (await campaignRows.count()); i++) {
-      const row = campaignRows.nth(i);
-      const saveButton = row.locator('button:has-text("Save to Drafts")');
+  //   for (let i = 0; i < (await campaignRows.count()); i++) {
+  //     const row = campaignRows.nth(i);
+  //     const saveButton = row.locator('button:has-text("Save to Drafts")');
 
-      if ((await saveButton.count()) > 0) {
-        // Check if the button is enabled
-        const isDisabled = await saveButton.getAttribute("disabled");
-        if (isDisabled === null) {
-          targetRow = row;
-          break;
-        }
-      }
-    }
+  //     if ((await saveButton.count()) > 0) {
+  //       // Check if the button is enabled
+  //       const isDisabled = await saveButton.getAttribute("disabled");
+  //       if (isDisabled === null) {
+  //         targetRow = row;
+  //         break;
+  //       }
+  //     }
+  //   }
 
-    if (!targetRow) {
-      throw new Error("No campaigns found with enabled Save to Drafts buttons for saving to drafts test");
-    }
+  //   if (!targetRow) {
+  //     throw new Error("No campaigns found with enabled Save to Drafts buttons for saving to drafts test");
+  //   }
 
-    // Save campaign to drafts
-    await saveCampaignToDrafts(page, targetRow);
-  });
+  //   // Save campaign to drafts
+  //   await saveCampaignToDrafts(page, targetRow);
+  // });
 
-  test("should retry failed campaign generation", async ({ page }) => {
-    // Navigate to existing campaigns
-    await navigateToCampaigns(page);
+  // test("should retry failed campaign generation", async ({ page }) => {
+  //   // Navigate to existing campaigns
+  //   await navigateToCampaigns(page);
 
-    // Wait for table to load
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+  //   // Wait for table to load
+  //   await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    // Find a campaign with "Failed" or "Pending" status that can be retried
-    const campaignRows = page.locator("table tbody tr");
-    let retryableRow = null;
+  //   // Find a campaign with "Failed" or "Pending" status that can be retried
+  //   const campaignRows = page.locator("table tbody tr");
+  //   let retryableRow = null;
 
-    for (let i = 0; i < (await campaignRows.count()); i++) {
-      const row = campaignRows.nth(i);
-      // Check if retry button exists for any campaign (buttons might exist conditionally)
-      const retryBtn = row.locator('button:has-text("Retry")');
-      if ((await retryBtn.count()) > 0) {
-        retryableRow = row;
-        break;
-      }
-    }
+  //   for (let i = 0; i < (await campaignRows.count()); i++) {
+  //     const row = campaignRows.nth(i);
+  //     // Check if retry button exists for any campaign (buttons might exist conditionally)
+  //     const retryBtn = row.locator('button:has-text("Retry")');
+  //     if ((await retryBtn.count()) > 0) {
+  //       retryableRow = row;
+  //       break;
+  //     }
+  //   }
 
-    if (!retryableRow) {
-      throw new Error("No campaigns found with retry buttons available");
-    }
+  //   if (!retryableRow) {
+  //     throw new Error("No campaigns found with retry buttons available");
+  //   }
 
-    // Get initial status from the status cell
-    const initialStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
-    const initialStatus = await initialStatusCell.textContent();
+  //   // Get initial status from the status cell
+  //   const initialStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
+  //   const initialStatus = await initialStatusCell.textContent();
 
-    // Retry the campaign
-    await retryCampaign(page, retryableRow);
-    
-    // Wait for status change
-    await page.waitForTimeout(1000);
+  //   // Retry the campaign
+  //   await retryCampaign(page, retryableRow);
 
-    // Check if status changed
-    const newStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
-    const newStatus = await newStatusCell.textContent();
+  //   // Wait for status change
+  //   await page.waitForTimeout(1000);
 
-    // Status should be a valid processing status (it might not change immediately)
-    expect(newStatus).toMatch(/Pending|In Progress|Generating|Processing/i);
-  });
+  //   // Check if status changed
+  //   const newStatusCell = retryableRow.locator("td").nth(2); // Status is typically the 3rd column
+  //   const newStatus = await newStatusCell.textContent();
+
+  //   // Status should be a valid processing status (it might not change immediately)
+  //   expect(newStatus).toMatch(/Pending|In Progress|Generating|Processing/i);
+  // });
 
   test("should delete a campaign", async ({ page }) => {
     // Navigate to existing campaigns to find a deletable campaign

@@ -53,7 +53,7 @@ function formatPersonResearchWithIds(personResearch?: PersonResearchResult): {
 }
 
 /**
- * Builds the static system prompt that can be cached and reused.
+ * Builds the static system prompt that remains the same across all emails for an organization.
  * This includes all the formatting instructions, organization info, memories, and user instruction.
  */
 export function buildStructuredSystemPrompt(
@@ -93,14 +93,15 @@ REQUIREMENTS:
 - When talking about the donor's impact, you should use their past donation history to reference the impact they've had.
 
 IMPORTANT INSTRUCTIONS:
-- For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-01] or [comm-02-01]
-- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-1", "summary-paragraph-2"])
+- For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-context] or [comm-02-01]
+- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-context", "summary-paragraph-2"])
 - For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 - DO NOT use "-", "--" or "—" in the email ever.
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
 - PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 - Try to be as specific as possible, avoid general statements.
 - Do not mention small amount donations unless the user has specifically asked for it. Do not say "small" or "small amount" in the email.
+- DONATION CONTEXT: When referencing donations, use "donation-context" as the reference ID which contains ALL donation information. This allows you to mention multiple donations, specific amounts, dates, and projects from the donor's complete giving history.
 
 If the requirements or the important instructions conflicts with the task below, follow the task instruction.
 `;

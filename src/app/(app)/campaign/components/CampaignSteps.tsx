@@ -48,9 +48,8 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const [persistedChatHistory, setPersistedChatHistory] = useState<
     Array<{ role: "user" | "assistant"; content: string }>
   >(existingCampaignData?.chatHistory || []);
-  const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>(
-    existingCampaignData?.existingGeneratedEmails || []
-  );
+  // In edit mode, always use the fresh data from parent, not stale state
+  const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>([]);
   const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<Record<number, Record<string, string>>>(
     {}
   );
@@ -191,7 +190,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             onSessionDataChange={handleSessionDataChange}
             templatePrompt={editMode ? undefined : templatePrompt}
             initialChatHistory={persistedChatHistory}
-            initialGeneratedEmails={persistedGeneratedEmails}
+            initialGeneratedEmails={editMode && existingCampaignData?.existingGeneratedEmails ? existingCampaignData.existingGeneratedEmails : persistedGeneratedEmails}
             initialReferenceContexts={persistedReferenceContexts}
             initialPreviewDonorIds={persistedPreviewDonorIds}
             initialRefinedInstruction={existingCampaignData?.refinedInstruction}

@@ -192,6 +192,10 @@ export function ProjectDonations({ projectId }: ProjectDonationsProps) {
               pageCount={pageCount}
               currentPage={currentPage}
               onPageChange={handlePageChange}
+              onPageSizeChange={(size) => {
+                setPageSize(size as typeof pageSize);
+                setCurrentPage(1);
+              }}
             />
           )}
         </div>
