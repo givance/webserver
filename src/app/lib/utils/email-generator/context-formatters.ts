@@ -2,7 +2,8 @@ import { DonationWithDetails } from "../../data/donations";
 import { DonationInfo, FormattedCommunicationMessage, Organization, RawCommunicationThread } from "./types";
 
 /**
- * Formats donation history with unique IDs and prepares a string for the AI prompt.
+ * Formats donation history with a single donation context ID and prepares a string for the AI prompt.
+ * All donations are aggregated into one comprehensive context that the LLM can reference as a whole.
  * Donations are sorted by date (most recent first) and all fetched donations are included in the prompt string.
  *
  * @param donations - Array of donation information.
@@ -18,24 +19,27 @@ export function formatDonationHistoryWithIds(donations: DonationWithDetails[] = 
 
   const sortedDonations = [...donations].sort((a, b) => b.date.getTime() - a.date.getTime());
 
+  // Instead of individual IDs, assign a single context ID to all donations
   const donationsWithIds = sortedDonations.map((donation, index) => ({
     ...donation,
-    displayId: `donation-${index + 1}`,
+    displayId: "donation-context", // Single ID for all donations
   }));
 
-  const recentDonationsForPrompt = donationsWithIds;
-
-  const promptString = recentDonationsForPrompt
-    .map((d) => {
+  // Create a comprehensive donation context string with numbered list format
+  const donationDetails = sortedDonations
+    .map((d, index) => {
       const date = d.date.toLocaleDateString();
       const amount = (d.amount / 100).toLocaleString("en-US", {
         style: "currency",
         currency: "USD",
       });
       const project = d.project ? ` to ${d.project.name}` : "";
-      return `- [${d.displayId}] ${date}: ${amount}${project}`;
+      return `${index + 1}. ${date}: ${amount}${project}`;
     })
     .join("\n");
+
+  // Format as a multi-line donation context entry
+  const promptString = `- [donation-context] All donations:\n${donationDetails}`;
 
   return { promptString, donationsWithIds };
 }

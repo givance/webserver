@@ -150,17 +150,22 @@ export class EmailGenerationService implements EmailGeneratorTool {
     const sortedDonations = [...donationHistory].sort((a, b) => b.date.getTime() - a.date.getTime());
     const donationContexts: Record<string, string> = {};
 
-    // Pre-build donation contexts
-    sortedDonations.forEach((donation, index) => {
-      const refId = `donation-${index + 1}`;
-      const amount = (donation.amount / 100).toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
-      });
-      const date = new Date(donation.date).toLocaleDateString();
-      const project = donation.project ? ` to ${donation.project.name}` : "";
-      donationContexts[refId] = `Donation on ${date}: ${amount}${project}`;
-    });
+    // Build single donation context containing all donations
+    if (sortedDonations.length > 0) {
+      const donationDetails = sortedDonations
+        .map((donation, index) => {
+          const amount = (donation.amount / 100).toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+          });
+          const date = new Date(donation.date).toLocaleDateString();
+          const project = donation.project ? ` to ${donation.project.name}` : "";
+          return `${index + 1}. ${amount} on ${date}${project}`;
+        })
+        .join("\n");
+
+      donationContexts["donation-context"] = `Complete donation history:\n${donationDetails}`;
+    }
 
     // Add donor statistics contexts if available
     if (donorStatistics) {
