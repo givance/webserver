@@ -41,14 +41,45 @@ test.describe("Campaign Email Editing", () => {
 
     // Wait for navigation to campaign detail page (could be /campaign/{id} or /campaign/results/{id})
     await page.waitForURL(/\/campaign\/(results\/)?\w+/, { timeout: 15000 });
-    
+
     // Wait for campaign data to load
     await waitForCampaignData(page);
 
-    // The EmailListViewer should be showing the emails already
-    // Wait for the email content to be visible
-    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
-    
+    // First click on the "Email List" tab to show individual emails
+    console.log("Looking for Email List tab...");
+
+    // Try multiple strategies to click the Email List tab
+    const tabSelectors = [
+      'button[role="tab"]:has-text("Email List")',
+      'text="Email List (2)"',
+      '[data-state="inactive"]:has-text("Email List")',
+      'button:has-text("Email List (2)")',
+    ];
+
+    let tabClicked = false;
+    for (const selector of tabSelectors) {
+      try {
+        const tab = page.locator(selector);
+        if (await tab.isVisible().catch(() => false)) {
+          await tab.click();
+          console.log(`Clicked Email List tab with selector: ${selector}`);
+          tabClicked = true;
+          break;
+        }
+      } catch (error) {
+        console.log(`Failed to click with selector ${selector}: ${error}`);
+      }
+    }
+
+    if (!tabClicked) {
+      throw new Error("Could not click Email List tab with any selector");
+    }
+
+    await page.waitForTimeout(2000); // Wait for tab content to load
+
+    // Then select the first donor tab within the email list
+    await selectDonorTab(page, 0);
+
     // Find and wait for Edit button
     const editButton = await findEditButton(page);
     await editButton.waitFor({ state: "visible", timeout: 10000 });
@@ -92,7 +123,7 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
 
     await editEmailInModal(page, testContent);
     await waitForModalToClose(page);
-    
+
     // Wait a moment for React to process the update
     await page.waitForTimeout(2000);
 
@@ -131,16 +162,58 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     // Navigate to existing campaigns page
     await navigateToCampaigns(page);
 
-    // Find and click View button
-    const viewButton = await findViewButton(page);
+    // Find campaigns that have a View button
+    const rows = page.locator("tr");
+    const rowCount = await rows.count();
+
+    let viewableRow = null;
+    for (let i = 1; i < rowCount; i++) {
+      const row = rows.nth(i);
+      const hasViewButton = (await row.locator('button:has-text("View")').count()) > 0;
+      if (hasViewButton) {
+        viewableRow = row;
+        break;
+      }
+    }
+
+    if (!viewableRow) {
+      throw new Error("No campaigns with View button found. Please create a campaign with generated emails.");
+    }
+
+    // Click the View button
+    const viewButton = await findViewButton(page, viewableRow);
     await viewButton.click();
 
     // Wait for campaign detail page
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 15000 });
     await waitForCampaignData(page);
 
-    // Wait for the email content to be visible
-    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
+    // First click on the "Email List" tab to show individual emails
+    const emailListTabSelectors = [
+      'button[role="tab"]:has-text("Email List")',
+      'button:has-text("Email List")',
+      '[role="tab"]:has-text("Email List")',
+      'button:has-text("Email List (2)")',
+    ];
+
+    let emailListTab = null;
+    for (const selector of emailListTabSelectors) {
+      const tab = page.locator(selector);
+      if (await tab.isVisible().catch(() => false)) {
+        emailListTab = tab;
+        break;
+      }
+    }
+
+    if (!emailListTab) {
+      throw new Error("Email List tab not found");
+    }
+
+    await emailListTab.click();
+    await page.waitForTimeout(2000); // Wait for tab content to load
+
+    // Then click first donor tab within the email list
+    await selectDonorTab(page, 0);
 
     // Click Edit button
     const editButton = await findEditButton(page);

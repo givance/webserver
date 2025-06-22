@@ -214,6 +214,7 @@ export default function CampaignDetailPage() {
             referenceContexts={referenceContexts}
             showSearch={true}
             showPagination={true}
+            showEditButton={true}
             emailsPerPage={20}
             emptyStateTitle="No emails generated yet"
             emptyStateDescription="This campaign doesn't have any generated emails yet."

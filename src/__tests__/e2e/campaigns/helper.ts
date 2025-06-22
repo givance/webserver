@@ -229,21 +229,34 @@ export async function waitForCampaignData(page: Page) {
 }
 
 export async function findEditButton(page: Page, container: Page | any = page) {
+  // More specific selectors to find email edit button, not campaign edit button
   const editSelectors = [
-    'button:has-text("Edit")',
+    'button:has-text("Edit"):not(:has-text("Campaign"))', // Exclude "Edit Campaign" button
     '[data-testid="edit-button"]',
-    'button[aria-label*="edit" i]',
-    'button[title*="edit" i]',
+    'button[aria-label*="edit" i]:not([aria-label*="campaign" i])',
+    'button[title*="edit" i]:not([title*="campaign" i])',
+    // Look for edit button within email content area
+    '[role="tabpanel"] button:has-text("Edit")',
+    '.email-content button:has-text("Edit")',
   ];
 
   for (const selector of editSelectors) {
-    const button = container.locator(selector).first();
-    if (await button.isVisible({ timeout: 5000 }).catch(() => false)) {
-      return button;
+    const buttons = container.locator(selector);
+    const count = await buttons.count();
+    
+    for (let i = 0; i < count; i++) {
+      const button = buttons.nth(i);
+      if (await button.isVisible({ timeout: 2000 }).catch(() => false)) {
+        // Make sure it's not the campaign edit button by checking parent context
+        const buttonText = await button.textContent();
+        if (buttonText && !buttonText.includes("Campaign")) {
+          return button;
+        }
+      }
     }
   }
 
-  throw new Error("Edit button not found");
+  throw new Error("Email edit button not found (only found campaign edit button)");
 }
 
 export async function findViewButton(page: Page, container: Page | any = page) {
