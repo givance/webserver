@@ -27,6 +27,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { type PageSize, PAGE_SIZE_OPTIONS } from "@/app/hooks/use-pagination";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -38,7 +39,7 @@ interface DataTableProps<TData, TValue> {
   pageCount?: number;
   currentPage?: number;
   onPageChange?: (page: number) => void;
-  onPageSizeChange?: (size: number) => void;
+  onPageSizeChange?: (size: PageSize) => void;
   onSortingChange?: (sorting: { id: string; desc: boolean }[]) => void;
   title?: string;
   ctaButton?: React.ReactNode;
@@ -361,15 +362,16 @@ export function DataTable<TData, TValue>({
             <select
               value={isServerSidePagination ? pageSize : table.getState().pagination.pageSize}
               onChange={(e) => {
+                const newSize = Number(e.target.value) as PageSize;
                 if (isServerSidePagination && onPageSizeChange) {
-                  onPageSizeChange(Number(e.target.value));
+                  onPageSizeChange(newSize);
                 } else {
                   table.setPageSize(Number(e.target.value));
                 }
               }}
               className="h-8 w-[70px] text-sm font-medium rounded-md border border-input bg-background px-2 py-1"
             >
-              {[10, 20, 30, 40, 50].map((size) => (
+              {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>
