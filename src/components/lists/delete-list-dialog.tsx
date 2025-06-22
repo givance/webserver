@@ -93,14 +93,15 @@ export function DeleteListDialog({
             <AlertCircle className="h-5 w-5 text-red-500" />
             Delete List: {listName}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Users className="h-4 w-4" />
-              <span>This list contains {memberCount} donor{memberCount !== 1 ? 's' : ''}</span>
-            </div>
-            <p>Choose how you want to delete this list:</p>
+          <AlertDialogDescription>
+            Choose how you want to delete this list:
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Users className="h-4 w-4" />
+          <span>This list contains {memberCount} donor{memberCount !== 1 ? 's' : ''}</span>
+        </div>
 
         <div className="my-6">
           <RadioGroup value={deleteMode} onValueChange={(value) => setDeleteMode(value as ListDeletionMode)}>
@@ -111,9 +112,9 @@ export function DeleteListDialog({
                   <Label htmlFor="listOnly" className="font-medium cursor-pointer">
                     Delete list only
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <div className="text-sm text-muted-foreground mt-1">
                     Remove the list but keep all donors. Donors will remain in your database and other lists.
-                  </p>
+                  </div>
                 </div>
               </div>
 
@@ -123,14 +124,14 @@ export function DeleteListDialog({
                   <Label htmlFor="withExclusiveDonors" className="font-medium cursor-pointer">
                     Delete list and donors only in this list
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <div className="text-sm text-muted-foreground mt-1">
                     Remove the list and delete donors that don&apos;t belong to any other lists.
                     {exclusiveDonorCount !== null && exclusiveDonorCount > 0 && (
                       <span className="block mt-1 text-amber-600 dark:text-amber-500">
                         {exclusiveDonorCount} donor{exclusiveDonorCount !== 1 ? 's' : ''} will be deleted
                       </span>
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
 
@@ -140,12 +141,12 @@ export function DeleteListDialog({
                   <Label htmlFor="withAllDonors" className="font-medium cursor-pointer">
                     Delete list and all its donors
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <div className="text-sm text-muted-foreground mt-1">
                     Remove the list and permanently delete ALL donors in it, even if they belong to other lists.
                     <span className="block mt-1 text-red-600 dark:text-red-500">
                       This will delete {memberCount} donor{memberCount !== 1 ? 's' : ''}
                     </span>
-                  </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -157,12 +158,12 @@ export function DeleteListDialog({
             <div className="flex gap-2">
               <Trash2 className="h-5 w-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                <div className="text-sm font-medium text-red-800 dark:text-red-200">
                   Warning: This action cannot be undone
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                </div>
+                <div className="text-sm text-red-700 dark:text-red-300 mt-1">
                   {getWarningMessage()}
-                </p>
+                </div>
               </div>
             </div>
           </div>
