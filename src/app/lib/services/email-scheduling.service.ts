@@ -211,7 +211,8 @@ export class EmailSchedulingService {
               isNull(generatedEmails.sendStatus),
               eq(generatedEmails.sendStatus, "pending"),
               eq(generatedEmails.sendStatus, "paused"),
-              eq(generatedEmails.sendStatus, "failed")
+              eq(generatedEmails.sendStatus, "failed"),
+              eq(generatedEmails.sendStatus, "cancelled")
             )
           )
         );
@@ -219,7 +220,7 @@ export class EmailSchedulingService {
       logger.info(
         `Found ${emails.length} emails ready to schedule for session ${sessionId} (including ${
           allEmails.filter((e) => e.sendStatus === "failed").length
-        } failed emails for retry)`
+        } failed emails and ${allEmails.filter((e) => e.sendStatus === "cancelled").length} cancelled emails for retry)`
       );
 
       if (emails.length === 0) {
@@ -236,13 +237,14 @@ export class EmailSchedulingService {
           const failedCount = allEmails.filter((e) => e.sendStatus === "failed").length;
           const pendingCount = allEmails.filter((e) => !e.sendStatus || e.sendStatus === "pending").length;
           const pausedCount = allEmails.filter((e) => e.sendStatus === "paused").length;
+          const cancelledCount = allEmails.filter((e) => e.sendStatus === "cancelled").length;
 
           if (sentCount === allEmails.length) {
             errorDetails += "All emails have already been sent.";
           } else if (scheduledCount > 0) {
             errorDetails += `${scheduledCount} emails are already scheduled or being sent.`;
           } else {
-            errorDetails += `Status breakdown: ${sentCount} sent, ${scheduledCount} scheduled/running, ${failedCount} failed, ${pendingCount} pending, ${pausedCount} paused. Unable to schedule any emails.`;
+            errorDetails += `Status breakdown: ${sentCount} sent, ${scheduledCount} scheduled/running, ${failedCount} failed, ${pendingCount} pending, ${pausedCount} paused, ${cancelledCount} cancelled. Unable to schedule any emails.`;
           }
         }
 
