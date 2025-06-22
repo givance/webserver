@@ -300,7 +300,8 @@ function ConfirmationDialog({
                         page.
                       </p>
                       <p className="text-sm text-blue-800">
-                        To change the gap and daily limit, go to the <a href="/settings/email-schedule">Settings -> Email Schedule</a> page.
+                        To change the gap and daily limit, go to the{" "}
+                        <a href="/settings/email-schedule">Settings &gt; Email Schedule</a> page.
                       </p>
                     </div>
                   </div>
@@ -495,11 +496,11 @@ function ExistingCampaignsContent() {
         toast.promise(promise, {
           loading: "Scheduling emails...",
           success: (data) => {
-            // Navigate to schedule view after successful scheduling
+            // Navigate to campaign view after successful scheduling
             setTimeout(() => {
-              router.push(`/campaign/${campaign.id}/schedule`);
+              router.push(`/campaign/${campaign.id}`);
             }, 1500);
-            return `Successfully scheduled ${data.scheduled} emails! Redirecting to schedule view...`;
+            return `Successfully scheduled ${data.scheduled} emails! Redirecting to campaign view...`;
           },
           error: (err) => {
             // Extract the actual error message from tRPC error
@@ -589,26 +590,26 @@ function ExistingCampaignsContent() {
         const showSaveToDraft = isCompleted || isProcessing;
         const showScheduleSend = isCompleted || isProcessing;
         const showRetry = hasFailed || campaign.status === "PENDING";
-        
+
         // Determine disabled states and tooltips for each button
         const saveToDraftDisabled = isDisabled || !showSaveToDraft;
         const scheduleSendDisabled = isDisabled || !showScheduleSend;
         const retryDisabled = !showRetry;
-        
+
         const getSaveToDraftTooltip = () => {
           if (!showSaveToDraft) return "Campaign must be completed or processing to save to drafts";
           if (isProcessing) return "Campaign is currently processing and cannot be modified";
           if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
           return "Save to drafts";
         };
-        
+
         const getScheduleSendTooltip = () => {
           if (!showScheduleSend) return "Campaign must be completed or processing to schedule send";
           if (isProcessing) return "Campaign is currently processing and cannot be modified";
           if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
           return "Schedule send";
         };
-        
+
         const getRetryTooltip = () => {
           if (!showRetry) return "Retry is only available for failed or pending campaigns";
           return "Retry campaign";
@@ -634,16 +635,11 @@ function ExistingCampaignsContent() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className={isProcessing ? "cursor-not-allowed" : ""}>
-                    <Link 
+                    <Link
                       href={isProcessing ? "#" : `/campaign/edit/${campaign.id}`}
                       onClick={isProcessing ? (e) => e.preventDefault() : undefined}
                     >
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        disabled={isProcessing} 
-                        className="h-8 w-8"
-                      >
+                      <Button variant="ghost" size="icon" disabled={isProcessing} className="h-8 w-8">
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit campaign</span>
                       </Button>
