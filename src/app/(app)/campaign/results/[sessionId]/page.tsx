@@ -30,6 +30,7 @@ import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
 import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useStaff } from "@/app/hooks/use-staff";
 
 interface GeneratedEmailData {
   id: number;
@@ -103,6 +104,11 @@ export default function EmailGenerationResultsPage() {
 
   // Get staff members
   const { staffMembers } = useStaffMembers();
+  
+  // Get staff list with email info
+  const { listStaff, getPrimaryStaff } = useStaff();
+  const { data: staffData } = listStaff({ limit: 100, isRealPerson: true });
+  const { data: primaryStaff } = getPrimaryStaff();
 
   // Helper functions memoized for performance
   const getDonorData = useCallback(
@@ -119,6 +125,15 @@ export default function EmailGenerationResultsPage() {
       return staff ? staff.name : "Unknown Staff";
     },
     [staffMembers]
+  );
+  
+  // Get staff details including email info
+  const getStaffDetails = useCallback(
+    (staffId: number | null) => {
+      if (!staffId || !staffData) return null;
+      return staffData.staff.find((s) => s.id === staffId);
+    },
+    [staffData]
   );
 
   const getDonorTrackingStats = useCallback(
@@ -281,6 +296,8 @@ export default function EmailGenerationResultsPage() {
                 maxHeight="calc(100vh - 400px)"
                 trackingStats={donorStats}
                 getStaffName={getStaffName}
+                getStaffDetails={getStaffDetails}
+                primaryStaff={primaryStaff || null}
                 sessionId={sessionId}
                 searchPlaceholder="Search emails by recipient, subject, or content..."
                 emptyStateTitle="No emails generated"

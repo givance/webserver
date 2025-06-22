@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Check, Clock, Sparkles } from "lucide-react";
+import { Edit, Check, Clock, Sparkles, AlertCircle } from "lucide-react";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
@@ -46,6 +47,11 @@ interface EmailDisplayProps {
   onPreviewEdit?: (donorId: number, subject: string, content: EmailPiece[]) => void;
   onPreviewEnhance?: (donorId: number, instruction: string) => void;
   onPreviewStatusChange?: (donorId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
+  // Staff information
+  staffName?: string;
+  staffEmail?: string | null;
+  hasLinkedEmail?: boolean;
+  defaultStaffEmail?: string;
 }
 
 interface ReferencesDisplayProps {
@@ -210,6 +216,10 @@ export function EmailDisplay({
   onPreviewEdit,
   onPreviewEnhance,
   onPreviewStatusChange,
+  staffName,
+  staffEmail,
+  hasLinkedEmail = true,
+  defaultStaffEmail,
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
@@ -225,9 +235,46 @@ export function EmailDisplay({
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <CardTitle className="text-sm">
-                To: {donorName} ({donorEmail})
-              </CardTitle>
+              <div className="space-y-1">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <span>To:</span>
+                  {donorId ? (
+                    <Link 
+                      href={`/donors/${donorId}`}
+                      className="text-primary hover:underline font-medium"
+                    >
+                      {donorName}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{donorName}</span>
+                  )}
+                  <span className="font-normal text-muted-foreground">({donorEmail})</span>
+                </CardTitle>
+                {staffName && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span>Assigned to:</span>
+                    <span className="font-medium">{staffName}</span>
+                    {hasLinkedEmail && staffEmail ? (
+                      <span className="text-xs">({staffEmail})</span>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 cursor-help">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              No linked email
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>This staff member doesn&apos;t have a linked email account.</p>
+                            <p className="mt-1">Emails will be sent from: <span className="font-medium">{defaultStaffEmail || "the default organization email"}</span></p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="text-sm font-medium mt-2">Subject: {isPreviewMode ? previewSubject : subject}</div>
             </div>
             {((emailId && !emailStatus?.isSent) || isPreviewMode) && showEditButton && (
