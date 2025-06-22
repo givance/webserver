@@ -9,7 +9,7 @@ import { Page, expect } from "@playwright/test";
 export async function navigateToCampaigns(page: Page) {
   await page.goto("/existing-campaigns");
   await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1000);
 }
 
 export async function navigateToCampaignCreation(page: Page) {
@@ -20,7 +20,7 @@ export async function navigateToCampaignCreation(page: Page) {
 export async function navigateToCampaignDetails(page: Page, campaignId: string) {
   await page.goto(`/campaign/${campaignId}`);
   await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(3000); // Allow time for data loading
+  await page.waitForTimeout(1500); // Allow time for data loading
 }
 
 // Campaign Workflow Helpers
@@ -120,9 +120,10 @@ export async function writeInstructions(page: Page, instruction: string) {
 
   // Find the instruction input - try multiple selectors
   const inputSelectors = [
+    ".mentions-input textarea",
+    ".mentions-input",
     "div[data-mention-input]",
     "textarea",
-    ".mentions-input",
     'textarea[placeholder*="instruction"]',
   ];
 
@@ -441,12 +442,35 @@ export async function deleteCampaign(page: Page, campaignRow: any) {
 
 // Donor Tab Operations
 export async function selectDonorTab(page: Page, tabIndex: number = 0) {
-  const donorTabs = page.locator('[role="tab"]');
-  await donorTabs.first().waitFor({ state: "visible", timeout: 10000 });
+  // First click on the "Email List" tab if there are multiple main tabs
+  const emailListTab = page.locator('[role="tab"]:has-text("Email List")');
+  if (await emailListTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await emailListTab.click();
+    await page.waitForTimeout(1000);
+  }
 
-  const tab = donorTabs.nth(tabIndex);
-  await tab.click({ force: true });
-  await page.waitForTimeout(3000);
+  // Now find donor tabs within the vertical layout
+  // The donor tabs are within TabsList that contains donor names
+  const donorTabsContainer = page.locator('[role="tablist"]').last();
+  await donorTabsContainer.waitFor({ state: "visible", timeout: 10000 });
+  
+  // Find tabs that contain donor information (they usually have email addresses)
+  const donorTabs = donorTabsContainer.locator('[role="tab"]').filter({
+    has: page.locator('text=/@/i')
+  });
+  
+  // If no tabs with email addresses, just get all tabs in the container
+  const tabCount = await donorTabs.count();
+  if (tabCount === 0) {
+    const allTabs = donorTabsContainer.locator('[role="tab"]');
+    const tab = allTabs.nth(tabIndex);
+    await tab.click({ force: true });
+  } else {
+    const tab = donorTabs.nth(tabIndex);
+    await tab.click({ force: true });
+  }
+  
+  await page.waitForTimeout(1000);
 }
 
 // Progress & Statistics Helpers

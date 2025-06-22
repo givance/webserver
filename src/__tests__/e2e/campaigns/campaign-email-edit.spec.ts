@@ -39,15 +39,16 @@ test.describe("Campaign Email Editing", () => {
     const viewButton = await findViewButton(page, viewableRow);
     await viewButton.click();
 
-    // Wait for navigation to campaign detail page
-    await page.waitForURL(/\/campaign\/\d+/, { timeout: 15000 });
+    // Wait for navigation to campaign detail page (could be /campaign/{id} or /campaign/results/{id})
+    await page.waitForURL(/\/campaign\/(results\/)?\w+/, { timeout: 15000 });
     
     // Wait for campaign data to load
     await waitForCampaignData(page);
 
-    // Select the first donor tab
-    await selectDonorTab(page, 0);
-
+    // The EmailListViewer should be showing the emails already
+    // Wait for the email content to be visible
+    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
+    
     // Find and wait for Edit button
     const editButton = await findEditButton(page);
     await editButton.waitFor({ state: "visible", timeout: 10000 });
@@ -138,8 +139,8 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     await page.waitForURL(/\/campaign\/\d+/, { timeout: 15000 });
     await waitForCampaignData(page);
 
-    // Click first donor tab
-    await selectDonorTab(page, 0);
+    // Wait for the email content to be visible
+    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
 
     // Click Edit button
     const editButton = await findEditButton(page);
@@ -158,10 +159,8 @@ This content should persist after page refresh, proving the database was actuall
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    // Click the first tab again
-    const tabAfterRefresh = page.locator('[role="tab"]').first();
-    await tabAfterRefresh.waitFor({ state: "visible" });
-    await tabAfterRefresh.click({ force: true });
+    // Wait for the email content to be visible after refresh
+    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Verify content persisted after refresh - try multiple strategies
