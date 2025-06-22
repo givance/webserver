@@ -221,7 +221,7 @@ export function WriteInstructionStep({
     updateEmail,
   } = useCommunications();
   const { listProjects } = useProjects();
-  const { listStaff } = useStaff();
+  const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
 
   // Batch fetch donor data for all selected donors
@@ -234,6 +234,9 @@ export function WriteInstructionStep({
     limit: 100,
     isRealPerson: true,
   });
+  
+  // Get primary staff for email fallback
+  const { data: primaryStaff } = getPrimaryStaff();
 
   // Fetch projects for mentions
   const {
@@ -1289,7 +1292,7 @@ export function WriteInstructionStep({
                       showSearch={true}
                       showPagination={true}
                       showTracking={false}
-                      showStaffAssignment={false}
+                      showStaffAssignment={true}
                       showSendButton={false}
                       showEditButton={true}
                       emailsPerPage={EMAILS_PER_PAGE}
@@ -1412,6 +1415,16 @@ export function WriteInstructionStep({
                       isGeneratingMore={isGeneratingMore}
                       remainingDonorsCount={remainingDonors.length}
                       generateMoreCount={GENERATE_MORE_COUNT}
+                      getStaffName={(staffId) => {
+                        if (!staffId || !staffData?.staff) return "Unassigned";
+                        const staff = staffData.staff.find((s) => s.id === staffId);
+                        return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
+                      }}
+                      getStaffDetails={(staffId) => {
+                        if (!staffId || !staffData?.staff) return null;
+                        return staffData.staff.find((s) => s.id === staffId) || null;
+                      }}
+                      primaryStaff={primaryStaff || null}
                     />
                   </div>
                 ) : (

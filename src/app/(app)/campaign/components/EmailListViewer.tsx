@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, X, ChevronLeft, ChevronRight, Mail, Eye, Check, Clock, RefreshCw, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
+import Link from "next/link";
 
 // Base email interface that both components can extend
 export interface BaseGeneratedEmail {
@@ -39,6 +40,15 @@ export interface TrackingStats {
   uniqueOpens: number;
 }
 
+// Staff interface for email display
+export interface StaffDetails {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  gmailToken?: { id: number; email: string } | null;
+}
+
 // Props for the EmailListViewer component
 export interface EmailListViewerProps {
   emails: BaseGeneratedEmail[];
@@ -58,6 +68,8 @@ export interface EmailListViewerProps {
   // Optional data for enhanced features
   trackingStats?: TrackingStats[];
   getStaffName?: (staffId: number | null) => string;
+  getStaffDetails?: (staffId: number | null) => StaffDetails | null;
+  primaryStaff?: StaffDetails | null;
   sessionId?: number; // For EmailDisplay props
 
   // Search functionality
@@ -111,6 +123,8 @@ export function EmailListViewer({
   maxHeight = "calc(100vh - 400px)",
   trackingStats = [],
   getStaffName,
+  getStaffDetails,
+  primaryStaff,
   sessionId,
   searchPlaceholder = "Search emails by recipient, subject, or content...",
   getSearchableText,
@@ -319,7 +333,13 @@ export function EmailListViewer({
                             )}
                           >
                             <div className="flex items-center justify-between w-full">
-                              <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
+                              <Link 
+                                href={`/donors/${donor.id}`}
+                                className="font-medium text-sm truncate flex-1 hover:text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {formatDonorName(donor)}
+                              </Link>
                               <div className="flex items-center gap-1">
                                 {/* Approval status badge */}
                                 {email.status === "APPROVED" ? (
@@ -396,6 +416,11 @@ export function EmailListViewer({
                   const donor = getDonorData(email.donorId);
                   if (!donor) return null;
 
+                  const staffDetails = getStaffDetails ? getStaffDetails(donor.assignedToStaffId || null) : null;
+                  const hasLinkedEmail = !!(staffDetails?.gmailToken);
+                  const staffLinkedEmail = staffDetails?.gmailToken?.email || null;
+                  const defaultEmail = primaryStaff?.gmailToken?.email || primaryStaff?.email || "organization default";
+                  
                   return (
                     <TabsContent
                       key={email.donorId}
@@ -430,6 +455,11 @@ export function EmailListViewer({
                                 }
                               : undefined
                           }
+                          // Staff information
+                          staffName={staffDetails ? `${staffDetails.firstName} ${staffDetails.lastName}` : undefined}
+                          staffEmail={staffLinkedEmail}
+                          hasLinkedEmail={hasLinkedEmail}
+                          defaultStaffEmail={defaultEmail}
                         />
                       </ScrollArea>
                     </TabsContent>
