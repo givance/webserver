@@ -99,6 +99,7 @@ export default function ListsPage() {
             pageCount={pageCount}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
           />
         )}
 

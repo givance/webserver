@@ -92,6 +92,7 @@ export default function StaffListPage() {
             pageCount={pageCount}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
           />
         )}
       </div>
