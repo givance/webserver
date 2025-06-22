@@ -631,6 +631,7 @@ export default function DonorProfilePage() {
                   emptyText="No stage set"
                 />
               </div>
+              {/* High potential donor toggle hidden
               <div>
                 <label className="text-sm text-muted-foreground">High Potential Donor</label>
                 <InlineToggleEdit
@@ -640,6 +641,7 @@ export default function DonorProfilePage() {
                   falseText="Standard"
                 />
               </div>
+              */}
             </div>
           </div>
         </CardContent>

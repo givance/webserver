@@ -222,6 +222,7 @@ export const getColumns = (
         <Link href={`/donors/${row.original.id}`} className="font-medium">
           {row.getValue("name")}
         </Link>
+        {/* High potential donor badge hidden
         {row.original.highPotentialDonor && (
           <TooltipProvider>
             <Tooltip>
@@ -245,6 +246,7 @@ export const getColumns = (
             </Tooltip>
           </TooltipProvider>
         )}
+        */}
       </div>
     ),
   },
