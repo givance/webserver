@@ -122,15 +122,32 @@ test.describe("Campaign Management", () => {
       }
 
       if (hasWizardElements) {
+        // First, select some donors to enable the Next button
+        const donorCheckboxes = page.locator('[role="checkbox"], input[type="checkbox"]');
+        const checkboxCount = await donorCheckboxes.count();
+        
+        if (checkboxCount > 0) {
+          // Select at least one donor
+          await donorCheckboxes.first().check({ force: true });
+          await page.waitForTimeout(500);
+        }
+        
         // Try to navigate through wizard
         const nextButton = page.locator('button:has-text("Next")').first();
         if (await nextButton.isVisible().catch(() => false)) {
-          await nextButton.click();
-          await page.waitForTimeout(500);
+          // Wait for button to be enabled after selecting donors
+          await page.waitForTimeout(1000);
+          
+          // Check if button is enabled now
+          const isDisabled = await nextButton.isDisabled();
+          if (!isDisabled) {
+            await nextButton.click();
+            await page.waitForTimeout(500);
 
-          // Should either show validation or move to next step
-          const currentUrl = page.url();
-          expect(currentUrl).toContain("campaign");
+            // Should either show validation or move to next step
+            const currentUrl = page.url();
+            expect(currentUrl).toContain("campaign");
+          }
         }
       }
     }

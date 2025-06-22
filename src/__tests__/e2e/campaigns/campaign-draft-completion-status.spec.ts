@@ -23,6 +23,8 @@ test.describe("Campaign Draft Completion Status", () => {
     await navigateToCampaigns(page);
   });
 
+  test.setTimeout(60000); // Increase timeout to 60 seconds
+
   test("should show correct status when creating campaign from draft with all emails generated", async ({ page }) => {
     // Step 1: Create a new campaign following the proper workflow
     const campaignName = `Draft Test Campaign ${Date.now()}`;

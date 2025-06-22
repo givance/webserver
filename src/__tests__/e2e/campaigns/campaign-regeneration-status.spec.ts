@@ -37,7 +37,9 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     // Should navigate to edit page with Write Instructions step
     await page.waitForURL(/\/campaign\/edit\/\d+/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2000); // Wait for page to fully load
 
+    // The edit page should show the instruction input directly
     // Add new instruction for regeneration
     await writeInstructions(
       page,
@@ -88,7 +90,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
           const viewButton = await findViewButton(page, row);
           await viewButton.click();
 
-          await page.waitForURL(/\/campaign\/results\/\w+/);
+          await page.waitForURL(/\/campaign\/\d+/);
           await waitForCampaignData(page);
 
           // Verify status indicators on results page
@@ -168,7 +170,7 @@ test.describe("Campaign Regeneration and Status Checking", () => {
     const viewButton = await findViewButton(page, targetRow);
     await viewButton.click();
 
-    await page.waitForURL(/\/campaign\/results\/\w+/, { timeout: 10000 });
+    await page.waitForURL(/\/campaign\/\d+/, { timeout: 10000 });
     await waitForCampaignData(page);
 
     // Verify sending status indicators - look for various possible labels
