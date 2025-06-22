@@ -2,7 +2,7 @@ import { DonorInfo, Organization, RawCommunicationThread, DonorStatistics } from
 import {
   formatDonationHistoryWithIds,
   formatCommunicationHistoryWithIds,
-  formatWebsiteSummaryWithIds,
+  // formatWebsiteSummaryWithIds is disabled - website summary feature is hidden
 } from "./context-formatters";
 import { DonationWithDetails } from "../../data/donations";
 import { formatDonorName } from "../donor-name-formatter";
@@ -64,7 +64,8 @@ export function buildStructuredSystemPrompt(
   organizationalMemories: string[] = [],
   currentDate?: string
 ): string {
-  const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
+  // Website summary is disabled - not included in prompts
+  // const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
 
   // Format current date if provided
   const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
@@ -80,8 +81,6 @@ ${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingIn
 ${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
 ${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}
 
-${websiteSummaryPrompt ? `Organization Summary:\n${websiteSummaryPrompt}\n` : ""}
-
 REQUIREMENTS:
 - Write a reengagement email for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
 - Subject line: Personal, emotional, under 50 characters
@@ -94,7 +93,7 @@ REQUIREMENTS:
 
 IMPORTANT INSTRUCTIONS:
 - For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-context] or [comm-02-01]
-- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-context", "summary-paragraph-2"])
+- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-context", "comm-01-02"])
 - For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 - DO NOT use "-", "--" or "—" in the email ever.
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature

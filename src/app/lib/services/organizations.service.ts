@@ -90,14 +90,10 @@ export class OrganizationsService {
           });
         }
 
-        // Check if URL changed and trigger crawl task
-        if (newUrl !== undefined && newUrl !== oldUrl && newUrl) {
-          await this.triggerWebsiteCrawl(organizationId, newUrl, oldUrl);
-        } else {
-          logger.info(
-            `Website URL for organization ${organizationId} not updated or no valid new URL provided. Skipping crawl trigger.`
-          );
-        }
+        // Website crawling is disabled - skip crawl trigger
+        logger.info(
+          `Website crawling is disabled. Skipping crawl trigger for organization ${organizationId}.`
+        );
 
         logger.info(`Successfully updated organization ${organizationId}`);
         return updated;
@@ -352,9 +348,10 @@ Guidelines:
           contextParts.push(`Organization Description: ${organization.description}`);
         }
 
-        if (organization.websiteSummary) {
-          contextParts.push(`Website Summary: ${organization.websiteSummary}`);
-        }
+        // Website summary is disabled - skip including it
+        // if (organization.websiteSummary) {
+        //   contextParts.push(`Website Summary: ${organization.websiteSummary}`);
+        // }
 
         if (organization.name) {
           contextParts.push(`Organization Name: ${organization.name}`);
