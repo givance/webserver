@@ -130,7 +130,7 @@ export function EmailEnhanceButton({
                   <div className="space-y-2 text-sm font-sans">
                     {currentContent.map((piece, index) => {
                       // Check if this is signature content or contains HTML
-                      const isSignature = piece.references.includes("signature");
+                      const isSignature = piece.references?.includes("signature") || false;
                       const containsHTML = /<[^>]+>/.test(piece.piece);
                       const shouldRenderHTML = isSignature || containsHTML;
 

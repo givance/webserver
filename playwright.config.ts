@@ -128,6 +128,17 @@ export default defineConfig({
       testMatch: "**/core/**/*.spec.ts",
       dependencies: ["setup"],
     },
+
+    // Settings tests (requires auth)
+    {
+      name: "settings",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/settings/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
   ],
 
   /* Run your local dev server before starting the tests */

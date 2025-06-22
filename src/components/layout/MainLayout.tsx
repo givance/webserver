@@ -33,6 +33,7 @@ import {
   FileText,
   Brain,
   Mail,
+  Clock,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -266,6 +267,17 @@ export default function MainLayout({
                             >
                               <Building2 className="w-4 h-4 flex-shrink-0" />
                               <span className="text-left truncate">Organization</span>
+                            </SidebarMenuButton>
+                          </Link>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <Link href="/settings/email-schedule" className="w-full min-w-0">
+                            <SidebarMenuButton
+                              isActive={pathname.startsWith("/settings/email-schedule")}
+                              className="min-w-0"
+                            >
+                              <Clock className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-left truncate">Email Schedule</span>
                             </SidebarMenuButton>
                           </Link>
                         </SidebarMenuItem>
