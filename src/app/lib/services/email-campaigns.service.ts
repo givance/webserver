@@ -763,6 +763,7 @@ export class EmailCampaignsService {
         success: true,
         email: updatedEmail,
         message: "Email updated successfully and marked for review",
+        sessionId: existingEmail.sessionId,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
