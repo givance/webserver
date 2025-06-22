@@ -118,6 +118,17 @@ export default defineConfig({
       dependencies: ["setup"],
     },
 
+    // Template tests (requires auth)
+    {
+      name: "templates",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.clerk/user.json",
+      },
+      testMatch: "**/templates/**/*.spec.ts",
+      dependencies: ["setup"],
+    },
+
     // Core tests (database, dashboard, smoke tests, accessibility)
     {
       name: "core",

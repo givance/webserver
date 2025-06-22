@@ -507,3 +507,52 @@ export async function verifyCampaignStatistics(page: Page) {
     }
   }
 }
+
+// Navigation helpers for app and onboarding
+export async function gotoApp(page: Page) {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+}
+
+export async function gotoOnboarding(page: Page) {
+  // Handle onboarding steps if needed
+  await page.waitForLoadState("networkidle");
+  
+  // Check if onboarding modal or page is present
+  const onboardingModal = page.locator('[role="dialog"]:has-text("Welcome to Givance!")');
+  if (await onboardingModal.isVisible().catch(() => false)) {
+    // Skip onboarding or complete it
+    const skipButton = onboardingModal.locator('button:has-text("Skip"), button:has-text("Get Started"), button:has-text("Continue")');
+    if (await skipButton.isVisible().catch(() => false)) {
+      await skipButton.click();
+    }
+  }
+}
+
+// Complete campaign creation helper
+export async function createCampaign(page: Page, options: { skipFinalSteps?: boolean } = {}) {
+  // Navigate to campaign creation
+  await navigateToCampaignCreation(page);
+  
+  // Step 1: Select donors
+  await selectDonors(page, 2);
+  await clickNextButton(page);
+  
+  // Step 2: Set campaign name
+  const campaignName = `Test Campaign ${Date.now()}`;
+  await setCampaignName(page, campaignName);
+  await clickNextButton(page);
+  
+  // We'll be on the template selection step after this
+  if (options.skipFinalSteps) {
+    return campaignName;
+  }
+  
+  // Step 3: Continue without template (for basic testing)
+  await continueWithoutTemplate(page);
+  
+  // Step 4: Write instructions
+  await writeInstructions(page, "Please create a personalized email for this donor.");
+  
+  return campaignName;
+}
