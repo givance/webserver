@@ -561,69 +561,147 @@ function ExistingCampaignsContent() {
           tooltipContent = "Please connect your Gmail account in Settings to enable this action.";
         }
 
+        const showSaveToDraft = isCompleted || isProcessing;
+        const showScheduleSend = isCompleted || isProcessing;
+        const showRetry = hasFailed || campaign.status === "PENDING";
+        
+        // Determine disabled states and tooltips for each button
+        const saveToDraftDisabled = isDisabled || !showSaveToDraft;
+        const scheduleSendDisabled = isDisabled || !showScheduleSend;
+        const retryDisabled = !showRetry;
+        
+        const getSaveToDraftTooltip = () => {
+          if (!showSaveToDraft) return "Campaign must be completed or processing to save to drafts";
+          if (isProcessing) return "Campaign is currently processing and cannot be modified";
+          if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
+          return "Save to drafts";
+        };
+        
+        const getScheduleSendTooltip = () => {
+          if (!showScheduleSend) return "Campaign must be completed or processing to schedule send";
+          if (isProcessing) return "Campaign is currently processing and cannot be modified";
+          if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
+          return "Schedule send";
+        };
+        
+        const getRetryTooltip = () => {
+          if (!showRetry) return "Retry is only available for failed or pending campaigns";
+          return "Retry campaign";
+        };
+
         return (
           <TooltipProvider>
-            <div className="flex items-center">
-              <Link href={`/campaign/${campaign.id}`} className="mr-2">
-                <Button variant="outline" size="sm">
-                  <Eye className="mr-2 h-4 w-4" />
-                  View
-                </Button>
-              </Link>
+            <div className="flex items-center gap-1">
+              {/* View button - always enabled */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link href={`/campaign/${campaign.id}`}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Eye className="h-4 w-4" />
+                      <span className="sr-only">View campaign</span>
+                    </Button>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>View campaign</TooltipContent>
+              </Tooltip>
 
-              {/* Edit Campaign Button - Allow editing if not currently processing */}
-              <ActionButtonWrapper
-                disabled={isProcessing}
-                tooltipContent={isProcessing ? "Cannot edit campaign while it's processing" : ""}
-                className="mr-2"
-              >
-                <Link href={`/campaign/edit/${campaign.id}`}>
-                  <Button variant="outline" size="sm" disabled={isProcessing}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit
+              {/* Edit button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={isProcessing ? "cursor-not-allowed" : ""}>
+                    <Link 
+                      href={isProcessing ? "#" : `/campaign/edit/${campaign.id}`}
+                      onClick={isProcessing ? (e) => e.preventDefault() : undefined}
+                    >
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        disabled={isProcessing} 
+                        className="h-8 w-8"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit campaign</span>
+                      </Button>
+                    </Link>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isProcessing ? "Cannot edit campaign while it's processing" : "Edit campaign"}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Save to drafts button - always show, disable when not applicable */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={saveToDraftDisabled ? "cursor-not-allowed" : ""}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={saveToDraftDisabled ? undefined : () => handleSaveToDraft(campaign)}
+                      disabled={saveToDraftDisabled}
+                      className="h-8 w-8"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="sr-only">Save to drafts</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{getSaveToDraftTooltip()}</TooltipContent>
+              </Tooltip>
+
+              {/* Schedule send button - always show, disable when not applicable */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={scheduleSendDisabled ? "cursor-not-allowed" : ""}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={scheduleSendDisabled ? undefined : () => handleSendEmails(campaign)}
+                      disabled={scheduleSendDisabled}
+                      className="h-8 w-8"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span className="sr-only">Schedule send</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{getScheduleSendTooltip()}</TooltipContent>
+              </Tooltip>
+
+              {/* Retry button - always show, disable when not applicable */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={retryDisabled ? "cursor-not-allowed" : ""}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={retryDisabled ? undefined : () => handleRetryCampaign(campaign.id)}
+                      disabled={retryDisabled}
+                      className="h-8 w-8"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="sr-only">Retry campaign</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{getRetryTooltip()}</TooltipContent>
+              </Tooltip>
+
+              {/* Delete button - always enabled */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteCampaign(campaign)}
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete campaign</span>
                   </Button>
-                </Link>
-              </ActionButtonWrapper>
-
-              {(isCompleted || isProcessing) && (
-                <>
-                  {/* Removed ScheduledEmailsButton - schedule functionality moved to main campaign page */}
-
-                  <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent} className="mr-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSaveToDraft(campaign)}
-                      disabled={isDisabled}
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Save to Drafts
-                    </Button>
-                  </ActionButtonWrapper>
-
-                  <ActionButtonWrapper disabled={isDisabled} tooltipContent={tooltipContent}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSendEmails(campaign)}
-                      disabled={isDisabled}
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      Schedule Send
-                    </Button>
-                  </ActionButtonWrapper>
-                </>
-              )}
-              {(hasFailed || campaign.status === "PENDING") && (
-                <Button variant="outline" size="sm" onClick={() => handleRetryCampaign(campaign.id)} className="mr-2">
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Retry
-                </Button>
-              )}
-              <Button variant="destructive" size="sm" onClick={() => handleDeleteCampaign(campaign)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete campaign</TooltipContent>
+              </Tooltip>
             </div>
           </TooltipProvider>
         );
