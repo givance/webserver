@@ -93,7 +93,7 @@ export default function IntegrationsPage() {
                 <MicrosoftConnect />
               </div>
             </div>
-            <SignatureSettings />
+            {/* <SignatureSettings /> */}
           </div>
         </div>
       </div>
