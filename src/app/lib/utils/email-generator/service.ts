@@ -250,7 +250,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
               references: z
                 .array(z.string())
                 .describe(
-                  "Array of context IDs that informed this piece (e.g., ['donation-1', 'summary-paragraph-2'])"
+                  "Array of context IDs that informed this piece (e.g., ['donation-1', 'comm-01-02'])"
                 ),
               addNewlineAfter: z
                 .boolean()
@@ -364,13 +364,15 @@ export class EmailGenerationService implements EmailGeneratorTool {
               const message = thread.content[messageIndex - 1];
               referenceContexts[ref] = `Previous message: ${message.content}`;
             }
-          } else if (ref.startsWith("summary-paragraph-")) {
-            const paragraphIndex = parseInt(ref.split("-")[2]) - 1;
-            const paragraphs = organization?.websiteSummary?.split(/\n\s*\n/) || [];
-            if (paragraphs[paragraphIndex]) {
-              referenceContexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
-            }
           }
+          // Website summary is disabled - skip summary-paragraph references
+          // else if (ref.startsWith("summary-paragraph-")) {
+          //   const paragraphIndex = parseInt(ref.split("-")[2]) - 1;
+          //   const paragraphs = organization?.websiteSummary?.split(/\n\s*\n/) || [];
+          //   if (paragraphs[paragraphIndex]) {
+          //     referenceContexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
+          //   }
+          // }
         });
       });
 

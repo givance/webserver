@@ -34,7 +34,8 @@ export function OrganizationSettings() {
     if (organization) {
       setFormData({
         websiteUrl: organization.websiteUrl || "",
-        websiteSummary: organization.websiteSummary || "",
+        // websiteSummary is disabled - not included in form data
+        // websiteSummary: organization.websiteSummary || "",
         description: organization.description || "",
         shortDescription: organization.shortDescription || "",
         writingInstructions: organization.writingInstructions || "",
@@ -129,7 +130,8 @@ export function OrganizationSettings() {
                 />
               </div>
 
-              <div className="grid gap-2">
+              {/* Website Summary is disabled - hidden from UI */}
+              {/* <div className="grid gap-2">
                 <label htmlFor="websiteSummary">Website Summary</label>
                 {isSummaryEditing ? (
                   <Textarea
@@ -184,7 +186,7 @@ export function OrganizationSettings() {
                   <Pencil className="mr-2 h-4 w-4" />
                   {isSummaryEditing ? "Done Editing" : "Edit Summary"}
                 </Button>
-              </div>
+              </div> */}
 
               <div className="grid gap-2">
                 <label htmlFor="description">Organization Description</label>
