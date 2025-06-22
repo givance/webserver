@@ -177,7 +177,7 @@ export default function StaffDetailPage() {
       throw error;
     }
   };
-  
+
   // Validation functions
   const validateEmail = (email: string): string | null => {
     if (!email) return "Email is required";
@@ -185,7 +185,7 @@ export default function StaffDetailPage() {
     if (!emailRegex.test(email)) return "Invalid email format";
     return null;
   };
-  
+
   const validateName = (name: string): string | null => {
     if (!name || name.length < 2) return "Name must be at least 2 characters";
     return null;
@@ -269,7 +269,6 @@ export default function StaffDetailPage() {
     },
   ];
 
-
   /**
    * Handle signature form submission
    */
@@ -277,7 +276,7 @@ export default function StaffDetailPage() {
     try {
       // Sanitize HTML before saving to database
       const sanitizedSignature = values.signature ? sanitizeHtml(values.signature) : "";
-      
+
       await updateSignatureMutation.mutateAsync({
         id: staffId,
         signature: sanitizedSignature,
@@ -312,7 +311,6 @@ export default function StaffDetailPage() {
   };
 
   // Note: Gmail account management is now handled through the GmailConnect component
-
 
   /**
    * Cancel signature editing and reset form
@@ -560,7 +558,7 @@ export default function StaffDetailPage() {
                     />
 
                     {/* Live Preview */}
-                    <SignaturePreview 
+                    <SignaturePreview
                       signature={signatureForm.watch("signature") || ""}
                       staffName={`${staff?.firstName} ${staff?.lastName}`}
                     />
@@ -579,7 +577,7 @@ export default function StaffDetailPage() {
                 </Form>
               ) : (
                 <div className="space-y-4">
-                  <SignaturePreview 
+                  <SignaturePreview
                     signature={staff.signature || ""}
                     staffName={`${staff.firstName} ${staff.lastName}`}
                   />
@@ -945,7 +943,7 @@ export default function StaffDetailPage() {
                   pageCount={getPageCount(assignedDonors.length)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
+                  onPageSizeChange={(size: number) => setPageSize(size as 10 | 20 | 50 | 100)}
                 />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

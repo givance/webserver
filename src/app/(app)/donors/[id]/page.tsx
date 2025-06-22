@@ -691,7 +691,7 @@ export default function DonorProfilePage() {
                   pageCount={getPageCount(totalCount)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
+                  onPageSizeChange={(size: number) => setPageSize(size as 10 | 20 | 50 | 100)}
                 />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">No donations found for this donor.</div>
@@ -721,7 +721,7 @@ export default function DonorProfilePage() {
                   pageCount={Math.ceil(communications.length / pageSize)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
+                  onPageSizeChange={(size: number) => setPageSize(size as 10 | 20 | 50 | 100)}
                 />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">No communications found for this donor.</div>

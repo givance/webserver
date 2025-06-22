@@ -81,11 +81,11 @@ export default function EditCampaignPage() {
         existingCampaignData={{
           campaignId: campaignId,
           campaignName: sessionData.session.jobName,
-          selectedDonorIds: sessionData.session.selectedDonorIds,
-          chatHistory: sessionData.session.chatHistory,
+          selectedDonorIds: sessionData.session.selectedDonorIds as number[],
+          chatHistory: sessionData.session.chatHistory as Array<{ role: "user" | "assistant"; content: string }>,
           instruction: sessionData.session.instruction || "", // Pass the original instruction for fallback
-          templateId: sessionData.session.templateId,
-          refinedInstruction: sessionData.session.refinedInstruction,
+          templateId: sessionData.session.templateId ?? undefined,
+          refinedInstruction: sessionData.session.refinedInstruction ?? undefined,
           // Include any existing generated emails for reference
           existingGeneratedEmails: sessionData.emails || [],
         }}

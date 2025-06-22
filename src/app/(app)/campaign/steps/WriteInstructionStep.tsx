@@ -168,14 +168,14 @@ export function WriteInstructionStep({
       console.log("[WriteInstructionStep] Updating emails from props:", initialGeneratedEmails.length);
       setAllGeneratedEmails(initialGeneratedEmails);
       setGeneratedEmails(initialGeneratedEmails);
-      
+
       // Update email statuses
       const statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
       initialGeneratedEmails.forEach((email) => {
-        statuses[email.donorId] = email.status || "PENDING_APPROVAL";
+        statuses[email.donorId] = (email as any).status || "PENDING_APPROVAL";
       });
       setEmailStatuses(statuses);
-      
+
       // Build reference contexts from emails
       const contexts: Record<number, Record<string, string>> = {};
       initialGeneratedEmails.forEach((email) => {
@@ -1312,7 +1312,7 @@ export function WriteInstructionStep({
                               : email
                           )
                         );
-                        
+
                         // If we have a sessionId and the email has been saved (has an id), update it in the backend
                         const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
                         if (sessionId && emailToUpdate && emailToUpdate.id) {
