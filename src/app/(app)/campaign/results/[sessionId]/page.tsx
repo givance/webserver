@@ -85,7 +85,7 @@ export default function EmailGenerationResultsPage() {
       sessionId,
       emailCount: sessionData?.emails?.length,
       firstEmailContent: sessionData?.emails?.[0]?.structuredContent?.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, [sessionData, sessionId]);
 
@@ -104,7 +104,7 @@ export default function EmailGenerationResultsPage() {
 
   // Get staff members
   const { staffMembers } = useStaffMembers();
-  
+
   // Get staff list with email info
   const { listStaff, getPrimaryStaff } = useStaff();
   const { data: staffData } = listStaff({ limit: 100, isRealPerson: true });
@@ -126,12 +126,22 @@ export default function EmailGenerationResultsPage() {
     },
     [staffMembers]
   );
-  
+
   // Get staff details including email info
   const getStaffDetails = useCallback(
     (staffId: number | null) => {
       if (!staffId || !staffData) return null;
-      return staffData.staff.find((s) => s.id === staffId);
+      const staff = staffData.staff.find((s) => s.id === staffId);
+      if (!staff) return null;
+
+      // Map to StaffDetails interface
+      return {
+        id: staff.id,
+        firstName: staff.firstName,
+        lastName: staff.lastName,
+        email: staff.email,
+        gmailToken: staff.gmailToken,
+      };
     },
     [staffData]
   );

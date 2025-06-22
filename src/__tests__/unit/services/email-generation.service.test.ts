@@ -23,7 +23,6 @@ jest.mock("@/app/lib/data/donations");
 jest.mock("@/app/lib/utils/email-generator");
 jest.mock("@/app/lib/utils/email-generator/mention-processor");
 jest.mock("@/app/lib/services/person-research.service");
-jest.mock("@/app/lib/services/email-enhancement.service");
 jest.mock("@/app/lib/logger");
 jest.mock("drizzle-orm", () => ({
   eq: jest.fn((a, b) => ({ type: "eq", a, b })),
@@ -520,6 +519,9 @@ describe("EmailGenerationService", () => {
         generatedEmails: {
           findFirst: jest.fn().mockResolvedValue(mockEmailData),
         },
+        staff: {
+          findFirst: jest.fn().mockResolvedValue(mockPrimaryStaff),
+        },
       };
 
       (db.select as jest.Mock).mockReturnValue({
@@ -554,13 +556,15 @@ describe("EmailGenerationService", () => {
       (generateSmartDonorEmails as jest.Mock).mockResolvedValue({
         refinedInstruction: "Enhanced instruction",
         reasoning: "Enhancement reasoning",
-        emails: [{
-          donorId: 1,
-          subject: "Enhanced subject",
-          structuredContent: [{ piece: "Enhanced content", references: [], addNewlineAfter: false }],
-          referenceContexts: { greeting: "Enhanced greeting" },
-          tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
-        }],
+        emails: [
+          {
+            donorId: 1,
+            subject: "Enhanced subject",
+            structuredContent: [{ piece: "Enhanced content", references: [], addNewlineAfter: false }],
+            referenceContexts: { greeting: "Enhanced greeting" },
+            tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          },
+        ],
         tokenUsage: {
           instructionRefinement: { promptTokens: 50, completionTokens: 25, totalTokens: 75 },
           emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
@@ -594,7 +598,7 @@ describe("EmailGenerationService", () => {
 
       expect(db.query.generatedEmails.findFirst).toHaveBeenCalledWith({
         where: expect.any(Object),
-        with: { donor: true, session: true },
+        with: { donor: { with: { assignedStaff: true } }, session: true },
       });
 
       // Verify that generateSmartDonorEmails was called with enhanced instruction
@@ -667,7 +671,7 @@ describe("EmailGenerationService", () => {
             firstName: "John",
             lastName: "Doe",
             email: "john@example.com",
-          })
+          }),
         ]),
         expect.stringContaining("Original instruction"),
         "Test Foundation",
