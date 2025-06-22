@@ -2,21 +2,20 @@
 
 import { ColumnDef, Column, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2, Edit, Users } from "lucide-react";
+import { ArrowUpDown, Trash2, Edit, Users } from "lucide-react";
 import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useLists } from "@/app/hooks/use-lists";
 import React from "react";
 import { DeleteListDialog } from "@/components/lists/delete-list-dialog";
 import type { ListDeletionMode } from "@/app/lib/data/donor-lists";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Frontend type that matches what comes from tRPC (dates are strings)
 export type DonorListWithMemberCountFrontend = {
@@ -42,13 +41,22 @@ function DeleteListButton({ list }: { list: DonorListWithMemberCountFrontend }) 
 
   return (
     <>
-      <DropdownMenuItem onSelect={(e) => { 
-        e.preventDefault(); 
-        setOpen(true); 
-      }}>
-        <Trash2 className="h-4 w-4 mr-2" />
-        Delete
-      </DropdownMenuItem>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setOpen(true)}
+              className="h-8 w-8"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Delete list</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete list</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DeleteListDialog
         open={open}
         onOpenChange={setOpen}
@@ -142,35 +150,33 @@ export const getColumns = (): ColumnDef<DonorListWithMemberCountFrontend>[] => [
   },
   {
     id: "actions",
+    header: "Actions",
     enableHiding: false,
     cell: ({ row }: { row: Row<DonorListWithMemberCountFrontend> }) => {
       const list = row.original;
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/lists/${list.id}`}>
-                <Users className="h-4 w-4 mr-2" />
-                View Members
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`/lists/${list.id}/edit`}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DeleteListButton list={list} />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="h-8 w-8"
+                >
+                  <Link href={`/lists/${list.id}/edit`}>
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Edit list</span>
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit list</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <DeleteListButton list={list} />
+        </div>
       );
     },
   },
