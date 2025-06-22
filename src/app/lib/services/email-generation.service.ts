@@ -12,7 +12,6 @@ import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-
 import { RawCommunicationThread, Organization, DonorStatistics } from "@/app/lib/utils/email-generator/types";
 import { PersonResearchService } from "./person-research.service";
 import { PersonResearchResult } from "./person-research/types";
-import { EmailEnhancementService } from "./email-enhancement.service";
 
 /**
  * Input types for email generation
@@ -312,7 +311,11 @@ export class EmailGenerationService {
     const emailData = await db.query.generatedEmails.findFirst({
       where: eq(generatedEmails.id, emailId),
       with: {
-        donor: true,
+        donor: {
+          with: {
+            assignedStaff: true,
+          },
+        },
         session: true,
       },
     });
@@ -407,7 +410,15 @@ export class EmailGenerationService {
       originalInstruction: emailData.session.instruction,
     });
 
-    // Extract signature from the original email if it exists
+    // Get primary staff for signature fallback
+    const primaryStaff = await db.query.staff.findFirst({
+      where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+    });
+
+    // Get user data for signature fallback
+    const user = await getUserById(userId);
+
+    // Extract signature from the original email to get the signature type/source
     const structuredContent = emailData.structuredContent as Array<{
       piece: string;
       references: string[];
@@ -415,11 +426,49 @@ export class EmailGenerationService {
     }>;
     const originalSignaturePiece = structuredContent?.find((piece: any) => piece.references?.includes("signature"));
 
-    // Re-append signature to enhanced content if it existed
-    let finalStructuredContent = result.structuredContent;
+    // Create the appropriate signature (following the same logic as generateSmartEmails)
+    let signature: string;
+    let signatureSource: string;
+    
+    const assignedStaff = emailData.donor.assignedStaff;
+    
     if (originalSignaturePiece) {
-      finalStructuredContent = [...result.structuredContent, originalSignaturePiece];
+      // Use the original signature if it exists
+      signature = originalSignaturePiece.piece;
+      signatureSource = "original signature preserved";
+    } else if (assignedStaff?.signature && assignedStaff.signature.trim()) {
+      // Use custom signature if it exists and is not empty
+      signature = assignedStaff.signature;
+      signatureSource = `custom signature from assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
+    } else if (assignedStaff) {
+      // Default signature format: "Best, firstname"
+      signature = `Best,\n${assignedStaff.firstName}`;
+      signatureSource = `default format for assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
+    } else if (primaryStaff?.signature && primaryStaff.signature.trim()) {
+      // Use primary staff signature if available and not empty
+      signature = primaryStaff.signature;
+      signatureSource = `custom signature from primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
+    } else if (primaryStaff) {
+      // Default signature format for primary staff: "Best, firstname"
+      signature = `Best,\n${primaryStaff.firstName}`;
+      signatureSource = `default format for primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
+    } else {
+      // Fallback to user signature if no staff assigned and no primary staff
+      signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
+      signatureSource = user?.emailSignature ? "user email signature" : "default fallback signature";
     }
+
+    logger.info(`Enhanced email for donor ${emailData.donor.id}: Using ${signatureSource}`);
+
+    // Append signature to enhanced content
+    const finalStructuredContent = [
+      ...result.structuredContent,
+      {
+        piece: signature,
+        references: ["signature"], // Mark as signature content
+        addNewlineAfter: false,
+      },
+    ];
 
     // Update the email in the database with the enhanced content
     const [updatedEmail] = await db
@@ -468,7 +517,81 @@ export class EmailGenerationService {
     organizationMemories: string[];
     originalInstruction: string;
   }) {
-    const service = new EmailEnhancementService();
-    return await service.enhanceEmail(options);
+    const {
+      emailId,
+      donorId,
+      donor,
+      currentSubject,
+      currentStructuredContent,
+      currentReferenceContexts,
+      enhancementInstruction,
+      organizationName,
+      organization,
+      organizationWritingInstructions,
+      communicationHistory,
+      donationHistory,
+      donorStatistics,
+      personResearch,
+      userMemories,
+      organizationMemories,
+      originalInstruction,
+    } = options;
+
+    // Filter out signature from current content before sending to AI
+    const contentWithoutSignature = currentStructuredContent.filter(
+      (piece) => !piece.references?.includes("signature")
+    );
+    
+    // Build the current email content as a single string (without signature)
+    const currentEmailContent = contentWithoutSignature
+      .map((piece) => piece.piece + (piece.addNewlineAfter ? '\n\n' : ''))
+      .join('')
+      .trim();
+
+    // Create an enhanced instruction that includes both the original instruction, current email, and enhancement request
+    const combinedInstruction = `${originalInstruction}
+
+CURRENT EMAIL TO ENHANCE:
+Subject: ${currentSubject}
+Content:
+${currentEmailContent}
+
+ENHANCEMENT REQUEST: ${enhancementInstruction}
+
+Please regenerate this email following the original instruction while incorporating the enhancement request above. Maintain the same tone and style but apply the requested changes.`;
+
+    // Use the smart generation flow with a single donor
+    const result = await generateSmartDonorEmails(
+      [{ id: donorId, firstName: donor.firstName, lastName: donor.lastName, email: donor.email }],
+      combinedInstruction,
+      organizationName,
+      organization,
+      organizationWritingInstructions,
+      { [donorId]: communicationHistory },
+      { [donorId]: donationHistory },
+      donorStatistics ? { [donorId]: donorStatistics } : {},
+      personResearch ? { [donorId]: personResearch } : {},
+      userMemories,
+      organizationMemories,
+      new Date().toDateString(),
+      undefined, // signature will be handled separately
+      originalInstruction // Use original instruction as previous for context
+    );
+
+    if (!result.emails || result.emails.length === 0) {
+      throw new Error("Failed to generate enhanced email");
+    }
+
+    const enhancedEmail = result.emails[0];
+    
+    return {
+      emailId,
+      donorId,
+      subject: enhancedEmail.subject,
+      structuredContent: enhancedEmail.structuredContent,
+      referenceContexts: enhancedEmail.referenceContexts,
+      reasoning: result.reasoning,
+      tokenUsage: enhancedEmail.tokenUsage,
+    };
   }
 }
