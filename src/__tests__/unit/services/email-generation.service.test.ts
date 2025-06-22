@@ -3,7 +3,6 @@ import {
   type GenerateEmailsInput,
   type DonorInput,
 } from "@/app/lib/services/email-generation.service";
-import { EmailEnhancementService } from "@/app/lib/services/email-enhancement.service";
 import { PersonResearchService } from "@/app/lib/services/person-research.service";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/app/lib/db";
@@ -37,7 +36,6 @@ jest.mock("drizzle-orm", () => ({
 describe("EmailGenerationService", () => {
   let service: EmailGenerationService;
   let mockPersonResearchService: jest.Mocked<PersonResearchService>;
-  let mockEmailEnhancementService: jest.Mocked<EmailEnhancementService>;
 
   const mockOrganization = {
     id: "org123",
@@ -159,12 +157,7 @@ describe("EmailGenerationService", () => {
       getPersonResearch: jest.fn(),
     } as any;
 
-    mockEmailEnhancementService = {
-      enhanceEmail: jest.fn(),
-    } as any;
-
     (PersonResearchService as jest.Mock).mockImplementation(() => mockPersonResearchService);
-    (EmailEnhancementService as jest.Mock).mockImplementation(() => mockEmailEnhancementService);
 
     service = new EmailGenerationService();
 
@@ -557,11 +550,22 @@ describe("EmailGenerationService", () => {
         set: mockSet,
       }));
 
-      // Mock service calls - set up the enhancement service to return a result
-      mockEmailEnhancementService.enhanceEmail.mockResolvedValue({
-        subject: "Enhanced subject",
-        structuredContent: [{ piece: "Enhanced content", references: [], addNewlineAfter: false }],
-        referenceContexts: { greeting: "Enhanced greeting" },
+      // Mock generateSmartDonorEmails to return enhanced email
+      (generateSmartDonorEmails as jest.Mock).mockResolvedValue({
+        refinedInstruction: "Enhanced instruction",
+        reasoning: "Enhancement reasoning",
+        emails: [{
+          donorId: 1,
+          subject: "Enhanced subject",
+          structuredContent: [{ piece: "Enhanced content", references: [], addNewlineAfter: false }],
+          referenceContexts: { greeting: "Enhanced greeting" },
+          tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        }],
+        tokenUsage: {
+          instructionRefinement: { promptTokens: 50, completionTokens: 25, totalTokens: 75 },
+          emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          total: { promptTokens: 150, completionTokens: 75, totalTokens: 225 },
+        },
       });
 
       // Mock data functions
@@ -593,8 +597,8 @@ describe("EmailGenerationService", () => {
         with: { donor: true, session: true },
       });
 
-      // Verify that the EmailEnhancementService was used
-      expect(EmailEnhancementService).toHaveBeenCalled();
+      // Verify that generateSmartDonorEmails was called with enhanced instruction
+      expect(generateSmartDonorEmails).toHaveBeenCalled();
     });
 
     it("should throw error if email not found", async () => {
@@ -653,22 +657,34 @@ describe("EmailGenerationService", () => {
       expect(db.update).toHaveBeenCalledWith(expect.any(Object));
     });
 
-    it("should use EmailEnhancementService for actual enhancement", async () => {
-      mockEmailEnhancementService.enhanceEmail.mockResolvedValue({
-        subject: "Enhanced by service",
-        structuredContent: [],
-        referenceContexts: {},
-      });
-
+    it("should use generateSmartDonorEmails for actual enhancement", async () => {
       await service.enhanceEmail(enhanceInput, "org123", "user123");
 
-      expect(EmailEnhancementService).toHaveBeenCalled();
-      expect(mockEmailEnhancementService.enhanceEmail).toHaveBeenCalledWith(
+      expect(generateSmartDonorEmails).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 1,
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+          })
+        ]),
+        expect.stringContaining("Original instruction"),
+        "Test Foundation",
         expect.objectContaining({
-          emailId: 100,
-          donorId: 1,
-          enhancementInstruction: "Make it more personal",
-        })
+          id: "org123",
+          name: "Test Foundation",
+        }),
+        "Be warm",
+        expect.any(Object), // communication histories
+        expect.any(Object), // donation histories
+        expect.any(Object), // donor statistics
+        expect.any(Object), // person research
+        expect.any(Array), // user memories
+        expect.any(Array), // organization memories
+        expect.any(String), // current date
+        undefined, // signature
+        "Original instruction" // previous instruction
       );
     });
   });
