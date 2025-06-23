@@ -304,9 +304,29 @@ This content should persist after page refresh, proving the database was actuall
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    // Wait for the email content to be visible after refresh
-    await page.waitForSelector('[role="tabpanel"]', { timeout: 10000 });
-    await page.waitForTimeout(2000);
+    // After refresh, we need to navigate back to the Email List tab and then the donor
+    console.log("After refresh, clicking Email List tab again...");
+    
+    // First check if we need to click the Email List tab
+    const emailListTabAfterRefresh = page.locator('button[role="tab"]:has-text("Email List"), button:has-text("Email List")').first();
+    if (await emailListTabAfterRefresh.isVisible().catch(() => false)) {
+      await emailListTabAfterRefresh.click();
+      await page.waitForTimeout(1000);
+      
+      // Wait for the tab content to be visible after clicking
+      const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
+      await expect(emailListContent).toBeVisible({ timeout: 5000 });
+      await page.waitForTimeout(1000);
+      
+      // Then select the first donor tab again
+      await selectDonorTab(page, 0);
+      await page.waitForTimeout(2000);
+    } else {
+      console.log("Email List tab not found, assuming we're already on the right page");
+      // Try to select donor tab directly
+      await selectDonorTab(page, 0);
+      await page.waitForTimeout(2000);
+    }
 
     // Verify content persisted after refresh - try multiple strategies
     try {
