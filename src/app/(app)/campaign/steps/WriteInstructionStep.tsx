@@ -1455,29 +1455,29 @@ export function WriteInstructionStep({
           <div className="space-y-4">
             {/* Summary Card */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-4 w-4" />
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Users className="h-3 w-3" />
                   Campaign Summary
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Total Campaign</p>
-                    <p className="text-2xl font-bold">{selectedDonors.length}</p>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium">Total Campaign</p>
+                    <p className="text-lg font-bold">{selectedDonors.length}</p>
                     <p className="text-xs text-muted-foreground">donors</p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-green-600">Already Reviewed</p>
-                    <p className="text-2xl font-bold text-green-600">{allGeneratedEmails.length}</p>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-green-600">Already Reviewed</p>
+                    <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
                     <p className="text-xs text-muted-foreground">
                       {approvedCount} approved, {pendingCount} pending
                     </p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-blue-600">To Be Generated</p>
-                    <p className="text-2xl font-bold text-blue-600">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-blue-600">To Be Generated</p>
+                    <p className="text-lg font-bold text-blue-600">
                       {selectedDonors.length - allGeneratedEmails.length}
                     </p>
                     <p className="text-xs text-muted-foreground">new emails</p>
