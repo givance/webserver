@@ -182,13 +182,31 @@ export class EmailSchedulingService {
    */
   async getEmailsSentToday(organizationId: string, timezone: string = "America/New_York"): Promise<number> {
     try {
-      // Get start of day in the organization's timezone
+      // Get current date components in the organization's timezone
       const now = new Date();
-      const startOfDay = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
-      startOfDay.setHours(0, 0, 0, 0);
+      const tzNow = this.getDateInTimezone(now, timezone);
+      
+      // Create start of day in the timezone
+      const startOfDay = this.createDateInTimezone(
+        tzNow.year,
+        tzNow.month,
+        tzNow.day,
+        0,
+        0,
+        0,
+        timezone
+      );
 
-      const endOfDay = new Date(startOfDay);
-      endOfDay.setDate(endOfDay.getDate() + 1);
+      // Create end of day (start of next day)
+      const endOfDay = this.createDateInTimezone(
+        tzNow.year,
+        tzNow.month,
+        tzNow.day + 1,
+        0,
+        0,
+        0,
+        timezone
+      );
 
       // Count emails sent today
       const [result] = await db
@@ -333,6 +351,10 @@ export class EmailSchedulingService {
 
       // Find the next allowed time to start scheduling
       currentTime = this.findNextAllowedTime(currentTime, config);
+      
+      logger.info(`Starting email scheduling at ${currentTime.toISOString()} (${config.allowedTimezone})`);
+      const startTz = this.getDateInTimezone(currentTime, config.allowedTimezone);
+      logger.info(`Local time in ${config.allowedTimezone}: ${startTz.hour}:${String(startTz.minute).padStart(2, '0')} on day ${startTz.dayOfWeek}`);
 
       for (let i = 0; i < emails.length; i++) {
         const email = emails[i];
@@ -763,20 +785,114 @@ export class EmailSchedulingService {
   }
 
   /**
+   * Get date components in specific timezone
+   */
+  private getDateInTimezone(date: Date, timezone: string): { 
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+    dayOfWeek: number;
+  } {
+    // Use toLocaleString with specific options to get components
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    };
+    
+    const dateStr = date.toLocaleString('en-US', options);
+    // Format: MM/DD/YYYY, HH:MM:SS
+    const [datePart, timePart] = dateStr.split(', ');
+    const [month, day, year] = datePart.split('/').map(Number);
+    const [hour, minute, second] = timePart.split(':').map(Number);
+    
+    // Get day of week separately
+    const dayOfWeek = new Date(date.toLocaleString('en-US', { timeZone: timezone })).getDay();
+    
+    return {
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      second,
+      dayOfWeek
+    };
+  }
+
+  /**
+   * Create a Date object that represents a specific local time in a timezone
+   */
+  private createDateInTimezone(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    timezone: string
+  ): Date {
+    // Create a localized date string
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+    
+    // Use toLocaleString to format a reference date and extract timezone offset
+    const refDate = new Date(dateStr);
+    const tzString = refDate.toLocaleString('en-US', { 
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    // Now we need to find what UTC time corresponds to our desired local time
+    // Start with an approximation
+    let utcDate = new Date(dateStr + 'Z'); // Assume it's UTC
+    
+    // Adjust based on the difference
+    for (let i = 0; i < 5; i++) { // Max 5 iterations to converge
+      const currentTz = this.getDateInTimezone(utcDate, timezone);
+      
+      // Calculate the difference in minutes
+      const currentMinutes = (currentTz.day - day) * 24 * 60 + 
+                           currentTz.hour * 60 + currentTz.minute;
+      const targetMinutes = hour * 60 + minute;
+      const diffMinutes = targetMinutes - currentMinutes;
+      
+      if (Math.abs(diffMinutes) < 1) break; // Close enough
+      
+      // Adjust the UTC time
+      utcDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
+    }
+    
+    return utcDate;
+  }
+
+  /**
    * Check if a given date/time is within the allowed time window
    */
   private isTimeAllowed(date: Date, config: EmailScheduleConfig): boolean {
-    // Convert date to the allowed timezone
-    const dateInAllowedTz = new Date(date.toLocaleString("en-US", { timeZone: config.allowedTimezone }));
+    // Get date components in the allowed timezone
+    const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
     
     // Check if day is allowed (0 = Sunday, 1 = Monday, etc.)
-    const dayOfWeek = dateInAllowedTz.getDay();
-    if (!config.allowedDays.includes(dayOfWeek)) {
+    if (!config.allowedDays.includes(tzDate.dayOfWeek)) {
       return false;
     }
 
     // Check if time is within allowed hours
-    const currentTimeMinutes = dateInAllowedTz.getHours() * 60 + dateInAllowedTz.getMinutes();
+    const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
     const startMinutes = this.timeToMinutes(config.allowedStartTime);
     const endMinutes = this.timeToMinutes(config.allowedEndTime);
 
@@ -787,54 +903,87 @@ export class EmailSchedulingService {
    * Find the next allowed time after the given date
    */
   private findNextAllowedTime(date: Date, config: EmailScheduleConfig): Date {
-    const nextTime = new Date(date);
-    
     // If we're already in an allowed time, return immediately
-    if (this.isTimeAllowed(nextTime, config)) {
-      return nextTime;
+    if (this.isTimeAllowed(date, config)) {
+      return date;
     }
 
-    // Convert to allowed timezone for calculations
-    const tzDate = new Date(nextTime.toLocaleString("en-US", { timeZone: config.allowedTimezone }));
-    const currentDay = tzDate.getDay();
-    const currentTimeMinutes = tzDate.getHours() * 60 + tzDate.getMinutes();
+    // Get current date components in the allowed timezone
+    const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
+    const currentDay = tzDate.dayOfWeek;
+    const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
     const startMinutes = this.timeToMinutes(config.allowedStartTime);
     const endMinutes = this.timeToMinutes(config.allowedEndTime);
+    const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
+
+    let targetDate: Date;
 
     // If today is an allowed day but we're past the end time, move to next allowed day
     if (config.allowedDays.includes(currentDay) && currentTimeMinutes > endMinutes) {
-      // Move to next allowed day
+      // Find next allowed day
+      let daysToAdd = 0;
       for (let i = 1; i <= 7; i++) {
         const checkDay = (currentDay + i) % 7;
         if (config.allowedDays.includes(checkDay)) {
-          nextTime.setDate(nextTime.getDate() + i);
+          daysToAdd = i;
           break;
         }
       }
-      // Set to start time
-      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
-      nextTime.setHours(startHours, startMins, 0, 0);
+      
+      // Create date for next allowed day at start time
+      targetDate = this.createDateInTimezone(
+        tzDate.year,
+        tzDate.month,
+        tzDate.day + daysToAdd,
+        startHours,
+        startMins,
+        0,
+        config.allowedTimezone
+      );
     }
-    // If today is an allowed day but we're before start time, move to start time
+    // If today is an allowed day but we're before start time, move to start time today
     else if (config.allowedDays.includes(currentDay) && currentTimeMinutes < startMinutes) {
-      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
-      nextTime.setHours(startHours, startMins, 0, 0);
+      targetDate = this.createDateInTimezone(
+        tzDate.year,
+        tzDate.month,
+        tzDate.day,
+        startHours,
+        startMins,
+        0,
+        config.allowedTimezone
+      );
     }
     // If today is not an allowed day, move to next allowed day
     else {
+      let daysToAdd = 0;
       for (let i = 1; i <= 7; i++) {
         const checkDay = (currentDay + i) % 7;
         if (config.allowedDays.includes(checkDay)) {
-          nextTime.setDate(nextTime.getDate() + i);
+          daysToAdd = i;
           break;
         }
       }
-      // Set to start time
-      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
-      nextTime.setHours(startHours, startMins, 0, 0);
+      
+      // Create date for next allowed day at start time
+      targetDate = this.createDateInTimezone(
+        tzDate.year,
+        tzDate.month,
+        tzDate.day + daysToAdd,
+        startHours,
+        startMins,
+        0,
+        config.allowedTimezone
+      );
     }
 
-    return nextTime;
+    // Ensure the target date is in the future
+    if (targetDate <= date) {
+      // Something went wrong, add one day and try again
+      const tomorrow = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+      return this.findNextAllowedTime(tomorrow, config);
+    }
+
+    return targetDate;
   }
 
   /**

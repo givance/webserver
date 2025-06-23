@@ -51,6 +51,7 @@ export function EmailScheduleSettings() {
   const [hasChanges, setHasChanges] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Common timezones
   const timezones = [
@@ -107,6 +108,15 @@ export function EmailScheduleSettings() {
       setHasChanges(changed);
     }
   }, [config, dailyLimit, minGap, maxGap, timezone, allowedDays, allowedStartTime, allowedEndTime, allowedTimezone]);
+
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSave = async (rescheduleExisting = false) => {
     // Validate
@@ -404,6 +414,17 @@ export function EmailScheduleSettings() {
           <p className="text-xs text-muted-foreground">
             Emails will only be sent between {allowedStartTime} - {allowedEndTime} ({allowedTimezone}) on selected days
           </p>
+          
+          {/* Current Time Display */}
+          <div className="text-xs text-muted-foreground p-2 bg-muted/10 rounded">
+            Current time in {allowedTimezone}: {currentTime.toLocaleString('en-US', { 
+              timeZone: allowedTimezone, 
+              weekday: 'short',
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: false 
+            })}
+          </div>
         </div>
 
         {/* Example Calculations */}
