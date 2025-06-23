@@ -106,6 +106,10 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     setSelectedTemplateId(templateId ?? undefined);
     if (templatePrompt) {
       setInstruction(templatePrompt);
+      setTemplatePrompt(templatePrompt); // Set the templatePrompt state so it can be passed to WriteInstructionStep
+    } else {
+      // Clear template prompt if no template is selected
+      setTemplatePrompt("");
     }
     handleStepNavigation(3);
   };
@@ -180,7 +184,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       case 3:
         return (
           <WriteInstructionStep
-            instruction={instruction}
+            instruction={editMode && persistedChatHistory.length > 0 ? "" : instruction}
             onInstructionChange={setInstruction}
             onBack={() => handleStepNavigation(2)}
             onNext={() => {
