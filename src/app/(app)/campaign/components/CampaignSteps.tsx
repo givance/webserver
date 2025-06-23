@@ -257,7 +257,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       case 3:
         return (
           <WriteInstructionStep
-            instruction={editMode && persistedChatHistory.length > 0 ? "" : instruction}
+            instruction={instruction}
             onInstructionChange={setInstruction}
             onBack={() => handleStepNavigation(2)}
             onNext={() => {
