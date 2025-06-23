@@ -246,7 +246,7 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         ]),
         selectedDonorIds: JSON.stringify([donor1.id, donor2.id]),
         previewDonorIds: JSON.stringify([donor1.id]),
-        status: "DRAFT",
+        status: "READY_TO_SEND",
         triggerJobId: "test_job_1",
         totalDonors: 2,
         completedDonors: 2,

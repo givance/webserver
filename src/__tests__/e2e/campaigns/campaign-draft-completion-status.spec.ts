@@ -55,8 +55,8 @@ test.describe("Campaign Draft Completion Status", () => {
     // Send the instruction to generate preview emails
     await generateEmails(page);
 
-    // Look for bulk generation or save options
-    await startBulkGeneration(page);
+    // Don't start bulk generation - we want to test the draft state
+    // Just navigate back to see the draft campaign
 
     // Step 2: Navigate back to campaigns and check status
     await navigateToCampaigns(page);
