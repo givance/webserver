@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, count, sql, or } from "drizzle-orm";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, EmailGenerationSessionStatus } from "@/app/lib/db/schema";
+import { emailGenerationSessions, generatedEmails, EmailGenerationSessionStatus, emailSendJobs } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
+import { runs } from "@trigger.dev/sdk/v3";
 
 /**
  * Input types for campaign management
@@ -576,6 +577,32 @@ export class EmailCampaignsService {
 
     if (!campaign) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+    }
+
+    // Get all scheduled jobs that need to be cancelled
+    const scheduledJobs = await db
+      .select()
+      .from(emailSendJobs)
+      .where(
+        and(
+          eq(emailSendJobs.sessionId, campaignId),
+          eq(emailSendJobs.organizationId, organizationId),
+          eq(emailSendJobs.status, "scheduled")
+        )
+      );
+
+    // Cancel all pending Trigger.dev jobs
+    if (scheduledJobs.length > 0) {
+      const cancelPromises = scheduledJobs
+        .filter((job) => job.triggerJobId)
+        .map((job) =>
+          runs.cancel(job.triggerJobId!).catch((error) => {
+            logger.warn(`Failed to cancel trigger job ${job.triggerJobId}: ${error}`);
+          })
+        );
+
+      await Promise.all(cancelPromises);
+      logger.info(`Cancelled ${scheduledJobs.length} scheduled jobs for campaign ${campaignId}`);
     }
 
     // Use a transaction to delete the job and associated emails
