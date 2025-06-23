@@ -81,55 +81,58 @@ function TemplateDialog({ isOpen, onOpenChange, template, onSave, isLoading }: T
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{template ? "Edit Template" : "Create New Template"}</DialogTitle>
           <DialogDescription>
             {template ? "Update template details below." : "Create a reusable communication template."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter template name"
-              disabled={isLoading}
-            />
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter template name"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Brief description of this template"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="prompt">Prompt</Label>
+              <Textarea
+                id="prompt"
+                value={formData.prompt}
+                onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
+                placeholder="Enter the communication prompt for this template..."
+                rows={6}
+                className="min-h-[120px] resize-none"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="isActive"
+                checked={formData.isActive}
+                onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                disabled={isLoading}
+              />
+              <Label htmlFor="isActive">Active</Label>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Input
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Brief description of this template"
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="prompt">Prompt</Label>
-            <Textarea
-              id="prompt"
-              value={formData.prompt}
-              onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-              placeholder="Enter the communication prompt for this template..."
-              rows={8}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="isActive"
-              checked={formData.isActive}
-              onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-              disabled={isLoading}
-            />
-            <Label htmlFor="isActive">Active</Label>
-          </div>
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isLoading}>
               Cancel
             </Button>
