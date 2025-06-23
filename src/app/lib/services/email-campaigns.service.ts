@@ -930,16 +930,6 @@ export class EmailCampaignsService {
         });
       }
 
-      if (
-        existingSession.status === EmailGenerationSessionStatus.GENERATING ||
-        existingSession.status === EmailGenerationSessionStatus.READY_TO_SEND
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cannot regenerate emails while campaign is still processing",
-        });
-      }
-
       // Fetch current organization and staff writing instructions for regeneration
       const [organization, primaryStaff] = await Promise.all([
         db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1),
