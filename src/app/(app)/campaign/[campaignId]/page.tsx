@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
+import { useStaff } from "@/app/hooks/use-staff";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,9 +23,19 @@ export default function CampaignDetailPage() {
   const campaignId = Number(params.campaignId);
 
   const { getSession, getEmailSchedule } = useCommunications();
+  const { listStaff, getPrimaryStaff } = useStaff();
 
   // Get campaign data
   const { data: sessionData, isLoading: isLoadingSession, error: sessionError } = getSession({ sessionId: campaignId });
+
+  // Fetch staff data for assignment display
+  const { data: staffData } = listStaff({
+    limit: 100,
+    isRealPerson: true,
+  });
+
+  // Get primary staff for email fallback
+  const { data: primaryStaff } = getPrimaryStaff();
 
   // Debug: Log what we're actually getting from getSession
   React.useEffect(() => {
@@ -214,11 +225,22 @@ export default function CampaignDetailPage() {
             referenceContexts={referenceContexts}
             showSearch={true}
             showPagination={true}
+            showStaffAssignment={true}
             showEditButton={true}
             emailsPerPage={20}
             emptyStateTitle="No emails generated yet"
             emptyStateDescription="This campaign doesn't have any generated emails yet."
             sessionId={campaignId}
+            getStaffName={(staffId) => {
+              if (!staffId || !staffData?.staff) return "Unassigned";
+              const staff = staffData.staff.find((s) => s.id === staffId);
+              return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
+            }}
+            getStaffDetails={(staffId) => {
+              if (!staffId || !staffData?.staff) return null;
+              return staffData.staff.find((s) => s.id === staffId) || null;
+            }}
+            primaryStaff={primaryStaff || null}
           />
         </TabsContent>
 

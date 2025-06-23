@@ -6,7 +6,19 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, X, ChevronLeft, ChevronRight, Mail, Eye, Check, Clock, RefreshCw, Plus } from "lucide-react";
+import {
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Mail,
+  Eye,
+  Check,
+  Clock,
+  RefreshCw,
+  Plus,
+  AlertCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
 import Link from "next/link";
@@ -116,7 +128,7 @@ export function EmailListViewer({
   showSearch = true,
   showPagination = true,
   showTracking = false,
-  showStaffAssignment = false,
+  showStaffAssignment = true,
   showSendButton = true,
   showEditButton = false,
   emailsPerPage = 20,
@@ -293,10 +305,7 @@ export function EmailListViewer({
             className="h-full"
             key={`search-${searchTerm}-page-${currentPage}-${paginatedEmails.length}`}
           >
-            <div
-              className="grid grid-cols-[320px_1fr] border rounded-lg overflow-hidden"
-              style={{ height: maxHeight }}
-            >
+            <div className="grid grid-cols-[320px_1fr] border rounded-lg overflow-hidden" style={{ height: maxHeight }}>
               <div className="border-r bg-background h-full overflow-y-auto">
                 <div className="flex flex-col min-h-full">
                   <div className="p-3 border-b bg-muted/30 flex-shrink-0">
@@ -309,95 +318,127 @@ export function EmailListViewer({
                     </h3>
                   </div>
                   <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1 flex-grow">
-                      {paginatedEmails.map((email) => {
-                        const donor = getDonorData(email.donorId);
-                        const trackingStatsData = showTracking ? getDonorTrackingStats(email.donorId) : null;
-                        if (!donor) return null;
+                    {paginatedEmails.map((email) => {
+                      const donor = getDonorData(email.donorId);
+                      const trackingStatsData = showTracking ? getDonorTrackingStats(email.donorId) : null;
+                      if (!donor) return null;
 
-                        const assignedStaffName =
-                          showStaffAssignment && getStaffName ? getStaffName(donor.assignedToStaffId || null) : null;
+                      const assignedStaffName =
+                        showStaffAssignment && getStaffName ? getStaffName(donor.assignedToStaffId || null) : null;
 
-                        return (
-                          <TabsTrigger
-                            key={email.donorId}
-                            value={email.donorId.toString()}
-                            className={cn(
-                              "w-full p-3 rounded-md border border-transparent",
-                              "flex flex-col items-start justify-start gap-2",
-                              "text-left min-h-[72px] h-auto",
-                              "transition-all duration-200",
-                              "hover:bg-muted/50 hover:border-border",
-                              "data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20",
-                              "data-[state=active]:shadow-sm"
-                            )}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
-                              <div className="flex items-center gap-1">
-                                {/* Approval status badge */}
-                                {email.status === "APPROVED" ? (
-                                  <Badge variant="default" className="text-xs flex items-center gap-1 bg-green-500">
-                                    <Check className="h-3 w-3" />
-                                    Approved
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    Pending
-                                  </Badge>
-                                )}
-                                {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
-                                  <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
-                                    <Eye className="h-3 w-3" />
-                                    {trackingStatsData.uniqueOpens}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <div className="w-full space-y-1">
-                              {assignedStaffName && (
-                                <span className="text-xs text-muted-foreground font-medium">{assignedStaffName}</span>
+                      // Get staff details to check email connection
+                      const staffDetails =
+                        showStaffAssignment && getStaffDetails
+                          ? getStaffDetails(donor.assignedToStaffId || null)
+                          : null;
+                      const hasConnectedEmail = staffDetails?.gmailToken != null;
+
+                      return (
+                        <TabsTrigger
+                          key={email.donorId}
+                          value={email.donorId.toString()}
+                          className={cn(
+                            "w-full p-3 rounded-md border border-transparent",
+                            "flex flex-col items-start justify-start gap-2",
+                            "text-left min-h-[72px] h-auto",
+                            "transition-all duration-200",
+                            "hover:bg-muted/50 hover:border-border",
+                            "data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20",
+                            "data-[state=active]:shadow-sm"
+                          )}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
+                            <div className="flex items-center gap-1">
+                              {/* Email connection error icon */}
+                              {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs flex items-center gap-1 px-1.5 py-0 h-5"
+                                >
+                                  <AlertCircle className="h-3 w-3" />
+                                </Badge>
                               )}
-                              <span className="text-xs text-muted-foreground/80 truncate block w-full">
-                                {donor.email}
-                              </span>
+                              {/* Approval status badge */}
+                              {email.status === "APPROVED" ? (
+                                <Badge variant="default" className="text-xs flex items-center gap-1 bg-green-500">
+                                  <Check className="h-3 w-3" />
+                                  Approved
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  Pending
+                                </Badge>
+                              )}
+                              {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
+                                  <Eye className="h-3 w-3" />
+                                  {trackingStatsData.uniqueOpens}
+                                </Badge>
+                              )}
                             </div>
-                          </TabsTrigger>
-                        );
-                      })}
-                </TabsList>
+                          </div>
+                          <div className="w-full space-y-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">Donor email:</span>
+                              <span className="text-xs text-muted-foreground/80 truncate">{donor.email}</span>
+                            </div>
+                            {assignedStaffName && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">Assigned staff:</span>
+                                <span className="text-xs text-muted-foreground font-medium">{assignedStaffName}</span>
+                                {!hasConnectedEmail && <span className="text-xs text-red-500">• No email</span>}
+                              </div>
+                            )}
+                            {assignedStaffName && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">Assigned staff email:</span>
+                                <span className="text-xs text-muted-foreground/80 truncate">
+                                  {hasConnectedEmail && staffDetails?.gmailToken?.email
+                                    ? staffDetails.gmailToken.email
+                                    : "No email connected"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
 
                   {/* Pagination moved to bottom of left panel */}
                   {showPagination && totalPages > 1 && (
                     <div className="p-3 border-t bg-muted/30 flex-shrink-0">
-                    <div className="flex flex-col space-y-2">
-                      <p className="text-xs text-muted-foreground text-center">
-                        {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of {safeFilteredEmails.length}
-                      </p>
-                      <div className="flex items-center justify-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                          disabled={currentPage === 1}
-                          className="h-7 px-2"
-                        >
-                          <ChevronLeft className="h-3 w-3" />
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          {currentPage} / {totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                          disabled={currentPage === totalPages}
-                          className="h-7 px-2"
-                        >
-                          <ChevronRight className="h-3 w-3" />
-                        </Button>
+                      <div className="flex flex-col space-y-2">
+                        <p className="text-xs text-muted-foreground text-center">
+                          {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of{" "}
+                          {safeFilteredEmails.length}
+                        </p>
+                        <div className="flex items-center justify-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            disabled={currentPage === 1}
+                            className="h-7 px-2"
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {currentPage} / {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            disabled={currentPage === totalPages}
+                            className="h-7 px-2"
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
                     </div>
                   )}
                 </div>
