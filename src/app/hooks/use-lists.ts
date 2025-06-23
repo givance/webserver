@@ -95,6 +95,7 @@ export function useLists() {
   const createMutation = trpc.lists.create.useMutation({
     onSuccess: (data) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       toast.success(`Created list "${data.name}" successfully!`);
     },
     onError: (error) => {
@@ -105,9 +106,13 @@ export function useLists() {
   const updateMutation = trpc.lists.update.useMutation({
     onSuccess: (data) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       utils.lists.getById.invalidate({ id: data.id });
+      utils.lists.getById.refetch({ id: data.id });
       utils.lists.getByIdWithMemberCount.invalidate({ id: data.id });
+      utils.lists.getByIdWithMemberCount.refetch({ id: data.id });
       utils.lists.getByIdWithMembers.invalidate({ id: data.id });
+      utils.lists.getByIdWithMembers.refetch({ id: data.id });
       toast.success(`Updated list "${data.name}" successfully!`);
     },
     onError: (error) => {
@@ -118,12 +123,13 @@ export function useLists() {
   const deleteMutation = trpc.lists.delete.useMutation({
     onSuccess: (result, variables) => {
       utils.lists.list.invalidate();
-      
+      utils.lists.list.refetch();
+
       let message = "List deleted successfully!";
       if (result.donorsDeleted > 0) {
-        message = `List deleted along with ${result.donorsDeleted} donor${result.donorsDeleted !== 1 ? 's' : ''}!`;
+        message = `List deleted along with ${result.donorsDeleted} donor${result.donorsDeleted !== 1 ? "s" : ""}!`;
       }
-      
+
       toast.success(message);
     },
     onError: (error) => {
@@ -134,13 +140,18 @@ export function useLists() {
   const addDonorsMutation = trpc.lists.addDonors.useMutation({
     onSuccess: (data, variables) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       utils.lists.getByIdWithMemberCount.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMemberCount.refetch({ id: variables.listId });
       utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMembers.refetch({ id: variables.listId });
       utils.lists.getDonorIdsFromLists.invalidate();
+      utils.lists.getDonorIdsFromLists.refetch();
 
       // Invalidate getListsForDonor for all affected donors
       variables.donorIds.forEach((donorId) => {
         utils.lists.getListsForDonor.invalidate({ donorId });
+        utils.lists.getListsForDonor.refetch({ donorId });
       });
 
       const addedCount = data.length;
@@ -161,13 +172,18 @@ export function useLists() {
   const removeDonorsMutation = trpc.lists.removeDonors.useMutation({
     onSuccess: (removedCount, variables) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       utils.lists.getByIdWithMemberCount.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMemberCount.refetch({ id: variables.listId });
       utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMembers.refetch({ id: variables.listId });
       utils.lists.getDonorIdsFromLists.invalidate();
+      utils.lists.getDonorIdsFromLists.refetch();
 
       // Invalidate getListsForDonor for all affected donors
       variables.donorIds.forEach((donorId) => {
         utils.lists.getListsForDonor.invalidate({ donorId });
+        utils.lists.getListsForDonor.refetch({ donorId });
       });
 
       if (removedCount > 0) {
@@ -184,9 +200,13 @@ export function useLists() {
   const uploadFilesMutation = trpc.lists.uploadAndProcessFiles.useMutation({
     onSuccess: (result, variables) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       utils.lists.getByIdWithMemberCount.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMemberCount.refetch({ id: variables.listId });
       utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMembers.refetch({ id: variables.listId });
       utils.lists.getDonorIdsFromLists.invalidate();
+      utils.lists.getDonorIdsFromLists.refetch();
 
       // Show comprehensive import summary
       const { summary } = result;
@@ -216,9 +236,13 @@ export function useLists() {
   const createByCriteriaMutation = trpc.lists.createByCriteria.useMutation({
     onSuccess: (result) => {
       utils.lists.list.invalidate();
+      utils.lists.list.refetch();
       utils.lists.getByIdWithMemberCount.invalidate();
+      utils.lists.getByIdWithMemberCount.refetch();
       utils.lists.getByIdWithMembers.invalidate();
+      utils.lists.getByIdWithMembers.refetch();
       utils.lists.getDonorIdsFromLists.invalidate();
+      utils.lists.getDonorIdsFromLists.refetch();
 
       if (result) {
         toast.success(
