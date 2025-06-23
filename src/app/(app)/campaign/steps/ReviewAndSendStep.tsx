@@ -11,8 +11,7 @@ import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
 import { Clock, Send, AlertCircle, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { validateDonorStaffEmailConnectivity, type DonorEmailValidationResult } from "@/app/lib/utils/email-validation";
-import { useAuth } from "@clerk/nextjs";
+import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
 
 interface GeneratedEmail {
   donorId: number;
@@ -29,35 +28,15 @@ interface ReviewAndSendStepProps {
 
 export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish }: ReviewAndSendStepProps) {
   const [isScheduling, setIsScheduling] = useState(false);
-  const [validationResult, setValidationResult] = useState<DonorEmailValidationResult | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
   const { getDonorQuery } = useDonors();
   const { scheduleEmailSend, getScheduleConfig } = useCommunications();
-  const { orgId } = useAuth();
 
   // Get schedule configuration
   const { data: scheduleConfig } = getScheduleConfig();
 
-  // Validate email connectivity when component mounts or emails change
-  useEffect(() => {
-    const validateEmails = async () => {
-      if (!orgId || generatedEmails.length === 0) return;
-
-      setIsValidating(true);
-      try {
-        const donorIds = generatedEmails.map((email) => email.donorId);
-        const result = await validateDonorStaffEmailConnectivity(donorIds, orgId);
-        setValidationResult(result);
-      } catch (error) {
-        console.error("Error validating donor email connectivity:", error);
-        toast.error("Failed to validate email setup. Please try again.");
-      } finally {
-        setIsValidating(false);
-      }
-    };
-
-    validateEmails();
-  }, [generatedEmails, orgId]);
+  // Use the validation hook
+  const donorIds = generatedEmails.map((email) => email.donorId);
+  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(donorIds);
 
   const handleScheduleSend = async () => {
     setIsScheduling(true);
@@ -121,7 +100,9 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
                 <p className="font-medium">Cannot schedule emails due to setup issues:</p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validationResult.donorsWithoutStaff.length > 0 && (
-                    <li>{validationResult.donorsWithoutStaff.length} donor(s) don't have assigned staff members</li>
+                    <li>
+                      {validationResult.donorsWithoutStaff.length} donor(s) don&apos;t have assigned staff members
+                    </li>
                   )}
                   {validationResult.donorsWithStaffButNoEmail.length > 0 && (
                     <li>
@@ -185,7 +166,7 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
               isScheduling ||
               generatedEmails.length === 0 ||
               isValidating ||
-              (validationResult !== null && !validationResult.isValid)
+              (validationResult && !validationResult.isValid)
             }
             className="flex items-center gap-2"
           >

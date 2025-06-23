@@ -120,6 +120,10 @@ const bulkUpdateAssignedStaffSchema = z.object({
   staffId: z.number().nullable(), // staffId can be null to unassign all
 });
 
+const validateDonorStaffEmailSchema = z.object({
+  donorIds: z.array(z.number()),
+});
+
 /**
  * Base donor schema for consistent type validation across operations
  */
@@ -533,5 +537,88 @@ export const donorsRouter = router({
         },
         ctx.auth.user.organizationId
       );
+    }),
+
+  /**
+   * Validates that all specified donors have assigned staff with connected Gmail accounts
+   * @param input.donorIds - Array of donor IDs to validate
+   * @returns Validation result with detailed information about any issues
+   */
+  validateStaffEmailConnectivity: protectedProcedure
+    .input(validateDonorStaffEmailSchema)
+    .query(async ({ input, ctx }) => {
+      const { donorIds } = input;
+      const { organizationId } = ctx.auth.user;
+
+      if (donorIds.length === 0) {
+        return {
+          isValid: true,
+          donorsWithoutStaff: [],
+          donorsWithStaffButNoEmail: [],
+        };
+      }
+
+      // Import staff and staffGmailTokens schemas
+      const { staff, staffGmailTokens } = await import("@/app/lib/db/schema");
+
+      const donorsWithStaff = await db
+        .select({
+          donorId: donors.id,
+          donorFirstName: donors.firstName,
+          donorLastName: donors.lastName,
+          donorEmail: donors.email,
+          assignedToStaffId: donors.assignedToStaffId,
+          staffFirstName: staff.firstName,
+          staffLastName: staff.lastName,
+          staffEmail: staff.email,
+          hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+        })
+        .from(donors)
+        .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+        .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+        .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
+
+      // Check for validation errors
+      const donorsWithoutStaff = donorsWithStaff
+        .filter((donor) => !donor.assignedToStaffId)
+        .map((donor) => ({
+          donorId: donor.donorId,
+          donorFirstName: donor.donorFirstName,
+          donorLastName: donor.donorLastName,
+          donorEmail: donor.donorEmail,
+        }));
+
+      const donorsWithStaffButNoEmail = donorsWithStaff
+        .filter((donor) => donor.assignedToStaffId && !donor.hasGmailToken)
+        .map((donor) => ({
+          donorId: donor.donorId,
+          donorFirstName: donor.donorFirstName,
+          donorLastName: donor.donorLastName,
+          donorEmail: donor.donorEmail,
+          staffFirstName: donor.staffFirstName!,
+          staffLastName: donor.staffLastName!,
+          staffEmail: donor.staffEmail!,
+        }));
+
+      const isValid = donorsWithoutStaff.length === 0 && donorsWithStaffButNoEmail.length === 0;
+
+      let errorMessage: string | undefined;
+      if (!isValid) {
+        const errors: string[] = [];
+        if (donorsWithoutStaff.length > 0) {
+          errors.push(`${donorsWithoutStaff.length} donor(s) don't have assigned staff`);
+        }
+        if (donorsWithStaffButNoEmail.length > 0) {
+          errors.push(`${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`);
+        }
+        errorMessage = errors.join(" and ");
+      }
+
+      return {
+        isValid,
+        donorsWithoutStaff,
+        donorsWithStaffButNoEmail,
+        errorMessage,
+      };
     }),
 });

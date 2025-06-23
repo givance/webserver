@@ -7,15 +7,17 @@ import { useStaff } from "@/app/hooks/use-staff";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit } from "lucide-react";
+import { ArrowLeft, Edit, AlertCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { EmailScheduleViewer } from "../components/EmailScheduleViewer";
 import { EmailScheduleControlPanel } from "../components/EmailScheduleControlPanel";
 // Removed EmailScheduleSettings - moved to organization settings
 import { EmailListViewer, BaseGeneratedEmail } from "../components/EmailListViewer";
 import { Badge } from "@/components/ui/badge";
-import { useMemo } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useMemo, useState, useEffect } from "react";
 import React from "react";
+import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -64,6 +66,9 @@ export default function CampaignDetailPage() {
     }
     return sessionData.session.selectedDonorIds;
   }, [sessionData?.session?.selectedDonorIds]);
+
+  // Use the validation hook
+  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(donorIds);
 
   // Fetch donor data
   const { getDonorsQuery } = useDonors();
@@ -195,6 +200,47 @@ export default function CampaignDetailPage() {
           </p>
         </div>
       </div>
+
+      {/* Validation Banner */}
+      {isValidating && (
+        <div className="mb-6">
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Validating email setup for all donors in this campaign...</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {validationResult && !validationResult.isValid && (
+        <div className="mb-6">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p className="font-medium">⚠️ Email setup issues detected for this campaign:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {validationResult.donorsWithoutStaff.length > 0 && (
+                    <li>
+                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
+                      staff members
+                    </li>
+                  )}
+                  {validationResult.donorsWithStaffButNoEmail.length > 0 && (
+                    <li>
+                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
+                      without connected Gmail accounts
+                    </li>
+                  )}
+                </ul>
+                <p className="text-sm">
+                  These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
+                  ensure all staff have connected their Gmail accounts in Settings.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Main Content */}
       <Tabs defaultValue={hasSchedule ? "schedule" : "emails"} className="space-y-4">

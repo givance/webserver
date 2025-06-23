@@ -8,11 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useLists } from "@/app/hooks/use-lists";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
-import { Users, List, Check, Loader2 } from "lucide-react";
+import { Users, List, Check, Loader2, AlertCircle, AlertTriangle } from "lucide-react";
+import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
 
 interface SelectDonorsStepProps {
   selectedDonors: number[];
@@ -25,14 +27,14 @@ interface SelectDonorsStepProps {
   templateId?: number;
 }
 
-export function SelectDonorsStep({ 
-  selectedDonors, 
-  onDonorsSelected, 
+export function SelectDonorsStep({
+  selectedDonors,
+  onDonorsSelected,
   onNext,
   sessionId,
   onSessionIdChange,
   campaignName,
-  templateId
+  templateId,
 }: SelectDonorsStepProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [listSearchTerm, setListSearchTerm] = useState("");
@@ -40,6 +42,9 @@ export function SelectDonorsStep({
   const [activeTab, setActiveTab] = useState<"donors" | "lists">("donors");
   const prevDonorIdsFromListsRef = useRef<number[]>([]);
   const selectedDonorsRef = useRef<number[]>(selectedDonors);
+
+  // Use the validation hook
+  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(selectedDonors);
 
   // Auto-save hook
   const { autoSave, isSaving } = useCampaignAutoSave({
@@ -164,6 +169,45 @@ export function SelectDonorsStep({
           Choose individual donors or select entire lists to include in your communication campaign.
         </p>
       </div>
+
+      {/* Validation Banner */}
+      {isValidating && selectedDonors.length > 0 && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Validating email setup for {selectedDonors.length} selected donor{selectedDonors.length !== 1 ? "s" : ""}...
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {validationResult && !validationResult.isValid && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="font-medium">⚠️ Email setup issues detected for selected donors:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                {validationResult.donorsWithoutStaff.length > 0 && (
+                  <li>
+                    <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
+                    staff members
+                  </li>
+                )}
+                {validationResult.donorsWithStaffButNoEmail.length > 0 && (
+                  <li>
+                    <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
+                    without connected Gmail accounts
+                  </li>
+                )}
+              </ul>
+              <p className="text-sm">
+                These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
+                ensure all staff have connected their Gmail accounts in Settings.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "donors" | "lists")}>
         <TabsList className="grid w-full grid-cols-2">

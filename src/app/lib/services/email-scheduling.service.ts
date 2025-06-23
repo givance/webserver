@@ -14,7 +14,6 @@ import { runs } from "@trigger.dev/sdk/v3";
 import { TRPCError } from "@trpc/server";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, eq, gte, isNull, lt, or, sql, inArray } from "drizzle-orm";
-import { validateDonorStaffEmailConnectivity } from "@/app/lib/utils/email-validation";
 
 type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
 type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
@@ -326,22 +325,58 @@ export class EmailSchedulingService {
 
       // Validate that all donors have assigned staff with connected email accounts
       const donorIds = emails.map((email) => email.donorId);
-      const validationResult = await validateDonorStaffEmailConnectivity(donorIds, organizationId);
 
-      if (!validationResult.isValid) {
-        logger.error(
-          `Email scheduling validation failed for session ${sessionId}: ${validationResult.donorsWithoutStaff.length} donors without staff, ${validationResult.donorsWithStaffButNoEmail.length} donors with staff but no Gmail`
+      if (donorIds.length > 0) {
+        const donorsWithStaff = await db
+          .select({
+            donorId: donors.id,
+            donorFirstName: donors.firstName,
+            donorLastName: donors.lastName,
+            donorEmail: donors.email,
+            assignedToStaffId: donors.assignedToStaffId,
+            staffFirstName: staff.firstName,
+            staffLastName: staff.lastName,
+            staffEmail: staff.email,
+            hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+          })
+          .from(donors)
+          .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+          .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+          .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
+
+        // Check for validation errors
+        const donorsWithoutStaff = donorsWithStaff.filter((donor) => !donor.assignedToStaffId);
+
+        const donorsWithStaffButNoEmail = donorsWithStaff.filter(
+          (donor) => donor.assignedToStaffId && !donor.hasGmailToken
         );
 
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Cannot schedule emails. ${validationResult.errorMessage}`,
-        });
-      }
+        const isValid = donorsWithoutStaff.length === 0 && donorsWithStaffButNoEmail.length === 0;
 
-      logger.info(
-        `Email scheduling validation passed for session ${sessionId}: All ${emails.length} donors have assigned staff with connected Gmail accounts`
-      );
+        if (!isValid) {
+          const errors: string[] = [];
+          if (donorsWithoutStaff.length > 0) {
+            errors.push(`${donorsWithoutStaff.length} donor(s) don't have assigned staff`);
+          }
+          if (donorsWithStaffButNoEmail.length > 0) {
+            errors.push(`${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`);
+          }
+          const errorMessage = errors.join(" and ");
+
+          logger.error(
+            `Email scheduling validation failed for session ${sessionId}: ${donorsWithoutStaff.length} donors without staff, ${donorsWithStaffButNoEmail.length} donors with staff but no Gmail`
+          );
+
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Cannot schedule emails. ${errorMessage}`,
+          });
+        }
+
+        logger.info(
+          `Email scheduling validation passed for session ${sessionId}: All ${emails.length} donors have assigned staff with connected Gmail accounts`
+        );
+      }
 
       // Check daily limit
       const sentToday = await this.getEmailsSentToday(organizationId, config.timezone);

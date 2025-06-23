@@ -21,6 +21,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,8 @@ import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
 import { useStaffMembers } from "@/app/hooks/use-staff-members";
 import { useStaff } from "@/app/hooks/use-staff";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
 
 interface GeneratedEmailData {
   id: number;
@@ -88,6 +91,11 @@ export default function EmailGenerationResultsPage() {
       timestamp: new Date().toISOString(),
     });
   }, [sessionData, sessionId]);
+
+  // Use the validation hook
+  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(
+    sessionData?.session?.selectedDonorIds || []
+  );
 
   const { getDonorsQuery } = useDonors();
 
@@ -255,6 +263,47 @@ export default function EmailGenerationResultsPage() {
           </div>
         </div>
       </div>
+
+      {/* Validation Banner */}
+      {isValidating && (
+        <div className="border-b bg-blue-50 px-4 py-3">
+          <Alert className="border-blue-200">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Validating email setup for all donors...</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {validationResult && !validationResult.isValid && (
+        <div className="border-b bg-orange-50 px-4 py-3">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p className="font-medium">⚠️ Email setup issues detected for this campaign:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {validationResult.donorsWithoutStaff.length > 0 && (
+                    <li>
+                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
+                      staff members
+                    </li>
+                  )}
+                  {validationResult.donorsWithStaffButNoEmail.length > 0 && (
+                    <li>
+                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
+                      without connected Gmail accounts
+                    </li>
+                  )}
+                </ul>
+                <p className="text-sm">
+                  These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
+                  ensure all staff have connected their Gmail accounts in Settings.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
