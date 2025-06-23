@@ -28,7 +28,6 @@ export interface GenerateEmailsInput {
   donors: DonorInput[];
   organizationName: string;
   organizationWritingInstructions?: string;
-  staffWritingInstructions?: string; // New field for staff-specific instructions
   previousInstruction?: string;
   currentDate?: string;
   chatHistory?: Array<{
@@ -50,14 +49,7 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const {
-      instruction,
-      donors,
-      organizationWritingInstructions,
-      staffWritingInstructions,
-      previousInstruction,
-      chatHistory,
-    } = input;
+    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory } = input;
     const currentDate = new Date().toDateString();
 
     // Process project mentions in the instruction
@@ -194,25 +186,97 @@ export class EmailGenerationService {
       donationHistoriesMap[donor.id] = donationHistory;
     });
 
-    // Call the main email generator with all the data
-    const result = await generateSmartDonorEmails(
-      donorInfos,
-      processedInstruction,
-      input.organizationName,
-      emailGeneratorOrg,
-      organization.writingInstructions || undefined, // Use database value instead of input parameter
-      staffWritingInstructions, // Pass staff writing instructions
-      communicationHistories,
-      donationHistoriesMap,
-      donorStatistics, // Pass donor statistics
-      personResearchResults, // Pass person research results
-      userMemories,
-      organizationMemories,
-      currentDate,
-      input.signature || user?.emailSignature || undefined, // Use provided signature or fallback to user signature
-      previousInstruction, // Pass the previous instruction to enable stateful refinement
-      chatHistory // Pass the chat history to the refinement agent
-    );
+    // Get primary staff for fallback writing instructions
+    const primaryStaffForWriting = await db.query.staff.findFirst({
+      where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+    });
+
+    // Since we need per-donor staff writing instructions, we'll generate emails individually
+    // to ensure each donor gets their assigned staff's writing instructions
+    const emailGenerationPromises = donorInfos.map(async (donorInfo) => {
+      // Find the corresponding full donor data to get assigned staff
+      const fullDonor = fullDonorData.find((d) => d.id === donorInfo.id);
+      const assignedStaff = fullDonor?.assignedStaff;
+
+      // Determine the appropriate staff writing instructions for this donor
+      let donorStaffWritingInstructions: string | undefined;
+      if (assignedStaff?.writingInstructions && assignedStaff.writingInstructions.trim()) {
+        donorStaffWritingInstructions = assignedStaff.writingInstructions;
+        logger.info(
+          `Using assigned staff writing instructions for donor ${donorInfo.id} from ${assignedStaff.firstName} ${assignedStaff.lastName}`
+        );
+      } else if (primaryStaffForWriting?.writingInstructions && primaryStaffForWriting.writingInstructions.trim()) {
+        donorStaffWritingInstructions = primaryStaffForWriting.writingInstructions;
+        logger.info(
+          `Using primary staff writing instructions for donor ${donorInfo.id} from ${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`
+        );
+      } else {
+        donorStaffWritingInstructions = undefined;
+        logger.info(`No staff writing instructions available for donor ${donorInfo.id}`);
+      }
+
+      // Generate email for this single donor with their specific staff writing instructions
+      return await generateSmartDonorEmails(
+        [donorInfo], // Single donor
+        processedInstruction,
+        input.organizationName,
+        emailGeneratorOrg,
+        organization.writingInstructions || undefined, // Use database value instead of input parameter
+        donorStaffWritingInstructions, // Pass donor-specific staff writing instructions
+        { [donorInfo.id]: communicationHistories[donorInfo.id] || [] },
+        { [donorInfo.id]: donationHistoriesMap[donorInfo.id] || [] },
+        { [donorInfo.id]: donorStatistics[donorInfo.id] },
+        { [donorInfo.id]: personResearchResults[donorInfo.id] },
+        userMemories,
+        organizationMemories,
+        currentDate,
+        input.signature || user?.emailSignature || undefined, // Use provided signature or fallback to user signature
+        previousInstruction, // Pass the previous instruction to enable stateful refinement
+        chatHistory // Pass the chat history to the refinement agent
+      );
+    });
+
+    // Wait for all email generations to complete
+    const individualResults = await Promise.all(emailGenerationPromises);
+
+    // Combine all results into a single result
+    const result = {
+      refinedInstruction: individualResults[0]?.refinedInstruction || processedInstruction,
+      reasoning: individualResults[0]?.reasoning || "",
+      emails: individualResults.flatMap((result) => result.emails),
+      suggestedMemories: individualResults[0]?.suggestedMemories || [],
+      tokenUsage: individualResults.reduce(
+        (totalUsage, result) => {
+          return {
+            instructionRefinement: {
+              promptTokens:
+                totalUsage.instructionRefinement.promptTokens + result.tokenUsage.instructionRefinement.promptTokens,
+              completionTokens:
+                totalUsage.instructionRefinement.completionTokens +
+                result.tokenUsage.instructionRefinement.completionTokens,
+              totalTokens:
+                totalUsage.instructionRefinement.totalTokens + result.tokenUsage.instructionRefinement.totalTokens,
+            },
+            emailGeneration: {
+              promptTokens: totalUsage.emailGeneration.promptTokens + result.tokenUsage.emailGeneration.promptTokens,
+              completionTokens:
+                totalUsage.emailGeneration.completionTokens + result.tokenUsage.emailGeneration.completionTokens,
+              totalTokens: totalUsage.emailGeneration.totalTokens + result.tokenUsage.emailGeneration.totalTokens,
+            },
+            total: {
+              promptTokens: totalUsage.total.promptTokens + result.tokenUsage.total.promptTokens,
+              completionTokens: totalUsage.total.completionTokens + result.tokenUsage.total.completionTokens,
+              totalTokens: totalUsage.total.totalTokens + result.tokenUsage.total.totalTokens,
+            },
+          };
+        },
+        {
+          instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          emailGeneration: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          total: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        }
+      ),
+    };
 
     // Get primary staff for fallback
     const primaryStaff = await db.query.staff.findFirst({
