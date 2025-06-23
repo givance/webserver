@@ -20,10 +20,10 @@ import { ErrorHandler, wrapDatabaseOperation } from "@/app/lib/utils/error-handl
  */
 export interface UpdateOrganizationInput {
   websiteUrl?: string | null;
-  websiteSummary?: string;
-  description?: string;
-  shortDescription?: string;
-  writingInstructions?: string;
+  websiteSummary?: string | null;
+  description?: string | null;
+  shortDescription?: string | null;
+  writingInstructions?: string | null;
   memory?: string[];
 }
 
@@ -91,9 +91,7 @@ export class OrganizationsService {
         }
 
         // Website crawling is disabled - skip crawl trigger
-        logger.info(
-          `Website crawling is disabled. Skipping crawl trigger for organization ${organizationId}.`
-        );
+        logger.info(`Website crawling is disabled. Skipping crawl trigger for organization ${organizationId}.`);
 
         logger.info(`Successfully updated organization ${organizationId}`);
         return updated;

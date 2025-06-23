@@ -8,10 +8,10 @@ import type { DonorJourney } from "@/app/lib/data/organizations";
  */
 const updateOrganizationSchema = z.object({
   websiteUrl: z.string().url().nullable().optional(),
-  websiteSummary: z.string().optional(),
-  description: z.string().optional(),
-  shortDescription: z.string().optional(),
-  writingInstructions: z.string().optional(),
+  websiteSummary: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  shortDescription: z.string().nullable().optional(),
+  writingInstructions: z.string().nullable().optional(),
   memory: z.array(z.string()).optional(),
 });
 

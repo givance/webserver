@@ -13,11 +13,11 @@ type Organization = InferSelectModel<typeof organizations>;
  * Input types for organization operations
  */
 export type UpdateOrganizationInput = {
-  websiteUrl?: string;
-  websiteSummary?: string;
-  description?: string;
-  shortDescription?: string;
-  writingInstructions?: string;
+  websiteUrl?: string | null;
+  websiteSummary?: string | null;
+  description?: string | null;
+  shortDescription?: string | null;
+  writingInstructions?: string | null;
   memory?: string[];
 };
 

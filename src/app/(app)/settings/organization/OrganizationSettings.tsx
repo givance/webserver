@@ -13,11 +13,11 @@ import ReactMarkdown from "react-markdown";
 
 // Define a type for form data that excludes memory
 type FormData = {
-  websiteUrl?: string;
-  websiteSummary?: string;
-  description?: string;
-  shortDescription?: string;
-  writingInstructions?: string;
+  websiteUrl?: string | null;
+  websiteSummary?: string | null;
+  description?: string | null;
+  shortDescription?: string | null;
+  writingInstructions?: string | null;
 };
 
 export function OrganizationSettings() {
@@ -47,37 +47,31 @@ export function OrganizationSettings() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleWebsiteUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    setFormData((prev) => ({ ...prev, websiteUrl: value }));
+
+    // Custom validation for website URL
+    if (value && !value.match(/^https?:\/\/.+/)) {
+      e.target.setCustomValidity("URL must start with http:// or https://");
+    } else {
+      e.target.setCustomValidity("");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Only include fields that have been changed
-    const changedData: FormData = {};
-    Object.entries(formData).forEach(([key, value]) => {
-      const k = key as keyof FormData;
-      const orgValue = organization?.[k as keyof typeof organization];
+    // Get fresh form data and convert empty strings to null so backend actually updates them
+    const form = e.target as HTMLFormElement;
+    const formDataFromForm = new FormData(form);
 
-      // Handle null/undefined/empty string comparison for text fields
-      const normalizedValue = value === "" ? null : value;
-      const normalizedOrgValue = orgValue === "" ? null : orgValue;
-
-      // Only include if value is different from original
-      if (normalizedValue !== normalizedOrgValue) {
-        changedData[k] = value;
-      }
-    });
-
-    if (Object.keys(changedData).length === 0) {
-      toast.info("No changes were made to the organization settings.");
-      return;
-    }
-
-    // Convert empty strings to undefined for backend consistency
-    const dataToSend = Object.fromEntries(
-      Object.entries(changedData).map(([key, value]) => [
-        key,
-        value === "" ? undefined : value
-      ])
-    ) as FormData;
+    const dataToSend: FormData = {
+      websiteUrl: (formDataFromForm.get("websiteUrl") as string) || null,
+      description: (formDataFromForm.get("description") as string) || null,
+      shortDescription: (formDataFromForm.get("shortDescription") as string) || null,
+      writingInstructions: (formDataFromForm.get("writingInstructions") as string) || null,
+    };
 
     const result = await updateOrganization(dataToSend);
 
@@ -135,10 +129,14 @@ export function OrganizationSettings() {
                 <Input
                   id="websiteUrl"
                   name="websiteUrl"
+                  type="url"
                   value={formData.websiteUrl || ""}
-                  onChange={handleChange}
+                  onChange={handleWebsiteUrlChange}
                   placeholder="https://example.org"
+                  pattern="^https?://.*"
+                  title="URL must start with http:// or https://"
                 />
+                <p className="text-sm text-muted-foreground">Must start with http:// or https://</p>
               </div>
 
               {/* Website Summary is disabled - hidden from UI */}
