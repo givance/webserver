@@ -85,6 +85,7 @@ export interface GenerateEmailOptions {
   organizationalMemories?: string[];
   currentDate?: string; // Added for today's date
   emailSignature?: string; // User's email signature
+  originalInstruction?: string; // Original user instruction before refinement
 }
 
 export interface EmailPiece {
@@ -156,7 +157,8 @@ export interface EmailGeneratorTool {
     personalMemories?: string[],
     organizationalMemories?: string[],
     currentDate?: string, // Added for today's date
-    emailSignature?: string // User's email signature
+    emailSignature?: string, // User's email signature
+    originalInstruction?: string // Original user instruction before refinement
   ) => Promise<GeneratedEmail[]>;
 }
 

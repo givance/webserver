@@ -90,17 +90,20 @@ REQUIREMENTS:
 - Use the current date context for time-sensitive references and seasonal messaging
 - DO NOT include any signature or closing in the email - this will be automatically added by the system
 - When talking about the donor's impact, you should use their past donation history to reference the impact they've had.
+- When requesting donations, include a real donation URL (e.g., https://example.org/donate) instead of placeholder text like "[donation link]".
 
 IMPORTANT INSTRUCTIONS:
-- For the "piece" field: Write natural email text WITHOUT any reference IDs like [donation-context] or [comm-02-01]
+- For the "piece" field: Write natural email text WITHOUT any reference IDs, numbers, or markers (like [donation-context], [comm-02-01], ¹, ², 1, 2, etc.)
 - For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-context", "comm-01-02"])
 - For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 - DO NOT use "-", "--" or "—" in the email ever.
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
+- DO NOT include footnote numbers, superscript numbers, or any reference markers in the email text
 - PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
 - Try to be as specific as possible, avoid general statements.
 - Do not mention small amount donations unless the user has specifically asked for it. Do not say "small" or "small amount" in the email.
 - DONATION CONTEXT: When referencing donations, use "donation-context" as the reference ID which contains ALL donation information. This allows you to mention multiple donations, specific amounts, dates, and projects from the donor's complete giving history.
+- DONATION LINKS: When including donation links, always use actual URLs (like https://example.org/donate) rather than placeholder text like "[donation link]" or "click here". Never use bracketed placeholder text. The system will automatically convert URLs into trackable links. Example: "Please donate here: https://example.org/donate" NOT "Please donate here: [donation link]".
 
 If the requirements or the important instructions conflicts with the task below, follow the task instruction.
 `;
@@ -112,12 +115,13 @@ If the requirements or the important instructions conflicts with the task below,
  * Builds the dynamic donor-specific context that changes for each email.
  */
 export function buildStructuredDonorContext(
-  instruction: string,
+  refinedInstruction: string,
   donor: DonorInfo,
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
   donorStatistics?: DonorStatistics,
-  personResearch?: PersonResearchResult
+  personResearch?: PersonResearchResult,
+  originalInstruction?: string
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
@@ -194,7 +198,17 @@ export function buildStructuredDonorContext(
     }
   }
 
-  return `TASK: ${instruction}
+  // Build the task section with both instructions if original is provided
+  let taskSection = "";
+  if (originalInstruction && originalInstruction.trim() !== refinedInstruction.trim()) {
+    taskSection = `ORIGINAL USER INSTRUCTION: ${originalInstruction}
+
+REFINED INSTRUCTION: ${refinedInstruction}`;
+  } else {
+    taskSection = `TASK: ${refinedInstruction}`;
+  }
+
+  return `${taskSection}
 
 Donor: ${formatDonorName(donor)} (${donor.email})
 ${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statisticsPrompt}
@@ -203,9 +217,11 @@ ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 
 ${communicationHistoryPrompt ? `Past Communications:\n${communicationHistoryPrompt}\n` : ""}
 
-${/* Person research removed from prompts
+${
+  /* Person research removed from prompts
 personResearchPrompt ? `Person Research:\n${personResearchPrompt}\n` : ""
-*/""}`;
+*/ ""
+}`;
 }
 
 /**
@@ -215,7 +231,7 @@ personResearchPrompt ? `Person Research:\n${personResearchPrompt}\n` : ""
  */
 export function buildStructuredEmailPrompt(
   donor: DonorInfo,
-  instruction: string,
+  refinedInstruction: string,
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
@@ -225,7 +241,8 @@ export function buildStructuredEmailPrompt(
   personResearch?: PersonResearchResult,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
-  currentDate?: string
+  currentDate?: string,
+  originalInstruction?: string
 ): {
   systemPrompt: string;
   donorContext: string;
@@ -240,12 +257,13 @@ export function buildStructuredEmailPrompt(
   );
 
   const donorContext = buildStructuredDonorContext(
-    instruction,
+    refinedInstruction,
     donor,
     communicationHistoryInput,
     donationHistoryInput,
     donorStatistics,
-    personResearch
+    personResearch,
+    originalInstruction
   );
 
   console.log(donorContext);

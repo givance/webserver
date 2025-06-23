@@ -69,10 +69,20 @@ export async function generateSmartDonorEmails(
   suggestedMemories?: string[];
   tokenUsage: EmailGenerationTokenUsage;
 }> {
+  // Extract and concatenate all user messages from chat history to form the complete user instruction
+  let completeUserInstruction = userInstruction;
+  if (chatHistory && chatHistory.length > 0) {
+    const userMessages = chatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
+    if (userMessages.length > 0) {
+      completeUserInstruction = userMessages.join(" ");
+      logger.info(`Concatenated ${userMessages.length} user messages from chat history to form complete instruction`);
+    }
+  }
+
   logger.info(
     `Starting smart donor email generation for ${
       donors.length
-    } donors with instruction: "${userInstruction}" (previousInstruction: ${
+    } donors with instruction: "${completeUserInstruction}" (previousInstruction: ${
       previousInstruction ? `"${previousInstruction}"` : "none"
     }, chatHistoryLength: ${chatHistory?.length || 0})`
   );
@@ -89,7 +99,7 @@ export async function generateSmartDonorEmails(
   // First, refine the instruction using the first agent
   logger.info("Starting instruction refinement stage");
   const refinementResult = await instructionAgent.refineInstruction({
-    userInstruction,
+    userInstruction: completeUserInstruction,
     previousInstruction,
     organizationWritingInstructions,
     userMemories,
@@ -118,7 +128,8 @@ export async function generateSmartDonorEmails(
     userMemories,
     organizationMemories,
     currentDate,
-    emailSignature
+    emailSignature,
+    completeUserInstruction // Pass the complete user instruction
   );
 
   // Accumulate email generation tokens from all individual emails
@@ -131,7 +142,7 @@ export async function generateSmartDonorEmails(
 
   // Log comprehensive token usage summary
   logger.info(
-    `Smart donor email generation completed successfully - Donors: ${donors.length}, Instruction: "${userInstruction}"`
+    `Smart donor email generation completed successfully - Donors: ${donors.length}, Instruction: "${completeUserInstruction}"`
   );
 
   logger.info(

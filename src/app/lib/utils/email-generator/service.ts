@@ -47,7 +47,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
     personalMemories: string[] = [],
     organizationalMemories: string[] = [],
     currentDate?: string,
-    emailSignature?: string
+    emailSignature?: string,
+    originalInstruction?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
       `Starting batch email generation for ${
@@ -56,65 +57,54 @@ export class EmailGenerationService implements EmailGeneratorTool {
         Object.keys(communicationHistories).length
       }, donationHistoriesCount: ${Object.keys(donationHistories).length}, donorStatisticsCount: ${
         Object.keys(donorStatistics).length
-      }, currentDate: ${currentDate || "not provided"})`
+      }, currentDate: ${currentDate || "not provided"}, hasOriginalInstruction: ${!!originalInstruction})`
     );
 
-    const emailPromises = donors.map(async (donor) => {
-      const donorCommHistory = communicationHistories[donor.id] || [];
-      const donorStats = donorStatistics[donor.id];
-      const donorResearch = personResearchResults[donor.id];
-      logger.info(
-        `Processing donor ${donor.id} (${formatDonorName(donor)}, commHistoryCount: ${
-          donorCommHistory.length
-        }, donationHistoryCount: ${
-          donationHistories[donor.id]?.length || 0
-        }, hasStatistics: ${!!donorStats}, hasPersonResearch: ${!!donorResearch})`
-      );
-
-      return await this.generateDonorEmail({
+    const promises = donors.map((donor) =>
+      this.generateDonorEmail({
         donor,
         instruction: refinedInstruction,
         organizationName,
         organization,
         organizationWritingInstructions,
-        communicationHistory: donorCommHistory,
+        communicationHistory: communicationHistories[donor.id] || [],
         donationHistory: donationHistories[donor.id] || [],
-        donorStatistics: donorStats,
-        personResearch: donorResearch,
+        donorStatistics: donorStatistics[donor.id],
+        personResearch: personResearchResults[donor.id],
         personalMemories,
         organizationalMemories,
         currentDate,
-        emailSignature,
-      }).catch((error) => {
-        logger.error(
-          `Failed to generate email for donor ${donor.id} (error: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }, stack: ${error instanceof Error ? error.stack : "undefined"}, type: ${
-            error instanceof Error ? error.constructor.name : typeof error
-          })`
-        );
-        throw error;
-      });
+        originalInstruction,
+      })
+    );
+
+    const results = await Promise.allSettled(promises);
+
+    const successfulEmails: GeneratedEmail[] = [];
+    const errors: string[] = [];
+
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        successfulEmails.push(result.value);
+      } else {
+        const donor = donors[index];
+        const errorMessage = `Failed to generate email for donor ${donor.id} (${formatDonorName(donor)}): ${
+          result.reason
+        }`;
+        errors.push(errorMessage);
+        logger.error(errorMessage);
+      }
     });
 
-    try {
-      const results = await Promise.all(emailPromises);
-      logger.info(
-        `Successfully generated all emails (totalEmails: ${results.length}, donorIds: ${results
-          .map((r) => r.donorId)
-          .join(", ")})`
-      );
-      return results;
-    } catch (batchError) {
-      logger.error(
-        `Error during batch email generation (error: ${
-          batchError instanceof Error ? batchError.message : "Unknown batch error"
-        }, stack: ${batchError instanceof Error ? batchError.stack : "undefined"}, type: ${
-          batchError instanceof Error ? batchError.constructor.name : typeof batchError
-        })`
-      );
-      throw batchError;
+    logger.info(
+      `Batch email generation completed: ${successfulEmails.length} successful, ${errors.length} failed out of ${donors.length} total donors`
+    );
+
+    if (errors.length > 0) {
+      logger.error(`Errors during batch generation: ${errors.join("; ")}`);
     }
+
+    return successfulEmails;
   }
 
   /**
@@ -134,6 +124,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personalMemories,
       organizationalMemories,
       currentDate,
+      originalInstruction,
     } = options;
 
     logger.info(
@@ -217,7 +208,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personResearch,
       personalMemories,
       organizationalMemories,
-      currentDate
+      currentDate,
+      originalInstruction
     );
 
     // Combine the system prompt and donor context for the AI call
@@ -246,12 +238,15 @@ export class EmailGenerationService implements EmailGeneratorTool {
         content: z
           .array(
             z.object({
-              piece: z.string().min(1).describe("A string segment of the email (sentence or paragraph)"),
+              piece: z
+                .string()
+                .min(1)
+                .describe(
+                  "A clean string segment of the email (sentence or paragraph) without any reference markers, footnote numbers, or bracketed placeholders"
+                ),
               references: z
                 .array(z.string())
-                .describe(
-                  "Array of context IDs that informed this piece (e.g., ['donation-1', 'comm-01-02'])"
-                ),
+                .describe("Array of context IDs that informed this piece (e.g., ['donation-context', 'comm-01-02'])"),
               addNewlineAfter: z
                 .boolean()
                 .describe("Whether a newline should be added after this piece for formatting"),

@@ -131,14 +131,6 @@ export function WriteInstructionStep({
   sessionId,
   initialRefinedInstruction,
 }: WriteInstructionStepProps) {
-  console.log("[WriteInstructionStep] Component mounted/updated with props:", {
-    campaignName,
-    templateId,
-    sessionId,
-    editMode,
-    selectedDonorsCount: selectedDonors?.length,
-    initialRefinedInstruction,
-  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] =
     useState<Array<{ role: "user" | "assistant"; content: string }>>(initialChatHistory);
@@ -325,17 +317,7 @@ export function WriteInstructionStep({
         console.error("[WriteInstructionStep] Failed to save chat history:", error);
       }
     },
-    [
-      sessionId,
-      campaignName,
-      selectedDonors,
-      templateId,
-      instruction,
-      previewDonorIds,
-      saveDraft,
-      chatMessages,
-      previousInstruction,
-    ]
+    [sessionId, campaignName, saveDraft]
   );
 
   // Memoize session data to avoid unnecessary recalculations
@@ -567,7 +549,6 @@ export function WriteInstructionStep({
       }
     },
     [
-      instruction,
       previewDonorIds,
       donorsData,
       organization,
@@ -742,7 +723,6 @@ export function WriteInstructionStep({
     isGeneratingMore,
     organization,
     previousInstruction,
-    instruction,
     allGeneratedEmails,
     selectedDonors,
     donorsData,
@@ -1036,9 +1016,12 @@ export function WriteInstructionStep({
   };
 
   // Handle mentions input change
-  const handleMentionChange = (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
-    onInstructionChange(newValue);
-  };
+  const handleMentionChange = useCallback(
+    (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
+      onInstructionChange(newValue);
+    },
+    [onInstructionChange]
+  );
 
   // Handle keydown for submitting with Cmd/Ctrl + Enter
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
