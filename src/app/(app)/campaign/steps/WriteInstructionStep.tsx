@@ -755,20 +755,6 @@ export function WriteInstructionStep({
   // Handle regenerating all emails with same instructions without affecting chat history
   const handleRegenerateAllEmails = async (onlyUnapproved = false) => {
     if (isRegenerating || !organization) return;
-
-    const finalInstruction = previousInstruction || instruction;
-    console.log("[WriteInstructionStep] Regenerating with:", {
-      previousInstruction,
-      instruction,
-      finalInstruction,
-      onlyUnapproved,
-    });
-
-    if (!finalInstruction || finalInstruction.trim().length === 0) {
-      toast.error("No instruction available for regeneration. Please generate emails first.");
-      return;
-    }
-
     setIsRegenerating(true);
     setShowRegenerateDialog(false);
 
@@ -828,7 +814,7 @@ export function WriteInstructionStep({
 
       // Generate emails using the hook without affecting chat history
       const result = await generateEmails.mutateAsync({
-        instruction: finalInstruction,
+        instruction: "",
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,

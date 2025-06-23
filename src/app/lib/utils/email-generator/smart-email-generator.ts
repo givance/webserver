@@ -1,20 +1,17 @@
 import { DonationWithDetails } from "../../data/donations";
+import { logger } from "../../logger";
+import { PersonResearchResult } from "../../services/person-research/types";
 import { EmailGenerationService } from "./service";
-import { InstructionRefinementAgent } from "./instruction-agent";
 import {
   DonorInfo,
+  DonorStatistics,
+  EmailGenerationTokenUsage,
   Organization,
   RawCommunicationThread,
-  DonorStatistics,
   TokenUsage,
-  EmailGenerationTokenUsage,
-  createEmptyEmailGenerationTokenUsage,
   addTokenUsage,
+  createEmptyEmailGenerationTokenUsage,
 } from "./types";
-import { PersonResearchResult } from "../../services/person-research/types";
-import { getOrganizationMemories } from "../../data/organizations";
-import { getUserMemories } from "../../data/users";
-import { logger } from "../../logger";
 
 /**
  * Generates personalized donor emails using a two-agent system:
@@ -94,38 +91,20 @@ export async function generateSmartDonorEmails(
   // Create the email generation service
   const emailGenerator = new EmailGenerationService();
 
-  // Create the instruction refinement agent with the email generator
-  const instructionAgent = new InstructionRefinementAgent(emailGenerator);
-
-  // First, refine the instruction using the first agent
-  logger.info("Starting instruction refinement stage");
-  const refinementResult = await instructionAgent.refineInstruction({
-    userInstruction: completeUserInstruction,
-    previousInstruction,
-    organizationWritingInstructions,
-    staffWritingInstructions,
-    userMemories,
-    organizationMemories,
-    dismissedMemories: [], // Empty array for dismissed memories since they're not needed here
-    chatHistory,
-  });
-
-  // Accumulate instruction refinement tokens
-  tokenUsage.instructionRefinement = addTokenUsage(tokenUsage.instructionRefinement, refinementResult.tokenUsage);
-
-  logger.info(`Instruction refinement completed. Refined instruction: "${refinementResult.refinedInstruction}"`);
-
   // Then, use the refined instruction to generate emails using the second agent
   logger.info(`Starting email generation stage for ${donors.length} donors`);
   // Determine which writing instructions to use - staff overrides organizational
-  const effectiveWritingInstructions = staffWritingInstructions || organizationWritingInstructions;
-  
+
+  console.log("completeUserInstruction", completeUserInstruction);
+  console.log("previousInstruction", previousInstruction);
+
   const emails = await emailGenerator.generateEmails(
     donors,
-    refinementResult.refinedInstruction,
+    "",
     organizationName,
     organization,
-    effectiveWritingInstructions, // Use effective writing instructions
+    organizationWritingInstructions, // Use effective writing instructions
+    staffWritingInstructions,
     communicationHistories,
     donationHistories,
     donorStatistics, // Pass donor statistics
@@ -156,10 +135,10 @@ export async function generateSmartDonorEmails(
 
   // Return both the refinement information and the generated emails
   return {
-    refinedInstruction: refinementResult.refinedInstruction,
-    reasoning: refinementResult.reasoning,
+    refinedInstruction: "",
+    reasoning: "",
     emails,
-    suggestedMemories: refinementResult.suggestedMemories,
+    suggestedMemories: [],
     tokenUsage,
   };
 }

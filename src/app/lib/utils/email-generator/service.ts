@@ -40,6 +40,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
     organizationName: string,
     organization: Organization | null,
     organizationWritingInstructions?: string,
+    personalWritingInstructions?: string,
     communicationHistories: Record<number, RawCommunicationThread[]> = {},
     donationHistories: Record<number, DonationWithDetails[]> = {},
     donorStatistics: Record<number, DonorStatistics> = {},
@@ -67,6 +68,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         organizationName,
         organization,
         organizationWritingInstructions,
+        personalWritingInstructions,
         communicationHistory: communicationHistories[donor.id] || [],
         donationHistory: donationHistories[donor.id] || [],
         donorStatistics: donorStatistics[donor.id],
@@ -117,6 +119,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationName,
       organization,
       organizationWritingInstructions,
+      personalWritingInstructions,
       communicationHistory,
       donationHistory = [],
       donorStatistics,
@@ -126,16 +129,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
       currentDate,
       originalInstruction,
     } = options;
-
-    logger.info(
-      `Starting email generation for donor ${
-        donor.id
-      }: instruction="${instruction}", organizationName="${organizationName}", hasOrganization=${!!organization}, hasWritingInstructions=${!!organizationWritingInstructions}, communicationHistoryCount=${
-        communicationHistory?.length || 0
-      }, donationHistoryCount=${donationHistory.length}, hasStatistics=${!!donorStatistics}, currentDate=${
-        currentDate || "not provided"
-      }`
-    );
 
     // Sort donations and prepare reference contexts
     const sortedDonations = [...donationHistory].sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -202,6 +195,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationName,
       organization,
       organizationWritingInstructions,
+      personalWritingInstructions,
       communicationHistory as RawCommunicationThread[],
       donationHistory,
       donorStatistics,
@@ -224,14 +218,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     );
 
     try {
-      logger.info(
-        `Sending prompt to OpenAI for donor ${donor.id}: promptLength=${prompt.length}, model=${
-          env.MID_MODEL
-        }, donorName="${formatDonorName(donor)}", donationCount=${donationHistory.length}, communicationCount=${
-          communicationHistory?.length || 0
-        }`
-      );
-
       // Define the schema for the expected response
       const emailSchema = z.object({
         subject: z.string().min(1).max(100).describe("A compelling subject line for the email (1-100 characters)"),
@@ -256,8 +242,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
           .describe("Array of email content pieces with references (at least 1 piece required)"),
       });
 
-      logger.info(`Calling generateObject for donor ${donor.id} with schema validation`);
-
       let validatedResponse;
       let attempt = 1;
       const maxAttempts = 2;
@@ -277,6 +261,14 @@ export class EmailGenerationService implements EmailGeneratorTool {
             schemaDescription: "A personalized donor email with subject and structured content pieces",
             temperature: 0.7,
           });
+
+          logger.info(
+            `Email prompt: ${JSON.stringify([
+              { role: "system", content: promptParts.systemPrompt },
+              { role: "user", content: promptParts.donorContext },
+            ])}`
+          );
+          logger.info(`Email response: ${result.object}`);
 
           validatedResponse = result.object;
 
