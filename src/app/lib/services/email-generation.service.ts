@@ -200,7 +200,7 @@ export class EmailGenerationService {
       processedInstruction,
       input.organizationName,
       emailGeneratorOrg,
-      organizationWritingInstructions,
+      organization.writingInstructions || undefined, // Use database value instead of input parameter
       staffWritingInstructions, // Pass staff writing instructions
       communicationHistories,
       donationHistoriesMap,

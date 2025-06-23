@@ -268,7 +268,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
               { role: "user", content: promptParts.donorContext },
             ])}`
           );
-          logger.info(`Email response: ${result.object}`);
+          logger.info(`Email response: ${JSON.stringify(result.object, null, 2)}`);
 
           validatedResponse = result.object;
 
