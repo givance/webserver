@@ -56,8 +56,12 @@ export function OrganizationSettings() {
       const k = key as keyof FormData;
       const orgValue = organization?.[k as keyof typeof organization];
 
+      // Handle null/undefined/empty string comparison for text fields
+      const normalizedValue = value === "" ? null : value;
+      const normalizedOrgValue = orgValue === "" ? null : orgValue;
+
       // Only include if value is different from original
-      if (value !== orgValue) {
+      if (normalizedValue !== normalizedOrgValue) {
         changedData[k] = value;
       }
     });
@@ -67,7 +71,15 @@ export function OrganizationSettings() {
       return;
     }
 
-    const result = await updateOrganization(changedData);
+    // Convert empty strings to undefined for backend consistency
+    const dataToSend = Object.fromEntries(
+      Object.entries(changedData).map(([key, value]) => [
+        key,
+        value === "" ? undefined : value
+      ])
+    ) as FormData;
+
+    const result = await updateOrganization(dataToSend);
 
     if (result) {
       toast.success("Your organization settings have been updated successfully.");
