@@ -14,7 +14,7 @@ interface CampaignNameStepProps {
   campaignName: string;
   onCampaignNameChange: (campaignName: string) => void;
   onBack: () => void;
-  onNext: () => void;
+  onNext: (campaignName: string) => void | Promise<void>;
   sessionId?: number;
   onSessionIdChange?: (sessionId: number) => void;
   templateId?: number;
@@ -40,6 +40,7 @@ export function CampaignNameStep({
 
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
   const [error, setError] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const { autoSave, isSaving } = useCampaignAutoSave({
     onSessionIdChange,
@@ -55,7 +56,7 @@ export function CampaignNameStep({
     });
   }, [localCampaignName, selectedDonors, sessionId, templateId, autoSave]);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!localCampaignName.trim()) {
       setError("Campaign name is required");
       return;
@@ -66,8 +67,18 @@ export function CampaignNameStep({
     }
 
     setError("");
-    onCampaignNameChange(localCampaignName.trim());
-    onNext();
+    setIsProcessing(true);
+    
+    try {
+      const trimmedName = localCampaignName.trim();
+      onCampaignNameChange(trimmedName);
+      await onNext(trimmedName);
+    } catch (error) {
+      console.error("Error in handleNext:", error);
+      setError("Failed to save campaign. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCampaignNameChange = (value: string) => {
@@ -170,9 +181,21 @@ export function CampaignNameStep({
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button onClick={handleNext} disabled={!localCampaignName.trim()}>
-          Continue
-          <ArrowRight className="w-4 h-4 ml-2" />
+        <Button 
+          onClick={handleNext} 
+          disabled={!localCampaignName.trim() || isProcessing}
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Creating Campaign...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </>
+          )}
         </Button>
       </div>
     </div>

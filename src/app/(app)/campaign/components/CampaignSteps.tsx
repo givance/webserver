@@ -30,7 +30,21 @@ interface CampaignStepsProps {
 
 export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
   // Initialize state with existing campaign data if in edit mode
-  const [currentStep, setCurrentStep] = useState(editMode ? 3 : 0); // Go directly to Write Instructions step in edit mode
+  // Determine the right step based on existing data:
+  // - If refinedInstruction exists, go to Write Instructions (step 3)
+  // - If templateId exists but no refinedInstruction, go to Write Instructions (step 3)  
+  // - Otherwise, go to Template Selection (step 2)
+  const getInitialStep = () => {
+    if (editMode) {
+      if (existingCampaignData?.refinedInstruction || existingCampaignData?.instruction) {
+        return 3; // Go to Write Instructions step
+      } else {
+        return 2; // Go to Template Selection step
+      }
+    }
+    return 0; // Start from beginning for create mode
+  };
+  const [currentStep, setCurrentStep] = useState(getInitialStep());
   const [selectedDonors, setSelectedDonors] = useState<number[]>(existingCampaignData?.selectedDonorIds || []);
   const [campaignName, setCampaignName] = useState(existingCampaignData?.campaignName || "");
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(
@@ -57,8 +71,16 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const router = useRouter();
 
   // Navigation auto-save hook
-  const { autoSave: navigationAutoSave } = useCampaignAutoSave({
-    onSessionIdChange: setSessionId,
+  const { autoSave: navigationAutoSave, manualSave } = useCampaignAutoSave({
+    onSessionIdChange: (newSessionId: number) => {
+      console.log("[CampaignSteps] onSessionIdChange called with:", {
+        newSessionId,
+        editMode,
+        currentSessionId: sessionId,
+      });
+      
+      setSessionId(newSessionId);
+    },
   });
 
   // Enhanced navigation handlers with auto-save
@@ -97,8 +119,60 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     // Removed automatic step advancement - user must click Next button explicitly
   };
 
-  const handleCampaignNameSet = (name: string) => {
+  const handleCampaignNameSet = async (name: string) => {
+    console.log("[CampaignSteps] handleCampaignNameSet called with:", {
+      name,
+      campaignName,
+      sessionId,
+      editMode,
+      selectedDonorsCount: selectedDonors.length,
+    });
+    
+    // Use the provided name (should not be empty at this point)
     setCampaignName(name);
+    
+    // If we're not in edit mode, save and redirect to edit mode
+    if (!editMode && selectedDonors.length > 0 && name.trim()) {
+      console.log("[CampaignSteps] About to trigger manualSave and redirect to edit mode");
+      try {
+        const result = await manualSave({
+          sessionId,
+          campaignName: name,
+          selectedDonorIds: selectedDonors,
+          templateId: selectedTemplateId,
+          instruction,
+          chatHistory: persistedChatHistory,
+          refinedInstruction: existingCampaignData?.refinedInstruction,
+          previewDonorIds: persistedPreviewDonorIds,
+        });
+        
+        console.log("[CampaignSteps] Manual save result:", result);
+        
+        // Get the session ID (either from result or existing sessionId)
+        const finalSessionId = result?.sessionId || sessionId;
+        
+        if (finalSessionId) {
+          console.log("[CampaignSteps] Redirecting to edit mode with sessionId:", finalSessionId);
+          router.replace(`/campaign/edit/${finalSessionId}`);
+          return; // Don't navigate to next step, we're redirecting
+        }
+        
+      } catch (error) {
+        console.error("Failed to save campaign after name set:", error);
+        // Continue with navigation even if save failed
+      }
+    } else if (editMode) {
+      console.log("[CampaignSteps] In edit mode, navigating to next step normally");
+    } else {
+      console.log("[CampaignSteps] Skipping save - conditions not met:", {
+        editMode,
+        selectedDonorsLength: selectedDonors.length,
+        nameToUseTrimmed: name.trim(),
+      });
+    }
+    
+    // Navigate to next step only if we're in edit mode and didn't redirect
+    console.log("[CampaignSteps] Navigating to step 2");
     handleStepNavigation(2);
   };
 
@@ -160,9 +234,9 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           <CampaignNameStep
             selectedDonors={selectedDonors}
             campaignName={campaignName}
-            onCampaignNameChange={handleCampaignNameSet}
+            onCampaignNameChange={setCampaignName}
             onBack={() => handleStepNavigation(0)}
-            onNext={() => handleStepNavigation(2)}
+            onNext={(name: string) => handleCampaignNameSet(name)}
             sessionId={sessionId}
             onSessionIdChange={setSessionId}
             templateId={selectedTemplateId}
