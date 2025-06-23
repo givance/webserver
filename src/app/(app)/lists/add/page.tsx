@@ -257,22 +257,72 @@ export default function AddListPage() {
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      console.log(`Reading file: ${file.name}, size: ${file.size} bytes`);
-
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
-        console.log(`FileReader result length: ${result.length}`);
-
-        // Remove the data:application/... prefix to get just the base64 content
-        const base64Content = result.split(",")[1];
-        console.log(`Base64 content length: ${base64Content.length}`);
-
-        resolve(base64Content);
+        // Remove the data:type/subtype;base64, prefix
+        const base64 = result.split(",")[1];
+        resolve(base64);
       };
       reader.onerror = (error) => reject(error);
     });
+  };
+
+  // Handle staff assignment asynchronously without blocking the UI
+  const handleStaffAssignmentAsync = async (listId: number, staffId: string, uploadResult: any) => {
+    try {
+      // Give the database a moment to fully commit the transaction
+      if (uploadResult && (uploadResult.donorsCreated > 0 || uploadResult.donorsUpdated > 0)) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      let donorIds: number[] = [];
+      let retryCount = 0;
+      const maxRetries = 5;
+
+      // Retry logic to handle race condition with longer delays
+      while (retryCount < maxRetries) {
+        // Wait before attempting (give DB time to commit)
+        if (retryCount === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else {
+          // Exponential backoff: 2s, 4s, 6s, 8s
+          await new Promise((resolve) => setTimeout(resolve, 2000 * retryCount));
+        }
+
+        try {
+          donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [listId] });
+
+          if (donorIds && donorIds.length > 0) {
+            break; // Success, exit loop
+          }
+        } catch (fetchError) {
+          console.warn(`Error fetching donor IDs on attempt ${retryCount + 1}:`, fetchError);
+        }
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`Retrying to fetch donor IDs (attempt ${retryCount + 1}/${maxRetries})...`);
+        }
+      }
+
+      if (donorIds && donorIds.length > 0) {
+        await bulkUpdateDonorStaff(donorIds, parseInt(staffId, 10));
+        toast.success(
+          `Successfully assigned staff to ${donorIds.length} imported donor${donorIds.length !== 1 ? "s" : ""}!`
+        );
+      } else {
+        toast.warning(
+          "List created successfully, but no donors found to assign staff to. You can assign staff manually from the list details page."
+        );
+      }
+    } catch (error) {
+      console.error("Error assigning staff to uploaded donors:", error);
+      toast.error(
+        "List created successfully, but failed to assign staff. You can assign staff manually from the list details page."
+      );
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -363,71 +413,24 @@ export default function AddListPage() {
 
         setUploadResult(result);
         setShowImportSummary(true);
+        setCreatedListId(newList.id);
 
-        // Store the donor count for staff assignment
-        if (result && (result.donorsCreated > 0 || result.donorsUpdated > 0)) {
-          // Give the database a moment to fully commit the transaction
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+        // End the processing state immediately to show the summary
+        setIsProcessingUpload(false);
+
+        // Handle staff assignment in the background if needed
+        if (selectedStaffId && selectedStaffId !== "none") {
+          // Don't block the UI - handle staff assignment asynchronously
+          handleStaffAssignmentAsync(newList.id, selectedStaffId, result);
         }
 
-        // For uploaded donors, we need to get the donor IDs from the list
-        // We'll assign staff after the upload is complete
-        // Note: This requires the list to be populated first, so we handle it below
+        // Return early to prevent navigation - let user review the results
+        return;
       }
 
-      // Step 3: Assign staff to donors if requested
-      if (selectedStaffId && selectedStaffId !== "none") {
-        if (donorMethod === "upload") {
-          // For uploaded files, we need to get the donor IDs from the newly created list
-          // Get donor IDs from the list after successful upload with retry logic
-          try {
-            let donorIds: number[] = [];
-            let retryCount = 0;
-            const maxRetries = 5;
-
-            // Retry logic to handle race condition with longer delays
-            while (retryCount < maxRetries) {
-              // Wait before attempting (give DB time to commit)
-              if (retryCount === 0) {
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-              } else {
-                // Exponential backoff: 2s, 4s, 6s, 8s
-                await new Promise((resolve) => setTimeout(resolve, 2000 * retryCount));
-              }
-
-              try {
-                donorIds = await utils.lists.getDonorIdsFromLists.fetch({ listIds: [newList.id] });
-
-                if (donorIds && donorIds.length > 0) {
-                  break; // Success, exit loop
-                }
-              } catch (fetchError) {
-                console.warn(`Error fetching donor IDs on attempt ${retryCount + 1}:`, fetchError);
-              }
-
-              retryCount++;
-              if (retryCount < maxRetries) {
-                console.log(`Retrying to fetch donor IDs (attempt ${retryCount + 1}/${maxRetries})...`);
-              }
-            }
-
-            if (donorIds && donorIds.length > 0) {
-              await bulkUpdateDonorStaff(donorIds, parseInt(selectedStaffId, 10));
-              toast.success(
-                `Successfully assigned staff to ${donorIds.length} imported donor${donorIds.length !== 1 ? "s" : ""}!`
-              );
-            } else {
-              toast.warning(
-                "List created successfully, but no donors found to assign staff to. You can assign staff manually from the list details page."
-              );
-            }
-          } catch (error) {
-            console.error("Error assigning staff to uploaded donors:", error);
-            toast.error(
-              "List created successfully, but failed to assign staff. You can assign staff manually from the list details page."
-            );
-          }
-        } else if (donorIdsToAssignStaff.length > 0) {
+      // Step 3: Assign staff to donors if requested (for non-upload methods)
+      if (selectedStaffId && selectedStaffId !== "none" && donorMethod !== "upload") {
+        if (donorIdsToAssignStaff.length > 0) {
           // Assign staff to selected donors
           await bulkUpdateDonorStaff(donorIdsToAssignStaff, parseInt(selectedStaffId, 10));
           toast.success(
@@ -436,15 +439,9 @@ export default function AddListPage() {
         }
       }
 
-      // For uploads, show the summary and let user navigate manually
-      if (donorMethod === "upload" && uploadResult) {
-        setIsProcessingUpload(false);
-        // Don't navigate - let user review the results
-      } else {
-        // For other methods, navigate immediately
-        setIsProcessingUpload(false);
-        router.push(`/lists/${newList.id}`);
-      }
+      // Navigate immediately for non-upload methods
+      setIsProcessingUpload(false);
+      router.push(`/lists/${newList.id}`);
     } catch (error) {
       setIsProcessingUpload(false);
       console.error("Error creating list:", error);
