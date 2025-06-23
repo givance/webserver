@@ -8,13 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,12 +26,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export function EmailScheduleSettings() {
   const { getScheduleConfig, updateScheduleConfig, listCampaigns } = useCommunications();
   const { data: config, isLoading } = getScheduleConfig();
-  const { data: campaigns } = listCampaigns();
-  
+  const { data: campaigns } = listCampaigns({});
+
   // Filter for active campaigns (those with scheduled or running status)
-  const activeCampaigns = campaigns?.filter(campaign => 
-    campaign.status === 'running' || campaign.status === 'scheduled'
-  ) || [];
+  const activeCampaigns =
+    campaigns?.campaigns?.filter((campaign: any) => campaign.status === "running" || campaign.status === "scheduled") ||
+    [];
 
   const [dailyLimit, setDailyLimit] = useState(150);
   const [minGap, setMinGap] = useState(1);
@@ -96,7 +90,7 @@ export function EmailScheduleSettings() {
   // Check for changes
   useEffect(() => {
     if (config) {
-      const changed = 
+      const changed =
         dailyLimit !== config.dailyLimit ||
         minGap !== config.minGapMinutes ||
         maxGap !== config.maxGapMinutes ||
@@ -149,12 +143,12 @@ export function EmailScheduleSettings() {
     };
 
     // Check if allowed time settings have changed and there are active campaigns
-    const allowedTimeChanged = config && (
-      JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
-      allowedStartTime !== (config.allowedStartTime || "09:00") ||
-      allowedEndTime !== (config.allowedEndTime || "17:00") ||
-      allowedTimezone !== (config.allowedTimezone || "America/New_York")
-    );
+    const allowedTimeChanged =
+      config &&
+      (JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
+        allowedStartTime !== (config.allowedStartTime || "09:00") ||
+        allowedEndTime !== (config.allowedEndTime || "17:00") ||
+        allowedTimezone !== (config.allowedTimezone || "America/New_York"));
 
     if (allowedTimeChanged && activeCampaigns.length > 0 && !rescheduleExisting) {
       setPendingUpdate(updateData);
@@ -195,15 +189,16 @@ export function EmailScheduleSettings() {
 
   // Utility function to convert time to minutes
   const timeToMinutes = (timeStr: string): number => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const [hours, minutes] = timeStr.split(":").map(Number);
     return hours * 60 + minutes;
   };
 
   // Handle day selection
   const toggleDay = (day: number) => {
     if (allowedDays.includes(day)) {
-      if (allowedDays.length > 1) { // Prevent removing all days
-        setAllowedDays(allowedDays.filter(d => d !== day));
+      if (allowedDays.length > 1) {
+        // Prevent removing all days
+        setAllowedDays(allowedDays.filter((d) => d !== day));
       }
     } else {
       setAllowedDays([...allowedDays, day].sort());
@@ -215,7 +210,7 @@ export function EmailScheduleSettings() {
     const avgGap = (minGap + maxGap) / 2;
     const totalMinutes = emailCount * avgGap;
     const daysNeeded = Math.ceil(emailCount / dailyLimit);
-    
+
     if (daysNeeded > 1) {
       return `~${daysNeeded} days`;
     } else {
@@ -250,155 +245,81 @@ export function EmailScheduleSettings() {
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Email Schedule Settings
-        </CardTitle>
-        <CardDescription>
-          Configure how emails are scheduled and sent
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Daily Limit */}
-        <div className="space-y-2">
-          <Label htmlFor="daily-limit">Daily Email Limit</Label>
-          <div className="flex items-center gap-4">
-            <Slider
-              id="daily-limit"
-              min={1}
-              max={500}
-              step={10}
-              value={[dailyLimit]}
-              onValueChange={(value) => setDailyLimit(value[0])}
-              className="flex-1"
-            />
-            <Input
-              type="number"
-              value={dailyLimit}
-              onChange={(e) => setDailyLimit(Math.min(500, Math.max(1, parseInt(e.target.value) || 1)))}
-              className="w-20"
-              min={1}
-              max={500}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Maximum number of emails to send per day (1-500)
-          </p>
-        </div>
-
-        {/* Gap Settings */}
-        <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Email Schedule Settings
+          </CardTitle>
+          <CardDescription>Configure how emails are scheduled and sent</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Daily Limit */}
           <div className="space-y-2">
-            <Label>Email Sending Gap (minutes)</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="min-gap" className="text-xs text-muted-foreground">Minimum</Label>
-                <Input
-                  id="min-gap"
-                  type="number"
-                  value={minGap}
-                  onChange={(e) => setMinGap(Math.max(0, parseInt(e.target.value) || 0))}
-                  min={0}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="max-gap" className="text-xs text-muted-foreground">Maximum</Label>
-                <Input
-                  id="max-gap"
-                  type="number"
-                  value={maxGap}
-                  onChange={(e) => setMaxGap(Math.max(minGap, parseInt(e.target.value) || minGap))}
-                  min={minGap}
-                />
-              </div>
+            <Label htmlFor="daily-limit">Daily Email Limit</Label>
+            <div className="flex items-center gap-4">
+              <Slider
+                id="daily-limit"
+                min={1}
+                max={500}
+                step={10}
+                value={[dailyLimit]}
+                onValueChange={(value) => setDailyLimit(value[0])}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                value={dailyLimit}
+                onChange={(e) => setDailyLimit(Math.min(500, Math.max(1, parseInt(e.target.value) || 1)))}
+                className="w-20"
+                min={1}
+                max={500}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Random delay between {minGap}-{maxGap} minutes will be used between emails
-            </p>
-          </div>
-        </div>
-
-        {/* Timezone */}
-        <div className="space-y-2">
-          <Label htmlFor="timezone">Timezone for Daily Limits</Label>
-          <Select value={timezone} onValueChange={setTimezone}>
-            <SelectTrigger id="timezone">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {timezones.map((tz) => (
-                <SelectItem key={tz.value} value={tz.value}>
-                  {tz.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Daily limits reset at midnight in this timezone
-          </p>
-        </div>
-
-        {/* Allowed Time Settings */}
-        <div className="space-y-4 p-4 border rounded-lg bg-muted/5">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <Label className="text-sm font-medium">Allowed Sending Times</Label>
+            <p className="text-xs text-muted-foreground">Maximum number of emails to send per day (1-500)</p>
           </div>
 
-          {/* Allowed Days */}
-          <div className="space-y-2">
-            <Label className="text-sm">Allowed Days</Label>
-            <div className="flex flex-wrap gap-2">
-              {daysOfWeek.map((day) => (
-                <div key={day.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`day-${day.value}`}
-                    checked={allowedDays.includes(day.value)}
-                    onCheckedChange={() => toggleDay(day.value)}
-                  />
-                  <Label 
-                    htmlFor={`day-${day.value}`} 
-                    className="text-xs font-normal cursor-pointer"
-                  >
-                    {day.short}
+          {/* Gap Settings */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email Sending Gap (minutes)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="min-gap" className="text-xs text-muted-foreground">
+                    Minimum
                   </Label>
+                  <Input
+                    id="min-gap"
+                    type="number"
+                    value={minGap}
+                    onChange={(e) => setMinGap(Math.max(0, parseInt(e.target.value) || 0))}
+                    min={0}
+                  />
                 </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Emails will only be sent on selected days
-            </p>
-          </div>
-
-          {/* Allowed Time Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="start-time" className="text-xs">Start Time</Label>
-              <Input
-                id="start-time"
-                type="time"
-                value={allowedStartTime}
-                onChange={(e) => setAllowedStartTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="end-time" className="text-xs">End Time</Label>
-              <Input
-                id="end-time"
-                type="time"
-                value={allowedEndTime}
-                onChange={(e) => setAllowedEndTime(e.target.value)}
-              />
+                <div className="space-y-1">
+                  <Label htmlFor="max-gap" className="text-xs text-muted-foreground">
+                    Maximum
+                  </Label>
+                  <Input
+                    id="max-gap"
+                    type="number"
+                    value={maxGap}
+                    onChange={(e) => setMaxGap(Math.max(minGap, parseInt(e.target.value) || minGap))}
+                    min={minGap}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Random delay between {minGap}-{maxGap} minutes will be used between emails
+              </p>
             </div>
           </div>
 
-          {/* Allowed Timezone */}
+          {/* Timezone */}
           <div className="space-y-2">
-            <Label htmlFor="allowed-timezone" className="text-xs">Timezone for Allowed Hours</Label>
-            <Select value={allowedTimezone} onValueChange={setAllowedTimezone}>
-              <SelectTrigger id="allowed-timezone">
+            <Label htmlFor="timezone">Timezone for Daily Limits</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger id="timezone">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -409,88 +330,150 @@ export function EmailScheduleSettings() {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">Daily limits reset at midnight in this timezone</p>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Emails will only be sent between {allowedStartTime} - {allowedEndTime} ({allowedTimezone}) on selected days
-          </p>
-          
-          {/* Current Time Display */}
-          <div className="text-xs text-muted-foreground p-2 bg-muted/10 rounded">
-            Current time in {allowedTimezone}: {currentTime.toLocaleString('en-US', { 
-              timeZone: allowedTimezone, 
-              weekday: 'short',
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: false 
-            })}
+          {/* Allowed Time Settings */}
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/5">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <Label className="text-sm font-medium">Allowed Sending Times</Label>
+            </div>
+
+            {/* Allowed Days */}
+            <div className="space-y-2">
+              <Label className="text-sm">Allowed Days</Label>
+              <div className="flex flex-wrap gap-2">
+                {daysOfWeek.map((day) => (
+                  <div key={day.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`day-${day.value}`}
+                      checked={allowedDays.includes(day.value)}
+                      onCheckedChange={() => toggleDay(day.value)}
+                    />
+                    <Label htmlFor={`day-${day.value}`} className="text-xs font-normal cursor-pointer">
+                      {day.short}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Emails will only be sent on selected days</p>
+            </div>
+
+            {/* Allowed Time Range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="start-time" className="text-xs">
+                  Start Time
+                </Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  value={allowedStartTime}
+                  onChange={(e) => setAllowedStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="end-time" className="text-xs">
+                  End Time
+                </Label>
+                <Input
+                  id="end-time"
+                  type="time"
+                  value={allowedEndTime}
+                  onChange={(e) => setAllowedEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Allowed Timezone */}
+            <div className="space-y-2">
+              <Label htmlFor="allowed-timezone" className="text-xs">
+                Timezone for Allowed Hours
+              </Label>
+              <Select value={allowedTimezone} onValueChange={setAllowedTimezone}>
+                <SelectTrigger id="allowed-timezone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {timezones.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Emails will only be sent between {allowedStartTime} - {allowedEndTime} ({allowedTimezone}) on selected
+              days
+            </p>
+
+            {/* Current Time Display */}
+            <div className="text-xs text-muted-foreground p-2 bg-muted/10 rounded">
+              Current time in {allowedTimezone}:{" "}
+              {currentTime.toLocaleString("en-US", {
+                timeZone: allowedTimezone,
+                weekday: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Example Calculations */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="space-y-1">
-            <p className="font-medium">Estimated Sending Times:</p>
-            <p className="text-sm">• 50 emails: {calculateEstimatedTime(50)}</p>
-            <p className="text-sm">• 150 emails: {calculateEstimatedTime(150)}</p>
-            <p className="text-sm">• 500 emails: {calculateEstimatedTime(500)}</p>
-          </AlertDescription>
-        </Alert>
+          {/* Example Calculations */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="space-y-1">
+              <p className="font-medium">Estimated Sending Times:</p>
+              <p className="text-sm">• 50 emails: {calculateEstimatedTime(50)}</p>
+              <p className="text-sm">• 150 emails: {calculateEstimatedTime(150)}</p>
+              <p className="text-sm">• 500 emails: {calculateEstimatedTime(500)}</p>
+            </AlertDescription>
+          </Alert>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-            className="flex-1"
-          >
-            {isSaving ? "Saving..." : "Save Settings"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleReset}
-            disabled={!hasChanges || isSaving}
-          >
-            Reset
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button onClick={() => handleSave()} disabled={!hasChanges || isSaving} className="flex-1">
+              {isSaving ? "Saving..." : "Save Settings"}
+            </Button>
+            <Button variant="outline" onClick={handleReset} disabled={!hasChanges || isSaving}>
+              Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-    {/* Confirmation Dialog */}
-    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Update Existing Campaigns?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You have {activeCampaigns.length} active email campaign(s) with scheduled emails. 
-            Would you like to reschedule existing campaign emails to respect the new allowed time settings?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => {
-            setShowConfirmDialog(false);
-            setPendingUpdate(null);
-          }}>
-            Cancel
-          </AlertDialogCancel>
-          <Button
-            variant="outline"
-            onClick={() => handleSave(false)}
-            disabled={isSaving}
-          >
-            Save Without Rescheduling
-          </Button>
-          <AlertDialogAction
-            onClick={() => handleSave(true)}
-            disabled={isSaving}
-          >
-            {isSaving ? "Updating..." : "Save & Reschedule"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update Existing Campaigns?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have {activeCampaigns.length} active email campaign(s) with scheduled emails. Would you like to
+              reschedule existing campaign emails to respect the new allowed time settings?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowConfirmDialog(false);
+                setPendingUpdate(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving}>
+              Save Without Rescheduling
+            </Button>
+            <AlertDialogAction onClick={() => handleSave(true)} disabled={isSaving}>
+              {isSaving ? "Updating..." : "Save & Reschedule"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
