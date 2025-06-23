@@ -24,6 +24,7 @@ interface AccountRecord {
   BothTitles?: string;
   BothTitlesShort?: string;
   Salutation?: string;
+  "Salutation - use"?: string; // Preferred salutation for email generation
   ACT_HisBusiness?: string;
   ACT_HerBusiness?: string;
   Email: string;
@@ -166,106 +167,151 @@ interface ProcessResult {
 
 /**
  * Parse CSV content and return array of records
+ * Properly handles quoted fields with embedded line breaks, commas, and quotes
  */
 function parseCSV(content: string): any[] {
   // Handle different line endings (Windows \r\n, Unix \n, Mac \r)
   const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalizedContent.split("\n");
 
-  // Remove any BOM (Byte Order Mark) from the first line
-  if (lines.length > 0 && lines[0].charCodeAt(0) === 0xfeff) {
-    lines[0] = lines[0].substring(1);
+  // Remove any BOM (Byte Order Mark) from the content
+  let cleanContent = normalizedContent;
+  if (cleanContent.charCodeAt(0) === 0xfeff) {
+    cleanContent = cleanContent.substring(1);
   }
 
-  if (lines.length === 0) return [];
+  if (!cleanContent.trim()) return [];
 
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
+  // Parse CSV properly handling quoted fields with embedded newlines
+  const rows = parseCSVContent(cleanContent);
+
+  if (rows.length === 0) return [];
+
+  const headers = rows[0].map((h) => h.trim());
   const records: any[] = [];
-  const skippedLines = {
-    empty: 0,
-    tooFewColumns: 0,
-    lastLineEmpty: false,
-  };
 
-  // Check if last line is empty (common in CSV files)
-  if (lines.length > 1 && lines[lines.length - 1].trim() === "") {
-    skippedLines.lastLineEmpty = true;
+  logger.info(`CSV parsing: Found ${rows.length} total rows (including header)`);
+  logger.info(`Headers: ${headers.slice(0, 5).join(", ")}${headers.length > 5 ? "..." : ""}`);
+  if (rows.length > 1) {
+    logger.info(
+      `Second row sample: ${rows[1]
+        .slice(0, 3)
+        .map((v: string) => `"${v.substring(0, 30)}${v.length > 30 ? "..." : ""}"`)
+        .join(", ")}`
+    );
   }
 
-  logger.info(`CSV parsing: Found ${lines.length} total lines (including header)`);
-  logger.info(`First line (header): "${lines[0].substring(0, 100)}${lines[0].length > 100 ? "..." : ""}"`);
-  if (lines.length > 1) {
-    logger.info(`Second line sample: "${lines[1].substring(0, 100)}${lines[1].length > 100 ? "..." : ""}"`);
-  }
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) {
-      skippedLines.empty++;
+    // Skip empty rows
+    if (values.length === 0 || values.every((v) => !v.trim())) {
       continue;
     }
 
-    const values = parseCSVLine(line);
-    if (values.length < headers.length) {
-      skippedLines.tooFewColumns++;
-      if (i <= 5 || i >= lines.length - 5) {
-        logger.debug(
-          `Line ${i + 1}: Skipped - has ${values.length} columns but expected ${
-            headers.length
-          }. Content: "${line.substring(0, 50)}..."`
-        );
-      }
+    // Skip rows with too few columns (likely incomplete data)
+    if (values.length < headers.length * 0.3) {
+      // Require at least 30% of the expected columns
+      logger.debug(
+        `Row ${i + 1}: Skipped - has ${values.length} columns but expected at least ${Math.ceil(headers.length * 0.3)}`
+      );
       continue;
     }
 
     const record: any = {};
-    headers.forEach((header, index) => {
-      record[header] = values[index] ? values[index].replace(/"/g, "").trim() : "";
-    });
+    for (let j = 0; j < headers.length; j++) {
+      const value = values[j]?.trim() || "";
+      record[headers[j]] = value;
+    }
+
     records.push(record);
   }
 
   logger.info(`CSV parsing complete:`, {
-    totalLines: lines.length,
-    headerLine: 1,
-    dataLines: lines.length - 1,
+    totalRows: rows.length,
+    headerRow: 1,
+    dataRows: rows.length - 1,
     parsedRecords: records.length,
-    skippedEmpty: skippedLines.empty,
-    skippedTooFewColumns: skippedLines.tooFewColumns,
-    lastLineWasEmpty: skippedLines.lastLineEmpty,
-    missingLines: 448 - lines.length,
   });
 
   return records;
 }
 
 /**
- * Parse a single CSV line handling quoted values
+ * Parse CSV content into rows and columns, properly handling quoted fields
+ * This implements RFC 4180 CSV parsing with support for:
+ * - Fields enclosed in double quotes
+ * - Line breaks within quoted fields
+ * - Escaped quotes (double quotes) within quoted fields
+ * - Commas within quoted fields
  */
-function parseCSVLine(line: string): string[] {
-  const values: string[] = [];
-  let current = "";
+function parseCSVContent(content: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = "";
   let inQuotes = false;
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
+  while (i < content.length) {
+    const char = content[i];
+    const nextChar = content[i + 1];
 
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      values.push(current);
-      current = "";
-      i++;
-      continue;
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          // Escaped quote - add single quote to field
+          currentField += '"';
+          i += 2; // Skip both quotes
+          continue;
+        } else {
+          // End of quoted field
+          inQuotes = false;
+          i++;
+          continue;
+        }
+      } else {
+        // Regular character inside quotes (including newlines)
+        currentField += char;
+        i++;
+        continue;
+      }
     } else {
-      current += char;
+      // Not inside quotes
+      if (char === '"') {
+        // Start of quoted field
+        inQuotes = true;
+        i++;
+        continue;
+      } else if (char === ",") {
+        // Field separator
+        currentRow.push(currentField);
+        currentField = "";
+        i++;
+        continue;
+      } else if (char === "\n") {
+        // Row separator
+        currentRow.push(currentField);
+        rows.push(currentRow);
+        currentRow = [];
+        currentField = "";
+        i++;
+        continue;
+      } else {
+        // Regular character
+        currentField += char;
+        i++;
+        continue;
+      }
     }
-    i++;
   }
 
-  values.push(current);
-  return values;
+  // Add the last field and row if there's content
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField);
+    rows.push(currentRow);
+  }
+
+  // Filter out completely empty rows
+  return rows.filter((row) => row.length > 0 && row.some((field) => field.trim()));
 }
 
 /**
@@ -781,6 +827,14 @@ export async function processCSVFiles(params: {
           existingDonor = existingDonorsByEmail.get(email);
         }
 
+        // Build notes field with salutation instruction if "Salutation - use" column exists
+        let notes = accountRecord.ACT_Notes || null;
+        const preferredSalutation = accountRecord["Salutation - use"];
+        if (preferredSalutation && preferredSalutation.trim()) {
+          const salutationNote = `Preferred salutation: ${preferredSalutation.trim()}`;
+          notes = notes ? `${notes}\n\n${salutationNote}` : salutationNote;
+        }
+
         const donorData = {
           organizationId: params.organizationId,
           externalId: accountRecord.ACT_ID,
@@ -800,6 +854,7 @@ export async function processCSVFiles(params: {
           phone: phone || null,
           address: address || null,
           state: accountRecord.ADR_State || null,
+          notes: notes,
         };
 
         if (existingDonor) {
