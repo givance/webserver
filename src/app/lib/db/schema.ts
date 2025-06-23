@@ -607,6 +607,11 @@ export const emailScheduleConfig = pgTable("email_schedule_config", {
   minGapMinutes: integer("min_gap_minutes").notNull().default(1), // Minimum gap between emails in minutes
   maxGapMinutes: integer("max_gap_minutes").notNull().default(3), // Maximum gap between emails in minutes
   timezone: text("timezone").notNull().default("America/New_York"), // Organization timezone for daily limits
+  // Allowed time settings
+  allowedDays: jsonb("allowed_days").$type<number[]>().notNull().default([1, 2, 3, 4, 5]), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  allowedStartTime: text("allowed_start_time").notNull().default("09:00"), // HH:MM format
+  allowedEndTime: text("allowed_end_time").notNull().default("17:00"), // HH:MM format
+  allowedTimezone: text("allowed_timezone").notNull().default("America/New_York"), // Timezone for allowed hours
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

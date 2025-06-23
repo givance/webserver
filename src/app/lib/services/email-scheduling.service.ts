@@ -40,6 +40,10 @@ export class EmailSchedulingService {
           minGapMinutes: 1,
           maxGapMinutes: 3,
           timezone: "America/New_York",
+          allowedDays: [1, 2, 3, 4, 5], // Monday to Friday
+          allowedStartTime: "09:00",
+          allowedEndTime: "17:00",
+          allowedTimezone: "America/New_York",
         })
         .returning();
 
@@ -64,6 +68,11 @@ export class EmailSchedulingService {
       minGapMinutes: number;
       maxGapMinutes: number;
       timezone: string;
+      allowedDays: number[];
+      allowedStartTime: string;
+      allowedEndTime: string;
+      allowedTimezone: string;
+      rescheduleExisting?: boolean;
     }>
   ) {
     try {
@@ -90,6 +99,48 @@ export class EmailSchedulingService {
         });
       }
 
+      // Validate allowed days
+      if (updates.allowedDays !== undefined) {
+        if (!Array.isArray(updates.allowedDays) || updates.allowedDays.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "At least one day must be allowed",
+          });
+        }
+        if (updates.allowedDays.some(day => day < 0 || day > 6)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Days must be between 0 (Sunday) and 6 (Saturday)",
+          });
+        }
+      }
+
+      // Validate time format and range
+      if (updates.allowedStartTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedStartTime)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Start time must be in HH:MM format",
+        });
+      }
+
+      if (updates.allowedEndTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedEndTime)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "End time must be in HH:MM format",
+        });
+      }
+
+      if (updates.allowedStartTime && updates.allowedEndTime) {
+        const startMinutes = this.timeToMinutes(updates.allowedStartTime);
+        const endMinutes = this.timeToMinutes(updates.allowedEndTime);
+        if (startMinutes >= endMinutes) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "End time must be after start time",
+          });
+        }
+      }
+
       const updatedConfig = await db
         .update(emailScheduleConfig)
         .set({
@@ -107,6 +158,14 @@ export class EmailSchedulingService {
       }
 
       logger.info(`Updated email schedule config for organization ${organizationId}`);
+      
+      // If requested, reschedule existing campaigns
+      if (updates.rescheduleExisting) {
+        logger.info(`Rescheduling existing campaigns for organization ${organizationId}`);
+        const rescheduleResult = await this.rescheduleExistingCampaigns(organizationId);
+        logger.info(`Rescheduled ${rescheduleResult.rescheduled} email jobs`);
+      }
+
       return updatedConfig[0];
     } catch (error) {
       if (error instanceof TRPCError) throw error;
@@ -262,7 +321,7 @@ export class EmailSchedulingService {
         `Scheduling ${emails.length} emails for session ${sessionId}. Sent today: ${sentToday}, remaining: ${remainingToday}`
       );
 
-      // Calculate schedule times
+      // Calculate schedule times with allowed time constraints
       const scheduledJobs: Array<{
         emailId: number;
         scheduledTime: Date;
@@ -272,15 +331,19 @@ export class EmailSchedulingService {
       let currentTime = new Date();
       let emailsScheduledToday = 0;
 
+      // Find the next allowed time to start scheduling
+      currentTime = this.findNextAllowedTime(currentTime, config);
+
       for (let i = 0; i < emails.length; i++) {
         const email = emails[i];
 
-        // Check if we've hit today's limit
+        // Check if we've hit today's limit (based on daily limit timezone)
         if (emailsScheduledToday >= remainingToday) {
-          // Schedule for tomorrow
+          // Schedule for next allowed day
           currentTime = new Date(currentTime);
           currentTime.setDate(currentTime.getDate() + 1);
-          currentTime.setHours(9, 0, 0, 0); // Start at 9 AM next day
+          // Find next allowed time (could be multiple days ahead)
+          currentTime = this.findNextAllowedTime(currentTime, config);
           emailsScheduledToday = 0; // Reset counter for new day
         }
 
@@ -290,6 +353,13 @@ export class EmailSchedulingService {
 
         if (i > 0) {
           currentTime = new Date(currentTime.getTime() + delayMs);
+        }
+
+        // Ensure the scheduled time is still within allowed hours
+        // If not, move to next allowed time
+        if (!this.isTimeAllowed(currentTime, config)) {
+          currentTime = this.findNextAllowedTime(currentTime, config);
+          emailsScheduledToday = 0; // Reset counter as we've moved to a new allowed period
         }
 
         scheduledJobs.push({
@@ -680,6 +750,245 @@ export class EmailSchedulingService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get campaign schedule",
+      });
+    }
+  }
+
+  /**
+   * Convert time string (HH:MM) to minutes since midnight
+   */
+  private timeToMinutes(timeStr: string): number {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Check if a given date/time is within the allowed time window
+   */
+  private isTimeAllowed(date: Date, config: EmailScheduleConfig): boolean {
+    // Convert date to the allowed timezone
+    const dateInAllowedTz = new Date(date.toLocaleString("en-US", { timeZone: config.allowedTimezone }));
+    
+    // Check if day is allowed (0 = Sunday, 1 = Monday, etc.)
+    const dayOfWeek = dateInAllowedTz.getDay();
+    if (!config.allowedDays.includes(dayOfWeek)) {
+      return false;
+    }
+
+    // Check if time is within allowed hours
+    const currentTimeMinutes = dateInAllowedTz.getHours() * 60 + dateInAllowedTz.getMinutes();
+    const startMinutes = this.timeToMinutes(config.allowedStartTime);
+    const endMinutes = this.timeToMinutes(config.allowedEndTime);
+
+    return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
+  }
+
+  /**
+   * Find the next allowed time after the given date
+   */
+  private findNextAllowedTime(date: Date, config: EmailScheduleConfig): Date {
+    const nextTime = new Date(date);
+    
+    // If we're already in an allowed time, return immediately
+    if (this.isTimeAllowed(nextTime, config)) {
+      return nextTime;
+    }
+
+    // Convert to allowed timezone for calculations
+    const tzDate = new Date(nextTime.toLocaleString("en-US", { timeZone: config.allowedTimezone }));
+    const currentDay = tzDate.getDay();
+    const currentTimeMinutes = tzDate.getHours() * 60 + tzDate.getMinutes();
+    const startMinutes = this.timeToMinutes(config.allowedStartTime);
+    const endMinutes = this.timeToMinutes(config.allowedEndTime);
+
+    // If today is an allowed day but we're past the end time, move to next allowed day
+    if (config.allowedDays.includes(currentDay) && currentTimeMinutes > endMinutes) {
+      // Move to next allowed day
+      for (let i = 1; i <= 7; i++) {
+        const checkDay = (currentDay + i) % 7;
+        if (config.allowedDays.includes(checkDay)) {
+          nextTime.setDate(nextTime.getDate() + i);
+          break;
+        }
+      }
+      // Set to start time
+      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
+      nextTime.setHours(startHours, startMins, 0, 0);
+    }
+    // If today is an allowed day but we're before start time, move to start time
+    else if (config.allowedDays.includes(currentDay) && currentTimeMinutes < startMinutes) {
+      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
+      nextTime.setHours(startHours, startMins, 0, 0);
+    }
+    // If today is not an allowed day, move to next allowed day
+    else {
+      for (let i = 1; i <= 7; i++) {
+        const checkDay = (currentDay + i) % 7;
+        if (config.allowedDays.includes(checkDay)) {
+          nextTime.setDate(nextTime.getDate() + i);
+          break;
+        }
+      }
+      // Set to start time
+      const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
+      nextTime.setHours(startHours, startMins, 0, 0);
+    }
+
+    return nextTime;
+  }
+
+  /**
+   * Reschedule existing campaigns to respect new allowed time constraints
+   */
+  async rescheduleExistingCampaigns(organizationId: string) {
+    try {
+      // Get the updated config
+      const config = await this.getOrCreateScheduleConfig(organizationId);
+
+      // Find all scheduled email jobs for this organization that haven't been sent yet
+      const scheduledJobs = await db
+        .select({
+          id: emailSendJobs.id,
+          emailId: emailSendJobs.emailId,
+          sessionId: emailSendJobs.sessionId,
+          scheduledTime: emailSendJobs.scheduledTime,
+          triggerId: emailSendJobs.triggerId,
+        })
+        .from(emailSendJobs)
+        .where(
+          and(
+            eq(emailSendJobs.organizationId, organizationId),
+            eq(emailSendJobs.status, "scheduled"),
+            isNull(emailSendJobs.actualSendTime)
+          )
+        )
+        .orderBy(emailSendJobs.scheduledTime);
+
+      if (scheduledJobs.length === 0) {
+        logger.info(`No scheduled jobs found for organization ${organizationId}`);
+        return { rescheduled: 0 };
+      }
+
+      logger.info(`Found ${scheduledJobs.length} scheduled jobs to potentially reschedule`);
+
+      // Group jobs by session for better scheduling
+      const jobsBySession = new Map<number, typeof scheduledJobs>();
+      for (const job of scheduledJobs) {
+        if (!jobsBySession.has(job.sessionId)) {
+          jobsBySession.set(job.sessionId, []);
+        }
+        jobsBySession.get(job.sessionId)!.push(job);
+      }
+
+      let totalRescheduled = 0;
+
+      // Process each session's jobs
+      for (const [sessionId, jobs] of jobsBySession) {
+        const needsReschedule = jobs.filter(job => !this.isTimeAllowed(job.scheduledTime, config));
+        
+        if (needsReschedule.length === 0) {
+          continue; // All jobs in this session are already in allowed times
+        }
+
+        logger.info(`Rescheduling ${needsReschedule.length} jobs for session ${sessionId}`);
+
+        // Calculate new schedule times for jobs that need rescheduling
+        let currentTime = new Date();
+        currentTime = this.findNextAllowedTime(currentTime, config);
+
+        const updatedJobs: Array<{
+          id: number;
+          newScheduledTime: Date;
+          triggerId?: string;
+        }> = [];
+
+        for (let i = 0; i < needsReschedule.length; i++) {
+          const job = needsReschedule[i];
+
+          // Calculate gap for spacing
+          const gapMinutes = Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
+          const delayMs = i === 0 ? 0 : gapMinutes * 60 * 1000;
+
+          if (i > 0) {
+            currentTime = new Date(currentTime.getTime() + delayMs);
+          }
+
+          // Ensure we're still in allowed time after adding delay
+          if (!this.isTimeAllowed(currentTime, config)) {
+            currentTime = this.findNextAllowedTime(currentTime, config);
+          }
+
+          updatedJobs.push({
+            id: job.id,
+            newScheduledTime: new Date(currentTime),
+            triggerId: job.triggerId,
+          });
+        }
+
+        // Update the database with new scheduled times
+        for (const update of updatedJobs) {
+          await db
+            .update(emailSendJobs)
+            .set({
+              scheduledTime: update.newScheduledTime,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailSendJobs.id, update.id));
+
+          // Also update the generated email's scheduled time
+          await db
+            .update(generatedEmails)
+            .set({
+              scheduledSendTime: update.newScheduledTime,
+              updatedAt: new Date(),
+            })
+            .where(eq(generatedEmails.id, emailSendJobs.emailId));
+
+          // Cancel the old Trigger.dev job and schedule a new one
+          if (update.triggerId) {
+            try {
+              await runs.cancel(update.triggerId);
+            } catch (error) {
+              logger.warn(`Failed to cancel trigger job ${update.triggerId}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+
+          // Schedule new Trigger.dev job
+          const delay = update.newScheduledTime.getTime() - Date.now();
+          if (delay > 0) {
+            try {
+              const triggerHandle = await sendSingleEmailTask.trigger({
+                emailId: needsReschedule.find(j => j.id === update.id)!.emailId,
+                organizationId,
+              }, {
+                delay: Math.max(1000, delay), // At least 1 second delay
+              });
+
+              // Update the trigger ID in the database
+              await db
+                .update(emailSendJobs)
+                .set({
+                  triggerId: triggerHandle.id,
+                })
+                .where(eq(emailSendJobs.id, update.id));
+
+            } catch (error) {
+              logger.error(`Failed to reschedule trigger job for email ${update.id}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+        }
+
+        totalRescheduled += updatedJobs.length;
+      }
+
+      logger.info(`Successfully rescheduled ${totalRescheduled} email jobs for organization ${organizationId}`);
+      return { rescheduled: totalRescheduled };
+
+    } catch (error) {
+      logger.error(`Failed to reschedule existing campaigns: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to reschedule existing campaigns",
       });
     }
   }

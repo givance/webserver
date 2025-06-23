@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,20 +15,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Settings, Info } from "lucide-react";
+import { Settings, Info, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function EmailScheduleSettings() {
-  const { getScheduleConfig, updateScheduleConfig } = useCommunications();
+  const { getScheduleConfig, updateScheduleConfig, listCampaigns } = useCommunications();
   const { data: config, isLoading } = getScheduleConfig();
+  const { data: campaigns } = listCampaigns();
+  
+  // Filter for active campaigns (those with scheduled or running status)
+  const activeCampaigns = campaigns?.filter(campaign => 
+    campaign.status === 'running' || campaign.status === 'scheduled'
+  ) || [];
 
   const [dailyLimit, setDailyLimit] = useState(150);
   const [minGap, setMinGap] = useState(1);
   const [maxGap, setMaxGap] = useState(3);
   const [timezone, setTimezone] = useState("America/New_York");
+  const [allowedDays, setAllowedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [allowedStartTime, setAllowedStartTime] = useState("09:00");
+  const [allowedEndTime, setAllowedEndTime] = useState("17:00");
+  const [allowedTimezone, setAllowedTimezone] = useState("America/New_York");
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<any>(null);
 
   // Common timezones
   const timezones = [
@@ -44,6 +67,17 @@ export function EmailScheduleSettings() {
     { value: "Australia/Sydney", label: "Sydney (AEDT)" },
   ];
 
+  // Days of the week
+  const daysOfWeek = [
+    { value: 0, label: "Sunday", short: "Sun" },
+    { value: 1, label: "Monday", short: "Mon" },
+    { value: 2, label: "Tuesday", short: "Tue" },
+    { value: 3, label: "Wednesday", short: "Wed" },
+    { value: 4, label: "Thursday", short: "Thu" },
+    { value: 5, label: "Friday", short: "Fri" },
+    { value: 6, label: "Saturday", short: "Sat" },
+  ];
+
   // Load config values
   useEffect(() => {
     if (config) {
@@ -51,6 +85,10 @@ export function EmailScheduleSettings() {
       setMinGap(config.minGapMinutes);
       setMaxGap(config.maxGapMinutes);
       setTimezone(config.timezone);
+      setAllowedDays(config.allowedDays || [1, 2, 3, 4, 5]);
+      setAllowedStartTime(config.allowedStartTime || "09:00");
+      setAllowedEndTime(config.allowedEndTime || "17:00");
+      setAllowedTimezone(config.allowedTimezone || "America/New_York");
     }
   }, [config]);
 
@@ -61,28 +99,69 @@ export function EmailScheduleSettings() {
         dailyLimit !== config.dailyLimit ||
         minGap !== config.minGapMinutes ||
         maxGap !== config.maxGapMinutes ||
-        timezone !== config.timezone;
+        timezone !== config.timezone ||
+        JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
+        allowedStartTime !== (config.allowedStartTime || "09:00") ||
+        allowedEndTime !== (config.allowedEndTime || "17:00") ||
+        allowedTimezone !== (config.allowedTimezone || "America/New_York");
       setHasChanges(changed);
     }
-  }, [config, dailyLimit, minGap, maxGap, timezone]);
+  }, [config, dailyLimit, minGap, maxGap, timezone, allowedDays, allowedStartTime, allowedEndTime, allowedTimezone]);
 
-  const handleSave = async () => {
+  const handleSave = async (rescheduleExisting = false) => {
     // Validate
     if (minGap > maxGap) {
       toast.error("Minimum gap cannot be greater than maximum gap");
       return;
     }
 
+    if (allowedDays.length === 0) {
+      toast.error("At least one day must be selected");
+      return;
+    }
+
+    const startMinutes = timeToMinutes(allowedStartTime);
+    const endMinutes = timeToMinutes(allowedEndTime);
+    if (startMinutes >= endMinutes) {
+      toast.error("End time must be after start time");
+      return;
+    }
+
+    const updateData = {
+      dailyLimit,
+      minGapMinutes: minGap,
+      maxGapMinutes: maxGap,
+      timezone,
+      allowedDays,
+      allowedStartTime,
+      allowedEndTime,
+      allowedTimezone,
+    };
+
+    // Check if allowed time settings have changed and there are active campaigns
+    const allowedTimeChanged = config && (
+      JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
+      allowedStartTime !== (config.allowedStartTime || "09:00") ||
+      allowedEndTime !== (config.allowedEndTime || "17:00") ||
+      allowedTimezone !== (config.allowedTimezone || "America/New_York")
+    );
+
+    if (allowedTimeChanged && activeCampaigns.length > 0 && !rescheduleExisting) {
+      setPendingUpdate(updateData);
+      setShowConfirmDialog(true);
+      return;
+    }
+
     setIsSaving(true);
     try {
       await updateScheduleConfig.mutateAsync({
-        dailyLimit,
-        minGapMinutes: minGap,
-        maxGapMinutes: maxGap,
-        timezone,
+        ...updateData,
+        rescheduleExisting,
       });
       toast.success("Schedule settings updated successfully");
       setHasChanges(false);
+      setPendingUpdate(null);
+      setShowConfirmDialog(false);
     } catch (error) {
       console.error("Failed to update settings:", error);
       toast.error("Failed to update settings. Please try again.");
@@ -97,6 +176,27 @@ export function EmailScheduleSettings() {
       setMinGap(config.minGapMinutes);
       setMaxGap(config.maxGapMinutes);
       setTimezone(config.timezone);
+      setAllowedDays(config.allowedDays || [1, 2, 3, 4, 5]);
+      setAllowedStartTime(config.allowedStartTime || "09:00");
+      setAllowedEndTime(config.allowedEndTime || "17:00");
+      setAllowedTimezone(config.allowedTimezone || "America/New_York");
+    }
+  };
+
+  // Utility function to convert time to minutes
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  // Handle day selection
+  const toggleDay = (day: number) => {
+    if (allowedDays.includes(day)) {
+      if (allowedDays.length > 1) { // Prevent removing all days
+        setAllowedDays(allowedDays.filter(d => d !== day));
+      }
+    } else {
+      setAllowedDays([...allowedDays, day].sort());
     }
   };
 
@@ -139,6 +239,7 @@ export function EmailScheduleSettings() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -229,6 +330,82 @@ export function EmailScheduleSettings() {
           </p>
         </div>
 
+        {/* Allowed Time Settings */}
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/5">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <Label className="text-sm font-medium">Allowed Sending Times</Label>
+          </div>
+
+          {/* Allowed Days */}
+          <div className="space-y-2">
+            <Label className="text-sm">Allowed Days</Label>
+            <div className="flex flex-wrap gap-2">
+              {daysOfWeek.map((day) => (
+                <div key={day.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`day-${day.value}`}
+                    checked={allowedDays.includes(day.value)}
+                    onCheckedChange={() => toggleDay(day.value)}
+                  />
+                  <Label 
+                    htmlFor={`day-${day.value}`} 
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    {day.short}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Emails will only be sent on selected days
+            </p>
+          </div>
+
+          {/* Allowed Time Range */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="start-time" className="text-xs">Start Time</Label>
+              <Input
+                id="start-time"
+                type="time"
+                value={allowedStartTime}
+                onChange={(e) => setAllowedStartTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="end-time" className="text-xs">End Time</Label>
+              <Input
+                id="end-time"
+                type="time"
+                value={allowedEndTime}
+                onChange={(e) => setAllowedEndTime(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Allowed Timezone */}
+          <div className="space-y-2">
+            <Label htmlFor="allowed-timezone" className="text-xs">Timezone for Allowed Hours</Label>
+            <Select value={allowedTimezone} onValueChange={setAllowedTimezone}>
+              <SelectTrigger id="allowed-timezone">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {timezones.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Emails will only be sent between {allowedStartTime} - {allowedEndTime} ({allowedTimezone}) on selected days
+          </p>
+        </div>
+
         {/* Example Calculations */}
         <Alert>
           <Info className="h-4 w-4" />
@@ -259,5 +436,40 @@ export function EmailScheduleSettings() {
         </div>
       </CardContent>
     </Card>
+
+    {/* Confirmation Dialog */}
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Update Existing Campaigns?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have {activeCampaigns.length} active email campaign(s) with scheduled emails. 
+            Would you like to reschedule existing campaign emails to respect the new allowed time settings?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => {
+            setShowConfirmDialog(false);
+            setPendingUpdate(null);
+          }}>
+            Cancel
+          </AlertDialogCancel>
+          <Button
+            variant="outline"
+            onClick={() => handleSave(false)}
+            disabled={isSaving}
+          >
+            Save Without Rescheduling
+          </Button>
+          <AlertDialogAction
+            onClick={() => handleSave(true)}
+            disabled={isSaving}
+          >
+            {isSaving ? "Updating..." : "Save & Reschedule"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
