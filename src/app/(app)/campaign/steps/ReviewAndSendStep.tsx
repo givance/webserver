@@ -6,11 +6,13 @@ import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { EmailPiece } from "@/app/lib/utils/email-generator/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
-import { Clock, Send, AlertCircle } from "lucide-react";
+import { Clock, Send, AlertCircle, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { validateDonorStaffEmailConnectivity, type DonorEmailValidationResult } from "@/app/lib/utils/email-validation";
+import { useAuth } from "@clerk/nextjs";
 
 interface GeneratedEmail {
   donorId: number;
@@ -27,24 +29,48 @@ interface ReviewAndSendStepProps {
 
 export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish }: ReviewAndSendStepProps) {
   const [isScheduling, setIsScheduling] = useState(false);
+  const [validationResult, setValidationResult] = useState<DonorEmailValidationResult | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const { getDonorQuery } = useDonors();
   const { scheduleEmailSend, getScheduleConfig } = useCommunications();
-  
+  const { orgId } = useAuth();
+
   // Get schedule configuration
   const { data: scheduleConfig } = getScheduleConfig();
+
+  // Validate email connectivity when component mounts or emails change
+  useEffect(() => {
+    const validateEmails = async () => {
+      if (!orgId || generatedEmails.length === 0) return;
+
+      setIsValidating(true);
+      try {
+        const donorIds = generatedEmails.map((email) => email.donorId);
+        const result = await validateDonorStaffEmailConnectivity(donorIds, orgId);
+        setValidationResult(result);
+      } catch (error) {
+        console.error("Error validating donor email connectivity:", error);
+        toast.error("Failed to validate email setup. Please try again.");
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateEmails();
+  }, [generatedEmails, orgId]);
 
   const handleScheduleSend = async () => {
     setIsScheduling(true);
     try {
       const result = await scheduleEmailSend.mutateAsync({ sessionId });
-      
+
       toast.success(
         `Successfully scheduled ${result.scheduled} emails. ${result.scheduledForToday} will be sent today, ${result.scheduledForLater} scheduled for later.`,
         {
           duration: 5000,
         }
       );
-      
+
       onFinish();
     } catch (error) {
       console.error("Error scheduling emails:", error);
@@ -60,20 +86,67 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Review and Schedule Emails</h3>
           <p className="text-sm text-muted-foreground">
-            Review all generated emails before scheduling. Emails will be sent with a {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minute gap between each email.
+            Review all generated emails before scheduling. Emails will be sent with a{" "}
+            {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minute gap between each email.
           </p>
         </div>
-        
+
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             <div className="space-y-1">
               <p>Daily sending limit: {scheduleConfig?.dailyLimit || 150} emails</p>
-              <p>Emails will be scheduled with random gaps between {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minutes</p>
+              <p>
+                Emails will be scheduled with random gaps between {scheduleConfig?.minGapMinutes || 1}-
+                {scheduleConfig?.maxGapMinutes || 3} minutes
+              </p>
               <p>You can pause, resume, or cancel the sending at any time from the campaign page</p>
             </div>
           </AlertDescription>
         </Alert>
+
+        {/* Email validation results */}
+        {isValidating && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Validating email setup for all donors...</AlertDescription>
+          </Alert>
+        )}
+
+        {validationResult && !validationResult.isValid && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p className="font-medium">Cannot schedule emails due to setup issues:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {validationResult.donorsWithoutStaff.length > 0 && (
+                    <li>{validationResult.donorsWithoutStaff.length} donor(s) don't have assigned staff members</li>
+                  )}
+                  {validationResult.donorsWithStaffButNoEmail.length > 0 && (
+                    <li>
+                      {validationResult.donorsWithStaffButNoEmail.length} donor(s) have staff members without connected
+                      Gmail accounts
+                    </li>
+                  )}
+                </ul>
+                <p className="text-sm">
+                  Please assign staff to all donors and ensure all staff have connected their Gmail accounts in
+                  Settings.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {validationResult && validationResult.isValid && (
+          <Alert className="border-green-200 bg-green-50">
+            <AlertCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              ✓ All donors have assigned staff with connected Gmail accounts. Ready to schedule!
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       <ScrollArea className="h-[400px]">
@@ -102,16 +175,29 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
           Back
         </Button>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">{generatedEmails.length} emails ready to schedule</span>
-          <Button 
-            onClick={handleScheduleSend} 
-            disabled={isScheduling || generatedEmails.length === 0}
+          <span className="text-sm text-muted-foreground">
+            {generatedEmails.length} email(s) ready
+            {validationResult && !validationResult.isValid ? " (setup issues)" : ""}
+          </span>
+          <Button
+            onClick={handleScheduleSend}
+            disabled={
+              isScheduling ||
+              generatedEmails.length === 0 ||
+              isValidating ||
+              (validationResult !== null && !validationResult.isValid)
+            }
             className="flex items-center gap-2"
           >
             {isScheduling ? (
               <>
                 <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
                 Scheduling...
+              </>
+            ) : isValidating ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                Validating...
               </>
             ) : (
               <>

@@ -1,11 +1,20 @@
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, emailScheduleConfig, emailSendJobs, generatedEmails } from "@/app/lib/db/schema";
+import {
+  emailGenerationSessions,
+  emailScheduleConfig,
+  emailSendJobs,
+  generatedEmails,
+  donors,
+  staff,
+  staffGmailTokens,
+} from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { sendSingleEmailTask } from "@/trigger/jobs/sendSingleEmail";
 import { runs } from "@trigger.dev/sdk/v3";
 import { TRPCError } from "@trpc/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or, sql, inArray } from "drizzle-orm";
+import { validateDonorStaffEmailConnectivity } from "@/app/lib/utils/email-validation";
 
 type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
 type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
@@ -314,6 +323,25 @@ export class EmailSchedulingService {
           message: errorDetails,
         });
       }
+
+      // Validate that all donors have assigned staff with connected email accounts
+      const donorIds = emails.map((email) => email.donorId);
+      const validationResult = await validateDonorStaffEmailConnectivity(donorIds, organizationId);
+
+      if (!validationResult.isValid) {
+        logger.error(
+          `Email scheduling validation failed for session ${sessionId}: ${validationResult.donorsWithoutStaff.length} donors without staff, ${validationResult.donorsWithStaffButNoEmail.length} donors with staff but no Gmail`
+        );
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot schedule emails. ${validationResult.errorMessage}`,
+        });
+      }
+
+      logger.info(
+        `Email scheduling validation passed for session ${sessionId}: All ${emails.length} donors have assigned staff with connected Gmail accounts`
+      );
 
       // Check daily limit
       const sentToday = await this.getEmailsSentToday(organizationId, config.timezone);
