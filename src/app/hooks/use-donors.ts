@@ -32,8 +32,8 @@ export function useDonors() {
     orderDirection?: "asc" | "desc";
   }) => {
     return trpc.donors.list.useQuery(params, {
-      // Don't refetch automatically
-      refetchOnWindowFocus: false,
+      // Refetch when window regains focus (e.g., returning from list upload)
+      refetchOnWindowFocus: true,
       refetchOnMount: false,
       refetchOnReconnect: false,
     });
