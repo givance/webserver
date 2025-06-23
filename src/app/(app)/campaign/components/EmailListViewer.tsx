@@ -333,13 +333,9 @@ export function EmailListViewer({
                             )}
                           >
                             <div className="flex items-center justify-between w-full">
-                              <Link 
-                                href={`/donors/${donor.id}`}
-                                className="font-medium text-sm truncate flex-1 hover:text-primary hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                              <span className="font-medium text-sm truncate flex-1">
                                 {formatDonorName(donor)}
-                              </Link>
+                              </span>
                               <div className="flex items-center gap-1">
                                 {/* Approval status badge */}
                                 {email.status === "APPROVED" ? (

@@ -263,6 +263,8 @@ export function EmailDisplay({
                     <Link 
                       href={`/donors/${donorId}`}
                       className="text-primary hover:underline font-medium"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       {donorName}
                     </Link>
