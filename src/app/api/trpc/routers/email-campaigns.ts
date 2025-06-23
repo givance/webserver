@@ -49,7 +49,7 @@ const createSessionSchema = z.object({
 
 const launchCampaignSchema = z.object({
   campaignName: z.string().min(1).max(255),
-  instruction: z.string().min(1),
+  instruction: z.string(),
   chatHistory: z.array(
     z.object({
       role: z.enum(["user", "assistant"]),

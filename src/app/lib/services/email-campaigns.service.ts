@@ -986,8 +986,8 @@ export class EmailCampaignsService {
         sessionId: existingSession.id,
         organizationId,
         userId,
-        instruction: finalInstruction,
-        refinedInstruction: finalRefinedInstruction,
+        instruction: "", // Empty instruction - chat history will be used instead
+        refinedInstruction: "", // Empty refined instruction - chat history will be used instead
         selectedDonorIds: existingSession.selectedDonorIds as number[],
         previewDonorIds: existingSession.previewDonorIds as number[],
         chatHistory: finalChatHistory,

@@ -50,7 +50,9 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     existingCampaignData?.templateId || undefined
   );
   const [templatePrompt, setTemplatePrompt] = useState<string>("");
-  const [instruction, setInstruction] = useState(existingCampaignData?.instruction || "");
+  const [instruction, setInstruction] = useState(
+    existingCampaignData?.chatHistory.length ? "" : existingCampaignData?.instruction || ""
+  );
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
@@ -176,7 +178,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
 
   const handleTemplateSelected = (templateId: number | null, templatePrompt?: string) => {
     setSelectedTemplateId(templateId ?? undefined);
-    if (templatePrompt) {
+    if (templatePrompt && !existingCampaignData?.chatHistory.length) {
       setInstruction(templatePrompt);
       setTemplatePrompt(templatePrompt); // Set the templatePrompt state so it can be passed to WriteInstructionStep
     } else {

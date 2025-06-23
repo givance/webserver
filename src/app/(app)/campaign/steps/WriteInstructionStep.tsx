@@ -960,11 +960,11 @@ export function WriteInstructionStep({
       // 4. Set completedDonors count correctly
       const response = await launchCampaign.mutateAsync({
         campaignName: campaignName,
-        instruction: currentSessionData.finalInstruction,
+        instruction: "", // Empty instruction - chat history will be used instead
         chatHistory: currentSessionData.chatHistory,
         selectedDonorIds: selectedDonors,
         previewDonorIds: currentSessionData.previewDonorIds,
-        refinedInstruction: currentSessionData.finalInstruction,
+        refinedInstruction: "", // Empty refined instruction - chat history will be used instead
         templateId: templateId,
       });
 

@@ -153,7 +153,7 @@ export const generateBulkEmailsTask = task({
           .set({
             status: EmailGenerationSessionStatus.COMPLETED,
             completedDonors: selectedDonorIds.length,
-            refinedInstruction: refinedInstruction || instruction,
+            refinedInstruction: "", // Empty since we use chat history instead
             completedAt: new Date(),
             updatedAt: new Date(),
           })
@@ -164,7 +164,7 @@ export const generateBulkEmailsTask = task({
           sessionId,
           emailsGenerated: 0,
           message: "All emails were already generated",
-          refinedInstruction: refinedInstruction || instruction,
+          refinedInstruction: "", // Empty since we use chat history instead
         };
       }
 
@@ -313,7 +313,7 @@ export const generateBulkEmailsTask = task({
           // Generate email for single donor using generateSmartDonorEmails directly
           const singleDonorResult = await generateSmartDonorEmails(
             [donorInfo], // Single donor
-            refinedInstruction || instruction,
+            "", // Empty instruction - chat history will be used instead
             organization.name,
             emailGeneratorOrg,
             organizationWritingInstructions,
@@ -325,7 +325,9 @@ export const generateBulkEmailsTask = task({
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default
-            user.emailSignature ?? undefined // Pass user's email signature
+            user.emailSignature ?? undefined, // Pass user's email signature
+            undefined, // previousInstruction - not needed with chat history
+            chatHistory // Pass the chat history to handle conversation context
           );
 
           // Add results to the main array (thread-safe since we're awaiting each batch)
@@ -469,7 +471,7 @@ export const generateBulkEmailsTask = task({
         .set({
           status: EmailGenerationSessionStatus.COMPLETED,
           completedDonors: totalCompletedDonors,
-          refinedInstruction: refinedInstruction || instruction,
+          refinedInstruction: "", // Empty since we use chat history instead
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -481,7 +483,7 @@ export const generateBulkEmailsTask = task({
         status: "success",
         sessionId,
         emailsGenerated: allEmailResults.length,
-        refinedInstruction: refinedInstruction || instruction,
+        refinedInstruction: "", // Empty since we use chat history instead
       };
     } catch (error) {
       triggerLogger.error(
