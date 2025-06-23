@@ -32,7 +32,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
   // - If refinedInstruction exists, go to Write Instructions (step 3)
-  // - If templateId exists but no refinedInstruction, go to Write Instructions (step 3)  
+  // - If templateId exists but no refinedInstruction, go to Write Instructions (step 3)
   // - Otherwise, go to Template Selection (step 2)
   const getInitialStep = () => {
     if (editMode) {
@@ -78,7 +78,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
         editMode,
         currentSessionId: sessionId,
       });
-      
+
       setSessionId(newSessionId);
     },
   });
@@ -127,10 +127,10 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       editMode,
       selectedDonorsCount: selectedDonors.length,
     });
-    
+
     // Use the provided name (should not be empty at this point)
     setCampaignName(name);
-    
+
     // If we're not in edit mode, save and redirect to edit mode
     if (!editMode && selectedDonors.length > 0 && name.trim()) {
       console.log("[CampaignSteps] About to trigger manualSave and redirect to edit mode");
@@ -145,18 +145,17 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           refinedInstruction: existingCampaignData?.refinedInstruction,
           previewDonorIds: persistedPreviewDonorIds,
         });
-        
+
         console.log("[CampaignSteps] Manual save result:", result);
-        
+
         // Get the session ID (either from result or existing sessionId)
         const finalSessionId = result?.sessionId || sessionId;
-        
+
         if (finalSessionId) {
           console.log("[CampaignSteps] Redirecting to edit mode with sessionId:", finalSessionId);
           router.replace(`/campaign/edit/${finalSessionId}`);
           return; // Don't navigate to next step, we're redirecting
         }
-        
       } catch (error) {
         console.error("Failed to save campaign after name set:", error);
         // Continue with navigation even if save failed
@@ -170,7 +169,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
         nameToUseTrimmed: name.trim(),
       });
     }
-    
+
     // Navigate to next step only if we're in edit mode and didn't redirect
     console.log("[CampaignSteps] Navigating to step 2");
     handleStepNavigation(2);
@@ -268,7 +267,11 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             onSessionDataChange={handleSessionDataChange}
             templatePrompt={editMode ? undefined : templatePrompt}
             initialChatHistory={persistedChatHistory}
-            initialGeneratedEmails={editMode && existingCampaignData?.existingGeneratedEmails ? existingCampaignData.existingGeneratedEmails : persistedGeneratedEmails}
+            initialGeneratedEmails={
+              editMode && existingCampaignData?.existingGeneratedEmails
+                ? existingCampaignData.existingGeneratedEmails
+                : persistedGeneratedEmails
+            }
             initialReferenceContexts={persistedReferenceContexts}
             initialPreviewDonorIds={persistedPreviewDonorIds}
             initialRefinedInstruction={existingCampaignData?.refinedInstruction}
@@ -277,7 +280,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             onBulkGenerationComplete={handleBulkGenerationComplete}
             sessionId={sessionId}
             editMode={editMode}
-            existingCampaignId={existingCampaignData?.campaignId}
           />
         );
       default:

@@ -55,7 +55,6 @@ interface WriteInstructionStepProps {
   onBulkGenerationComplete: (sessionId: number) => void;
   // Edit mode props
   editMode?: boolean;
-  existingCampaignId?: number;
   sessionId?: number;
 }
 
@@ -129,7 +128,6 @@ export function WriteInstructionStep({
   templateId,
   onBulkGenerationComplete,
   editMode = false,
-  existingCampaignId,
   sessionId,
   initialRefinedInstruction,
 }: WriteInstructionStepProps) {
@@ -138,7 +136,6 @@ export function WriteInstructionStep({
     templateId,
     sessionId,
     editMode,
-    existingCampaignId,
     selectedDonorsCount: selectedDonors?.length,
     initialRefinedInstruction,
   });
@@ -213,7 +210,6 @@ export function WriteInstructionStep({
     generateEmails,
     createSession,
     launchCampaign,
-    updateCampaign,
     regenerateAllEmails,
     saveGeneratedEmail,
     saveDraft,
@@ -768,7 +764,6 @@ export function WriteInstructionStep({
       previousInstruction,
       instruction,
       finalInstruction,
-      existingCampaignId,
       onlyUnapproved,
     });
 
@@ -973,43 +968,31 @@ export function WriteInstructionStep({
 
     setIsStartingBulkGeneration(true);
     try {
-      let response: { sessionId: number };
+      // Always use launchCampaign - it handles both new campaigns and existing drafts properly
+      // The launchCampaign method will:
+      // 1. Find existing draft with the same name if it exists
+      // 2. Update the status appropriately (GENERATING or READY_TO_SEND)
+      // 3. Trigger background jobs if needed
+      // 4. Set completedDonors count correctly
+      const response = await launchCampaign.mutateAsync({
+        campaignName: campaignName,
+        instruction: currentSessionData.finalInstruction,
+        chatHistory: currentSessionData.chatHistory,
+        selectedDonorIds: selectedDonors,
+        previewDonorIds: currentSessionData.previewDonorIds,
+        refinedInstruction: currentSessionData.finalInstruction,
+        templateId: templateId,
+      });
 
-      if (editMode && existingCampaignId && sessionId) {
-        // Update existing campaign - don't create a new one
-        await updateCampaign.mutateAsync({
-          campaignId: existingCampaignId,
-          campaignName: campaignName,
-          instruction: currentSessionData.finalInstruction,
-          chatHistory: currentSessionData.chatHistory,
-          selectedDonorIds: selectedDonors,
-          previewDonorIds: currentSessionData.previewDonorIds,
-          refinedInstruction: currentSessionData.finalInstruction,
-          templateId: templateId,
-        });
-
-        // Use the existing session ID for the updated campaign
-        response = { sessionId: sessionId };
-
-        toast.success("Campaign updated! Redirecting to communication jobs...");
-      } else {
-        // Launch new campaign (this will create as DRAFT and immediately launch)
-        response = await launchCampaign.mutateAsync({
-          campaignName: campaignName,
-          instruction: currentSessionData.finalInstruction,
-          chatHistory: currentSessionData.chatHistory,
-          selectedDonorIds: selectedDonors,
-          previewDonorIds: currentSessionData.previewDonorIds,
-          refinedInstruction: currentSessionData.finalInstruction,
-          templateId: templateId,
-        });
-
-        if (!response?.sessionId) {
-          throw new Error("Failed to launch campaign");
-        }
-
-        toast.success("Campaign launched! Redirecting to communication jobs...");
+      if (!response?.sessionId) {
+        throw new Error("Failed to launch campaign");
       }
+
+      toast.success(
+        editMode
+          ? "Campaign updated and launched! Redirecting to communication jobs..."
+          : "Campaign launched! Redirecting to communication jobs..."
+      );
 
       setShowBulkGenerationDialog(false);
 
