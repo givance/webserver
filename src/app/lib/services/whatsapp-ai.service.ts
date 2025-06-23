@@ -264,10 +264,18 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
             DATABASE SCHEMA:
             ${this.sqlEngine.getSchemaDescription()}
             
+            DATE/TIME HANDLING:
+            - For donation dates, store as UTC midnight: DATE(NOW()) (this stores today's date as UTC 00:00:00)
+            - For created_at/updated_at timestamps, use NOW() (these are system timestamps in UTC)
+            - When user specifies a date like "yesterday", use DATE(NOW() - INTERVAL '1 day')
+            - When user specifies a specific date like "2024-01-15", use DATE('2024-01-15')
+            - Example for today's donation: date = DATE(NOW())
+            
             EXAMPLES:
             SELECT: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name ILIKE '%Aaron%'"
-            INSERT: "INSERT INTO donors (organization_id, first_name, last_name, email) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com')"
-            UPDATE: "UPDATE donors SET notes = 'High potential donor' WHERE organization_id = '${organizationId}' AND id = 123"
+            INSERT NEW DONATION: "INSERT INTO donations (donor_id, project_id, amount, currency, date, created_at, updated_at) VALUES (5536, 1360, 100000, 'USD', DATE(NOW()), NOW(), NOW())"
+            INSERT NEW DONOR: "INSERT INTO donors (organization_id, first_name, last_name, email, created_at, updated_at) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com', NOW(), NOW())"
+            UPDATE: "UPDATE donors SET notes = 'High potential donor', updated_at = NOW() WHERE organization_id = '${organizationId}' AND id = 123"
             
             IMPORTANT: After executing any query, you MUST provide a complete text response explaining what was done or found.
             
@@ -472,7 +480,9 @@ WRITE OPERATIONS:
 3. INSERT operations into donations table MUST NOT include organization_id (secured through donor_id/project_id relationships)
 4. NO DELETE, DROP, TRUNCATE, ALTER, CREATE operations allowed
 5. Amounts in donations table are stored in CENTS - multiply dollars by 100 for storage
-6. Always validate data before inserting/updating
+6. For donation dates, use timezone conversion: CURRENT_DATE AT TIME ZONE 'America/New_York' AT TIME ZONE 'UTC'
+7. For created_at/updated_at timestamps, use NOW() (system timestamps in UTC)
+8. Always validate data before inserting/updating
 
 📊 DATABASE SCHEMA:
 ${this.sqlEngine.getSchemaDescription()}
