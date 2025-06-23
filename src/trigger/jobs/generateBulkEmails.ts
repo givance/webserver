@@ -276,6 +276,11 @@ export const generateBulkEmailsTask = task({
         `Generating emails for ${donorInfos.length} donors with concurrency limit of ${MAX_CONCURRENCY}`
       );
 
+      // Get primary staff for fallback writing instructions
+      const primaryStaffForWriting = await db.query.staff.findFirst({
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+      });
+
       // Generate emails in batches with concurrency limiting
       const { generateSmartDonorEmails } = await import("@/app/lib/utils/email-generator");
       const allEmailResults: any[] = [];
@@ -284,6 +289,27 @@ export const generateBulkEmailsTask = task({
       await processConcurrently(
         donorInfos,
         async (donorInfo) => {
+          // Find the corresponding full donor data to get assigned staff
+          const fullDonor = donorsToGenerate.find((d) => d.id === donorInfo.id);
+          const assignedStaff = fullDonor?.assignedStaff;
+
+          // Determine the appropriate staff writing instructions for this donor
+          let donorStaffWritingInstructions: string | undefined;
+          if (assignedStaff?.writingInstructions && assignedStaff.writingInstructions.trim()) {
+            donorStaffWritingInstructions = assignedStaff.writingInstructions;
+            triggerLogger.info(
+              `Using assigned staff writing instructions for donor ${donorInfo.id} from ${assignedStaff.firstName} ${assignedStaff.lastName}`
+            );
+          } else if (primaryStaffForWriting?.writingInstructions && primaryStaffForWriting.writingInstructions.trim()) {
+            donorStaffWritingInstructions = primaryStaffForWriting.writingInstructions;
+            triggerLogger.info(
+              `Using primary staff writing instructions for donor ${donorInfo.id} from ${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`
+            );
+          } else {
+            donorStaffWritingInstructions = undefined;
+            triggerLogger.info(`No staff writing instructions available for donor ${donorInfo.id}`);
+          }
+
           // Generate email for single donor using generateSmartDonorEmails directly
           const singleDonorResult = await generateSmartDonorEmails(
             [donorInfo], // Single donor
@@ -291,7 +317,7 @@ export const generateBulkEmailsTask = task({
             organization.name,
             emailGeneratorOrg,
             organizationWritingInstructions,
-            staffWritingInstructions, // Pass staff writing instructions
+            donorStaffWritingInstructions, // Pass donor-specific staff writing instructions
             { [donorInfo.id]: communicationHistories[donorInfo.id] || [] },
             { [donorInfo.id]: donationHistoriesMap[donorInfo.id] || [] },
             donorStatistics, // Pass donor statistics
