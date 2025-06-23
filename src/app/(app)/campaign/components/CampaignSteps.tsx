@@ -1,14 +1,13 @@
 "use client";
 
+import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { CampaignNameStep } from "../steps/CampaignNameStep";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
-import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
-import { toast } from "react-hot-toast";
 
 const STEPS = ["Select Donors", "Campaign Name", "Select Template", "Write Instructions"] as const;
 type Step = (typeof STEPS)[number];
