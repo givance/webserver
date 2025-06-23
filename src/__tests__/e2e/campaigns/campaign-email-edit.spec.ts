@@ -17,22 +17,48 @@ test.describe("Campaign Email Editing", () => {
     // Navigate to existing campaigns page
     await navigateToCampaigns(page);
 
-    // Find campaigns that have a View button
+    // Find campaigns that have an action button (View, Results, Details, etc.)
     const rows = page.locator("tr");
     const rowCount = await rows.count();
+    console.log(`Found ${rowCount} table rows`);
 
     let viewableRow = null;
+    const actionSelectors = [
+      'button:has-text("View")', 
+      'button:has-text("Results")', 
+      'button:has-text("Details")',
+      'button:has-text("Open")',
+      'a:has-text("View")',
+      'a:has-text("Results")',
+      'a:has-text("Details")',
+    ];
+
     for (let i = 1; i < rowCount; i++) {
       const row = rows.nth(i);
-      const hasViewButton = (await row.locator('button:has-text("View")').count()) > 0;
-      if (hasViewButton) {
+      let hasActionButton = false;
+      
+      for (const selector of actionSelectors) {
+        if ((await row.locator(selector).count()) > 0) {
+          hasActionButton = true;
+          console.log(`Found action button in row ${i} with selector: ${selector}`);
+          break;
+        }
+      }
+      
+      if (hasActionButton) {
         viewableRow = row;
         break;
       }
     }
 
     if (!viewableRow) {
-      throw new Error("No campaigns with View button found. Please create a campaign with generated emails.");
+      // Log the content of available rows for debugging
+      console.log("Available campaigns:");
+      for (let i = 1; i < Math.min(rowCount, 5); i++) {
+        const rowText = await rows.nth(i).textContent();
+        console.log(`Row ${i}: ${rowText}`);
+      }
+      throw new Error("No campaigns with action buttons found. Please create a campaign with generated emails.");
     }
 
     // Click the View button
@@ -74,10 +100,6 @@ test.describe("Campaign Email Editing", () => {
     if (!tabClicked) {
       throw new Error("Could not click Email List tab with any selector");
     }
-<<<<<<< HEAD
-
-    await page.waitForTimeout(2000); // Wait for tab content to load
-=======
     
     // Wait for tab content to switch and be visible
     await page.waitForTimeout(1000);
@@ -89,7 +111,6 @@ test.describe("Campaign Email Editing", () => {
     
     // Additional wait for content to fully load
     await page.waitForTimeout(2000);
->>>>>>> branch2
 
     // Then select the first donor tab within the email list
     await selectDonorTab(page, 0);
@@ -177,22 +198,48 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     // Navigate to existing campaigns page
     await navigateToCampaigns(page);
 
-    // Find campaigns that have a View button
+    // Find campaigns that have an action button (View, Results, Details, etc.)
     const rows = page.locator("tr");
     const rowCount = await rows.count();
+    console.log(`Found ${rowCount} table rows`);
 
     let viewableRow = null;
+    const actionSelectors = [
+      'button:has-text("View")', 
+      'button:has-text("Results")', 
+      'button:has-text("Details")',
+      'button:has-text("Open")',
+      'a:has-text("View")',
+      'a:has-text("Results")',
+      'a:has-text("Details")',
+    ];
+
     for (let i = 1; i < rowCount; i++) {
       const row = rows.nth(i);
-      const hasViewButton = (await row.locator('button:has-text("View")').count()) > 0;
-      if (hasViewButton) {
+      let hasActionButton = false;
+      
+      for (const selector of actionSelectors) {
+        if ((await row.locator(selector).count()) > 0) {
+          hasActionButton = true;
+          console.log(`Found action button in row ${i} with selector: ${selector}`);
+          break;
+        }
+      }
+      
+      if (hasActionButton) {
         viewableRow = row;
         break;
       }
     }
 
     if (!viewableRow) {
-      throw new Error("No campaigns with View button found. Please create a campaign with generated emails.");
+      // Log the content of available rows for debugging
+      console.log("Available campaigns:");
+      for (let i = 1; i < Math.min(rowCount, 5); i++) {
+        const rowText = await rows.nth(i).textContent();
+        console.log(`Row ${i}: ${rowText}`);
+      }
+      throw new Error("No campaigns with action buttons found. Please create a campaign with generated emails.");
     }
 
     // Click the View button

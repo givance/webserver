@@ -299,11 +299,23 @@ export async function findEditButton(page: Page, container: Page | any = page) {
 }
 
 export async function findViewButton(page: Page, container: Page | any = page) {
-  const viewSelectors = ['button:has-text("View")', '[data-testid="view-button"]', 'button[aria-label*="view" i]'];
+  const viewSelectors = [
+    'button:has-text("View")',
+    'button:has-text("Results")', 
+    'button:has-text("Details")',
+    'button:has-text("Open")',
+    'button:has-text("Edit")',
+    '[data-testid="view-button"]', 
+    'button[aria-label*="view" i]',
+    'a:has-text("View")',
+    'a:has-text("Results")',
+    'a:has-text("Details")',
+  ];
 
   for (const selector of viewSelectors) {
     const button = container.locator(selector).first();
-    if (await button.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await button.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Found button with selector: ${selector}`);
       return button;
     }
   }
@@ -397,24 +409,87 @@ export async function editEmailInModal(page: Page, newContent: string) {
   await expect(editModal).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(1000);
 
-  // Find email content textarea
+  // Ensure we're on the Edit tab (might default to Preview tab)
+  const editTab = editModal.locator('button:has-text("Edit"), [role="tab"]:has-text("Edit")').first();
+  if (await editTab.isVisible().catch(() => false)) {
+    console.log("Clicking Edit tab to ensure we're in edit mode");
+    await editTab.click();
+    await page.waitForTimeout(500);
+  }
+
+  // Find email content textarea - based on actual EmailEditModal component
   const textareaSelectors = [
+    'textarea[placeholder*="Enter email content" i]',
     'textarea[placeholder*="content" i]',
-    'textarea[placeholder*="email" i]',
-    'textarea:not([placeholder*="subject" i])',
-    "textarea",
+    'textarea[class*="min-h-"]', // The content textarea has min-h-[300px]
+    'textarea[class*="max-h-"]', // The content textarea has max-h-[400px]
+    'textarea:not([placeholder*="subject" i])', // Exclude subject field
+    'textarea[name="content"]',
+    'textarea[name="body"]',
+    'textarea[id*="content"]',
+    '.tiptap', // Rich text editor
+    '[contenteditable="true"]', // Alternative text editor
+    'textarea', // Fallback to any textarea
   ];
 
   let contentTextarea = null;
   for (const selector of textareaSelectors) {
     const textarea = editModal.locator(selector).last();
     if (await textarea.isVisible().catch(() => false)) {
+      console.log(`Found content textarea with selector: ${selector}`);
       contentTextarea = textarea;
       break;
     }
   }
 
   if (!contentTextarea) {
+    // Debug: log all available elements in the modal
+    console.log("Could not find content textarea. Debugging modal contents:");
+    
+    // Log modal text content
+    const modalText = await editModal.textContent();
+    console.log(`Modal text content: ${modalText?.substring(0, 300)}...`);
+    
+    // Check for tabs
+    const tabs = editModal.locator('[role="tab"], button:has-text("Edit"), button:has-text("Preview")');
+    const tabCount = await tabs.count();
+    console.log(`Found ${tabCount} tabs in modal`);
+    for (let i = 0; i < tabCount; i++) {
+      const tab = tabs.nth(i);
+      const tabText = await tab.textContent();
+      const isActive = await tab.getAttribute("data-state").catch(() => "unknown");
+      console.log(`Tab ${i}: "${tabText}" (state: ${isActive})`);
+    }
+    
+    // Log all textareas
+    const allTextareas = editModal.locator("textarea");
+    const textareaCount = await allTextareas.count();
+    console.log(`Found ${textareaCount} textareas in modal`);
+    
+    for (let i = 0; i < textareaCount; i++) {
+      const textarea = allTextareas.nth(i);
+      const placeholder = await textarea.getAttribute("placeholder").catch(() => "no placeholder");
+      const name = await textarea.getAttribute("name").catch(() => "no name");
+      const id = await textarea.getAttribute("id").catch(() => "no id");
+      const className = await textarea.getAttribute("class").catch(() => "no class");
+      const isVisible = await textarea.isVisible().catch(() => false);
+      console.log(`Textarea ${i}: placeholder="${placeholder}", name="${name}", id="${id}", visible=${isVisible}, class="${className}"`);
+    }
+    
+    // Log all inputs
+    const allInputs = editModal.locator("input");
+    const inputCount = await allInputs.count();
+    console.log(`Found ${inputCount} inputs in modal`);
+    
+    for (let i = 0; i < inputCount; i++) {
+      const input = allInputs.nth(i);
+      const placeholder = await input.getAttribute("placeholder").catch(() => "no placeholder");
+      const type = await input.getAttribute("type").catch(() => "no type");
+      const name = await input.getAttribute("name").catch(() => "no name");
+      const isVisible = await input.isVisible().catch(() => false);
+      console.log(`Input ${i}: type="${type}", placeholder="${placeholder}", name="${name}", visible=${isVisible}`);
+    }
+    
     throw new Error("Could not find email content textarea in edit modal");
   }
 

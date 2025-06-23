@@ -57,12 +57,12 @@ export function EmailEditModal({
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Filter out signature pieces
     const contentWithoutSignature = structuredContent.filter(
-      (piece) => !piece.references.includes("signature")
+      (piece) => !piece.references?.includes("signature")
     );
     
     // Store signature pieces separately
     const sigs = structuredContent.filter(
-      (piece) => piece.references.includes("signature")
+      (piece) => piece.references?.includes("signature")
     );
     setSignaturePieces(sigs);
     

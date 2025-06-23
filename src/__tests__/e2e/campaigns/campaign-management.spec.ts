@@ -122,19 +122,10 @@ test.describe("Campaign Management", () => {
       }
 
       if (hasWizardElements) {
-<<<<<<< HEAD
-        // First, select some donors to enable the Next button
-        const donorCheckboxes = page.locator('[role="checkbox"], input[type="checkbox"]');
-        const checkboxCount = await donorCheckboxes.count();
-        
-        if (checkboxCount > 0) {
-          // Select at least one donor
-=======
         // First, select at least one donor to enable the Next button
         const donorCheckboxes = page.locator('[role="checkbox"], input[type="checkbox"]');
         if (await donorCheckboxes.count() > 0) {
           // Select first donor
->>>>>>> branch2
           await donorCheckboxes.first().check({ force: true });
           await page.waitForTimeout(500);
         }
@@ -142,14 +133,6 @@ test.describe("Campaign Management", () => {
         // Try to navigate through wizard
         const nextButton = page.locator('button:has-text("Next")').first();
         if (await nextButton.isVisible().catch(() => false)) {
-<<<<<<< HEAD
-          // Wait for button to be enabled after selecting donors
-          await page.waitForTimeout(1000);
-          
-          // Check if button is enabled now
-          const isDisabled = await nextButton.isDisabled();
-          if (!isDisabled) {
-=======
           // Wait for button to be enabled after selecting donor
           await nextButton.waitFor({ state: "visible" });
           await page.waitForTimeout(500);
@@ -157,18 +140,14 @@ test.describe("Campaign Management", () => {
           // Check if button is enabled
           const isEnabled = await nextButton.isEnabled();
           if (isEnabled) {
->>>>>>> branch2
             await nextButton.click();
             await page.waitForTimeout(500);
 
             // Should either show validation or move to next step
             const currentUrl = page.url();
             expect(currentUrl).toContain("campaign");
-<<<<<<< HEAD
-=======
           } else {
             console.log("Next button is still disabled after selecting donor");
->>>>>>> branch2
           }
         }
       }
