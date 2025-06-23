@@ -61,6 +61,8 @@ const generateBulkEmailsPayloadSchema = z.object({
     })
   ),
   templateId: z.number().optional(),
+  organizationWritingInstructions: z.string().optional(),
+  staffWritingInstructions: z.string().optional(),
 });
 
 type GenerateBulkEmailsPayload = z.infer<typeof generateBulkEmailsPayloadSchema>;
@@ -81,6 +83,8 @@ export const generateBulkEmailsTask = task({
       previewDonorIds,
       chatHistory,
       templateId,
+      organizationWritingInstructions,
+      staffWritingInstructions,
     } = payload;
 
     triggerLogger.info(
@@ -273,22 +277,23 @@ export const generateBulkEmailsTask = task({
       );
 
       // Generate emails in batches with concurrency limiting
-      const emailService = new EmailGenerationService();
+      const { generateSmartDonorEmails } = await import("@/app/lib/utils/email-generator");
       const allEmailResults: any[] = [];
 
       // Process donors in batches for email generation
       await processConcurrently(
         donorInfos,
         async (donorInfo) => {
-          // Generate email for single donor
-          const singleDonorResults = await emailService.generateEmails(
+          // Generate email for single donor using generateSmartDonorEmails directly
+          const singleDonorResult = await generateSmartDonorEmails(
             [donorInfo], // Single donor
             refinedInstruction || instruction,
             organization.name,
             emailGeneratorOrg,
-            organization.writingInstructions ?? undefined,
-            communicationHistories,
-            donationHistoriesMap,
+            organizationWritingInstructions,
+            staffWritingInstructions, // Pass staff writing instructions
+            { [donorInfo.id]: communicationHistories[donorInfo.id] || [] },
+            { [donorInfo.id]: donationHistoriesMap[donorInfo.id] || [] },
             donorStatistics, // Pass donor statistics
             personResearchResults, // Pass person research results
             userMemories,
@@ -298,8 +303,8 @@ export const generateBulkEmailsTask = task({
           );
 
           // Add results to the main array (thread-safe since we're awaiting each batch)
-          allEmailResults.push(...singleDonorResults);
-          return singleDonorResults;
+          allEmailResults.push(...singleDonorResult.emails);
+          return singleDonorResult.emails;
         },
         MAX_CONCURRENCY
       );

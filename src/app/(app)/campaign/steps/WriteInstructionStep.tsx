@@ -421,6 +421,7 @@ export function WriteInstructionStep({
           donors: donorData,
           organizationName: organization.name,
           organizationWritingInstructions: organization.writingInstructions ?? undefined,
+          staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
           previousInstruction,
           currentDate, // Pass the current date
           chatHistory: chatMessages, // Pass the full chat history to the refinement agent
@@ -571,6 +572,7 @@ export function WriteInstructionStep({
       saveGeneratedEmail,
       saveChatHistory,
       currentSignature,
+      primaryStaff,
     ]
   );
 
@@ -641,6 +643,7 @@ export function WriteInstructionStep({
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
+        staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
         previousInstruction,
         currentDate,
         chatHistory: chatMessages,
@@ -746,6 +749,7 @@ export function WriteInstructionStep({
     saveGeneratedEmail,
     sessionId,
     emailStatuses,
+    primaryStaff,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history
@@ -828,6 +832,7 @@ export function WriteInstructionStep({
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
+        staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
         previousInstruction,
         currentDate,
         chatHistory: chatMessages, // Pass existing chat history but don't modify it
@@ -1319,6 +1324,7 @@ export function WriteInstructionStep({
                             ],
                             organizationName: organization.name,
                             organizationWritingInstructions: organization.writingInstructions ?? undefined,
+                            staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
                             previousInstruction,
                             currentDate: new Date().toLocaleDateString("en-US", {
                               weekday: "long",

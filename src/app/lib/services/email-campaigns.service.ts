@@ -1,7 +1,14 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, count, sql, or } from "drizzle-orm";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, generatedEmails, EmailGenerationSessionStatus, emailSendJobs } from "@/app/lib/db/schema";
+import {
+  emailGenerationSessions,
+  generatedEmails,
+  EmailGenerationSessionStatus,
+  emailSendJobs,
+  organizations,
+  staff,
+} from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { runs } from "@trigger.dev/sdk/v3";
@@ -933,6 +940,23 @@ export class EmailCampaignsService {
         });
       }
 
+      // Fetch current organization and staff writing instructions for regeneration
+      const [organization, primaryStaff] = await Promise.all([
+        db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1),
+        db.query.staff.findFirst({
+          where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+        }),
+      ]);
+
+      const currentOrgWritingInstructions = organization[0]?.writingInstructions || undefined;
+      const currentStaffWritingInstructions = primaryStaff?.writingInstructions || undefined;
+
+      logger.info(
+        `[regenerateAllEmails] Using current writing instructions for session ${
+          input.sessionId
+        }: orgInstructions=${!!currentOrgWritingInstructions}, staffInstructions=${!!currentStaffWritingInstructions}`
+      );
+
       // Delete all existing generated emails for this session
       const deleteResult = await db
         .delete(generatedEmails)
@@ -967,7 +991,7 @@ export class EmailCampaignsService {
         })
         .where(eq(emailGenerationSessions.id, input.sessionId));
 
-      // Trigger the background job with regeneration flag
+      // Trigger the background job with regeneration flag and current writing instructions
       await generateBulkEmailsTask.trigger({
         sessionId: existingSession.id,
         organizationId,
@@ -978,12 +1002,14 @@ export class EmailCampaignsService {
         previewDonorIds: existingSession.previewDonorIds as number[],
         chatHistory: finalChatHistory,
         templateId: existingSession.templateId ?? undefined,
+        organizationWritingInstructions: currentOrgWritingInstructions,
+        staffWritingInstructions: currentStaffWritingInstructions,
       });
 
       logger.info(
         `Started regeneration for session ${input.sessionId} with ${
           useExistingInstruction ? "existing" : "new"
-        } instruction`
+        } instruction and current writing instructions`
       );
 
       return {
