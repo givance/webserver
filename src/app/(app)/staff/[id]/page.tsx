@@ -93,6 +93,7 @@ export default function StaffDetailPage() {
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
+  const [writingInstructions, setWritingInstructions] = useState("");
 
   // Use pagination hook for donors table
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
@@ -207,12 +208,13 @@ export default function StaffDetailPage() {
     },
   });
 
-  // Update signature form when staff data loads
+  // Update signature form and writing instructions when staff data loads
   React.useEffect(() => {
     if (staff) {
       signatureForm.reset({
         signature: staff.signature || "",
       });
+      setWritingInstructions(staff.writingInstructions || "");
     }
   }, [staff, signatureForm]);
 
@@ -323,6 +325,27 @@ export default function StaffDetailPage() {
     }
     setIsEditingSignature(false);
     setShowCodeView(false);
+  };
+
+  /**
+   * Handle saving writing instructions
+   */
+  const handleSaveWritingInstructions = async () => {
+    try {
+      const result = await updateStaff({
+        id: staffId,
+        writingInstructions: writingInstructions,
+      });
+      if (result) {
+        toast.success("Writing instructions saved successfully");
+        await refetchStaff();
+      } else {
+        toast.error("Failed to save writing instructions");
+      }
+    } catch (error) {
+      toast.error("Failed to save writing instructions");
+      console.error("Error saving writing instructions:", error);
+    }
   };
 
   // Loading state
@@ -512,8 +535,8 @@ export default function StaffDetailPage() {
                   <label className="text-sm font-medium text-muted-foreground">Writing Instructions</label>
                   <div className="mt-2">
                     <Textarea
-                      value={staff.writingInstructions || ""}
-                      onChange={(e) => handleUpdateStaffField("writingInstructions", e.target.value)}
+                      value={writingInstructions}
+                      onChange={(e) => setWritingInstructions(e.target.value)}
                       placeholder="Specific writing style guidelines for this staff member (e.g., formal tone, use of technical terms, personal anecdotes)..."
                       rows={4}
                       className="w-full"
@@ -522,6 +545,16 @@ export default function StaffDetailPage() {
                       These instructions will override the organization's default writing guidelines when generating emails for this staff member.
                       Leave blank to use organizational defaults.
                     </p>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        onClick={handleSaveWritingInstructions}
+                        disabled={isUpdating || writingInstructions === (staff.writingInstructions || "")}
+                        size="sm"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Instructions
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 
