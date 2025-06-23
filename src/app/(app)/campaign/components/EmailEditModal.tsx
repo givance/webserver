@@ -51,10 +51,22 @@ export function EmailEditModal({
   const [content, setContent] = useState("");
   const [referenceContexts, setReferenceContexts] = useState(initialReferenceContexts);
   const [showPreview, setShowPreview] = useState(false);
+  const [signaturePieces, setSignaturePieces] = useState<EmailPiece[]>([]);
 
-  // Convert structured content to plain text
+  // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
-    return structuredContent
+    // Filter out signature pieces
+    const contentWithoutSignature = structuredContent.filter(
+      (piece) => !piece.references.includes("signature")
+    );
+    
+    // Store signature pieces separately
+    const sigs = structuredContent.filter(
+      (piece) => piece.references.includes("signature")
+    );
+    setSignaturePieces(sigs);
+    
+    return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
       .join("")
       .trim();
@@ -97,7 +109,13 @@ export function EmailEditModal({
       return;
     }
 
-    const structuredContent = plainTextToStructured(content);
+    let structuredContent = plainTextToStructured(content);
+    
+    // Re-append signature pieces at the end
+    if (signaturePieces.length > 0) {
+      structuredContent = [...structuredContent, ...signaturePieces];
+    }
+    
     try {
       await updateEmail.mutateAsync({
         emailId,
@@ -113,7 +131,12 @@ export function EmailEditModal({
   };
 
   const renderPreview = () => {
-    const previewStructured = plainTextToStructured(content);
+    let previewStructured = plainTextToStructured(content);
+    
+    // Re-append signature pieces for preview
+    if (signaturePieces.length > 0) {
+      previewStructured = [...previewStructured, ...signaturePieces];
+    }
 
     return (
       <div className="space-y-4">
@@ -154,7 +177,7 @@ export function EmailEditModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Email</DialogTitle>
           <DialogDescription>
@@ -186,6 +209,7 @@ export function EmailEditModal({
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Enter email subject..."
                   maxLength={200}
+                  className="w-full"
                 />
                 <div className="text-xs text-muted-foreground">{subject.length}/200 characters</div>
               </div>
@@ -198,7 +222,7 @@ export function EmailEditModal({
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter email content... Use double line breaks to create paragraphs."
-                  className="flex-1 min-h-[300px] max-h-[400px] overflow-y-auto"
+                  className="flex-1 min-h-[300px] max-h-[400px] overflow-y-auto resize-none w-full"
                 />
                 <div className="text-xs text-muted-foreground">
                   Tip: Use double line breaks (press Enter twice) to create separate paragraphs

@@ -83,10 +83,22 @@ function PreviewEditModal({
 }: PreviewEditModalProps) {
   const [subject, setSubject] = useState(initialSubject);
   const [content, setContent] = useState("");
+  const [signaturePieces, setSignaturePieces] = useState<EmailPiece[]>([]);
 
-  // Convert structured content to plain text
+  // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
-    return structuredContent
+    // Filter out signature pieces
+    const contentWithoutSignature = structuredContent.filter(
+      (piece) => !piece.references.includes("signature")
+    );
+    
+    // Store signature pieces separately
+    const sigs = structuredContent.filter(
+      (piece) => piece.references.includes("signature")
+    );
+    setSignaturePieces(sigs);
+    
+    return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
       .join("")
       .trim();
@@ -117,39 +129,48 @@ function PreviewEditModal({
   }, [open, initialSubject, initialContent]);
 
   const handleSave = () => {
-    const structuredContent = plainTextToStructured(content);
+    let structuredContent = plainTextToStructured(content);
+    
+    // Re-append signature pieces at the end
+    if (signaturePieces.length > 0) {
+      structuredContent = [...structuredContent, ...signaturePieces];
+    }
+    
     onSave(subject, structuredContent);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Email</DialogTitle>
           <DialogDescription>
             Edit the email content for {donorName} ({donorEmail})
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
-            <Input
-              id="subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Enter email subject..."
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="content">Email Content</Label>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Enter email content..."
-              className="min-h-[300px]"
-            />
-            <p className="text-xs text-muted-foreground">Use double line breaks to create paragraphs</p>
+        <div className="flex-1 overflow-hidden">
+          <div className="space-y-4 h-[500px] flex flex-col">
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Enter email subject..."
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2 flex-1 flex flex-col">
+              <Label htmlFor="content">Email Content</Label>
+              <Textarea
+                id="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Enter email content..."
+                className="flex-1 min-h-[300px] max-h-[400px] overflow-y-auto resize-none w-full"
+              />
+              <p className="text-xs text-muted-foreground">Use double line breaks to create paragraphs</p>
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -315,9 +336,15 @@ export function EmailDisplay({
                 <EmailEnhanceButton
                   emailId={emailId || 0}
                   sessionId={sessionId}
-                  currentSubject={subject}
-                  currentContent={content}
+                  currentSubject={isPreviewMode ? previewSubject : subject}
+                  currentContent={isPreviewMode ? previewContent : content}
                   currentReferenceContexts={referenceContexts}
+                  isPreviewMode={isPreviewMode}
+                  onPreviewEnhance={isPreviewMode && onPreviewEnhance && donorId ? (instruction) => onPreviewEnhance(donorId, instruction) : undefined}
+                  onEnhanced={isPreviewMode ? (newSubject, newContent) => {
+                    setPreviewSubject(newSubject);
+                    setPreviewContent(newContent);
+                  } : undefined}
                 />
                 <Button
                   variant="outline"

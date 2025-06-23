@@ -29,6 +29,9 @@ interface EmailEnhanceButtonProps {
   currentContent: EmailPiece[];
   currentReferenceContexts: Record<string, string>;
   onEnhanced?: (newSubject: string, newContent: EmailPiece[]) => void;
+  // Preview mode props
+  isPreviewMode?: boolean;
+  onPreviewEnhance?: (instruction: string) => void;
 }
 
 export function EmailEnhanceButton({
@@ -38,6 +41,8 @@ export function EmailEnhanceButton({
   currentContent,
   currentReferenceContexts,
   onEnhanced,
+  isPreviewMode = false,
+  onPreviewEnhance,
 }: EmailEnhanceButtonProps) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
@@ -49,36 +54,49 @@ export function EmailEnhanceButton({
       return;
     }
 
-    try {
-      // Filter out signature pieces before enhancement
-      const contentWithoutSignature = currentContent.filter((piece) => !piece.references.includes("signature"));
-
-      const result = await enhanceEmail.mutateAsync({
-        emailId,
-        enhancementInstruction: instruction,
-        currentSubject,
-        currentStructuredContent: contentWithoutSignature,
-        currentReferenceContexts,
-      });
-
-      toast.success("Email enhanced successfully!");
-
-      // Notify parent component of the changes
-      if (onEnhanced && result.subject && result.structuredContent) {
-        onEnhanced(result.subject, result.structuredContent);
-      }
-
-      // If we have a sessionId from props, manually trigger a refetch
-      if (sessionId && result.sessionId) {
-        // The mutation onSuccess should handle the invalidation
-        console.log("Email enhanced for session:", result.sessionId);
-      }
-
-      // Close dialog and reset
+    // Handle preview mode
+    if (isPreviewMode && onPreviewEnhance) {
+      onPreviewEnhance(instruction);
       setOpen(false);
       setInstruction("");
-    } catch (error) {
-      toast.error("Failed to enhance email with AI");
+      return;
+    }
+
+    // Handle normal mode with emailId
+    if (!isPreviewMode && emailId > 0) {
+      try {
+        // Filter out signature pieces before enhancement
+        const contentWithoutSignature = currentContent.filter((piece) => !piece.references.includes("signature"));
+
+        const result = await enhanceEmail.mutateAsync({
+          emailId,
+          enhancementInstruction: instruction,
+          currentSubject,
+          currentStructuredContent: contentWithoutSignature,
+          currentReferenceContexts,
+        });
+
+        toast.success("Email enhanced successfully!");
+
+        // Notify parent component of the changes
+        if (onEnhanced && result.subject && result.structuredContent) {
+          onEnhanced(result.subject, result.structuredContent);
+        }
+
+        // If we have a sessionId from props, manually trigger a refetch
+        if (sessionId && result.sessionId) {
+          // The mutation onSuccess should handle the invalidation
+          console.log("Email enhanced for session:", result.sessionId);
+        }
+
+        // Close dialog and reset
+        setOpen(false);
+        setInstruction("");
+      } catch (error) {
+        toast.error("Failed to enhance email with AI");
+      }
+    } else if (!isPreviewMode) {
+      toast.error("Cannot enhance email without a valid email ID");
     }
   };
 
