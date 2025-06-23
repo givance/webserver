@@ -294,22 +294,21 @@ export function EmailListViewer({
             key={`search-${searchTerm}-page-${currentPage}-${paginatedEmails.length}`}
           >
             <div
-              className="grid grid-cols-[320px_1fr] h-full border rounded-lg overflow-hidden"
-              style={{ height: maxHeight, minHeight: "500px" }}
+              className="grid grid-cols-[320px_1fr] border rounded-lg overflow-hidden"
+              style={{ height: maxHeight }}
             >
-              <div className="border-r bg-background flex flex-col h-full">
-                <div className="p-3 border-b bg-muted/30 flex-shrink-0">
-                  <h3 className="font-medium text-sm text-muted-foreground">
-                    Recipients ({paginatedEmails.length}
-                    {showPagination && safeFilteredEmails.length !== paginatedEmails.length
-                      ? ` of ${filteredEmails.length}`
-                      : ""}
-                    )
-                  </h3>
-                </div>
-                <div className="flex-1 overflow-hidden min-h-0">
-                  <ScrollArea className="h-full">
-                    <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1">
+              <div className="border-r bg-background h-full overflow-y-auto">
+                <div className="flex flex-col min-h-full">
+                  <div className="p-3 border-b bg-muted/30 flex-shrink-0">
+                    <h3 className="font-medium text-sm text-muted-foreground">
+                      Recipients ({paginatedEmails.length}
+                      {showPagination && safeFilteredEmails.length !== paginatedEmails.length
+                        ? ` of ${filteredEmails.length}`
+                        : ""}
+                      )
+                    </h3>
+                  </div>
+                  <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1 flex-grow">
                       {paginatedEmails.map((email) => {
                         const donor = getDonorData(email.donorId);
                         const trackingStatsData = showTracking ? getDonorTrackingStats(email.donorId) : null;
@@ -333,9 +332,7 @@ export function EmailListViewer({
                             )}
                           >
                             <div className="flex items-center justify-between w-full">
-                              <span className="font-medium text-sm truncate flex-1">
-                                {formatDonorName(donor)}
-                              </span>
+                              <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
                               <div className="flex items-center gap-1">
                                 {/* Approval status badge */}
                                 {email.status === "APPROVED" ? (
@@ -368,13 +365,11 @@ export function EmailListViewer({
                           </TabsTrigger>
                         );
                       })}
-                    </TabsList>
-                  </ScrollArea>
-                </div>
+                </TabsList>
 
-                {/* Pagination moved to bottom of left panel */}
-                {showPagination && totalPages > 1 && (
-                  <div className="p-3 border-t bg-muted/30 flex-shrink-0">
+                  {/* Pagination moved to bottom of left panel */}
+                  {showPagination && totalPages > 1 && (
+                    <div className="p-3 border-t bg-muted/30 flex-shrink-0">
                     <div className="flex flex-col space-y-2">
                       <p className="text-xs text-muted-foreground text-center">
                         {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of {safeFilteredEmails.length}
@@ -403,8 +398,9 @@ export function EmailListViewer({
                         </Button>
                       </div>
                     </div>
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col h-full" style={{ maxHeight: maxHeight }}>
@@ -413,10 +409,10 @@ export function EmailListViewer({
                   if (!donor) return null;
 
                   const staffDetails = getStaffDetails ? getStaffDetails(donor.assignedToStaffId || null) : null;
-                  const hasLinkedEmail = !!(staffDetails?.gmailToken);
+                  const hasLinkedEmail = !!staffDetails?.gmailToken;
                   const staffLinkedEmail = staffDetails?.gmailToken?.email || null;
                   const defaultEmail = primaryStaff?.gmailToken?.email || primaryStaff?.email || "organization default";
-                  
+
                   return (
                     <TabsContent
                       key={email.donorId}
