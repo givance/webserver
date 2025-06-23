@@ -256,9 +256,9 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
             
             SECURITY RULES (CRITICAL):
             1. SELECT/UPDATE/DELETE operations MUST include WHERE organization_id = '${organizationId}'
-            2. INSERT operations MUST include organization_id = '${organizationId}' in VALUES
+            2. INSERT operations into tables with organization_id MUST include organization_id = '${organizationId}' in VALUES
             3. NO DELETE, DROP, TRUNCATE, or ALTER operations allowed
-            4. Amounts in donations table are in CENTS (multiply dollars by 100 for storage)
+            4. Amounts in donations table are in CENTS (multiply dollars by 100 for torage)
             5. Always validate data before inserting/updating
             
             DATABASE SCHEMA:
@@ -468,10 +468,11 @@ WRITE OPERATIONS:
 
 🔒 SECURITY RULES (CRITICAL):
 1. SELECT/UPDATE operations MUST include WHERE organization_id = '${organizationId}'
-2. INSERT operations MUST include organization_id = '${organizationId}' in VALUES
-3. NO DELETE, DROP, TRUNCATE, ALTER, CREATE operations allowed
-4. Amounts in donations table are stored in CENTS - multiply dollars by 100 for storage
-5. Always validate data before inserting/updating
+2. INSERT operations into tables with organization_id MUST include organization_id = '${organizationId}' in VALUES
+3. INSERT operations into donations table MUST NOT include organization_id (secured through donor_id/project_id relationships)
+4. NO DELETE, DROP, TRUNCATE, ALTER, CREATE operations allowed
+5. Amounts in donations table are stored in CENTS - multiply dollars by 100 for storage
+6. Always validate data before inserting/updating
 
 📊 DATABASE SCHEMA:
 ${this.sqlEngine.getSchemaDescription()}
