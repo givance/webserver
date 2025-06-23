@@ -5,14 +5,29 @@ import * as schema from "@/app/lib/db/schema";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
 /**
+ * Result object for SQL execution
+ */
+export interface SQLExecutionResult {
+  success: boolean;
+  data?: any[];
+  error?: {
+    message: string;
+    type: "syntax" | "security" | "runtime" | "unknown";
+    query: string;
+    suggestion?: string;
+  };
+}
+
+/**
  * SQL Engine Service that allows AI to write and execute raw SQL queries
  * This provides maximum flexibility for database operations
  */
 export class WhatsAppSQLEngineService {
   /**
    * Execute a raw SQL query against the database
+   * Returns result object instead of throwing errors to allow AI error recovery
    */
-  async executeRawSQL(params: { query: string; organizationId: string }): Promise<any[]> {
+  async executeRawSQL(params: { query: string; organizationId: string }): Promise<SQLExecutionResult> {
     const { query: rawQuery, organizationId } = params;
 
     logger.info(`[SQL Engine] Executing raw SQL query for organization ${organizationId}`);
@@ -29,11 +44,111 @@ export class WhatsAppSQLEngineService {
       const rows = Array.isArray(result) ? result : result.rows || [];
 
       logger.info(`[SQL Engine] Query executed successfully, returned ${rows.length} rows`);
-      return rows;
+      return {
+        success: true,
+        data: rows,
+      };
     } catch (error) {
-      logger.error(`[SQL Engine] Error executing SQL query: ${error instanceof Error ? error.message : String(error)}`);
-      throw new Error(`SQL execution failed: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`[SQL Engine] Error executing SQL query: ${errorMessage}`);
+
+      // Classify error type for better AI understanding
+      const errorType = this.classifyError(errorMessage);
+      const suggestion = this.generateErrorSuggestion(errorMessage, rawQuery);
+
+      return {
+        success: false,
+        error: {
+          message: errorMessage,
+          type: errorType,
+          query: rawQuery,
+          suggestion,
+        },
+      };
     }
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   * @deprecated Use executeRawSQL instead for better error handling
+   */
+  async executeRawSQLLegacy(params: { query: string; organizationId: string }): Promise<any[]> {
+    const result = await this.executeRawSQL(params);
+    if (!result.success) {
+      throw new Error(`SQL execution failed: ${result.error?.message}`);
+    }
+    return result.data || [];
+  }
+
+  /**
+   * Classify error type to help AI understand what went wrong
+   */
+  private classifyError(errorMessage: string): "syntax" | "security" | "runtime" | "unknown" {
+    const message = errorMessage.toLowerCase();
+
+    if (
+      message.includes("syntax error") ||
+      message.includes("unexpected token") ||
+      message.includes("parse error") ||
+      message.includes("at or near")
+    ) {
+      return "syntax";
+    }
+
+    if (message.includes("dangerous") || message.includes("not allowed") || message.includes("organization_id")) {
+      return "security";
+    }
+
+    if (
+      (message.includes("relation") && message.includes("does not exist")) ||
+      (message.includes("column") && message.includes("does not exist")) ||
+      message.includes("constraint") ||
+      message.includes("duplicate key") ||
+      message.includes("foreign key")
+    ) {
+      return "runtime";
+    }
+
+    return "unknown";
+  }
+
+  /**
+   * Generate helpful suggestions for common SQL errors
+   */
+  private generateErrorSuggestion(errorMessage: string, query: string): string | undefined {
+    const message = errorMessage.toLowerCase();
+    const queryLower = query.toLowerCase();
+
+    // Syntax error suggestions
+    if (message.includes("syntax error at or near")) {
+      const nearMatch = message.match(/syntax error at or near "([^"]+)"/);
+      if (nearMatch) {
+        const problemChar = nearMatch[1];
+        return `Check the SQL syntax near "${problemChar}". Common issues: missing quotes, parentheses, or semicolon.`;
+      }
+    }
+
+    // Missing organization_id suggestions
+    if (message.includes("organization_id")) {
+      if (queryLower.includes("select") || queryLower.includes("update")) {
+        return `Add WHERE organization_id = 'your_org_id' to the query for security compliance.`;
+      }
+      if (queryLower.includes("insert")) {
+        return `Include organization_id in the INSERT VALUES clause.`;
+      }
+    }
+
+    // Table/column not found suggestions
+    if (message.includes("does not exist")) {
+      return `Check the table/column name spelling. Available tables: donors, donations, projects, staff, organizations.`;
+    }
+
+    // Quote-related issues
+    if (message.includes("unterminated quoted string") || message.includes("quoted identifier")) {
+      return `Check for unmatched quotes in string values. Use single quotes for string literals.`;
+    }
+
+    return undefined;
   }
 
   /**

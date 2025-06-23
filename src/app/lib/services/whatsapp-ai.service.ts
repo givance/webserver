@@ -2,7 +2,7 @@ import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
-import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
+import { WhatsAppSQLEngineService, SQLExecutionResult } from "./whatsapp-sql-engine.service";
 import { WhatsAppHistoryService } from "./whatsapp-history.service";
 import { WhatsAppStaffLoggingService } from "./whatsapp-staff-logging.service";
 import { z } from "zod";
@@ -272,26 +272,29 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
             - Example for today's donation: date = DATE(NOW())
             
             EXAMPLES:
-            SELECT: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name ILIKE '%Aaron%'"
-            INSERT NEW DONATION: "INSERT INTO donations (donor_id, project_id, amount, currency, date, created_at, updated_at) VALUES (5536, 1360, 100000, 'USD', DATE(NOW()), NOW(), NOW())"
-            INSERT NEW DONOR: "INSERT INTO donors (organization_id, first_name, last_name, email, created_at, updated_at) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com', NOW(), NOW())"
-            UPDATE: "UPDATE donors SET notes = 'High potential donor', updated_at = NOW() WHERE organization_id = '${organizationId}' AND id = 123"
+            SELECT: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name = 'John'"
+            INSERT: "INSERT INTO donors (organization_id, first_name, last_name, email) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com')"
+            UPDATE: "UPDATE donors SET notes = 'Updated note' WHERE organization_id = '${organizationId}' AND id = 123"
             
-            IMPORTANT: After executing any query, you MUST provide a complete text response explaining what was done or found.
-            
-            For data modifications:
-            - Confirm what was changed/added
-            - Provide the new/updated information
-            - Use a friendly, conversational tone`,
+            ERROR RECOVERY:
+            If a query fails, analyze the error message and rewrite the query to fix the issue.
+            Common fixes include: correcting syntax, adding missing WHERE clauses, fixing column names, etc.`,
             parameters: z.object({
               query: z
                 .string()
                 .describe(
                   "The SQL query to execute (SELECT, INSERT, or UPDATE). Must include proper organization_id filtering."
                 ),
+              retryAttempt: z.number().optional().describe("Internal: retry attempt number (used for error recovery)"),
+              previousError: z.string().optional().describe("Internal: previous error message for context"),
             }),
             execute: async (params: any) => {
-              logger.info(`[WhatsApp AI] Executing SQL query: ${params.query.substring(0, 100)}...`);
+              const maxRetries = 2;
+              const retryAttempt = params.retryAttempt || 0;
+
+              logger.info(
+                `[WhatsApp AI] Executing SQL query (attempt ${retryAttempt + 1}): ${params.query.substring(0, 100)}...`
+              );
 
               // Security validation - check for dangerous operations
               const queryUpper = params.query.toUpperCase().trim();
@@ -321,28 +324,79 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
               });
               const processingTime = Date.now() - startTime;
 
-              // Log the database query execution
-              await this.loggingService.logDatabaseQuery(
-                staffId,
-                organizationId,
-                fromPhoneNumber,
-                params.query,
-                result,
-                processingTime
-              );
-
-              // Different logging for different operation types
-              if (queryUpper.startsWith("SELECT")) {
-                logger.info(
-                  `[WhatsApp AI] SELECT query returned ${Array.isArray(result) ? result.length : "non-array"} results`
+              // Handle successful execution
+              if (result.success) {
+                // Log the database query execution
+                await this.loggingService.logDatabaseQuery(
+                  staffId,
+                  organizationId,
+                  fromPhoneNumber,
+                  params.query,
+                  result.data,
+                  processingTime
                 );
-              } else if (queryUpper.startsWith("INSERT")) {
-                logger.info(`[WhatsApp AI] INSERT operation completed successfully`);
-              } else if (queryUpper.startsWith("UPDATE")) {
-                logger.info(`[WhatsApp AI] UPDATE operation completed successfully`);
+
+                // Different logging for different operation types
+                if (queryUpper.startsWith("SELECT")) {
+                  logger.info(
+                    `[WhatsApp AI] SELECT query returned ${
+                      Array.isArray(result.data) ? result.data.length : "non-array"
+                    } results`
+                  );
+                } else if (queryUpper.startsWith("INSERT")) {
+                  logger.info(`[WhatsApp AI] INSERT operation completed successfully`);
+                } else if (queryUpper.startsWith("UPDATE")) {
+                  logger.info(`[WhatsApp AI] UPDATE operation completed successfully`);
+                }
+
+                return result.data;
               }
 
-              return result;
+              // Handle SQL error with retry logic
+              if (!result.success && result.error) {
+                const error = result.error;
+                logger.warn(`[WhatsApp AI] SQL error (${error.type}): ${error.message}`);
+
+                // Log the failed query attempt
+                await this.loggingService.logError(
+                  staffId,
+                  organizationId,
+                  fromPhoneNumber,
+                  `SQL Error (attempt ${retryAttempt + 1}): ${error.message}`,
+                  error,
+                  "sql_execution_error"
+                );
+
+                // If we've reached max retries, throw the error
+                if (retryAttempt >= maxRetries) {
+                  logger.error(`[WhatsApp AI] Max SQL retries (${maxRetries}) exceeded. Final error: ${error.message}`);
+                  throw new Error(
+                    `SQL query failed after ${maxRetries + 1} attempts. Last error: ${error.message}${
+                      error.suggestion ? ` Suggestion: ${error.suggestion}` : ""
+                    }`
+                  );
+                }
+
+                // Generate error feedback for AI to self-correct
+                const errorFeedback = this.generateSQLErrorFeedback(error, params.query, retryAttempt);
+                logger.info(`[WhatsApp AI] SQL error feedback generated for retry: ${errorFeedback}`);
+
+                // Return error feedback so AI can try to fix the query
+                return {
+                  error: true,
+                  errorType: error.type,
+                  errorMessage: error.message,
+                  suggestion: error.suggestion,
+                  feedback: errorFeedback,
+                  failedQuery: params.query,
+                  retryAttempt: retryAttempt + 1,
+                  instructions:
+                    "The SQL query failed. Please analyze the error and rewrite the query to fix the issue. Call this tool again with the corrected query and include retryAttempt and previousError parameters.",
+                };
+              }
+
+              // Fallback error
+              throw new Error("Unknown SQL execution error occurred");
             },
           },
           askClarification: {
@@ -378,7 +432,7 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
         temperature: 0.7,
         maxTokens: 2000,
         toolChoice: "auto",
-        maxSteps: 5,
+        maxSteps: 10,
       });
 
       const tokensUsed = {
@@ -427,6 +481,59 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
       // Re-throw the error so the webhook can handle it
       throw error;
     }
+  }
+
+  /**
+   * Generate helpful feedback for SQL errors to guide AI retry attempts
+   */
+  private generateSQLErrorFeedback(
+    error: { message: string; type: string; suggestion?: string },
+    failedQuery: string,
+    retryAttempt: number
+  ): string {
+    const feedback = [];
+
+    feedback.push(`SQL Error (${error.type}): ${error.message}`);
+    feedback.push(`Failed Query: ${failedQuery}`);
+
+    if (error.suggestion) {
+      feedback.push(`Suggestion: ${error.suggestion}`);
+    }
+
+    // Add specific guidance based on error type
+    switch (error.type) {
+      case "syntax":
+        feedback.push("Fix syntax errors by checking: quotes, parentheses, semicolons, and SQL keywords.");
+        feedback.push(
+          "Common issues: missing single quotes around strings, unmatched parentheses, incorrect column names."
+        );
+        break;
+
+      case "security":
+        feedback.push(
+          "Ensure security compliance: add WHERE organization_id clause for SELECT/UPDATE, include organization_id in INSERT VALUES."
+        );
+        break;
+
+      case "runtime":
+        feedback.push(
+          "Check that: table names exist (donors, donations, projects, staff), column names are correct, and foreign key references are valid."
+        );
+        break;
+
+      default:
+        feedback.push(
+          "Review the query for common issues: syntax errors, missing organization_id filters, incorrect table/column names."
+        );
+    }
+
+    feedback.push(
+      `This is retry attempt ${
+        retryAttempt + 1
+      }. Analyze the error carefully and rewrite the query to fix the specific issue mentioned.`
+    );
+
+    return feedback.join(" ");
   }
 
   /**
