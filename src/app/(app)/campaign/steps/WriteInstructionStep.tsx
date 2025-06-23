@@ -382,11 +382,11 @@ export function WriteInstructionStep({
       setAllGeneratedEmails([]);
       setReferenceContexts({});
       setSuggestedMemories([]);
-      setChatMessages((prev) => {
-        const newMessages = [...prev, { role: "user" as const, content: finalInstruction }];
-        // Note: We'll save chat history after the assistant responds
-        return newMessages;
-      });
+
+      // Create the updated chat messages that include the latest user message
+      const updatedChatMessages = [...chatMessages, { role: "user" as const, content: finalInstruction }];
+
+      setChatMessages(updatedChatMessages);
 
       // Clear the input box only if this is manual submission (not auto-generation)
       if (!instructionToSubmit) {
@@ -415,16 +415,18 @@ export function WriteInstructionStep({
           day: "numeric",
         });
 
-        // Generate emails using the hook with signature
+        console.log("finalInstruction", finalInstruction);
+        console.log("updatedChatMessages", updatedChatMessages);
+
+        // Generate emails using the hook with signature - use updatedChatMessages to include the latest user message
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
           organizationName: organization.name,
           organizationWritingInstructions: organization.writingInstructions ?? undefined,
-          staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
           previousInstruction,
           currentDate, // Pass the current date
-          chatHistory: chatMessages, // Pass the full chat history to the refinement agent
+          chatHistory: updatedChatMessages, // Pass the updated chat history that includes the latest user message
           signature: currentSignature, // Pass the selected signature
         });
 
@@ -643,10 +645,9 @@ export function WriteInstructionStep({
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
-        staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
         previousInstruction,
         currentDate,
-        chatHistory: chatMessages,
+        chatHistory: chatMessages, // Use current chat history as no new message is added in generate more
       });
 
       if (result && !("isAgenticFlow" in result)) {
@@ -818,7 +819,6 @@ export function WriteInstructionStep({
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
-        staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
         previousInstruction,
         currentDate,
         chatHistory: chatMessages, // Pass existing chat history but don't modify it
@@ -1310,7 +1310,6 @@ export function WriteInstructionStep({
                             ],
                             organizationName: organization.name,
                             organizationWritingInstructions: organization.writingInstructions ?? undefined,
-                            staffWritingInstructions: primaryStaff?.writingInstructions ?? undefined,
                             previousInstruction,
                             currentDate: new Date().toLocaleDateString("en-US", {
                               weekday: "long",
@@ -1318,7 +1317,7 @@ export function WriteInstructionStep({
                               month: "long",
                               day: "numeric",
                             }),
-                            chatHistory: chatMessages,
+                            chatHistory: chatMessages, // Use current chat history for enhancement context
                             signature: currentSignature,
                           });
 

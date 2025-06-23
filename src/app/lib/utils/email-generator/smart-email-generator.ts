@@ -69,6 +69,9 @@ export async function generateSmartDonorEmails(
 }> {
   // Extract and concatenate all user messages from chat history to form the complete user instruction
   let completeUserInstruction = userInstruction;
+
+  console.log("chatHistory", chatHistory);
+
   if (chatHistory && chatHistory.length > 0) {
     const userMessages = chatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
     if (userMessages.length > 0) {

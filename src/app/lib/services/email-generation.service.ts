@@ -52,6 +52,16 @@ export class EmailGenerationService {
     const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory } = input;
     const currentDate = new Date().toDateString();
 
+    // Debug logging for chat history
+    logger.info(`[EmailGenerationService] Chat history received: ${chatHistory ? chatHistory.length : 0} messages`);
+    if (chatHistory && chatHistory.length > 0) {
+      logger.info(
+        `[EmailGenerationService] Latest message: ${chatHistory[chatHistory.length - 1]?.role}: "${
+          chatHistory[chatHistory.length - 1]?.content
+        }"`
+      );
+    }
+
     // Process project mentions in the instruction
     const processedInstruction = await processProjectMentions(instruction, organizationId);
 
