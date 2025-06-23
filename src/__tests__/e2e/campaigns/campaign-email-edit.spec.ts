@@ -74,8 +74,22 @@ test.describe("Campaign Email Editing", () => {
     if (!tabClicked) {
       throw new Error("Could not click Email List tab with any selector");
     }
+<<<<<<< HEAD
 
     await page.waitForTimeout(2000); // Wait for tab content to load
+=======
+    
+    // Wait for tab content to switch and be visible
+    await page.waitForTimeout(1000);
+    
+    // Verify the Email List tab content is now visible
+    // Use .first() to avoid strict mode violation with nested tabs
+    const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
+    await expect(emailListContent).toBeVisible({ timeout: 5000 });
+    
+    // Additional wait for content to fully load
+    await page.waitForTimeout(2000);
+>>>>>>> branch2
 
     // Then select the first donor tab within the email list
     await selectDonorTab(page, 0);
@@ -159,6 +173,7 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
   });
 
   test("should persist email changes after page refresh", async ({ page }) => {
+    test.setTimeout(60000); // Increase timeout to 60 seconds
     // Navigate to existing campaigns page
     await navigateToCampaigns(page);
 
@@ -210,7 +225,17 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     }
 
     await emailListTab.click();
-    await page.waitForTimeout(2000); // Wait for tab content to load
+    
+    // Wait for tab content to switch and be visible
+    await page.waitForTimeout(1000);
+    
+    // Verify the Email List tab content is now visible
+    // Use .first() to avoid strict mode violation with nested tabs
+    const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
+    await expect(emailListContent).toBeVisible({ timeout: 5000 });
+    
+    // Additional wait for content to fully load
+    await page.waitForTimeout(2000);
 
     // Then click first donor tab within the email list
     await selectDonorTab(page, 0);

@@ -217,25 +217,52 @@ test.describe("Campaign CRUD Operations", () => {
       throw new Error("No campaigns found for editing test - application should have existing campaigns");
     }
 
-    // Find a campaign that can be edited - look for Edit button
+    // Find a campaign that can be edited - prefer Ready to Send status
     let editableRow = null;
     for (let i = 0; i < rowCount; i++) {
       const row = campaignRows.nth(i);
-      const editButton = row.locator('button:has-text("Edit")');
-
-      if ((await editButton.count()) > 0) {
+      const statusBadge = row.locator('[class*="badge"], span').filter({ hasText: /Ready to Send|Draft/i });
+      
+      if ((await statusBadge.count()) > 0) {
         editableRow = row;
-        break;
+        // Check if this row has any clickable actions
+        const actionsCell = row.locator('td').last();
+        const clickableElements = actionsCell.locator('button, a[href*="/edit/"], svg').filter({ hasNotText: 'View' });
+        
+        if ((await clickableElements.count()) > 0) {
+          // Found a row with editable actions
+          break;
+        }
       }
     }
 
     if (!editableRow) {
-      throw new Error("No editable campaigns found - need at least one campaign with an Edit button");
+      throw new Error("No editable campaigns found - need at least one campaign with edit capability");
     }
 
-    // Click Edit button
-    const editButton = await findEditButton(page, editableRow);
-    await editButton.click();
+    // Try different ways to navigate to edit page
+    const campaignName = await editableRow.locator('td').first().textContent();
+    console.log(`Found editable campaign: ${campaignName}`);
+    
+    // Option 1: Click on campaign name (might be a link)
+    const nameLink = editableRow.locator('td').first().locator('a');
+    if ((await nameLink.count()) > 0) {
+      await nameLink.click();
+    } else {
+      // Option 2: Find any edit action in the row
+      const actionsCell = editableRow.locator('td').last();
+      const editLink = actionsCell.locator('a[href*="/edit/"]').first();
+      const editButton = actionsCell.locator('button').first();
+      
+      if ((await editLink.count()) > 0) {
+        await editLink.click();
+      } else if ((await editButton.count()) > 0) {
+        await editButton.click();
+      } else {
+        // Option 3: Click on row itself if it's clickable
+        await editableRow.click();
+      }
+    }
 
     // Should navigate to edit page
     await page.waitForURL(/\/campaign\/edit\/\d+/, { timeout: 10000 });

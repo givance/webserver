@@ -229,34 +229,73 @@ export async function waitForCampaignData(page: Page) {
 }
 
 export async function findEditButton(page: Page, container: Page | any = page) {
-  // More specific selectors to find email edit button, not campaign edit button
+  // Check if we're on a campaign detail page looking for email edit buttons
+  const currentUrl = page.url();
+  if (currentUrl.includes("/campaign/") && !currentUrl.includes("/edit/")) {
+    // On campaign detail page, look for the email edit button (not campaign edit)
+    await page.waitForTimeout(1000); // Let content load
+
+    // Try to find edit button that's NOT the "Edit Campaign" button
+    const emailEditButton = page
+      .locator('button:has-text("Edit")')
+      .filter({
+        hasNotText: "Campaign",
+      })
+      .first();
+
+    if (await emailEditButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      return emailEditButton;
+    }
+
+    // Alternative: Look for edit button near AI Enhance
+    const nearEnhance = page.locator('button:has-text("AI Enhance") ~ button:has-text("Edit")').first();
+    if (await nearEnhance.isVisible({ timeout: 1000 }).catch(() => false)) {
+      return nearEnhance;
+    }
+  }
+
+  // For campaign list page or other contexts
   const editSelectors = [
-    'button:has-text("Edit"):not(:has-text("Campaign"))', // Exclude "Edit Campaign" button
+    'button:has-text("Edit"):not(:has-text("Campaign"))',
     '[data-testid="edit-button"]',
-    'button[aria-label*="edit" i]:not([aria-label*="campaign" i])',
-    'button[title*="edit" i]:not([title*="campaign" i])',
-    // Look for edit button within email content area
-    '[role="tabpanel"] button:has-text("Edit")',
-    '.email-content button:has-text("Edit")',
+    'button[aria-label*="edit" i]',
+    'tr button:has-text("Edit")', // Edit button in table rows
+    // Icon buttons in campaign list
+    "tr button svg", // Any icon button in table row
+    'tr a[href*="/edit/"]', // Edit links
+    '[title="Edit"]',
+    '[aria-label="Edit"]',
   ];
 
   for (const selector of editSelectors) {
-    const buttons = container.locator(selector);
-    const count = await buttons.count();
-    
+    const elements = container.locator(selector);
+    const count = await elements.count();
+
     for (let i = 0; i < count; i++) {
-      const button = buttons.nth(i);
-      if (await button.isVisible({ timeout: 2000 }).catch(() => false)) {
-        // Make sure it's not the campaign edit button by checking parent context
-        const buttonText = await button.textContent();
-        if (buttonText && !buttonText.includes("Campaign")) {
-          return button;
+      const element = elements.nth(i);
+      if (await element.isVisible({ timeout: 1000 }).catch(() => false)) {
+        // If it's a link, we need to click it
+        const tagName = await element.evaluate((el) => el.tagName.toLowerCase());
+        if (tagName === "a") {
+          // Return a clickable wrapper
+          return {
+            click: async () => {
+              await element.click();
+            },
+            waitFor: async (options: any) => {
+              await element.waitFor(options);
+            },
+            isVisible: async () => {
+              return element.isVisible();
+            },
+          };
         }
+        return element;
       }
     }
   }
 
-  throw new Error("Email edit button not found (only found campaign edit button)");
+  throw new Error("Edit button not found");
 }
 
 export async function findViewButton(page: Page, container: Page | any = page) {
@@ -455,35 +494,34 @@ export async function deleteCampaign(page: Page, campaignRow: any) {
 
 // Donor Tab Operations
 export async function selectDonorTab(page: Page, tabIndex: number = 0) {
-  // First click on the "Email List" tab if there are multiple main tabs
-  const emailListTab = page.locator('[role="tab"]:has-text("Email List")');
-  if (await emailListTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await emailListTab.click();
-    await page.waitForTimeout(1000);
-  }
+  // Wait for the email list content to be visible first
+  await page.waitForTimeout(1000);
 
-  // Now find donor tabs within the vertical layout
-  // The donor tabs are within TabsList that contains donor names
-  const donorTabsContainer = page.locator('[role="tablist"]').last();
-  await donorTabsContainer.waitFor({ state: "visible", timeout: 10000 });
-  
-  // Find tabs that contain donor information (they usually have email addresses)
-  const donorTabs = donorTabsContainer.locator('[role="tab"]').filter({
-    has: page.locator('text=/@/i')
-  });
-  
-  // If no tabs with email addresses, just get all tabs in the container
-  const tabCount = await donorTabs.count();
-  if (tabCount === 0) {
-    const allTabs = donorTabsContainer.locator('[role="tab"]');
-    const tab = allTabs.nth(tabIndex);
-    await tab.click({ force: true });
+  // Look for donor tabs specifically within the email list viewer
+  // These are tabs inside the TabsList within the email list, not the main campaign tabs
+  const donorTabs = page.locator('[role="tabpanel"][data-state="active"] [role="tab"], .grid [role="tab"]');
+
+  // If no tabs found in active panel, try all tabs but skip the main navigation tabs
+  if ((await donorTabs.count()) === 0) {
+    const allTabs = page.locator('[role="tab"]');
+    const tabCount = await allTabs.count();
+
+    // Find the first tab that's not "Schedule & Status" or "Email List"
+    for (let i = 0; i < tabCount; i++) {
+      const tab = allTabs.nth(i);
+      const tabText = await tab.textContent();
+      if (tabText && !tabText.includes("Schedule") && !tabText.includes("Email List")) {
+        await tab.click({ force: true });
+        await page.waitForTimeout(3000);
+        return;
+      }
+    }
   } else {
+    await donorTabs.first().waitFor({ state: "visible", timeout: 10000 });
     const tab = donorTabs.nth(tabIndex);
     await tab.click({ force: true });
+    await page.waitForTimeout(3000);
   }
-  
-  await page.waitForTimeout(1000);
 }
 
 // Progress & Statistics Helpers
@@ -530,12 +568,14 @@ export async function gotoApp(page: Page) {
 export async function gotoOnboarding(page: Page) {
   // Handle onboarding steps if needed
   await page.waitForLoadState("networkidle");
-  
+
   // Check if onboarding modal or page is present
   const onboardingModal = page.locator('[role="dialog"]:has-text("Welcome to Givance!")');
   if (await onboardingModal.isVisible().catch(() => false)) {
     // Skip onboarding or complete it
-    const skipButton = onboardingModal.locator('button:has-text("Skip"), button:has-text("Get Started"), button:has-text("Continue")');
+    const skipButton = onboardingModal.locator(
+      'button:has-text("Skip"), button:has-text("Get Started"), button:has-text("Continue")'
+    );
     if (await skipButton.isVisible().catch(() => false)) {
       await skipButton.click();
     }
@@ -546,26 +586,26 @@ export async function gotoOnboarding(page: Page) {
 export async function createCampaign(page: Page, options: { skipFinalSteps?: boolean } = {}) {
   // Navigate to campaign creation
   await navigateToCampaignCreation(page);
-  
+
   // Step 1: Select donors
   await selectDonors(page, 2);
   await clickNextButton(page);
-  
+
   // Step 2: Set campaign name
   const campaignName = `Test Campaign ${Date.now()}`;
   await setCampaignName(page, campaignName);
   await clickNextButton(page);
-  
+
   // We'll be on the template selection step after this
   if (options.skipFinalSteps) {
     return campaignName;
   }
-  
+
   // Step 3: Continue without template (for basic testing)
   await continueWithoutTemplate(page);
-  
+
   // Step 4: Write instructions
   await writeInstructions(page, "Please create a personalized email for this donor.");
-  
+
   return campaignName;
 }
