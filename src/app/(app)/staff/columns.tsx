@@ -52,6 +52,7 @@ export type Staff = {
   isRealPerson: boolean;
   isPrimary: boolean;
   signature?: string | null;
+  writingInstructions?: string | null;
   gmailToken?: {
     id: number;
     email: string;

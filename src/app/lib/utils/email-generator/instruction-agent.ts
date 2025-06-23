@@ -31,7 +31,14 @@ export class InstructionRefinementAgent {
    * @returns Refined instruction, reasoning, and suggested new memories
    */
   async refineInstruction(input: InstructionRefinementInput): Promise<InstructionRefinementResult> {
-    const { userInstruction, previousInstruction, userFeedback, organizationWritingInstructions, chatHistory } = input;
+    const { 
+      userInstruction, 
+      previousInstruction, 
+      userFeedback, 
+      organizationWritingInstructions, 
+      staffWritingInstructions,
+      chatHistory 
+    } = input;
 
     logger.info("Starting instruction refinement with:", {
       userInstruction,
@@ -55,6 +62,7 @@ Your refined instruction should be a combination of both the previous and curren
 ${userFeedback ? `User feedback on previous result: "${userFeedback}"` : ""}
 
 ${organizationWritingInstructions ? `Organization writing instructions: "${organizationWritingInstructions}"` : ""}
+${staffWritingInstructions ? `Staff-specific writing instructions (overrides organizational): "${staffWritingInstructions}"` : ""}
 
 ${
   chatHistory && chatHistory.length > 0

@@ -31,6 +31,7 @@ const createStaffSchema = z.object({
   department: z.string().optional(),
   isRealPerson: z.boolean().default(true),
   isPrimary: z.boolean().default(false),
+  writingInstructions: z.string().optional(),
 });
 
 const updateStaffSchema = z.object({
@@ -42,6 +43,7 @@ const updateStaffSchema = z.object({
   department: z.string().optional(),
   isRealPerson: z.boolean().optional(),
   isPrimary: z.boolean().optional(),
+  writingInstructions: z.string().optional(),
 });
 
 const listStaffSchema = z.object({
@@ -63,6 +65,7 @@ const staffSchema = z.object({
   isRealPerson: z.boolean(),
   isPrimary: z.boolean(),
   signature: z.string().nullable(),
+  writingInstructions: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
   gmailToken: z

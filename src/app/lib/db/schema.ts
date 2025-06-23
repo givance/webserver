@@ -256,6 +256,7 @@ export const staff = pgTable("staff", {
   isRealPerson: boolean("is_real_person").default(true).notNull(),
   isPrimary: boolean("is_primary").default(false).notNull(), // Only one staff member per organization can be primary
   signature: text("signature"), // Rich text signature for emails
+  writingInstructions: text("writing_instructions"), // Staff-specific writing instructions that override organizational defaults
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

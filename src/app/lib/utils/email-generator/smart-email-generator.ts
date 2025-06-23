@@ -42,6 +42,7 @@ export async function generateSmartDonorEmails(
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
+  staffWritingInstructions?: string, // New parameter for staff-specific instructions
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
   donationHistories: Record<number, DonationWithDetails[]> = {},
   donorStatistics: Record<number, DonorStatistics> = {},
@@ -102,6 +103,7 @@ export async function generateSmartDonorEmails(
     userInstruction: completeUserInstruction,
     previousInstruction,
     organizationWritingInstructions,
+    staffWritingInstructions,
     userMemories,
     organizationMemories,
     dismissedMemories: [], // Empty array for dismissed memories since they're not needed here
@@ -115,12 +117,15 @@ export async function generateSmartDonorEmails(
 
   // Then, use the refined instruction to generate emails using the second agent
   logger.info(`Starting email generation stage for ${donors.length} donors`);
+  // Determine which writing instructions to use - staff overrides organizational
+  const effectiveWritingInstructions = staffWritingInstructions || organizationWritingInstructions;
+  
   const emails = await emailGenerator.generateEmails(
     donors,
     refinementResult.refinedInstruction,
     organizationName,
     organization,
-    organizationWritingInstructions,
+    effectiveWritingInstructions, // Use effective writing instructions
     communicationHistories,
     donationHistories,
     donorStatistics, // Pass donor statistics

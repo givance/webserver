@@ -31,6 +31,7 @@ const formSchema = z.object({
   title: z.string().optional(),
   department: z.string().optional(),
   signature: z.string().optional(),
+  writingInstructions: z.string().optional(),
   isRealPerson: z.boolean().default(true),
   whatsappPhoneNumbers: z.array(z.string().min(10, "Phone number must be at least 10 digits")).optional(),
 });
@@ -58,6 +59,7 @@ export default function AddStaffPage() {
       title: "",
       department: "",
       signature: "",
+      writingInstructions: "",
       isRealPerson: true,
       whatsappPhoneNumbers: [],
     },
@@ -121,6 +123,7 @@ export default function AddStaffPage() {
         title: values.title,
         department: values.department,
         isRealPerson: values.isRealPerson,
+        writingInstructions: values.writingInstructions,
       });
 
       if (result) {
@@ -348,6 +351,30 @@ export default function AddStaffPage() {
                   staffName={`${form.watch("firstName") || "Staff"} ${form.watch("lastName") || "Member"}`}
                 />
               )}
+
+              <FormField
+                // @ts-ignore - Known type mismatch with react-hook-form's Control type
+                control={form.control}
+                name="writingInstructions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Writing Instructions</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Specific writing style guidelines for this staff member (e.g., formal tone, use of technical terms, personal anecdotes)..."
+                        {...field}
+                        value={field.value || ""}
+                        rows={4}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      These instructions will override the organization&apos;s default writing guidelines when generating emails for this staff member. 
+                      Leave blank to use organizational defaults.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               {/* WhatsApp Phone Numbers Section */}
               <div className="space-y-4">

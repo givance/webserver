@@ -28,6 +28,7 @@ export interface GenerateEmailsInput {
   donors: DonorInput[];
   organizationName: string;
   organizationWritingInstructions?: string;
+  staffWritingInstructions?: string; // New field for staff-specific instructions
   previousInstruction?: string;
   currentDate?: string;
   chatHistory?: Array<{
@@ -49,7 +50,7 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory } = input;
+    const { instruction, donors, organizationWritingInstructions, staffWritingInstructions, previousInstruction, chatHistory } = input;
     const currentDate = new Date().toDateString();
 
     // Process project mentions in the instruction
@@ -193,6 +194,7 @@ export class EmailGenerationService {
       input.organizationName,
       emailGeneratorOrg,
       organizationWritingInstructions,
+      staffWritingInstructions, // Pass staff writing instructions
       communicationHistories,
       donationHistoriesMap,
       donorStatistics, // Pass donor statistics

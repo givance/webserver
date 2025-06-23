@@ -126,6 +126,7 @@ export interface InstructionRefinementInput {
   userInstruction: string;
   previousInstruction?: string;
   organizationWritingInstructions?: string;
+  staffWritingInstructions?: string; // Staff-specific writing instructions
   userFeedback?: string;
   userMemories: string[];
   organizationMemories: string[];

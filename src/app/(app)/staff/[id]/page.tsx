@@ -506,6 +506,25 @@ export default function StaffDetailPage() {
                     />
                   </div>
                 </div>
+                
+                {/* Writing Instructions Section */}
+                <div className="mt-6">
+                  <label className="text-sm font-medium text-muted-foreground">Writing Instructions</label>
+                  <div className="mt-2">
+                    <Textarea
+                      value={staff.writingInstructions || ""}
+                      onChange={(e) => handleUpdateStaffField("writingInstructions", e.target.value)}
+                      placeholder="Specific writing style guidelines for this staff member (e.g., formal tone, use of technical terms, personal anecdotes)..."
+                      rows={4}
+                      className="w-full"
+                    />
+                    <p className="text-sm text-muted-foreground mt-2">
+                      These instructions will override the organization's default writing guidelines when generating emails for this staff member.
+                      Leave blank to use organizational defaults.
+                    </p>
+                  </div>
+                </div>
+                
                 <div className="mt-6">
                   <label className="text-sm font-medium text-muted-foreground">Member Since</label>
                   <p className="text-lg mt-1">{new Date(staff.createdAt).toLocaleDateString()}</p>

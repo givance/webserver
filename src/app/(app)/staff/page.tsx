@@ -42,6 +42,7 @@ export default function StaffListPage() {
         isRealPerson: apiStaff.isRealPerson,
         isPrimary: apiStaff.isPrimary,
         signature: apiStaff.signature || null,
+        writingInstructions: apiStaff.writingInstructions || null,
         gmailToken: apiStaff.gmailToken || null,
         createdAt: apiStaff.createdAt ? new Date(apiStaff.createdAt).toISOString() : new Date().toISOString(),
         updatedAt: apiStaff.updatedAt ? new Date(apiStaff.updatedAt).toISOString() : new Date().toISOString(),

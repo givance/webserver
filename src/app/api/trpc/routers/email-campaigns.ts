@@ -19,6 +19,7 @@ const generateEmailsSchema = z.object({
   ),
   organizationName: z.string(),
   organizationWritingInstructions: z.string().optional(),
+  staffWritingInstructions: z.string().optional(), // New field for staff-specific instructions
   previousInstruction: z.string().optional(),
   currentDate: z.string().optional(),
   chatHistory: z
