@@ -330,6 +330,13 @@
       "when": 1750559628694,
       "tag": "0046_opposite_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1750638926333,
+      "tag": "0047_high_lionheart",
+      "breakpoints": true
     }
   ]
 }

@@ -459,6 +459,11 @@ export const emailCampaignsRouter = router({
         minGapMinutes: z.number().min(0).optional(),
         maxGapMinutes: z.number().min(0).optional(),
         timezone: z.string().optional(),
+        allowedDays: z.array(z.number().min(0).max(6)).min(1).optional(),
+        allowedStartTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+        allowedEndTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+        allowedTimezone: z.string().optional(),
+        rescheduleExisting: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
