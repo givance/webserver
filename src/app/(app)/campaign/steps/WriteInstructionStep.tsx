@@ -317,7 +317,17 @@ export function WriteInstructionStep({
         console.error("[WriteInstructionStep] Failed to save chat history:", error);
       }
     },
-    [sessionId, campaignName, saveDraft]
+    [
+      sessionId,
+      campaignName,
+      saveDraft,
+      chatMessages,
+      instruction,
+      previewDonorIds,
+      previousInstruction,
+      selectedDonors,
+      templateId,
+    ]
   );
 
   // Memoize session data to avoid unnecessary recalculations
@@ -405,22 +415,12 @@ export function WriteInstructionStep({
           day: "numeric",
         });
 
-        // Determine staff writing instructions based on signature selection
-        let staffWritingInstructions: string | undefined;
-        if (selectedSignatureType === "staff" && selectedStaff?.writingInstructions) {
-          staffWritingInstructions = selectedStaff.writingInstructions;
-        } else if (selectedSignatureType === "none" && primaryStaff?.writingInstructions) {
-          // When no signature is selected, still use primary staff's writing instructions if available
-          staffWritingInstructions = primaryStaff.writingInstructions;
-        }
-
         // Generate emails using the hook with signature
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
           organizationName: organization.name,
           organizationWritingInstructions: organization.writingInstructions ?? undefined,
-          staffWritingInstructions, // Pass staff writing instructions
           previousInstruction,
           currentDate, // Pass the current date
           chatHistory: chatMessages, // Pass the full chat history to the refinement agent
@@ -564,6 +564,7 @@ export function WriteInstructionStep({
       organization,
       generateEmails,
       onInstructionChange,
+      instruction,
       previousInstruction,
       chatMessages,
       sessionId,
@@ -634,21 +635,12 @@ export function WriteInstructionStep({
         day: "numeric",
       });
 
-      // Determine staff writing instructions (same logic as in handleSubmitInstruction)
-      let staffWritingInstructions: string | undefined;
-      if (selectedSignatureType === "staff" && selectedStaff?.writingInstructions) {
-        staffWritingInstructions = selectedStaff.writingInstructions;
-      } else if (selectedSignatureType === "none" && primaryStaff?.writingInstructions) {
-        staffWritingInstructions = primaryStaff.writingInstructions;
-      }
-
       // Generate emails using the same instruction
       const result = await generateEmails.mutateAsync({
         instruction: finalInstruction,
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
-        staffWritingInstructions, // Pass staff writing instructions
         previousInstruction,
         currentDate,
         chatHistory: chatMessages,
@@ -743,6 +735,7 @@ export function WriteInstructionStep({
     isGeneratingMore,
     organization,
     previousInstruction,
+    instruction,
     allGeneratedEmails,
     selectedDonors,
     donorsData,
@@ -829,21 +822,12 @@ export function WriteInstructionStep({
         day: "numeric",
       });
 
-      // Determine staff writing instructions (same logic as in other functions)
-      let staffWritingInstructions: string | undefined;
-      if (selectedSignatureType === "staff" && selectedStaff?.writingInstructions) {
-        staffWritingInstructions = selectedStaff.writingInstructions;
-      } else if (selectedSignatureType === "none" && primaryStaff?.writingInstructions) {
-        staffWritingInstructions = primaryStaff.writingInstructions;
-      }
-
       // Generate emails using the hook without affecting chat history
       const result = await generateEmails.mutateAsync({
         instruction: finalInstruction,
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
-        staffWritingInstructions, // Pass staff writing instructions
         previousInstruction,
         currentDate,
         chatHistory: chatMessages, // Pass existing chat history but don't modify it
@@ -1320,14 +1304,6 @@ export function WriteInstructionStep({
                           const donor = donorsData?.find((d) => d.id === donorId);
                           if (!donor) return;
 
-                          // Determine staff writing instructions for enhancement
-                          let staffWritingInstructions: string | undefined;
-                          if (selectedSignatureType === "staff" && selectedStaff?.writingInstructions) {
-                            staffWritingInstructions = selectedStaff.writingInstructions;
-                          } else if (selectedSignatureType === "none" && primaryStaff?.writingInstructions) {
-                            staffWritingInstructions = primaryStaff.writingInstructions;
-                          }
-
                           // Use the generate emails API with the enhancement instruction
                           const result = await generateEmails.mutateAsync({
                             instruction: `${
@@ -1343,7 +1319,6 @@ export function WriteInstructionStep({
                             ],
                             organizationName: organization.name,
                             organizationWritingInstructions: organization.writingInstructions ?? undefined,
-                            staffWritingInstructions, // Pass staff writing instructions
                             previousInstruction,
                             currentDate: new Date().toLocaleDateString("en-US", {
                               weekday: "long",

@@ -50,7 +50,14 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, staffWritingInstructions, previousInstruction, chatHistory } = input;
+    const {
+      instruction,
+      donors,
+      organizationWritingInstructions,
+      staffWritingInstructions,
+      previousInstruction,
+      chatHistory,
+    } = input;
     const currentDate = new Date().toDateString();
 
     // Process project mentions in the instruction
@@ -431,9 +438,9 @@ export class EmailGenerationService {
     // Create the appropriate signature (following the same logic as generateSmartEmails)
     let signature: string;
     let signatureSource: string;
-    
+
     const assignedStaff = emailData.donor.assignedStaff;
-    
+
     if (originalSignaturePiece) {
       // Use the original signature if it exists
       signature = originalSignaturePiece.piece;
@@ -543,11 +550,11 @@ export class EmailGenerationService {
     const contentWithoutSignature = currentStructuredContent.filter(
       (piece) => !piece.references?.includes("signature")
     );
-    
+
     // Build the current email content as a single string (without signature)
     const currentEmailContent = contentWithoutSignature
-      .map((piece) => piece.piece + (piece.addNewlineAfter ? '\n\n' : ''))
-      .join('')
+      .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
+      .join("")
       .trim();
 
     // Create an enhanced instruction that includes both the original instruction, current email, and enhancement request
@@ -569,6 +576,7 @@ Please regenerate this email following the original instruction while incorporat
       organizationName,
       organization,
       organizationWritingInstructions,
+      undefined, // staffWritingInstructions not available in enhancement context
       { [donorId]: communicationHistory },
       { [donorId]: donationHistory },
       donorStatistics ? { [donorId]: donorStatistics } : {},
@@ -585,7 +593,7 @@ Please regenerate this email following the original instruction while incorporat
     }
 
     const enhancedEmail = result.emails[0];
-    
+
     return {
       emailId,
       donorId,

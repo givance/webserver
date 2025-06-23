@@ -529,7 +529,7 @@ export default function StaffDetailPage() {
                     />
                   </div>
                 </div>
-                
+
                 {/* Writing Instructions Section */}
                 <div className="mt-6">
                   <label className="text-sm font-medium text-muted-foreground">Writing Instructions</label>
@@ -542,8 +542,8 @@ export default function StaffDetailPage() {
                       className="w-full"
                     />
                     <p className="text-sm text-muted-foreground mt-2">
-                      These instructions will override the organization's default writing guidelines when generating emails for this staff member.
-                      Leave blank to use organizational defaults.
+                      These instructions will override the organization&apos;s default writing guidelines when
+                      generating emails for this staff member. Leave blank to use organizational defaults.
                     </p>
                     <div className="mt-3 flex justify-end">
                       <Button
@@ -557,7 +557,7 @@ export default function StaffDetailPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-6">
                   <label className="text-sm font-medium text-muted-foreground">Member Since</label>
                   <p className="text-lg mt-1">{new Date(staff.createdAt).toLocaleDateString()}</p>
