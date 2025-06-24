@@ -19,7 +19,7 @@ export default function ProjectDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   // Query for project data
-  const { data: project, isLoading, error } = getProjectById({ id: projectId });
+  const { data: project, isLoading, error, refetch } = getProjectById({ id: projectId });
 
   useEffect(() => {
     if (error) {
@@ -51,6 +51,8 @@ export default function ProjectDetailsPage() {
       if (result) {
         toast.success("Project updated successfully");
         setIsEditing(false);
+        // Refetch project data to ensure UI is in sync
+        await refetch();
       } else {
         toast.error("Failed to update project");
       }
