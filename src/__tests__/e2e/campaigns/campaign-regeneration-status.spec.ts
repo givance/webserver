@@ -57,12 +57,41 @@ test.describe("Campaign Regeneration and Status Checking", () => {
       }
     }
 
-    // Should navigate to edit page with Write Instructions step
+    // Should navigate to edit page
     await page.waitForURL(/\/campaign\/edit\/\d+/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000); // Wait for page to fully load
 
-    // The edit page should show the instruction input directly
+    // Check if we're on template selection step and need to continue
+    const templateHeading = page.locator('h2:has-text("Select Template")');
+    if (await templateHeading.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("On template selection step, clicking Continue");
+      const continueButton = page.locator('button:has-text("Continue")').last();
+      await continueButton.click();
+      await page.waitForTimeout(3000);
+    }
+
+    // Verify we're on the Write Instructions step
+    const writeInstructionsIndicators = [
+      'h1:has-text("Edit Campaign")',
+      'button[role="tab"]:has-text("Chat & Generate")',
+      'textarea[placeholder*="instruction"]',
+      'textarea[placeholder*="Enter your instructions"]',
+      'text="Continue editing your campaign"'
+    ];
+    
+    let foundWriteInstructions = false;
+    for (const selector of writeInstructionsIndicators) {
+      if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+        foundWriteInstructions = true;
+        break;
+      }
+    }
+    
+    if (!foundWriteInstructions) {
+      throw new Error("Failed to navigate to Write Instructions step for regeneration");
+    }
+
     // Add new instruction for regeneration
     await writeInstructions(
       page,

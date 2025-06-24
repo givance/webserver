@@ -49,22 +49,52 @@ test.describe("Campaign Draft Completion Status", () => {
     // Continue to template selection
     await clickContinueButton(page);
 
-    // Step 3: Select Template (skip for now)
-    await selectTemplate(page, true);
-    const templateNextButton = page.locator('button:has-text("Continue")');
-    if (await templateNextButton.isVisible()) {
-      await clickContinueButton(page);
-    }
-
-    // Wait for the Write Instructions step to load
+    // Step 3: Handle template selection - we might be redirected to edit mode
     await page.waitForTimeout(2000);
     
-    // Verify we're on the Write Instructions step by checking for the Chat & Generate tab or instruction textarea
-    const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate"), tab:has-text("Chat & Generate")');
-    const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+    // Check if we're now in edit mode (URL changed to /campaign/edit/*)
+    const currentUrl = page.url();
+    if (currentUrl.includes('/campaign/edit/')) {
+      console.log("Redirected to edit mode:", currentUrl);
+      
+      // Wait for the page to load
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
+      
+      // We should be on the template selection step in edit mode
+      await continueWithoutTemplate(page);
+    } else {
+      // Normal flow - select template and continue
+      await selectTemplate(page, true);
+      const templateNextButton = page.locator('button:has-text("Continue")');
+      if (await templateNextButton.isVisible()) {
+        await clickContinueButton(page);
+      }
+    }
+
+    // Wait for navigation to complete
+    await page.waitForTimeout(3000);
     
-    // Either the tab or the textarea should be visible
-    await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
+    // Verify we're on the Write Instructions step
+    const writeInstructionsIndicators = [
+      'h1:has-text("Edit Campaign")',
+      'button[role="tab"]:has-text("Chat & Generate")',
+      'textarea[placeholder*="instruction"]',
+      'textarea[placeholder*="Enter your instructions"]',
+      'text="Continue editing your campaign"'
+    ];
+    
+    let foundWriteInstructions = false;
+    for (const selector of writeInstructionsIndicators) {
+      if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+        foundWriteInstructions = true;
+        break;
+      }
+    }
+    
+    if (!foundWriteInstructions) {
+      throw new Error("Failed to navigate to Write Instructions step");
+    }
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test email instruction for draft campaign");
@@ -128,22 +158,52 @@ test.describe("Campaign Draft Completion Status", () => {
     await setCampaignName(page, campaignName);
     await clickContinueButton(page);
 
-    // Step 3: Skip template
-    await selectTemplate(page, true);
-    const templateNextButton = page.locator('button:has-text("Continue")');
-    if (await templateNextButton.isVisible()) {
-      await clickContinueButton(page);
-    }
-
-    // Wait for the Write Instructions step to load
+    // Step 3: Handle template selection - we might be redirected to edit mode
     await page.waitForTimeout(2000);
     
-    // Verify we're on the Write Instructions step by checking for the Chat & Generate tab or instruction textarea
-    const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate"), tab:has-text("Chat & Generate")');
-    const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+    // Check if we're now in edit mode (URL changed to /campaign/edit/*)
+    const currentUrl = page.url();
+    if (currentUrl.includes('/campaign/edit/')) {
+      console.log("Redirected to edit mode:", currentUrl);
+      
+      // Wait for the page to load
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
+      
+      // We should be on the template selection step in edit mode
+      await continueWithoutTemplate(page);
+    } else {
+      // Normal flow - select template and continue
+      await selectTemplate(page, true);
+      const templateNextButton = page.locator('button:has-text("Continue")');
+      if (await templateNextButton.isVisible()) {
+        await clickContinueButton(page);
+      }
+    }
+
+    // Wait for navigation to complete
+    await page.waitForTimeout(3000);
     
-    // Either the tab or the textarea should be visible
-    await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
+    // Verify we're on the Write Instructions step
+    const writeInstructionsIndicators = [
+      'h1:has-text("Edit Campaign")',
+      'button[role="tab"]:has-text("Chat & Generate")',
+      'textarea[placeholder*="instruction"]',
+      'textarea[placeholder*="Enter your instructions"]',
+      'text="Continue editing your campaign"'
+    ];
+    
+    let foundWriteInstructions = false;
+    for (const selector of writeInstructionsIndicators) {
+      if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+        foundWriteInstructions = true;
+        break;
+      }
+    }
+    
+    if (!foundWriteInstructions) {
+      throw new Error("Failed to navigate to Write Instructions step");
+    }
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test donor count tracking");

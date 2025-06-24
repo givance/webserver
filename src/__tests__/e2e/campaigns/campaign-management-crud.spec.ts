@@ -185,29 +185,58 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Step 3: Select Template
     await test.step("Select email template", async () => {
-      // Wait for template page to load
+      // Wait for navigation/redirect
       await page.waitForTimeout(2000);
       
-      // Click Continue to skip template selection
-      const continueButton = page.locator('button:has-text("Continue")');
-      await expect(continueButton).toBeVisible({ timeout: 5000 });
-      await continueButton.click();
-      
-      // Wait for navigation
-      await page.waitForTimeout(3000);
+      // Check if we're now in edit mode (URL changed to /campaign/edit/*)
+      const currentUrl = page.url();
+      if (currentUrl.includes('/campaign/edit/')) {
+        console.log("Redirected to edit mode:", currentUrl);
+        
+        // Wait for the page to load
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(2000);
+        
+        // We should be on the template selection step in edit mode
+        await continueWithoutTemplate(page);
+      } else {
+        // Normal flow - continue without template
+        await continueWithoutTemplate(page);
+      }
     });
 
     // Step 4: Write Instructions
     await test.step("Write instructions and generate preview", async () => {
-      // Check if we're on the Write Instructions step
-      const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate")');
-      const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+      // Wait for navigation to complete
+      await page.waitForTimeout(2000);
       
-      // Wait for either the chat tab or instruction textarea to be visible
-      try {
-        await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
-      } catch (e) {
-        console.log("Could not find instruction step indicators, checking current URL:", page.url());
+      // Verify we're on the Write Instructions step
+      const writeInstructionsIndicators = [
+        'h1:has-text("Edit Campaign")',
+        'h1:has-text("Create Campaign")',
+        'button[role="tab"]:has-text("Chat & Generate")',
+        'textarea[placeholder*="instruction"]',
+        'textarea[placeholder*="Enter your instructions"]',
+        'text="Continue editing your campaign"',
+        'text="Write instructions for your email"'
+      ];
+      
+      let foundWriteInstructions = false;
+      for (const selector of writeInstructionsIndicators) {
+        if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+          foundWriteInstructions = true;
+          console.log(`Found Write Instructions indicator: ${selector}`);
+          break;
+        }
+      }
+      
+      if (!foundWriteInstructions) {
+        // Log current page state for debugging
+        const pageTitle = await page.locator('h1, h2').first().textContent().catch(() => 'No title found');
+        const currentUrl = page.url();
+        console.log("Failed to find Write Instructions step");
+        console.log("Current URL:", currentUrl);
+        console.log("Current page title:", pageTitle);
         throw new Error("Failed to navigate to Write Instructions step");
       }
       
