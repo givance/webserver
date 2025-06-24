@@ -18,6 +18,7 @@ export const projectFormSchema = z.object({
   active: z.boolean(),
   goal: z.number().min(0).optional(),
   tags: z.array(z.string()),
+  external: z.boolean(),
 });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;
@@ -38,6 +39,7 @@ export function ProjectForm({ defaultValues, onSubmit, submitLabel = "Save Proje
       active: true,
       goal: undefined,
       tags: [],
+      external: false,
       ...defaultValues,
     },
   });
@@ -116,6 +118,22 @@ export function ProjectForm({ defaultValues, onSubmit, submitLabel = "Save Proje
               <div className="space-y-0.5">
                 <FormLabel>Active Status</FormLabel>
                 <FormDescription>Inactive projects won&apos;t appear in the main project list.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="external"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel>External Donations</FormLabel>
+                <FormDescription>Mark this project if it represents donations made outside your organization. External donations will be excluded from AI-generated email content.</FormDescription>
               </div>
               <FormControl>
                 <Switch checked={field.value} onCheckedChange={field.onChange} />

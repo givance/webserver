@@ -122,6 +122,7 @@ export default function ProjectDetailsPage() {
                 active: project.active,
                 goal: project.goal || undefined,
                 tags: project.tags || [],
+                external: project.external || false,
               }}
               onSubmit={handleUpdate}
               submitLabel="Update Project"
@@ -139,6 +140,10 @@ export default function ProjectDetailsPage() {
               <div>
                 <h3 className="font-medium">Status</h3>
                 <p className="text-muted-foreground">{project.active ? "Active" : "Inactive"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">External Donations</h3>
+                <p className="text-muted-foreground">{project.external ? "Yes (excluded from AI emails)" : "No"}</p>
               </div>
               {project.goal && (
                 <div>

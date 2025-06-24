@@ -4,7 +4,7 @@ import { db } from "@/app/lib/db";
 import { organizations, donors as donorsSchema, staff, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
-import { DonationWithDetails, listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
+import { DonationWithDetails, listDonations, getMultipleComprehensiveDonorStats, getMultipleComprehensiveDonorStatsExcludingExternal } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
@@ -149,9 +149,9 @@ export class EmailGenerationService {
 
     const donorHistories = await Promise.all(historiesPromises);
 
-    // Fetch comprehensive donor statistics
+    // Fetch comprehensive donor statistics (excluding external donations for LLM)
     logger.info(`Fetching comprehensive donor statistics for ${donorIds.length} donors`);
-    const donorStatistics = await getMultipleComprehensiveDonorStats(donorIds, organizationId);
+    const donorStatistics = await getMultipleComprehensiveDonorStatsExcludingExternal(donorIds, organizationId);
 
     // Fetch person research results for donors
     logger.info(`Fetching person research results for ${donorIds.length} donors`);
@@ -193,7 +193,11 @@ export class EmailGenerationService {
 
     donorHistories.forEach(({ donor, communicationHistory, donationHistory }) => {
       communicationHistories[donor.id] = communicationHistory;
-      donationHistoriesMap[donor.id] = donationHistory;
+      // Filter out donations from external projects for LLM
+      const nonExternalDonations = donationHistory.filter(
+        donation => !donation.project?.external
+      );
+      donationHistoriesMap[donor.id] = nonExternalDonations;
     });
 
     // Get primary staff for fallback writing instructions
