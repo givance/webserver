@@ -61,104 +61,52 @@ export async function setCampaignName(page: Page, name: string) {
 }
 
 export async function continueWithoutTemplate(page: Page) {
+  console.log("continueWithoutTemplate: Starting...");
+  
   // Wait for the template page to be ready
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1000);
   
   // Wait for the heading to ensure we're on the template page
   await expect(page.locator('h2:has-text("Select Template")')).toBeVisible({ timeout: 10000 });
-  
-  // First, ensure we're not selecting a template (select "No Template" option if available)
-  const noTemplateOption = page.locator('input[type="radio"][value="none"]');
-  if (await noTemplateOption.isVisible({ timeout: 2000 }).catch(() => false)) {
-    console.log("Selecting 'No Template' option");
-    await noTemplateOption.click();
-    await page.waitForTimeout(1000);
-  }
+  console.log("continueWithoutTemplate: On template selection page");
   
   // Look for "Continue" button on the template selection page
-  const continueButton = page.locator('button:has-text("Continue")').last();
+  const continueButton = page.locator('button:has-text("Continue")');
   await expect(continueButton).toBeVisible({ timeout: 5000 });
+  console.log("continueWithoutTemplate: Found Continue button");
   
-  // Click and wait for response
-  await Promise.all([
-    page.waitForResponse(response => 
-      response.url().includes('/api/trpc/') && response.status() === 200,
-      { timeout: 10000 }
-    ).catch(() => console.log("No API response detected")),
-    continueButton.click()
-  ]);
+  // Get current URL before clicking
+  const urlBefore = page.url();
+  console.log("continueWithoutTemplate: URL before click:", urlBefore);
   
-  // Wait for navigation to complete
-  await page.waitForTimeout(3000);
+  // Click continue
+  await continueButton.click();
+  console.log("continueWithoutTemplate: Clicked Continue button");
   
-  // Check if we're still on the template page (which indicates navigation failed)
-  const stillOnTemplatePage = await page.locator('h2:has-text("Select Template")').isVisible().catch(() => false);
+  // Wait for any navigation or state change
+  await page.waitForTimeout(5000);
   
-  if (stillOnTemplatePage) {
-    console.log("Warning: Still on template page after clicking Continue. Trying more aggressive approach...");
+  // Get URL after click
+  const urlAfter = page.url();
+  console.log("continueWithoutTemplate: URL after click:", urlAfter);
+  
+  // Check if we're still on template page
+  const stillOnTemplate = await page.locator('h2:has-text("Select Template")').isVisible().catch(() => false);
+  console.log("continueWithoutTemplate: Still on template page?", stillOnTemplate);
+  
+  // Check for Write Instructions indicators
+  const foundChatTab = await page.locator('button[role="tab"]:has-text("Chat & Generate")').isVisible().catch(() => false);
+  const foundTextarea = await page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]').isVisible().catch(() => false);
+  
+  console.log("continueWithoutTemplate: Found Chat tab?", foundChatTab);
+  console.log("continueWithoutTemplate: Found instruction textarea?", foundTextarea);
+  
+  if (!foundChatTab && !foundTextarea) {
+    console.log("continueWithoutTemplate: ERROR - Could not verify navigation to Write Instructions step");
     
-    // Try clicking the button again with force
-    await continueButton.click({ force: true });
-    await page.waitForTimeout(2000);
-    
-    // If still on template page, try to navigate directly to Write Instructions
-    if (await page.locator('h2:has-text("Select Template")').isVisible().catch(() => false)) {
-      console.log("Still stuck on template page. Attempting direct navigation...");
-      
-      // Get current URL and try to navigate to write instructions
-      const currentUrl = page.url();
-      console.log("Current URL:", currentUrl);
-      
-      // Extract campaign ID from URL if we're in edit mode
-      const match = currentUrl.match(/\/campaign\/edit\/(\d+)/);
-      if (match && match[1]) {
-        const campaignId = match[1];
-        console.log(`Found campaign ID: ${campaignId}. Attempting reload...`);
-        
-        // Try reloading the page - sometimes this helps with state issues
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(2000);
-      }
-    }
-  }
-  
-  // After all attempts, verify we've moved to the Write Instructions step
-  const instructionIndicators = [
-    'h1:has-text("Edit Campaign")',
-    'button[role="tab"]:has-text("Chat & Generate")',
-    '[role="tab"]:has-text("Chat")',
-    'textarea[placeholder*="instruction"]',
-    'textarea[placeholder*="Enter your instructions"]',
-    'text="Continue editing your campaign"',
-    'text="Start by writing instructions"'
-  ];
-  
-  let foundInstructions = false;
-  for (const selector of instructionIndicators) {
-    if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
-      foundInstructions = true;
-      console.log(`Found Write Instructions indicator: ${selector}`);
-      break;
-    }
-  }
-  
-  if (!foundInstructions) {
-    // Last resort - check if we at least have the Chat & Generate tab in the DOM
-    const tabsExist = await page.locator('[role="tablist"]').isVisible().catch(() => false);
-    if (tabsExist) {
-      console.log("Found tab list - we might be on the Write Instructions step");
-      foundInstructions = true;
-    } else {
-      // Log current page state for debugging
-      const pageTitle = await page.locator('h1, h2').first().textContent().catch(() => 'No title found');
-      const allText = await page.locator('body').textContent().catch(() => '');
-      console.log("Current page title:", pageTitle);
-      console.log("Page contains 'Select Template':", allText.includes('Select Template'));
-      console.log("Page contains 'Write Instructions':", allText.includes('Write Instructions'));
-      console.log("Page contains 'Chat':", allText.includes('Chat'));
-      console.log("Error: Could not verify navigation to Write Instructions step");
-    }
+    // Log page content for debugging
+    const pageTitle = await page.locator('h1, h2').first().textContent().catch(() => 'No title');
+    console.log("continueWithoutTemplate: Current page title:", pageTitle);
   }
 }
 
@@ -243,62 +191,20 @@ export async function writeInstructions(page: Page, instruction: string) {
 
 export async function generateEmails(page: Page) {
   // Find and click the generate button
-  const generateButtons = [
-    'button:has-text("Generate Emails")',
-    'button:has-text("Send")',
-    'button:has-text("Generate")',
-  ];
-
-  let generateButton = null;
-  for (const selector of generateButtons) {
-    const button = page.locator(selector).first();
-    if (await button.isVisible({ timeout: 5000 }).catch(() => false)) {
-      generateButton = button;
-      break;
-    }
-  }
-
-  if (!generateButton) {
-    throw new Error("Could not find generate button");
-  }
-
+  const generateButton = page.locator('button:has-text("Generate Emails"), button:has-text("Send")').first();
   await generateButton.click();
 
   // Wait for AI response
   await page.waitForTimeout(10000);
 
-  // Wait for preview section - check multiple possible indicators
-  const previewIndicators = [
-    'button:has-text("Email Preview")',
-    '[role="tab"]:has-text("Email Preview")',
-    'button:has-text("Start Bulk Generation")',
-    'text=/preview.*email|email.*preview/i',
-    'text=/\\d+.*email.*generated/i',
-    '.email-preview',
-    'button:has-text("Launch Campaign")'
-  ];
-  
-  let foundPreview = false;
-  for (const selector of previewIndicators) {
-    try {
-      await page.locator(selector).first().waitFor({ state: 'visible', timeout: 60000 });
-      foundPreview = true;
-      break;
-    } catch (e) {
-      // Continue trying other selectors
-    }
-  }
-  
-  if (!foundPreview) {
-    // Log the current page state for debugging
-    const pageText = await page.locator('body').textContent();
-    console.log("Current page text (first 500 chars):", pageText?.substring(0, 500));
-    throw new Error("Email generation indicators not found after 60 seconds");
-  }
+  // Wait for preview section
+  await page.locator(
+    'button:has-text("Email Preview"), button:has-text("Launch Campaign"), [role="tab"]:has-text("Email Preview")'
+  ).first().waitFor({ state: 'visible', timeout: 60000 });
 }
 
 export async function startBulkGeneration(page: Page) {
-  const bulkGenerateButton = page.locator('button:has-text("Start Bulk Generation"), button:has-text("Generate")');
+  const bulkGenerateButton = page.locator('button:has-text("Launch Campaign"), button:has-text("Start Bulk Generation"), button:has-text("Generate")');
 
   if (await bulkGenerateButton.first().isVisible({ timeout: 5000 })) {
     await bulkGenerateButton.first().click();

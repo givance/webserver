@@ -87,16 +87,21 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     async (newStep: number) => {
       // Auto-save current state before navigation if we have enough data
       if (campaignName && selectedDonors.length > 0) {
-        await navigationAutoSave({
-          sessionId,
-          campaignName,
-          selectedDonorIds: selectedDonors,
-          templateId: selectedTemplateId,
-          instruction,
-          chatHistory: persistedChatHistory,
-          refinedInstruction: existingCampaignData?.refinedInstruction,
-          previewDonorIds: persistedPreviewDonorIds,
-        });
+        try {
+          await navigationAutoSave({
+            sessionId,
+            campaignName,
+            selectedDonorIds: selectedDonors,
+            templateId: selectedTemplateId,
+            instruction,
+            chatHistory: persistedChatHistory,
+            refinedInstruction: existingCampaignData?.refinedInstruction,
+            previewDonorIds: persistedPreviewDonorIds,
+          });
+        } catch (error) {
+          console.error("[CampaignSteps] Auto-save failed during navigation:", error);
+          // Continue with navigation even if save fails
+        }
       }
       setCurrentStep(newStep);
     },
@@ -183,7 +188,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       // Clear template prompt if no template is selected
       setTemplatePrompt("");
     }
-    handleStepNavigation(3);
   };
 
   const handleSessionDataChange = useCallback(
