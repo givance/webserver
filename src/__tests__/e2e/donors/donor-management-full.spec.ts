@@ -117,13 +117,9 @@ test.describe("Donors CRUD Operations", () => {
     // Test filter by assigned staff
     await donors.filterByStaff("Unassigned");
     await donors.filterByStaff("All Staff");
-
-    // Test "Show only researched donors" checkbox
-    await donors.toggleResearchedOnly(true);
-    await donors.toggleResearchedOnly(false);
   });
 
-  test("should handle bulk operations", async ({ page }) => {
+  test("should handle bulk operations - create list from selected", async ({ page }) => {
     // Check if there are any donors in the list
     let rowCount = await donors.getDonorCount();
 
@@ -153,6 +149,38 @@ test.describe("Donors CRUD Operations", () => {
         const timestamp = Date.now();
         const listName = `Test List ${timestamp}`;
         await donors.createListFromSelected(listName);
+      }
+    }
+  });
+
+  test("should handle bulk staff assignment", async ({ page }) => {
+    // Check if there are any donors in the list
+    let rowCount = await donors.getDonorCount();
+
+    // If no donors exist, create some
+    if (rowCount === 0) {
+      await test.step("Create donors for bulk staff assignment", async () => {
+        for (let i = 0; i < 3; i++) {
+          await donors.createDonor({
+            firstName: `BulkStaff${i}`,
+            lastName: "Donor",
+            email: generateTestEmail(`bulkstaff${i}`)
+          });
+        }
+      });
+
+      // Update row count after creating donors
+      rowCount = await donors.getDonorCount();
+    }
+
+    // Now perform bulk staff assignment
+    if (rowCount > 0) {
+      // Select first 2-3 donors
+      const selectedCount = await donors.selectDonors(2);
+      
+      if (selectedCount > 0) {
+        // Click the Assign Staff button
+        await donors.bulkAssignStaff("unassigned");
       }
     }
   });

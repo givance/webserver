@@ -65,17 +65,25 @@ test.describe("Donor Management", () => {
   test("should handle donor profile navigation", async ({ page }) => {
     await donors.navigateToDonorsPage();
 
-    // Look for donor links or profile buttons
-    const donorLinks = page.locator('a[href*="/donors/"], button:has-text("View"), .donor-row a').first();
+    // Wait for table to load
+    await page.waitForSelector('table tbody tr', { timeout: 10000 });
 
-    if (await donorLinks.isVisible().catch(() => false)) {
-      await donorLinks.click();
+    // Look for donor name links in the table
+    const donorLink = page.locator('table tbody tr td a[href*="/donors/"]').first();
 
-      // Should navigate to donor profile or detail page
-      await page.waitForLoadState("networkidle");
+    const isLinkVisible = await donorLink.isVisible().catch(() => false);
+    
+    if (isLinkVisible) {
+      await donorLink.click();
+
+      // Wait for navigation to complete
+      await page.waitForURL(/\/donors\/\d+$/, { timeout: 10000 });
 
       const currentUrl = page.url();
-      expect(currentUrl).toMatch(/(donors\/|profile|detail)/);
+      expect(currentUrl).toMatch(/donors\/\d+$/);
+    } else {
+      // If no donors exist, skip the test
+      console.log("No donor links found - table might be empty");
     }
   });
 });

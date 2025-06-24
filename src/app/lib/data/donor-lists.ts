@@ -567,3 +567,50 @@ export async function getDonorsExclusiveToList(listId: number, organizationId: s
 
   return exclusiveDonors.map(d => d.donorId);
 }
+
+/**
+ * Bulk update the assigned staff for all members of a list
+ * @param listId The list ID
+ * @param staffId The staff ID to assign (null for unassigned)
+ * @param organizationId The organization ID for authorization
+ * @returns Object with the number of donors updated
+ */
+export async function bulkUpdateListMembersStaff(
+  listId: number,
+  staffId: number | null,
+  organizationId: string
+): Promise<{ updated: number }> {
+  // First verify the list belongs to the organization
+  const list = await getDonorListById(listId, organizationId);
+  if (!list) {
+    throw new Error("List not found or access denied");
+  }
+
+  // Get all donor IDs in this list
+  const listMembers = await db
+    .select({ donorId: donorListMembers.donorId })
+    .from(donorListMembers)
+    .where(eq(donorListMembers.listId, listId));
+
+  if (listMembers.length === 0) {
+    return { updated: 0 };
+  }
+
+  const donorIds = listMembers.map(m => m.donorId);
+
+  // Update all donors in the list
+  const result = await db
+    .update(donors)
+    .set({ 
+      assignedToStaffId: staffId,
+      updatedAt: new Date()
+    })
+    .where(
+      and(
+        inArray(donors.id, donorIds),
+        eq(donors.organizationId, organizationId)
+      )
+    );
+
+  return { updated: result.rowCount || 0 };
+}
