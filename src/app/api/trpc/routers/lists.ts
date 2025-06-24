@@ -14,6 +14,7 @@ import {
   getDonorIdsFromLists,
   getListsForDonor,
   getDonorsExclusiveToList,
+  bulkUpdateListMembersStaff,
   type ListDeletionMode,
 } from "../../../lib/data/donor-lists";
 import { listDonorsByCriteria } from "../../../lib/data/donors";
@@ -71,6 +72,11 @@ const getDonorIdsFromListsSchema = z.object({
 
 const getListsForDonorSchema = z.object({
   donorId: z.number().positive(),
+});
+
+const bulkUpdateMembersStaffSchema = z.object({
+  listId: z.number().positive(),
+  staffId: z.number().positive().nullable(),
 });
 
 const uploadFilesSchema = z.object({
@@ -465,6 +471,30 @@ export const listsRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: error instanceof Error ? error.message : "Failed to create list by criteria",
+        });
+      }
+    }),
+
+  /**
+   * Bulk update staff assignment for all members of a list
+   * @param input.listId - The ID of the list
+   * @param input.staffId - The staff ID to assign (null for unassigned)
+   * @returns Object with the number of donors updated
+   */
+  bulkUpdateMembersStaff: protectedProcedure
+    .input(bulkUpdateMembersStaffSchema)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await bulkUpdateListMembersStaff(
+          input.listId,
+          input.staffId,
+          ctx.auth.user.organizationId
+        );
+        return result;
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to bulk update staff assignment",
         });
       }
     }),

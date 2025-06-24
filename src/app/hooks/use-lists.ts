@@ -257,6 +257,24 @@ export function useLists() {
     },
   });
 
+  const bulkUpdateMembersStaffMutation = trpc.lists.bulkUpdateMembersStaff.useMutation({
+    onSuccess: (result, variables) => {
+      utils.lists.list.invalidate();
+      utils.lists.getByIdWithMemberCount.invalidate({ id: variables.listId });
+      utils.lists.getByIdWithMembers.invalidate({ id: variables.listId });
+      // Also invalidate donor queries since staff assignments have changed
+      utils.donors.list.invalidate();
+      utils.donors.getById.invalidate();
+
+      toast.success(
+        `Successfully updated staff assignment for ${result.updated} donor${result.updated !== 1 ? "s" : ""}`
+      );
+    },
+    onError: (error) => {
+      toast.error(`Failed to bulk update staff assignment: ${error.message}`);
+    },
+  });
+
   // Helper functions for easier use
   const createList = async (data: CreateDonorListInput) => {
     return createMutation.mutateAsync(data);
@@ -306,6 +324,10 @@ export function useLists() {
     return createByCriteriaMutation.mutateAsync(data);
   };
 
+  const bulkUpdateMembersStaff = async (listId: number, staffId: number | null) => {
+    return bulkUpdateMembersStaffMutation.mutateAsync({ listId, staffId });
+  };
+
   const previewByCriteria = trpc.lists.previewByCriteria.useQuery;
 
   return {
@@ -325,6 +347,7 @@ export function useLists() {
     removeDonorsMutation,
     uploadFilesMutation,
     createByCriteriaMutation,
+    bulkUpdateMembersStaffMutation,
 
     // Helper functions
     createList,
@@ -334,6 +357,7 @@ export function useLists() {
     removeDonorsFromList,
     uploadFilesToList,
     createListByCriteria,
+    bulkUpdateMembersStaff,
     previewByCriteria,
 
     // Loading states
@@ -343,5 +367,6 @@ export function useLists() {
     isAddingDonors: addDonorsMutation.isPending,
     isRemovingDonors: removeDonorsMutation.isPending,
     isUploadingFiles: uploadFilesMutation.isPending,
+    isBulkUpdatingStaff: bulkUpdateMembersStaffMutation.isPending,
   };
 }
