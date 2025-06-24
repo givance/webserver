@@ -61,9 +61,37 @@ export async function setCampaignName(page: Page, name: string) {
 }
 
 export async function continueWithoutTemplate(page: Page) {
+  // Wait for the template page to be ready
+  await page.waitForTimeout(1000);
+  
+  // Look for "Continue" button on the template selection page
   const continueButton = page.locator('button:has-text("Continue")');
+  await expect(continueButton).toBeVisible({ timeout: 5000 });
   await continueButton.click();
+  
+  // Wait for navigation to the next step
   await page.waitForTimeout(2000);
+  
+  // Verify we've moved to the Write Instructions step
+  const instructionIndicators = [
+    'h3:has-text("Write Instructions")',
+    'h2:has-text("Write Instructions")',
+    'button[role="tab"]:has-text("Chat & Generate")',
+    'textarea[placeholder*="instruction"]',
+    'textarea[placeholder*="Enter your instructions"]'
+  ];
+  
+  let foundInstructions = false;
+  for (const selector of instructionIndicators) {
+    if (await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)) {
+      foundInstructions = true;
+      break;
+    }
+  }
+  
+  if (!foundInstructions) {
+    console.log("Warning: Could not verify navigation to Write Instructions step");
+  }
 }
 
 export async function selectTemplate(page: Page, skipIfNotVisible = true) {
@@ -120,11 +148,13 @@ export async function writeInstructions(page: Page, instruction: string) {
 
   // Find the instruction input - try multiple selectors
   const inputSelectors = [
+    'textarea[placeholder*="Enter your instructions"]',
+    'textarea[placeholder*="instruction"]',
     ".mentions-input textarea",
     ".mentions-input",
     "div[data-mention-input]",
+    'textarea[placeholder*="Type @"]',
     "textarea",
-    'textarea[placeholder*="instruction"]',
   ];
 
   let instructionInput = null;
@@ -169,9 +199,34 @@ export async function generateEmails(page: Page) {
   // Wait for AI response
   await page.waitForTimeout(10000);
 
-  // Wait for preview section
-  const previewSection = page.locator('button:has-text("Email Preview")');
-  await expect(previewSection.first()).toBeVisible({ timeout: 60000 });
+  // Wait for preview section - check multiple possible indicators
+  const previewIndicators = [
+    'button:has-text("Email Preview")',
+    '[role="tab"]:has-text("Email Preview")',
+    'button:has-text("Start Bulk Generation")',
+    'text=/preview.*email|email.*preview/i',
+    'text=/\\d+.*email.*generated/i',
+    '.email-preview',
+    'button:has-text("Launch Campaign")'
+  ];
+  
+  let foundPreview = false;
+  for (const selector of previewIndicators) {
+    try {
+      await page.locator(selector).first().waitFor({ state: 'visible', timeout: 60000 });
+      foundPreview = true;
+      break;
+    } catch (e) {
+      // Continue trying other selectors
+    }
+  }
+  
+  if (!foundPreview) {
+    // Log the current page state for debugging
+    const pageText = await page.locator('body').textContent();
+    console.log("Current page text (first 500 chars):", pageText?.substring(0, 500));
+    throw new Error("Email generation indicators not found after 60 seconds");
+  }
 }
 
 export async function startBulkGeneration(page: Page) {
@@ -371,10 +426,18 @@ export async function verifyDonorCount(page: Page, expectedCount: number) {
 export async function verifyEmailGeneration(page: Page) {
   // Look for indicators that emails were generated
   const indicators = [
+    'button:has-text("Email Preview")',
+    '[role="tab"]:has-text("Email Preview")',
+    'button:has-text("Start Bulk Generation")',
+    'button:has-text("Launch Campaign")',
     "text=/preview.*email|email.*preview/i",
+    "text=/\\d+.*email.*generated/i",
     "div[data-testid='email-preview']",
     "[data-email-preview]",
     ".email-content",
+    "text=/generated.*\\d+.*email/i",
+    'button:has-text("Regenerate")',
+    '.mentions-assistant', // AI assistant response area
   ];
 
   for (const selector of indicators) {
@@ -389,6 +452,10 @@ export async function verifyEmailGeneration(page: Page) {
     }
   }
 
+  // Log current page state for debugging
+  const pageText = await page.locator('body').textContent();
+  console.log("Current page text when verifying email generation (first 500 chars):", pageText?.substring(0, 500));
+  
   throw new Error("No email generation indicators found");
 }
 

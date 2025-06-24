@@ -59,9 +59,12 @@ test.describe("Campaign Draft Completion Status", () => {
     // Wait for the Write Instructions step to load
     await page.waitForTimeout(2000);
     
-    // Verify we're on the Write Instructions step
-    const writeInstructionsHeading = page.locator('h2:has-text("Write Instructions"), h3:has-text("Write Instructions"), h1:has-text("Write Instructions")');
-    await expect(writeInstructionsHeading.first()).toBeVisible({ timeout: 10000 });
+    // Verify we're on the Write Instructions step by checking for the Chat & Generate tab or instruction textarea
+    const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate"), tab:has-text("Chat & Generate")');
+    const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+    
+    // Either the tab or the textarea should be visible
+    await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test email instruction for draft campaign");
@@ -135,9 +138,12 @@ test.describe("Campaign Draft Completion Status", () => {
     // Wait for the Write Instructions step to load
     await page.waitForTimeout(2000);
     
-    // Verify we're on the Write Instructions step
-    const writeInstructionsHeading = page.locator('h2:has-text("Write Instructions"), h3:has-text("Write Instructions"), h1:has-text("Write Instructions")');
-    await expect(writeInstructionsHeading.first()).toBeVisible({ timeout: 10000 });
+    // Verify we're on the Write Instructions step by checking for the Chat & Generate tab or instruction textarea
+    const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate"), tab:has-text("Chat & Generate")');
+    const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+    
+    // Either the tab or the textarea should be visible
+    await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test donor count tracking");

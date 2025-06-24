@@ -185,11 +185,32 @@ test.describe("Campaign CRUD Operations", () => {
 
     // Step 3: Select Template
     await test.step("Select email template", async () => {
-      await continueWithoutTemplate(page);
+      // Wait for template page to load
+      await page.waitForTimeout(2000);
+      
+      // Click Continue to skip template selection
+      const continueButton = page.locator('button:has-text("Continue")');
+      await expect(continueButton).toBeVisible({ timeout: 5000 });
+      await continueButton.click();
+      
+      // Wait for navigation
+      await page.waitForTimeout(3000);
     });
 
     // Step 4: Write Instructions
     await test.step("Write instructions and generate preview", async () => {
+      // Check if we're on the Write Instructions step
+      const chatTab = page.locator('button[role="tab"]:has-text("Chat & Generate")');
+      const instructionTextarea = page.locator('textarea[placeholder*="instruction"], textarea[placeholder*="Enter your instructions"]');
+      
+      // Wait for either the chat tab or instruction textarea to be visible
+      try {
+        await expect(chatTab.or(instructionTextarea).first()).toBeVisible({ timeout: 10000 });
+      } catch (e) {
+        console.log("Could not find instruction step indicators, checking current URL:", page.url());
+        throw new Error("Failed to navigate to Write Instructions step");
+      }
+      
       await writeInstructions(
         page,
         "Write a brief thank you email to each donor for their support. Keep it personal and warm."
