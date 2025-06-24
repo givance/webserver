@@ -30,6 +30,7 @@ test.describe("Campaign CRUD Operations", () => {
     // Start from the main page to access campaign functionality
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2000); // Wait for auth state to stabilize
   });
 
   test.afterEach(async () => {

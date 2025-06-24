@@ -20,6 +20,11 @@ import {
  */
 test.describe("Campaign Draft Completion Status", () => {
   test.beforeEach(async ({ page }) => {
+    // First ensure we're on the homepage which should have authentication set up from the global setup
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    
+    // Then navigate to campaigns
     await navigateToCampaigns(page);
   });
 
@@ -50,6 +55,13 @@ test.describe("Campaign Draft Completion Status", () => {
     if (await templateNextButton.isVisible()) {
       await clickContinueButton(page);
     }
+
+    // Wait for the Write Instructions step to load
+    await page.waitForTimeout(2000);
+    
+    // Verify we're on the Write Instructions step
+    const writeInstructionsHeading = page.locator('h2:has-text("Write Instructions"), h3:has-text("Write Instructions"), h1:has-text("Write Instructions")');
+    await expect(writeInstructionsHeading.first()).toBeVisible({ timeout: 10000 });
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test email instruction for draft campaign");
@@ -119,6 +131,13 @@ test.describe("Campaign Draft Completion Status", () => {
     if (await templateNextButton.isVisible()) {
       await clickContinueButton(page);
     }
+
+    // Wait for the Write Instructions step to load
+    await page.waitForTimeout(2000);
+    
+    // Verify we're on the Write Instructions step
+    const writeInstructionsHeading = page.locator('h2:has-text("Write Instructions"), h3:has-text("Write Instructions"), h1:has-text("Write Instructions")');
+    await expect(writeInstructionsHeading.first()).toBeVisible({ timeout: 10000 });
 
     // Step 4: Write Instructions
     await writeInstructions(page, "Test donor count tracking");
