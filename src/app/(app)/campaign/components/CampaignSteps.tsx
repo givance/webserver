@@ -3,7 +3,8 @@
 import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { useTemplates } from "@/app/hooks/use-templates";
 import { CampaignNameStep } from "../steps/CampaignNameStep";
 import { SelectDonorsStep } from "../steps/SelectDonorsStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
@@ -53,6 +54,9 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const [instruction, setInstruction] = useState(
     existingCampaignData?.chatHistory.length ? "" : existingCampaignData?.instruction || ""
   );
+
+  console.log("instruction", instruction);
+  console.log("existingCampaignData", existingCampaignData);
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
@@ -70,6 +74,26 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   );
   const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>([]);
   const router = useRouter();
+
+  // Template hooks
+  const { getTemplate } = useTemplates();
+
+  // Fetch template data when we have a templateId in edit mode
+  const { data: templateData } = getTemplate(
+    { id: selectedTemplateId! },
+    { enabled: editMode && !!selectedTemplateId }
+  );
+
+  // Update templatePrompt when template data is loaded in edit mode
+  useEffect(() => {
+    if (editMode && templateData?.prompt && !templatePrompt) {
+      console.log(
+        "[CampaignSteps] Loading template prompt for edit mode:",
+        templateData.prompt.substring(0, 100) + "..."
+      );
+      setTemplatePrompt(templateData.prompt);
+    }
+  }, [editMode, templateData, templatePrompt]);
 
   // Navigation auto-save hook
   const { autoSave: navigationAutoSave, manualSave } = useCampaignAutoSave({
@@ -178,9 +202,12 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
 
   const handleTemplateSelected = (templateId: number | null, templatePrompt?: string) => {
     setSelectedTemplateId(templateId ?? undefined);
-    if (templatePrompt && !existingCampaignData?.chatHistory.length) {
-      setInstruction(templatePrompt);
-      setTemplatePrompt(templatePrompt); // Set the templatePrompt state so it can be passed to WriteInstructionStep
+    if (templatePrompt) {
+      // In create mode and no chat history, set instruction immediately
+      if (!editMode && !existingCampaignData?.chatHistory.length) {
+        setInstruction(templatePrompt);
+      }
+      setTemplatePrompt(templatePrompt); // Always set the templatePrompt state so it can be passed to WriteInstructionStep
     } else {
       // Clear template prompt if no template is selected
       setTemplatePrompt("");
@@ -266,7 +293,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             }}
             selectedDonors={selectedDonors}
             onSessionDataChange={handleSessionDataChange}
-            templatePrompt={editMode ? undefined : templatePrompt}
+            templatePrompt={templatePrompt}
             initialChatHistory={persistedChatHistory}
             initialGeneratedEmails={
               editMode && existingCampaignData?.existingGeneratedEmails
