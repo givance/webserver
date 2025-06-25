@@ -128,7 +128,7 @@ export const staffRouter = router({
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: "The staff member you're looking for doesn't exist or has been removed",
       });
     }
     return staff;
@@ -139,7 +139,7 @@ export const staffRouter = router({
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: `No staff member found with email: ${input.email}`,
       });
     }
     return staff;
@@ -155,10 +155,13 @@ export const staffRouter = router({
       if (error instanceof Error && error.message.includes("already exists")) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: error.message,
+          message: `A staff member with email ${input.email} already exists in your organization`,
         });
       }
-      throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create staff member. Please try again.",
+      });
     }
   }),
 
@@ -168,7 +171,7 @@ export const staffRouter = router({
     if (!updated) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: "Unable to update. The staff member doesn't exist or has been removed.",
       });
     }
     return updated;
@@ -180,11 +183,14 @@ export const staffRouter = router({
     } catch (error) {
       if (error instanceof Error && error.message.includes("linked to other records")) {
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Cannot delete staff member as they are linked to other records",
+          code: "CONFLICT",
+          message: "This staff member cannot be deleted because they have assigned donors or other associated records. Please reassign their responsibilities first.",
         });
       }
-      throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to delete staff member. Please try again.",
+      });
     }
   }),
 
@@ -203,7 +209,7 @@ export const staffRouter = router({
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: "Unable to find assigned donors. The staff member doesn't exist.",
       });
     }
 
@@ -229,7 +235,7 @@ export const staffRouter = router({
       if (!updated) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "Unable to update signature. The staff member doesn't exist.",
         });
       }
       return updated;
@@ -241,14 +247,14 @@ export const staffRouter = router({
     if (!staffWithGmail) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: "The staff member you're trying to set as primary doesn't exist.",
       });
     }
 
     if (!staffWithGmail.gmailToken) {
       throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: "Only staff members with connected Gmail accounts can be set as primary",
+        code: "CONFLICT",
+        message: "This staff member must connect their Gmail account before being set as primary sender.",
       });
     }
 
@@ -288,7 +294,7 @@ export const staffRouter = router({
     if (!staff) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Staff member not found",
+        message: "Cannot create email example. The staff member doesn't exist.",
       });
     }
 

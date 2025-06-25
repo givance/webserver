@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import React, { useState } from "react";
 import { trpc } from "@/app/lib/trpc/client";
+import { errorLink } from "@/app/lib/trpc/error-link";
 
 /**
  * Props for the TRPCProvider component
@@ -30,6 +31,7 @@ export default function TRPCProvider({ children }: TRPCProviderProps) {
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [
+        errorLink,
         httpBatchLink({
           url: "/api/trpc",
         }),
