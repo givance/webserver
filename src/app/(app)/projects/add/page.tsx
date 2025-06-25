@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Button } from "@/components/ui/button";
+import { Container } from "@/components/ui/container";
+import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -33,6 +35,7 @@ export default function AddProjectPage() {
         active: data.active,
         goal: data.goal ?? 0,
         tags: data.tags,
+        external: data.external,
         organizationId: "", // Explicitly add organizationId
       };
 
@@ -59,37 +62,36 @@ export default function AddProjectPage() {
   return (
     <>
       <title>Add New Project</title>
-      <div className="container mx-auto py-6">
-        <div className="flex items-center mb-6">
-          <Link href="/projects" className="mr-4">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Add New Project</h1>
-        </div>
+      <Container>
+        <div className="py-6">
+          <div className="flex items-center mb-6">
+            <Link href="/projects" className="mr-4">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <h1 className="text-2xl font-bold">Add New Project</h1>
+          </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-4 rounded">{error}</div>}
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-4 rounded">{error}</div>}
 
-        <div className="bg-white p-6 shadow rounded-lg max-w-2xl">
-          <ProjectForm
-            onSubmit={onSubmit}
-            submitLabel="Create Project"
-            // defaultValues can be passed if needed, e.g., for active: true
-            defaultValues={{
-              active: true,
-              tags: [],
-              // Other fields will use their defaults from ProjectForm's schema
-            }}
-          />
-          {/* The submit button is now part of ProjectForm, but if you need an external one: */}
-          {/* <div className="flex justify-end mt-6">
-            <Button type="button" onClick={() => form.handleSubmit(onSubmit)()} disabled={isCreating || form.formState.isSubmitting}>
-              {isCreating || form.formState.isSubmitting ? "Creating..." : "Create Project"}
-            </Button>
-          </div> */}
+          <Card>
+            <CardContent className="pt-6">
+              <ProjectForm
+                onSubmit={onSubmit}
+                submitLabel="Create Project"
+                // defaultValues can be passed if needed, e.g., for active: true
+                defaultValues={{
+                  active: true,
+                  tags: [],
+                  external: false,
+                  // Other fields will use their defaults from ProjectForm's schema
+                }}
+              />
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </Container>
     </>
   );
 }

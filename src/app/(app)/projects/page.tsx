@@ -13,7 +13,6 @@ import { useSearch } from "@/app/hooks/use-search";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { ErrorDisplay } from "@/app/components/ErrorDisplay";
 import { CampaignButton } from "@/components/campaign/CampaignButton";
-import { Container } from "@/components/ui/container";
 
 export default function ProjectListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
@@ -32,6 +31,8 @@ export default function ProjectListPage() {
     limit: pageSize,
     offset: getOffset(),
     searchTerm: debouncedSearchTerm,
+    orderBy: "name",
+    orderDirection: "asc",
   });
 
   // Use useMemo to avoid re-calculating on every render unless dependencies change
@@ -46,6 +47,7 @@ export default function ProjectListPage() {
         raisedAmount: 0, // Placeholder - ensure this is handled if real data is available
         startDate: apiProject.createdAt ? new Date(apiProject.createdAt).toISOString() : new Date().toISOString(),
         endDate: new Date().toISOString(), // Placeholder - should be replaced with actual end date if available
+        external: apiProject.external || false,
       })) || [];
     return { projects: projectItems, totalCount: listProjectsResponse?.totalCount || 0 };
   }, [listProjectsResponse]);
@@ -59,47 +61,45 @@ export default function ProjectListPage() {
   return (
     <>
       <title>Project Management</title>
-      <Container>
-        <div className="py-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">Project Management</h1>
-              <CampaignButton />
-            </div>
-            <Link href="/projects/add">
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Project
-              </Button>
-            </Link>
+      <div className="py-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">Project Management</h1>
+            <CampaignButton />
           </div>
-
-          <div className="mb-4">
-            <Input
-              placeholder="Search projects by name or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:max-w-sm"
-            />
-          </div>
-
-          {isLoading && !listProjectsResponse ? (
-            <LoadingSkeleton />
-          ) : (
-            <DataTable
-              columns={columns}
-              data={projects}
-              searchPlaceholder="Search projects..."
-              totalItems={totalCount}
-              pageSize={pageSize}
-              pageCount={pageCount}
-              currentPage={currentPage}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
-            />
-          )}
+          <Link href="/projects/add">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Project
+            </Button>
+          </Link>
         </div>
-      </Container>
+
+        <div className="mb-4">
+          <Input
+            placeholder="Search projects by name or description..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:max-w-sm"
+          />
+        </div>
+
+        {isLoading && !listProjectsResponse ? (
+          <LoadingSkeleton />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={projects}
+            searchPlaceholder="Search projects..."
+            totalItems={totalCount}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
+      </div>
     </>
   );
 }

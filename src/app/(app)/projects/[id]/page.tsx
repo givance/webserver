@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Container } from "@/components/ui/container";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ProjectForm } from "../_components/project-form";
@@ -97,18 +98,19 @@ export default function ProjectDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <div className="space-x-2">
-          <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? "Cancel" : "Edit"}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            Delete
-          </Button>
+    <Container>
+      <div className="py-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">{project.name}</h1>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+              {isEditing ? "Cancel" : "Edit"}
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </div>
         </div>
-      </div>
 
       <Card>
         <CardHeader>
@@ -170,7 +172,8 @@ export default function ProjectDetailsPage() {
         </CardContent>
       </Card>
 
-      {!isEditing && <ProjectDonations projectId={projectId} />}
-    </div>
+        {!isEditing && <ProjectDonations projectId={projectId} />}
+      </div>
+    </Container>
   );
 }
