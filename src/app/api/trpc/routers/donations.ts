@@ -32,7 +32,7 @@ async function authorizeDonationAccess(donationId: number, organizationId: strin
   ) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "Donation does not belong to your organization",
+      message: "You don't have permission to access this donation.",
     });
   }
   return donation;
@@ -100,7 +100,7 @@ export const donationsRouter = router({
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor not found in your organization",
+        message: "The selected donor doesn't exist in your organization.",
       });
     }
 
@@ -109,7 +109,7 @@ export const donationsRouter = router({
     if (!project || project.organizationId !== ctx.auth.user.organizationId) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Project not found in your organization",
+        message: "The selected project doesn't exist in your organization.",
       });
     }
 
@@ -119,7 +119,7 @@ export const donationsRouter = router({
       if (e instanceof Error && e.message.includes("Ensure donor and project exist")) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: e.message,
+          message: "Unable to create donation. Please verify the donor and project selections.",
         });
       }
       throw e;
@@ -136,7 +136,7 @@ export const donationsRouter = router({
       if (!donor) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "New donor not found in your organization",
+          message: "The new donor you selected doesn't exist in your organization.",
         });
       }
     }
@@ -146,7 +146,7 @@ export const donationsRouter = router({
       if (!project || project.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "New project not found in your organization",
+          message: "The new project you selected doesn't exist in your organization.",
         });
       }
     }
@@ -156,7 +156,7 @@ export const donationsRouter = router({
     if (!updated) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donation not found",
+        message: "The donation you're looking for doesn't exist or has been deleted.",
       });
     }
     return updated;
@@ -171,7 +171,7 @@ export const donationsRouter = router({
     } catch {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Could not delete donation",
+        message: "Failed to delete the donation. Please try again.",
       });
     }
   }),
@@ -200,7 +200,7 @@ export const donationsRouter = router({
     if (!donor) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor not found in your organization",
+        message: "The selected donor doesn't exist in your organization.",
       });
     }
 

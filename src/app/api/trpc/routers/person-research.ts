@@ -19,7 +19,7 @@ async function generateDonorResearchTopic(donorId: number, organizationId: strin
   if (!donor) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: "Donor not found in your organization",
+      message: "The donor you're trying to research doesn't exist in your organization.",
     });
   }
 
@@ -28,7 +28,7 @@ async function generateDonorResearchTopic(donorId: number, organizationId: strin
   if (!organization) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: "Organization not found",
+      message: "Your organization information could not be found.",
     });
   }
 
@@ -94,7 +94,7 @@ export const personResearchRouter = router({
         logger.warn(`[Person Research API] User ${user.id} attempted research without organization`);
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Organization membership required for person research",
+          message: "You must be part of an organization to conduct research.",
         });
       }
 

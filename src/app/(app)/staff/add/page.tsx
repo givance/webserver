@@ -164,9 +164,6 @@ export default function AddStaffPage() {
         router.push("/staff");
       } else {
         // This case should rarely happen, but we need to handle it
-        const errorMessage = "Failed to create staff member - no result returned from server";
-        setError(errorMessage);
-        toast.error(errorMessage);
         console.error("Staff creation failed: No result returned");
       }
     } catch (err: any) {
@@ -199,7 +196,7 @@ export default function AddStaffPage() {
       }
 
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Don't show toast here - global error handler already shows it
     }
   };
 

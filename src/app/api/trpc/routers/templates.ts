@@ -57,7 +57,7 @@ export const templatesRouter = router({
       logger.error(`Failed to create template: ${error instanceof Error ? error.message : String(error)}`);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to create template",
+        message: "Unable to create the template. Please try again.",
       });
     }
   }),
@@ -77,14 +77,14 @@ export const templatesRouter = router({
       if (!existingTemplate) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Template not found",
+          message: "The template you're trying to update doesn't exist.",
         });
       }
 
       if (existingTemplate.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have permission to update this template",
+          message: "You can only update templates from your own organization.",
         });
       }
 
@@ -107,7 +107,7 @@ export const templatesRouter = router({
       logger.error(`Failed to update template: ${error instanceof Error ? error.message : String(error)}`);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update template",
+        message: "Unable to update the template. Please try again.",
       });
     }
   }),
@@ -127,14 +127,14 @@ export const templatesRouter = router({
       if (!existingTemplate) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Template not found",
+          message: "The template you're trying to update doesn't exist.",
         });
       }
 
       if (existingTemplate.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have permission to delete this template",
+          message: "You can only delete templates from your own organization.",
         });
       }
 
@@ -147,7 +147,7 @@ export const templatesRouter = router({
       logger.error(`Failed to delete template: ${error instanceof Error ? error.message : String(error)}`);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to delete template",
+        message: "Unable to delete the template. Please try again.",
       });
     }
   }),
@@ -166,7 +166,7 @@ export const templatesRouter = router({
       if (!template) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Template not found",
+          message: "The template you're trying to update doesn't exist.",
         });
       }
 
@@ -176,7 +176,7 @@ export const templatesRouter = router({
       logger.error(`Failed to get template: ${error instanceof Error ? error.message : String(error)}`);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get template",
+        message: "Unable to retrieve the template. Please try again.",
       });
     }
   }),

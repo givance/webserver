@@ -117,7 +117,7 @@ export const listsRouter = router({
       if (error instanceof Error && error.message.includes("unique constraint")) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: "A list with this name already exists in your organization",
+          message: `A list named "${input.name}" already exists. Please choose a different name.`,
         });
       }
       throw error;
@@ -135,7 +135,7 @@ export const listsRouter = router({
     if (!list) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor list not found",
+        message: "The donor list you're looking for doesn't exist or has been deleted.",
       });
     }
     return list;
@@ -152,7 +152,7 @@ export const listsRouter = router({
     if (!list) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor list not found",
+        message: "The donor list you're looking for doesn't exist or has been deleted.",
       });
     }
     return list;
@@ -169,7 +169,7 @@ export const listsRouter = router({
     if (!list) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor list not found",
+        message: "The donor list you're looking for doesn't exist or has been deleted.",
       });
     }
     return list;
@@ -215,7 +215,7 @@ export const listsRouter = router({
       if (error instanceof Error && error.message.includes("unique constraint")) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: "A list with this name already exists in your organization",
+          message: updateData.name ? `A list named "${updateData.name}" already exists. Please choose a different name.` : "A list with this name already exists. Please choose a different name.",
         });
       }
       throw error;
@@ -234,7 +234,7 @@ export const listsRouter = router({
     if (!result.listDeleted) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Donor list not found",
+        message: "The donor list you're looking for doesn't exist or has been deleted.",
       });
     }
     return result;
@@ -256,12 +256,14 @@ export const listsRouter = router({
         if (error.message.includes("not found")) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: error.message,
+            message: "The list or one of the donors you're trying to add doesn't exist.",
           });
         }
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: error.message,
+          message: error.message.includes("already") 
+            ? "Some donors are already in this list."
+            : "Unable to add donors to the list. Please check your selection.",
         });
       }
       throw error;

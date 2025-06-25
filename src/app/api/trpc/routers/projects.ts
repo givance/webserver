@@ -63,7 +63,7 @@ export const projectsRouter = router({
     if (!project) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Project not found",
+        message: "The project you're looking for doesn't exist or has been deleted",
       });
     }
     return project;
@@ -79,10 +79,13 @@ export const projectsRouter = router({
       if (error instanceof Error && error.message.includes("already exists")) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: error.message,
+          message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
         });
       }
-      throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create project. Please try again.",
+      });
     }
   }),
 
@@ -92,7 +95,7 @@ export const projectsRouter = router({
     if (!updated) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Project not found",
+        message: "Unable to update. The project doesn't exist or has been deleted.",
       });
     }
     return updated;
@@ -104,11 +107,14 @@ export const projectsRouter = router({
     } catch (error) {
       if (error instanceof Error && error.message.includes("linked to other records")) {
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Cannot delete project as it is linked to other records",
+          code: "CONFLICT",
+          message: "This project cannot be deleted because it has associated donations or other records. Please remove those associations first.",
         });
       }
-      throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to delete the project. Please try again.",
+      });
     }
   }),
 
