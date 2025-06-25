@@ -351,17 +351,17 @@ export const generateBulkEmailsTask = task({
           // Add results to the main array (thread-safe since we're awaiting each batch)
           triggerLogger.info(
             `[DEBUG-PUSH] Before push - singleDonorResult.emails[0] response: ${
-              singleDonorResult.emails[0]?.response ? 
-              `"${singleDonorResult.emails[0].response.substring(0, 50)}..."` : 
-              'undefined'
+              singleDonorResult.emails[0]?.response
+                ? `"${singleDonorResult.emails[0].response.substring(0, 50)}..."`
+                : "undefined"
             }`
           );
           allEmailResults.push(...singleDonorResult.emails);
           triggerLogger.info(
             `[DEBUG-PUSH] After push - allEmailResults last item response: ${
-              allEmailResults[allEmailResults.length - 1]?.response ? 
-              `"${allEmailResults[allEmailResults.length - 1].response.substring(0, 50)}..."` : 
-              'undefined'
+              allEmailResults[allEmailResults.length - 1]?.response
+                ? `"${allEmailResults[allEmailResults.length - 1].response?.substring(0, 50)}..."`
+                : "undefined"
             }`
           );
           return singleDonorResult.emails;
@@ -396,12 +396,14 @@ export const generateBulkEmailsTask = task({
       // Store generated emails in database with staff signatures automatically appended
       const emailInserts = allEmailResults.map((email) => {
         // Log the email object to debug
-        triggerLogger.info(`[DEBUG] Email object keys for donor ${email.donorId}: ${Object.keys(email).join(', ')}`);
-        triggerLogger.info(`[DEBUG] Email object for donor ${email.donorId}: ${JSON.stringify({ 
-          hasResponse: !!email.response, 
-          responseLength: email.response?.length || 0,
-          responsePreview: email.response?.substring(0, 100) 
-        })}`);
+        triggerLogger.info(`[DEBUG] Email object keys for donor ${email.donorId}: ${Object.keys(email).join(", ")}`);
+        triggerLogger.info(
+          `[DEBUG] Email object for donor ${email.donorId}: ${JSON.stringify({
+            hasResponse: !!email.response,
+            responseLength: email.response?.length || 0,
+            responsePreview: email.response?.substring(0, 100),
+          })}`
+        );
         // Find the donor to get their assigned staff info
         const donor = donorsToGenerate.find((d) => d.id === email.donorId);
         const assignedStaff = donor?.assignedStaff;
@@ -458,10 +460,12 @@ export const generateBulkEmailsTask = task({
         }
 
         // Append signature to the structured content
+        // Provide fallback for undefined structuredContent
+        const structuredContent = email.structuredContent || [];
+
         // Check if we need spacing before signature
         const needsSpacing =
-          email.structuredContent.length > 0 &&
-          email.structuredContent[email.structuredContent.length - 1].addNewlineAfter === false;
+          structuredContent.length > 0 && structuredContent[structuredContent.length - 1].addNewlineAfter === false;
 
         const signaturePieces = needsSpacing
           ? [
@@ -484,7 +488,7 @@ export const generateBulkEmailsTask = task({
               },
             ];
 
-        const enhancedStructuredContent = [...email.structuredContent, ...signaturePieces];
+        const enhancedStructuredContent = [...structuredContent, ...signaturePieces];
 
         const insertData = {
           sessionId,
@@ -504,13 +508,15 @@ export const generateBulkEmailsTask = task({
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        
+
         // Log what we're inserting
-        triggerLogger.info(`[DEBUG] Insert data for donor ${email.donorId}: ${JSON.stringify({
-          hasResponse: !!insertData.response,
-          responseLength: insertData.response?.length || 0
-        })}`);
-        
+        triggerLogger.info(
+          `[DEBUG] Insert data for donor ${email.donorId}: ${JSON.stringify({
+            hasResponse: !!insertData.response,
+            responseLength: insertData.response?.length || 0,
+          })}`
+        );
+
         return insertData;
       });
 

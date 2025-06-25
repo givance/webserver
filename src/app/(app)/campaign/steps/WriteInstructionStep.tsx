@@ -581,7 +581,6 @@ export function WriteInstructionStep({
       saveGeneratedEmail,
       saveChatHistory,
       currentSignature,
-      primaryStaff,
     ]
   );
 
@@ -765,7 +764,6 @@ export function WriteInstructionStep({
     saveGeneratedEmail,
     sessionId,
     emailStatuses,
-    primaryStaff,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history

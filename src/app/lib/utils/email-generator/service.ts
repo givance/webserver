@@ -229,14 +229,16 @@ export class EmailGenerationService implements EmailGeneratorTool {
         response: z
           .string()
           .min(1)
-          .describe("A concise summary for the user highlighting what was accomplished, key donor insights utilized, and any important context that influenced the email"),
+          .describe(
+            "A concise summary for the user highlighting what was accomplished, key donor insights utilized, and any important context that influenced the email"
+          ),
       });
 
       logger.info(
         `[EmailGenerationService.generateDonorEmail] NEW SCHEMA DEFINED - Using schema with fields: subject, reasoning, emailContent, response`
       );
 
-      let validatedResponse: z.infer<typeof emailSchema>;
+      let validatedResponse: z.infer<typeof emailSchema> | undefined;
       let attempt = 1;
       const maxAttempts = 2;
 
@@ -265,7 +267,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
           );
           logger.info(
             `[EmailGenerationService.generateDonorEmail] AI RESPONSE ANALYSIS - hasSubject: ${!!result.object
-              .subject}, hasReasoning: ${!!result.object.reasoning}, hasEmailContent: ${!!result.object.emailContent}, hasResponse: ${!!result.object.response}`
+              .subject}, hasReasoning: ${!!result.object.reasoning}, hasEmailContent: ${!!result.object
+              .emailContent}, hasResponse: ${!!result.object.response}`
           );
           logger.info(
             `[EmailGenerationService.generateDonorEmail] AI RESPONSE FIELD LENGTHS - subject: ${
@@ -362,7 +365,9 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
       // Debug log to verify response field
       logger.info(
-        `[DEBUG-RESPONSE] About to return email for donor ${donor.id} with response: "${validatedResponse.response.substring(0, 100)}..."`
+        `[DEBUG-RESPONSE] About to return email for donor ${
+          donor.id
+        } with response: "${validatedResponse.response.substring(0, 100)}..."`
       );
 
       return {
