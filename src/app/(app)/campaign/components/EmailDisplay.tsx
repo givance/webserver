@@ -241,13 +241,13 @@ export function EmailDisplay({
   const { getEmailStatus } = useCommunications();
 
   // Determine which format to use
-  const isNewFormat = emailContent !== undefined;
+  const isNewFormat = emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
   const isLegacyFormat = content !== undefined && content.length > 0;
 
   // Get email status to check if sent - only query if emailId exists
   const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
 
-  // For preview mode, we need to fetch signature separately (only for legacy format)
+  // For legacy format, we may need to fetch signature separately
   const displayContent = isPreviewMode ? previewContent : content || [];
   const { data: signatureData } = trpc.emailCampaigns.getEmailWithSignature.useQuery(
     {
@@ -255,15 +255,15 @@ export function EmailDisplay({
       structuredContent: displayContent,
     },
     {
-      enabled: isPreviewMode && !!donorId && displayContent.length > 0 && isLegacyFormat,
+      enabled: !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat,
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     }
   );
 
-  // Use signature-appended content for preview mode in legacy format, otherwise use provided content
+  // Use signature-appended content for legacy format when available, otherwise use provided content
   const contentWithSignature =
-    isPreviewMode && signatureData && isLegacyFormat ? signatureData.structuredContent : displayContent;
+    signatureData && isLegacyFormat && !isNewFormat ? signatureData.structuredContent : displayContent;
 
   return (
     <div className="space-y-4">
