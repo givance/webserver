@@ -30,6 +30,7 @@ import { ArrowUpDown, MoreHorizontal, Star, Trash2, Edit, Save, X } from "lucide
 import { InlineTextEdit } from "@/components/ui/inline-edit";
 import Link from "next/link";
 import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export type PredictedAction = {
   type: string;
@@ -207,6 +208,28 @@ export const getColumns = (
   staffMembers: StaffMember[],
   handleUpdateDonorStaff: (donorId: string, staffId: string | null) => Promise<void>
 ): ColumnDef<Donor>[] => [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "name",
     header: ({ column }: { column: Column<Donor> }) => {

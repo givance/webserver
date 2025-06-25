@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, Edit, ArrowLeft, UserMinus } from "lucide-react";
+import { Plus, Users, Edit, ArrowLeft, UserMinus, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { useDonors } from "@/app/hooks/use-donors";
@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -35,6 +36,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { toast } from "sonner";
 
 // Type for list member display
 type ListMember = {
@@ -228,8 +233,11 @@ function RemoveDonorButton({ listId, donorId, donorName }: { listId: number; don
 export default function ListDetailPage() {
   const params = useParams();
   const listId = Number(params.id);
+  const [isBulkStaffDialogOpen, setIsBulkStaffDialogOpen] = useState(false);
+  const [selectedBulkStaffId, setSelectedBulkStaffId] = useState<string>("");
 
-  const { getDonorListWithMembersQuery } = useLists();
+  const { getDonorListWithMembersQuery, bulkUpdateMembersStaff, isBulkUpdatingStaff } = useLists();
+  const { staffMembers } = useStaffMembers();
   const { data: list, isLoading, error } = getDonorListWithMembersQuery(listId);
 
   // Transform list members for display
@@ -244,6 +252,24 @@ export default function ListDetailPage() {
       })) || []
     );
   }, [list]);
+
+  // Handler for bulk updating staff assignment for all list members
+  const handleBulkUpdateStaff = async () => {
+    if (!selectedBulkStaffId) {
+      toast.error("Please select a staff member");
+      return;
+    }
+
+    const staffId = selectedBulkStaffId === "unassigned" ? null : parseInt(selectedBulkStaffId);
+    
+    try {
+      await bulkUpdateMembersStaff(listId, staffId);
+      setIsBulkStaffDialogOpen(false);
+      setSelectedBulkStaffId("");
+    } catch (error) {
+      console.error("Failed to bulk update staff:", error);
+    }
+  };
 
   // Define columns for the members table
   const columns: ColumnDef<ListMember>[] = useMemo(
@@ -322,6 +348,12 @@ export default function ListDetailPage() {
           </div>
         </div>
         <div className="flex space-x-2">
+          {members.length > 0 && (
+            <Button onClick={() => setIsBulkStaffDialogOpen(true)} variant="outline" className="flex items-center gap-2">
+              <Users2 className="w-4 h-4" />
+              Assign Staff to All ({members.length})
+            </Button>
+          )}
           <AddDonorsDialog listId={listId} listName={list.name} />
           <Link href={`/lists/${listId}/edit`}>
             <Button variant="outline">
@@ -361,6 +393,49 @@ export default function ListDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Staff Assignment Dialog */}
+      <Dialog open={isBulkStaffDialogOpen} onOpenChange={setIsBulkStaffDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Staff to All List Members</DialogTitle>
+            <DialogDescription>
+              Assign a staff member to all {members.length} member{members.length !== 1 ? "s" : ""} in this list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bulk-staff-select" className="text-right">
+                Staff Member
+              </Label>
+              <Select value={selectedBulkStaffId} onValueChange={setSelectedBulkStaffId}>
+                <SelectTrigger className="col-span-3" id="bulk-staff-select">
+                  <SelectValue placeholder="Select staff member..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {staffMembers?.map((staff) => (
+                    <SelectItem key={staff.id} value={staff.id.toString()}>
+                      {staff.firstName} {staff.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkStaffDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkUpdateStaff}
+              disabled={!selectedBulkStaffId || isBulkUpdatingStaff}
+            >
+              {isBulkUpdatingStaff ? "Assigning..." : "Assign Staff"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

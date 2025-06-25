@@ -15,6 +15,7 @@ const createProjectSchema = z.object({
   goal: z.number().optional(),
   tags: z.array(z.string()).optional(),
   organizationId: z.string(),
+  external: z.boolean().default(false),
 });
 
 const updateProjectSchema = z.object({
@@ -24,6 +25,7 @@ const updateProjectSchema = z.object({
   active: z.boolean().optional(),
   goal: z.number().optional(),
   tags: z.array(z.string()).optional(),
+  external: z.boolean().optional(),
 });
 
 const listProjectsSchema = z.object({
@@ -44,6 +46,7 @@ const projectSchema = z.object({
   active: z.boolean(),
   goal: z.number().nullable(),
   tags: z.array(z.string()).nullable(), // Based on text("tags").array()
+  external: z.boolean(),
   createdAt: z.date(), // Timestamps will be Date objects
   updatedAt: z.date(),
 });

@@ -56,16 +56,12 @@ export function EmailEditModal({
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Filter out signature pieces
-    const contentWithoutSignature = structuredContent.filter(
-      (piece) => !piece.references?.includes("signature")
-    );
-    
+    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references.includes("signature"));
+
     // Store signature pieces separately
-    const sigs = structuredContent.filter(
-      (piece) => piece.references?.includes("signature")
-    );
+    const sigs = structuredContent.filter((piece) => piece.references.includes("signature"));
     setSignaturePieces(sigs);
-    
+
     return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
       .join("")
@@ -110,12 +106,12 @@ export function EmailEditModal({
     }
 
     let structuredContent = plainTextToStructured(content);
-    
+
     // Re-append signature pieces at the end
     if (signaturePieces.length > 0) {
       structuredContent = [...structuredContent, ...signaturePieces];
     }
-    
+
     try {
       await updateEmail.mutateAsync({
         emailId,
@@ -132,7 +128,7 @@ export function EmailEditModal({
 
   const renderPreview = () => {
     let previewStructured = plainTextToStructured(content);
-    
+
     // Re-append signature pieces for preview
     if (signaturePieces.length > 0) {
       previewStructured = [...previewStructured, ...signaturePieces];
@@ -178,15 +174,15 @@ export function EmailEditModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Edit Email</DialogTitle>
           <DialogDescription>
             Edit the email content and subject for {donorName} ({donorEmail})
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <div className="flex gap-2 mb-4">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex gap-2 mb-4 flex-shrink-0">
             <Button variant={!showPreview ? "default" : "outline"} size="sm" onClick={() => setShowPreview(false)}>
               Edit
             </Button>
@@ -197,11 +193,13 @@ export function EmailEditModal({
           </div>
 
           {showPreview ? (
-            <ScrollArea className="h-[500px]">{renderPreview()}</ScrollArea>
+            <div className="flex-1 overflow-auto min-h-0">
+              <ScrollArea className="h-full">{renderPreview()}</ScrollArea>
+            </div>
           ) : (
-            <div className="space-y-4 h-[500px] flex flex-col">
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
               {/* Subject Field */}
-              <div className="space-y-2">
+              <div className="space-y-2 flex-shrink-0">
                 <Label htmlFor="subject">Subject</Label>
                 <Input
                   id="subject"
@@ -215,16 +213,16 @@ export function EmailEditModal({
               </div>
 
               {/* Content Field */}
-              <div className="space-y-2 flex-1 flex flex-col">
+              <div className="space-y-2 flex-1 flex flex-col min-h-0 mt-4">
                 <Label htmlFor="content">Email Content</Label>
                 <Textarea
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter email content... Use double line breaks to create paragraphs."
-                  className="flex-1 min-h-[300px] max-h-[400px] overflow-y-auto resize-none w-full"
+                  className="flex-1 min-h-0 resize-none w-full"
                 />
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground flex-shrink-0">
                   Tip: Use double line breaks (press Enter twice) to create separate paragraphs
                 </div>
               </div>
@@ -232,7 +230,7 @@ export function EmailEditModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

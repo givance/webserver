@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useProjects } from "@/app/hooks/use-projects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Container } from "@/components/ui/container";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ProjectForm } from "../_components/project-form";
@@ -19,7 +20,7 @@ export default function ProjectDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   // Query for project data
-  const { data: project, isLoading, error } = getProjectById({ id: projectId });
+  const { data: project, isLoading, error, refetch } = getProjectById({ id: projectId });
 
   useEffect(() => {
     if (error) {
@@ -51,6 +52,8 @@ export default function ProjectDetailsPage() {
       if (result) {
         toast.success("Project updated successfully");
         setIsEditing(false);
+        // Refetch project data to ensure UI is in sync
+        await refetch();
       } else {
         toast.error("Failed to update project");
       }
@@ -95,18 +98,19 @@ export default function ProjectDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <div className="space-x-2">
-          <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? "Cancel" : "Edit"}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            Delete
-          </Button>
+    <Container>
+      <div className="py-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">{project.name}</h1>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+              {isEditing ? "Cancel" : "Edit"}
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </div>
         </div>
-      </div>
 
       <Card>
         <CardHeader>
@@ -122,6 +126,7 @@ export default function ProjectDetailsPage() {
                 active: project.active,
                 goal: project.goal || undefined,
                 tags: project.tags || [],
+                external: project.external || false,
               }}
               onSubmit={handleUpdate}
               submitLabel="Update Project"
@@ -139,6 +144,10 @@ export default function ProjectDetailsPage() {
               <div>
                 <h3 className="font-medium">Status</h3>
                 <p className="text-muted-foreground">{project.active ? "Active" : "Inactive"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">External Donations</h3>
+                <p className="text-muted-foreground">{project.external ? "Yes (excluded from AI emails)" : "No"}</p>
               </div>
               {project.goal && (
                 <div>
@@ -163,7 +172,8 @@ export default function ProjectDetailsPage() {
         </CardContent>
       </Card>
 
-      {!isEditing && <ProjectDonations projectId={projectId} />}
-    </div>
+        {!isEditing && <ProjectDonations projectId={projectId} />}
+      </div>
+    </Container>
   );
 }

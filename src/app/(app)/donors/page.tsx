@@ -34,7 +34,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Info } from "lucide-react";
+import { Plus, Search, Info, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBulkDonorResearch } from "@/app/hooks/use-bulk-donor-research";
@@ -62,6 +62,8 @@ export default function DonorListPage() {
   const [isCreateListDialogOpen, setIsCreateListDialogOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [isSelectingAllFiltered, setIsSelectingAllFiltered] = useState(false);
+  const [isBulkStaffDialogOpen, setIsBulkStaffDialogOpen] = useState(false);
+  const [selectedBulkStaffId, setSelectedBulkStaffId] = useState<string>("");
 
   // Reset pagination state when sorting or searched term changes
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount, resetToFirstPage } =
@@ -100,7 +102,7 @@ export default function DonorListPage() {
   }, [sortField, sortDirection, onlyResearched, selectedListId, notInAnyList, selectedStaffId, setCurrentPage]);
 
 
-  const { listDonors, getMultipleDonorStats, updateDonorStaff, getAllDonorIds } =
+  const { listDonors, getMultipleDonorStats, updateDonorStaff, getAllDonorIds, bulkUpdateDonorStaff, isBulkUpdatingStaff } =
     useDonors();
   const { staffMembers } = useStaffMembers();
   const { listDonorLists, createList, addDonorsToList, isCreating, isAddingDonors } = useLists();
@@ -298,6 +300,30 @@ export default function DonorListPage() {
     } catch (error) {
       console.error("Failed to create list:", error);
       toast.error("Failed to create list");
+    }
+  };
+
+  // Handler for bulk updating staff assignment
+  const handleBulkUpdateStaff = async () => {
+    const selectedDonorIds = Object.keys(rowSelection)
+      .filter((id) => rowSelection[id])
+      .map((id) => parseInt(id));
+    
+    if (selectedDonorIds.length === 0) {
+      toast.error("Please select at least one donor");
+      return;
+    }
+
+    const staffId = selectedBulkStaffId === "unassigned" ? null : parseInt(selectedBulkStaffId);
+    
+    try {
+      await bulkUpdateDonorStaff(selectedDonorIds, staffId);
+      setIsBulkStaffDialogOpen(false);
+      setSelectedBulkStaffId("");
+      setRowSelection({});
+      setIsSelectingAllFiltered(false);
+    } catch (error) {
+      console.error("Failed to bulk update staff:", error);
     }
   };
 
@@ -590,10 +616,16 @@ export default function DonorListPage() {
             )}
           </div>
           {selectedCount > 0 && (
-            <Button onClick={() => setIsCreateListDialogOpen(true)} className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Create List from Selected ({selectedCount})
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setIsBulkStaffDialogOpen(true)} variant="outline" className="flex items-center gap-2">
+                <Users2 className="w-4 h-4" />
+                Assign Staff ({selectedCount})
+              </Button>
+              <Button onClick={() => setIsCreateListDialogOpen(true)} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Create List from Selected ({selectedCount})
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -651,6 +683,49 @@ export default function DonorListPage() {
               disabled={!newListName.trim() || isCreating || isAddingDonors}
             >
               {isCreating || isAddingDonors ? "Creating..." : "Create List"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Staff Assignment Dialog */}
+      <Dialog open={isBulkStaffDialogOpen} onOpenChange={setIsBulkStaffDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Staff to Selected Donors</DialogTitle>
+            <DialogDescription>
+              Assign a staff member to the {selectedCount} selected donor{selectedCount !== 1 ? "s" : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bulk-staff-select" className="text-right">
+                Staff Member
+              </Label>
+              <Select value={selectedBulkStaffId} onValueChange={setSelectedBulkStaffId}>
+                <SelectTrigger className="col-span-3" id="bulk-staff-select">
+                  <SelectValue placeholder="Select staff member..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {staffMembers?.map((staff) => (
+                    <SelectItem key={staff.id} value={staff.id.toString()}>
+                      {staff.firstName} {staff.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkStaffDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkUpdateStaff}
+              disabled={!selectedBulkStaffId || isBulkUpdatingStaff}
+            >
+              {isBulkUpdatingStaff ? "Assigning..." : "Assign Staff"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,6 +12,7 @@ export type Project = {
   goal: number | undefined;
   tags: string[] | undefined;
   organizationId: string;
+  external: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -23,6 +24,7 @@ export type CreateProjectInput = {
   goal?: number;
   tags?: string[];
   organizationId: string;
+  external?: boolean;
 };
 export type UpdateProjectInput = Partial<CreateProjectInput> & { id: number };
 

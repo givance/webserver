@@ -77,6 +77,7 @@ export interface GenerateEmailOptions {
   organizationName: string;
   organization: Organization | null;
   organizationWritingInstructions?: string;
+  personalWritingInstructions?: string;
   communicationHistory: RawCommunicationHistory[]; // Will be processed
   donationHistory?: DonationWithDetails[]; // Will be processed
   donorStatistics?: DonorStatistics; // Comprehensive donor statistics
@@ -151,6 +152,7 @@ export interface EmailGeneratorTool {
     organizationName: string,
     organization: Organization | null,
     organizationWritingInstructions?: string,
+    personalWritingInstructions?: string,
     communicationHistories?: Record<number, RawCommunicationThread[]>,
     donationHistories?: Record<number, DonationWithDetails[]>,
     donorStatistics?: Record<number, DonorStatistics>, // Comprehensive donor statistics

@@ -382,11 +382,11 @@ export function WriteInstructionStep({
       setAllGeneratedEmails([]);
       setReferenceContexts({});
       setSuggestedMemories([]);
-      setChatMessages((prev) => {
-        const newMessages = [...prev, { role: "user" as const, content: finalInstruction }];
-        // Note: We'll save chat history after the assistant responds
-        return newMessages;
-      });
+
+      // Create the updated chat messages that include the latest user message
+      const updatedChatMessages = [...chatMessages, { role: "user" as const, content: finalInstruction }];
+
+      setChatMessages(updatedChatMessages);
 
       // Clear the input box only if this is manual submission (not auto-generation)
       if (!instructionToSubmit) {
@@ -415,7 +415,10 @@ export function WriteInstructionStep({
           day: "numeric",
         });
 
-        // Generate emails using the hook with signature
+        console.log("finalInstruction", finalInstruction);
+        console.log("updatedChatMessages", updatedChatMessages);
+
+        // Generate emails using the hook with signature - use updatedChatMessages to include the latest user message
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
@@ -423,7 +426,7 @@ export function WriteInstructionStep({
           organizationWritingInstructions: organization.writingInstructions ?? undefined,
           previousInstruction,
           currentDate, // Pass the current date
-          chatHistory: chatMessages, // Pass the full chat history to the refinement agent
+          chatHistory: updatedChatMessages, // Pass the updated chat history that includes the latest user message
           signature: currentSignature, // Pass the selected signature
         });
 
@@ -571,6 +574,7 @@ export function WriteInstructionStep({
       saveGeneratedEmail,
       saveChatHistory,
       currentSignature,
+      primaryStaff,
     ]
   );
 
@@ -643,7 +647,7 @@ export function WriteInstructionStep({
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
         previousInstruction,
         currentDate,
-        chatHistory: chatMessages,
+        chatHistory: chatMessages, // Use current chat history as no new message is added in generate more
       });
 
       if (result && !("isAgenticFlow" in result)) {
@@ -746,25 +750,12 @@ export function WriteInstructionStep({
     saveGeneratedEmail,
     sessionId,
     emailStatuses,
+    primaryStaff,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history
   const handleRegenerateAllEmails = async (onlyUnapproved = false) => {
     if (isRegenerating || !organization) return;
-
-    const finalInstruction = previousInstruction || instruction;
-    console.log("[WriteInstructionStep] Regenerating with:", {
-      previousInstruction,
-      instruction,
-      finalInstruction,
-      onlyUnapproved,
-    });
-
-    if (!finalInstruction || finalInstruction.trim().length === 0) {
-      toast.error("No instruction available for regeneration. Please generate emails first.");
-      return;
-    }
-
     setIsRegenerating(true);
     setShowRegenerateDialog(false);
 
@@ -824,7 +815,7 @@ export function WriteInstructionStep({
 
       // Generate emails using the hook without affecting chat history
       const result = await generateEmails.mutateAsync({
-        instruction: finalInstruction,
+        instruction: "",
         donors: donorData,
         organizationName: organization.name,
         organizationWritingInstructions: organization.writingInstructions ?? undefined,
@@ -969,11 +960,11 @@ export function WriteInstructionStep({
       // 4. Set completedDonors count correctly
       const response = await launchCampaign.mutateAsync({
         campaignName: campaignName,
-        instruction: currentSessionData.finalInstruction,
+        instruction: "", // Empty instruction - chat history will be used instead
         chatHistory: currentSessionData.chatHistory,
         selectedDonorIds: selectedDonors,
         previewDonorIds: currentSessionData.previewDonorIds,
-        refinedInstruction: currentSessionData.finalInstruction,
+        refinedInstruction: "", // Empty refined instruction - chat history will be used instead
         templateId: templateId,
       });
 
@@ -1326,7 +1317,7 @@ export function WriteInstructionStep({
                               month: "long",
                               day: "numeric",
                             }),
-                            chatHistory: chatMessages,
+                            chatHistory: chatMessages, // Use current chat history for enhancement context
                             signature: currentSignature,
                           });
 

@@ -88,16 +88,12 @@ function PreviewEditModal({
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Filter out signature pieces
-    const contentWithoutSignature = structuredContent.filter(
-      (piece) => !piece.references.includes("signature")
-    );
-    
+    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references.includes("signature"));
+
     // Store signature pieces separately
-    const sigs = structuredContent.filter(
-      (piece) => piece.references.includes("signature")
-    );
+    const sigs = structuredContent.filter((piece) => piece.references.includes("signature"));
     setSignaturePieces(sigs);
-    
+
     return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
       .join("")
@@ -130,27 +126,27 @@ function PreviewEditModal({
 
   const handleSave = () => {
     let structuredContent = plainTextToStructured(content);
-    
+
     // Re-append signature pieces at the end
     if (signaturePieces.length > 0) {
       structuredContent = [...structuredContent, ...signaturePieces];
     }
-    
+
     onSave(subject, structuredContent);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Edit Email</DialogTitle>
           <DialogDescription>
             Edit the email content for {donorName} ({donorEmail})
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-hidden">
-          <div className="space-y-4 h-[500px] flex flex-col">
-            <div className="space-y-2">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <div className="space-y-2 flex-shrink-0">
               <Label htmlFor="subject">Subject</Label>
               <Input
                 id="subject"
@@ -160,20 +156,20 @@ function PreviewEditModal({
                 className="w-full"
               />
             </div>
-            <div className="space-y-2 flex-1 flex flex-col">
+            <div className="space-y-2 flex-1 flex flex-col min-h-0 mt-4">
               <Label htmlFor="content">Email Content</Label>
               <Textarea
                 id="content"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter email content..."
-                className="flex-1 min-h-[300px] max-h-[400px] overflow-y-auto resize-none w-full"
+                className="flex-1 min-h-0 resize-none w-full"
               />
-              <p className="text-xs text-muted-foreground">Use double line breaks to create paragraphs</p>
+              <p className="text-xs text-muted-foreground flex-shrink-0">Use double line breaks to create paragraphs</p>
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -260,7 +256,7 @@ export function EmailDisplay({
                 <CardTitle className="text-sm flex items-center gap-2">
                   <span>To:</span>
                   {donorId ? (
-                    <Link 
+                    <Link
                       href={`/donors/${donorId}`}
                       className="text-primary hover:underline font-medium"
                       target="_blank"
@@ -290,7 +286,12 @@ export function EmailDisplay({
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
                             <p>This staff member doesn&apos;t have a linked email account.</p>
-                            <p className="mt-1">Emails will be sent from: <span className="font-medium">{defaultStaffEmail || "the default organization email"}</span></p>
+                            <p className="mt-1">
+                              Emails will be sent from:{" "}
+                              <span className="font-medium">
+                                {defaultStaffEmail || "the default organization email"}
+                              </span>
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -342,11 +343,19 @@ export function EmailDisplay({
                   currentContent={isPreviewMode ? previewContent : content}
                   currentReferenceContexts={referenceContexts}
                   isPreviewMode={isPreviewMode}
-                  onPreviewEnhance={isPreviewMode && onPreviewEnhance && donorId ? (instruction) => onPreviewEnhance(donorId, instruction) : undefined}
-                  onEnhanced={isPreviewMode ? (newSubject, newContent) => {
-                    setPreviewSubject(newSubject);
-                    setPreviewContent(newContent);
-                  } : undefined}
+                  onPreviewEnhance={
+                    isPreviewMode && onPreviewEnhance && donorId
+                      ? (instruction) => onPreviewEnhance(donorId, instruction)
+                      : undefined
+                  }
+                  onEnhanced={
+                    isPreviewMode
+                      ? (newSubject, newContent) => {
+                          setPreviewSubject(newSubject);
+                          setPreviewContent(newContent);
+                        }
+                      : undefined
+                  }
                 />
                 <Button
                   variant="outline"

@@ -16,6 +16,8 @@ import {
 import { useState } from "react";
 import { useProjects } from "@/app/hooks/use-projects";
 import { formatCurrency } from "@/app/lib/utils/format";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 export type Project = {
   id: string;
@@ -26,7 +28,41 @@ export type Project = {
   raisedAmount: number;
   startDate: string;
   endDate: string;
+  external: boolean;
 };
+
+// ExternalToggleButton component to handle external state changes
+function ExternalToggleButton({ project }: { project: Project }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { updateProject } = useProjects();
+
+  const handleToggle = async (checked: boolean) => {
+    setIsUpdating(true);
+    try {
+      const result = await updateProject({
+        id: Number(project.id),
+        external: checked,
+      });
+      if (result) {
+        toast.success(`Project marked as ${checked ? "external" : "internal"}`);
+      } else {
+        toast.error("Failed to update project status");
+      }
+    } catch (error) {
+      toast.error("An error occurred while updating the project");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <Switch
+      checked={project.external}
+      onCheckedChange={handleToggle}
+      disabled={isUpdating}
+    />
+  );
+}
 
 // DeleteProjectButton component to handle delete with confirmation dialog
 function DeleteProjectButton({ projectId }: { projectId: string }) {
@@ -184,6 +220,15 @@ export const columns: ColumnDef<Project>[] = [
     meta: {
       enableHiding: true,
     },
+  },
+  {
+    accessorKey: "external",
+    header: "External",
+    cell: ({ row }: { row: Row<Project> }) => (
+      <div className="flex items-center justify-center">
+        <ExternalToggleButton project={row.original} />
+      </div>
+    ),
   },
   {
     id: "actions",

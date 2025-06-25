@@ -151,6 +151,7 @@ export const projects = pgTable("projects", {
   active: boolean("active").default(true).notNull(),
   goal: integer("goal"), // Amount in cents
   tags: text("tags").array(), // Array of tags
+  external: boolean("external").default(false).notNull(), // Whether this project represents external donations
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

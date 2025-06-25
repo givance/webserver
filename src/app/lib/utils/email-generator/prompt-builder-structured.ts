@@ -60,6 +60,7 @@ export function buildStructuredSystemPrompt(
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
+  personalWritingInstructions?: string,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
   currentDate?: string
@@ -77,6 +78,7 @@ Organization: ${organizationName}
 ${organization?.description ? `Organization Description: ${organization.description}\n` : ""}
 ${dateContext}
 ${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
+${personalWritingInstructions ? `Personal Writing Guidelines: ${personalWritingInstructions}` : ""}
 
 ${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
 ${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}
@@ -99,7 +101,7 @@ IMPORTANT INSTRUCTIONS:
 - DO NOT use "-", "--" or "—" in the email ever.
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
 - DO NOT include footnote numbers, superscript numbers, or any reference markers in the email text
-- PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed.
+- PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed. Personal Writing Guidelines should take precedence over Organization Writing Guidelines if there's any conflict.
 - Try to be as specific as possible, avoid general statements.
 - Do not mention small amount donations unless the user has specifically asked for it. Do not say "small" or "small amount" in the email.
 - DONATION CONTEXT: When referencing donations, use "donation-context" as the reference ID which contains ALL donation information. This allows you to mention multiple donations, specific amounts, dates, and projects from the donor's complete giving history.
@@ -235,6 +237,7 @@ export function buildStructuredEmailPrompt(
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
+  personalWritingInstructions?: string,
   communicationHistoryInput: RawCommunicationThread[] = [],
   donationHistoryInput: DonationWithDetails[] = [],
   donorStatistics?: DonorStatistics,
@@ -251,6 +254,7 @@ export function buildStructuredEmailPrompt(
     organizationName,
     organization,
     organizationWritingInstructions,
+    personalWritingInstructions,
     personalMemories,
     organizationalMemories,
     currentDate

@@ -344,6 +344,13 @@
       "when": 1750685784360,
       "tag": "0048_daily_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1750780824543,
+      "tag": "0049_solid_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

@@ -61,6 +61,8 @@ const generateBulkEmailsPayloadSchema = z.object({
     })
   ),
   templateId: z.number().optional(),
+  organizationWritingInstructions: z.string().optional(),
+  staffWritingInstructions: z.string().optional(),
 });
 
 type GenerateBulkEmailsPayload = z.infer<typeof generateBulkEmailsPayloadSchema>;
@@ -81,6 +83,8 @@ export const generateBulkEmailsTask = task({
       previewDonorIds,
       chatHistory,
       templateId,
+      organizationWritingInstructions,
+      staffWritingInstructions,
     } = payload;
 
     triggerLogger.info(
@@ -149,7 +153,7 @@ export const generateBulkEmailsTask = task({
           .set({
             status: EmailGenerationSessionStatus.COMPLETED,
             completedDonors: selectedDonorIds.length,
-            refinedInstruction: refinedInstruction || instruction,
+            refinedInstruction: "", // Empty since we use chat history instead
             completedAt: new Date(),
             updatedAt: new Date(),
           })
@@ -160,7 +164,7 @@ export const generateBulkEmailsTask = task({
           sessionId,
           emailsGenerated: 0,
           message: "All emails were already generated",
-          refinedInstruction: refinedInstruction || instruction,
+          refinedInstruction: "", // Empty since we use chat history instead
         };
       }
 
@@ -272,34 +276,63 @@ export const generateBulkEmailsTask = task({
         `Generating emails for ${donorInfos.length} donors with concurrency limit of ${MAX_CONCURRENCY}`
       );
 
+      // Get primary staff for fallback writing instructions
+      const primaryStaffForWriting = await db.query.staff.findFirst({
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
+      });
+
       // Generate emails in batches with concurrency limiting
-      const emailService = new EmailGenerationService();
+      const { generateSmartDonorEmails } = await import("@/app/lib/utils/email-generator");
       const allEmailResults: any[] = [];
 
       // Process donors in batches for email generation
       await processConcurrently(
         donorInfos,
         async (donorInfo) => {
-          // Generate email for single donor
-          const singleDonorResults = await emailService.generateEmails(
+          // Find the corresponding full donor data to get assigned staff
+          const fullDonor = donorsToGenerate.find((d) => d.id === donorInfo.id);
+          const assignedStaff = fullDonor?.assignedStaff;
+
+          // Determine the appropriate staff writing instructions for this donor
+          let donorStaffWritingInstructions: string | undefined;
+          if (assignedStaff?.writingInstructions && assignedStaff.writingInstructions.trim()) {
+            donorStaffWritingInstructions = assignedStaff.writingInstructions;
+            triggerLogger.info(
+              `Using assigned staff writing instructions for donor ${donorInfo.id} from ${assignedStaff.firstName} ${assignedStaff.lastName}`
+            );
+          } else if (primaryStaffForWriting?.writingInstructions && primaryStaffForWriting.writingInstructions.trim()) {
+            donorStaffWritingInstructions = primaryStaffForWriting.writingInstructions;
+            triggerLogger.info(
+              `Using primary staff writing instructions for donor ${donorInfo.id} from ${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`
+            );
+          } else {
+            donorStaffWritingInstructions = undefined;
+            triggerLogger.info(`No staff writing instructions available for donor ${donorInfo.id}`);
+          }
+
+          // Generate email for single donor using generateSmartDonorEmails directly
+          const singleDonorResult = await generateSmartDonorEmails(
             [donorInfo], // Single donor
-            refinedInstruction || instruction,
+            "", // Empty instruction - chat history will be used instead
             organization.name,
             emailGeneratorOrg,
-            organization.writingInstructions ?? undefined,
-            communicationHistories,
-            donationHistoriesMap,
+            organizationWritingInstructions,
+            donorStaffWritingInstructions, // Pass donor-specific staff writing instructions
+            { [donorInfo.id]: communicationHistories[donorInfo.id] || [] },
+            { [donorInfo.id]: donationHistoriesMap[donorInfo.id] || [] },
             donorStatistics, // Pass donor statistics
             personResearchResults, // Pass person research results
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default
-            user.emailSignature ?? undefined // Pass user's email signature
+            user.emailSignature ?? undefined, // Pass user's email signature
+            undefined, // previousInstruction - not needed with chat history
+            chatHistory // Pass the chat history to handle conversation context
           );
 
           // Add results to the main array (thread-safe since we're awaiting each batch)
-          allEmailResults.push(...singleDonorResults);
-          return singleDonorResults;
+          allEmailResults.push(...singleDonorResult.emails);
+          return singleDonorResult.emails;
         },
         MAX_CONCURRENCY
       );
@@ -438,7 +471,7 @@ export const generateBulkEmailsTask = task({
         .set({
           status: EmailGenerationSessionStatus.COMPLETED,
           completedDonors: totalCompletedDonors,
-          refinedInstruction: refinedInstruction || instruction,
+          refinedInstruction: "", // Empty since we use chat history instead
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -450,7 +483,7 @@ export const generateBulkEmailsTask = task({
         status: "success",
         sessionId,
         emailsGenerated: allEmailResults.length,
-        refinedInstruction: refinedInstruction || instruction,
+        refinedInstruction: "", // Empty since we use chat history instead
       };
     } catch (error) {
       triggerLogger.error(

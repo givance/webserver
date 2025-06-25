@@ -19,7 +19,6 @@ const generateEmailsSchema = z.object({
   ),
   organizationName: z.string(),
   organizationWritingInstructions: z.string().optional(),
-  staffWritingInstructions: z.string().optional(), // New field for staff-specific instructions
   previousInstruction: z.string().optional(),
   currentDate: z.string().optional(),
   chatHistory: z
@@ -50,7 +49,7 @@ const createSessionSchema = z.object({
 
 const launchCampaignSchema = z.object({
   campaignName: z.string().min(1).max(255),
-  instruction: z.string().min(1),
+  instruction: z.string(),
   chatHistory: z.array(
     z.object({
       role: z.enum(["user", "assistant"]),
@@ -461,8 +460,14 @@ export const emailCampaignsRouter = router({
         maxGapMinutes: z.number().min(0).optional(),
         timezone: z.string().optional(),
         allowedDays: z.array(z.number().min(0).max(6)).min(1).optional(),
-        allowedStartTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-        allowedEndTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+        allowedStartTime: z
+          .string()
+          .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+          .optional(),
+        allowedEndTime: z
+          .string()
+          .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+          .optional(),
         allowedTimezone: z.string().optional(),
         rescheduleExisting: z.boolean().optional(),
       })

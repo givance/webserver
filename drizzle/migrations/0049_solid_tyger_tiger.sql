@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "external" boolean DEFAULT false NOT NULL;
