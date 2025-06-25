@@ -8,6 +8,8 @@ type StaffOutput = inferProcedureOutput<AppRouter["staff"]["getById"]>;
 type ListStaffInput = inferProcedureInput<AppRouter["staff"]["list"]>;
 type CreateStaffInput = inferProcedureInput<AppRouter["staff"]["create"]>;
 type UpdateStaffInput = inferProcedureInput<AppRouter["staff"]["update"]>;
+type CreateEmailExampleInput = inferProcedureInput<AppRouter["staff"]["createEmailExample"]>;
+type UpdateEmailExampleInput = inferProcedureInput<AppRouter["staff"]["updateEmailExample"]>;
 
 /**
  * Hook for managing staff members through the tRPC API
@@ -21,6 +23,8 @@ export function useStaff() {
   const getStaffById = trpc.staff.getById.useQuery;
   const getAssignedDonors = trpc.staff.getAssignedDonors.useQuery;
   const getPrimaryStaff = trpc.staff.getPrimary.useQuery;
+  const listEmailExamples = trpc.staff.listEmailExamples.useQuery;
+  const getEmailExample = trpc.staff.getEmailExample.useQuery;
 
   // Mutation hooks
   const createMutation = trpc.staff.create.useMutation({
@@ -58,6 +62,25 @@ export function useStaff() {
     onSuccess: () => {
       utils.staff.list.invalidate();
       utils.staff.getPrimary.invalidate();
+    },
+  });
+
+  // Email example mutations
+  const createEmailExampleMutation = trpc.staff.createEmailExample.useMutation({
+    onSuccess: (_, variables) => {
+      utils.staff.listEmailExamples.invalidate({ id: variables.staffId });
+    },
+  });
+
+  const updateEmailExampleMutation = trpc.staff.updateEmailExample.useMutation({
+    onSuccess: () => {
+      utils.staff.listEmailExamples.invalidate();
+    },
+  });
+
+  const deleteEmailExampleMutation = trpc.staff.deleteEmailExample.useMutation({
+    onSuccess: () => {
+      utils.staff.listEmailExamples.invalidate();
     },
   });
 
@@ -147,12 +170,57 @@ export function useStaff() {
     }
   };
 
+  /**
+   * Create a new email example for a staff member
+   * @param input The email example data to create
+   * @returns The created email example or null if creation failed
+   */
+  const createEmailExample = async (input: CreateEmailExampleInput) => {
+    try {
+      return await createEmailExampleMutation.mutateAsync(input);
+    } catch (error) {
+      console.error("Failed to create email example:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Update an existing email example
+   * @param input The email example data to update
+   * @returns The updated email example or null if update failed
+   */
+  const updateEmailExample = async (input: UpdateEmailExampleInput) => {
+    try {
+      return await updateEmailExampleMutation.mutateAsync(input);
+    } catch (error) {
+      console.error("Failed to update email example:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Delete an email example by ID
+   * @param id The ID of the email example to delete
+   * @returns true if deletion was successful, false otherwise
+   */
+  const deleteEmailExample = async (id: number) => {
+    try {
+      await deleteEmailExampleMutation.mutateAsync({ id });
+      return true;
+    } catch (error) {
+      console.error("Failed to delete email example:", error);
+      return false;
+    }
+  };
+
   return {
     // Query functions
     listStaff,
     getStaffById,
     getAssignedDonors,
     getPrimaryStaff,
+    listEmailExamples,
+    getEmailExample,
 
     // Mutation functions
     createStaff,
@@ -161,6 +229,9 @@ export function useStaff() {
     disconnectStaffGmail,
     setPrimary,
     unsetPrimary,
+    createEmailExample,
+    updateEmailExample,
+    deleteEmailExample,
 
     // Loading states
     isCreating: createMutation.isPending,
@@ -169,6 +240,9 @@ export function useStaff() {
     isDisconnecting: disconnectStaffGmailMutation.isPending,
     isSettingPrimary: setPrimaryMutation.isPending,
     isUnsettingPrimary: unsetPrimaryMutation.isPending,
+    isCreatingEmailExample: createEmailExampleMutation.isPending,
+    isUpdatingEmailExample: updateEmailExampleMutation.isPending,
+    isDeletingEmailExample: deleteEmailExampleMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,

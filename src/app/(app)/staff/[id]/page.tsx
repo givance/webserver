@@ -33,6 +33,7 @@ import {
   UserCheck,
   Users,
   X,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -41,6 +42,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { usePagination } from "@/app/hooks/use-pagination";
+import { EmailExampleDialog } from "./components/EmailExampleDialog";
 
 /**
  * Form schema for staff editing
@@ -94,11 +96,25 @@ export default function StaffDetailPage() {
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
   const [writingInstructions, setWritingInstructions] = useState("");
+  const [isEmailExampleDialogOpen, setIsEmailExampleDialogOpen] = useState(false);
+  const [editingEmailExample, setEditingEmailExample] = useState<any>(null);
 
   // Use pagination hook for donors table
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
 
-  const { getStaffById, getAssignedDonors, updateStaff, isUpdating } = useStaff();
+  const { 
+    getStaffById, 
+    getAssignedDonors, 
+    updateStaff, 
+    isUpdating,
+    listEmailExamples,
+    createEmailExample,
+    updateEmailExample,
+    deleteEmailExample,
+    isCreatingEmailExample,
+    isUpdatingEmailExample,
+    isDeletingEmailExample,
+  } = useStaff();
   const {
     getStaffPhoneNumbers,
     getActivityLog,
@@ -151,6 +167,13 @@ export default function StaffDetailPage() {
     isLoading: isDonorsLoading,
     error: donorsError,
   } = getAssignedDonors({ id: staffId }, { enabled: !!staffId });
+
+  // Fetch email examples
+  const {
+    data: emailExamplesData,
+    isLoading: isEmailExamplesLoading,
+    refetch: refetchEmailExamples,
+  } = listEmailExamples({ id: staffId }, { enabled: !!staffId });
 
   // Fetch WhatsApp data
   const { data: phoneNumbersData, isLoading: isPhoneNumbersLoading } = getStaffPhoneNumbers(staffId);
@@ -348,6 +371,81 @@ export default function StaffDetailPage() {
     }
   };
 
+  /**
+   * Handle creating or updating an email example
+   */
+  const handleEmailExampleSubmit = async (data: any) => {
+    try {
+      if (editingEmailExample) {
+        // Update existing example
+        const result = await updateEmailExample({
+          id: editingEmailExample.id,
+          ...data,
+        });
+        if (result) {
+          toast.success("Email example updated successfully");
+          await refetchEmailExamples();
+          setEditingEmailExample(null);
+        } else {
+          toast.error("Failed to update email example");
+        }
+      } else {
+        // Create new example
+        const result = await createEmailExample({
+          staffId,
+          ...data,
+        });
+        if (result) {
+          toast.success("Email example created successfully");
+          await refetchEmailExamples();
+        } else {
+          toast.error("Failed to create email example");
+        }
+      }
+    } catch (error) {
+      toast.error(editingEmailExample ? "Failed to update email example" : "Failed to create email example");
+      console.error("Error saving email example:", error);
+    }
+  };
+
+  /**
+   * Handle deleting an email example
+   */
+  const handleDeleteEmailExample = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this email example?")) {
+      return;
+    }
+
+    try {
+      const result = await deleteEmailExample(id);
+      if (result) {
+        toast.success("Email example deleted successfully");
+        await refetchEmailExamples();
+      } else {
+        toast.error("Failed to delete email example");
+      }
+    } catch (error) {
+      toast.error("Failed to delete email example");
+      console.error("Error deleting email example:", error);
+    }
+  };
+
+  /**
+   * Handle editing an email example
+   */
+  const handleEditEmailExample = (example: any) => {
+    setEditingEmailExample(example);
+    setIsEmailExampleDialogOpen(true);
+  };
+
+  /**
+   * Handle adding a new email example
+   */
+  const handleAddEmailExample = () => {
+    setEditingEmailExample(null);
+    setIsEmailExampleDialogOpen(true);
+  };
+
   // Loading state
   if (isStaffLoading) {
     return (
@@ -475,6 +573,9 @@ export default function StaffDetailPage() {
         <TabsList>
           <TabsTrigger value="info">Staff Information</TabsTrigger>
           <TabsTrigger value="signature">Email Signature</TabsTrigger>
+          <TabsTrigger value="examples">
+            Email Examples {emailExamplesData?.count ? `(${emailExamplesData.count})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="email">Email Account</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="donors">Assigned Donors ({donorCount})</TabsTrigger>
@@ -638,6 +739,90 @@ export default function StaffDetailPage() {
                       <p className="text-sm">Click &quot;Edit Signature&quot; to add a custom signature</p>
                     </div>
                   )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Email Examples Tab */}
+        <TabsContent value="examples">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Email Examples</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Email examples that will be used as references for AI-generated emails
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleAddEmailExample}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Example
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isEmailExamplesLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="border rounded-lg p-4">
+                      <Skeleton className="h-6 w-3/4 mb-2" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full mt-1" />
+                    </div>
+                  ))}
+                </div>
+              ) : emailExamplesData?.examples && emailExamplesData.examples.length > 0 ? (
+                <div className="space-y-4">
+                  {emailExamplesData.examples.map((example) => (
+                    <div key={example.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-lg">{example.subject}</h4>
+                          {example.category && (
+                            <Badge variant="outline" className="mt-1">
+                              {example.category.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditEmailExample(example)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteEmailExample(example.id)}
+                            disabled={isDeletingEmailExample}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-3">
+                        {example.content}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Created {new Date(example.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                  {emailExamplesData.count > 0 && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      {emailExamplesData.count} email example{emailExamplesData.count !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Mail className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p>No email examples added yet.</p>
+                  <p className="text-sm">Click &quot;Add Example&quot; to add your first email example.</p>
                 </div>
               )}
             </CardContent>
@@ -1010,6 +1195,15 @@ export default function StaffDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Email Example Dialog */}
+      <EmailExampleDialog
+        open={isEmailExampleDialogOpen}
+        onOpenChange={setIsEmailExampleDialogOpen}
+        example={editingEmailExample}
+        onSubmit={handleEmailExampleSubmit}
+        isSubmitting={isCreatingEmailExample || isUpdatingEmailExample}
+      />
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import { db } from "../db";
-import { staff, gmailOAuthTokens } from "../db/schema";
+import { staff, gmailOAuthTokens, staffEmailExamples } from "../db/schema";
 import { eq, sql, like, or, asc, desc, SQL, and, count } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Staff = InferSelectModel<typeof staff>;
 export type NewStaff = InferInsertModel<typeof staff>;
+export type StaffEmailExample = InferSelectModel<typeof staffEmailExamples>;
+export type NewStaffEmailExample = InferInsertModel<typeof staffEmailExamples>;
 
 /**
  * Retrieves a staff member by their ID and organization ID.
@@ -320,3 +322,129 @@ export async function getPrimaryStaff(organizationId: string): Promise<Staff | u
 
 // Note: Staff Gmail account management is now handled through the staffGmailRouter
 // Individual staff members authenticate their own Gmail accounts via OAuth
+
+/**
+ * Creates a new email example for a staff member.
+ * @param emailExampleData - Data for the new email example.
+ * @returns The newly created email example object.
+ */
+export async function createEmailExample(
+  emailExampleData: Omit<NewStaffEmailExample, "id" | "createdAt" | "updatedAt">
+): Promise<StaffEmailExample> {
+  try {
+    const result = await db.insert(staffEmailExamples).values(emailExampleData).returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to create email example:", error);
+    throw new Error("Could not create email example.");
+  }
+}
+
+/**
+ * Retrieves all email examples for a staff member.
+ * @param staffId - The ID of the staff member.
+ * @param organizationId - The ID of the organization.
+ * @returns An array of email example objects.
+ */
+export async function getEmailExamplesByStaffId(
+  staffId: number,
+  organizationId: string
+): Promise<StaffEmailExample[]> {
+  try {
+    const result = await db
+      .select()
+      .from(staffEmailExamples)
+      .where(and(eq(staffEmailExamples.staffId, staffId), eq(staffEmailExamples.organizationId, organizationId)))
+      .orderBy(desc(staffEmailExamples.createdAt));
+    return result;
+  } catch (error) {
+    console.error("Failed to retrieve email examples:", error);
+    throw new Error("Could not retrieve email examples.");
+  }
+}
+
+/**
+ * Retrieves a single email example by ID.
+ * @param id - The ID of the email example.
+ * @param organizationId - The ID of the organization.
+ * @returns The email example object if found, otherwise undefined.
+ */
+export async function getEmailExampleById(
+  id: number,
+  organizationId: string
+): Promise<StaffEmailExample | undefined> {
+  try {
+    const result = await db
+      .select()
+      .from(staffEmailExamples)
+      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)))
+      .limit(1);
+    return result[0];
+  } catch (error) {
+    console.error("Failed to retrieve email example by ID:", error);
+    throw new Error("Could not retrieve email example.");
+  }
+}
+
+/**
+ * Updates an existing email example.
+ * @param id - The ID of the email example to update.
+ * @param emailExampleData - Data to update for the email example.
+ * @param organizationId - The ID of the organization.
+ * @returns The updated email example object.
+ */
+export async function updateEmailExample(
+  id: number,
+  emailExampleData: Partial<Omit<NewStaffEmailExample, "id" | "staffId" | "organizationId" | "createdAt" | "updatedAt">>,
+  organizationId: string
+): Promise<StaffEmailExample | undefined> {
+  try {
+    const result = await db
+      .update(staffEmailExamples)
+      .set({ ...emailExampleData, updatedAt: sql`now()` })
+      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error("Failed to update email example:", error);
+    throw new Error("Could not update email example.");
+  }
+}
+
+/**
+ * Deletes an email example by ID.
+ * @param id - The ID of the email example to delete.
+ * @param organizationId - The ID of the organization.
+ */
+export async function deleteEmailExample(id: number, organizationId: string): Promise<void> {
+  try {
+    await db
+      .delete(staffEmailExamples)
+      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)));
+  } catch (error) {
+    console.error("Failed to delete email example:", error);
+    throw new Error("Could not delete email example.");
+  }
+}
+
+/**
+ * Counts the number of email examples for a staff member.
+ * @param staffId - The ID of the staff member.
+ * @param organizationId - The ID of the organization.
+ * @returns The count of email examples.
+ */
+export async function countEmailExamplesByStaffId(
+  staffId: number,
+  organizationId: string
+): Promise<number> {
+  try {
+    const result = await db
+      .select({ value: count() })
+      .from(staffEmailExamples)
+      .where(and(eq(staffEmailExamples.staffId, staffId), eq(staffEmailExamples.organizationId, organizationId)));
+    return result[0]?.value || 0;
+  } catch (error) {
+    console.error("Failed to count email examples:", error);
+    throw new Error("Could not count email examples.");
+  }
+}

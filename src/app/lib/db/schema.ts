@@ -383,6 +383,7 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
   whatsappPhoneNumbers: many(staffWhatsappPhoneNumbers),
   whatsappChatHistory: many(whatsappChatHistory),
   whatsappActivityLog: many(staffWhatsappActivityLog),
+  emailExamples: many(staffEmailExamples),
 }));
 
 export const communicationThreadStaffRelations = relations(communicationThreadStaff, ({ one }) => ({
@@ -1161,6 +1162,52 @@ export const staffWhatsappActivityLogRelations = relations(staffWhatsappActivity
   }),
   organization: one(organizations, {
     fields: [staffWhatsappActivityLog.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+/**
+ * Email example category enum
+ */
+export const emailExampleCategoryEnum = pgEnum("email_example_category", [
+  "donor_outreach",
+  "thank_you",
+  "follow_up",
+  "general",
+  "fundraising",
+  "event_invitation",
+  "update",
+]);
+
+/**
+ * Staff email examples table to store example emails for AI reference
+ */
+export const staffEmailExamples = pgTable("staff_email_examples", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id")
+    .references(() => staff.id, { onDelete: "cascade" })
+    .notNull(),
+  organizationId: text("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  subject: text("subject").notNull(),
+  content: text("content").notNull(),
+  category: emailExampleCategoryEnum("category").default("general"),
+  metadata: jsonb("metadata"), // Optional metadata for future use
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Relations for staff email examples
+ */
+export const staffEmailExamplesRelations = relations(staffEmailExamples, ({ one }) => ({
+  staff: one(staff, {
+    fields: [staffEmailExamples.staffId],
+    references: [staff.id],
+  }),
+  organization: one(organizations, {
+    fields: [staffEmailExamples.organizationId],
     references: [organizations.id],
   }),
 }));

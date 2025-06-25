@@ -13,6 +13,12 @@ import {
   setPrimaryStaff,
   unsetPrimaryStaff,
   getPrimaryStaff,
+  createEmailExample,
+  getEmailExamplesByStaffId,
+  getEmailExampleById,
+  updateEmailExample,
+  deleteEmailExample,
+  countEmailExamplesByStaffId,
 } from "@/app/lib/data/staff";
 import { listDonors } from "@/app/lib/data/donors";
 import { staffSchemas } from "@/app/lib/validation/schemas";
@@ -81,6 +87,39 @@ const staffSchema = z.object({
 const listStaffOutputSchema = z.object({
   staff: z.array(staffSchema), // Use the specific staff schema
   totalCount: z.number(),
+});
+
+// Email example schemas
+const emailExampleSchema = z.object({
+  id: z.number(),
+  staffId: z.number(),
+  organizationId: z.string(),
+  subject: z.string(),
+  content: z.string(),
+  category: z.enum(["donor_outreach", "thank_you", "follow_up", "general", "fundraising", "event_invitation", "update"]).nullable(),
+  metadata: z.any().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+const createEmailExampleSchema = z.object({
+  staffId: z.number(),
+  subject: z.string().min(1, "Subject is required"),
+  content: z.string().min(1, "Content is required"),
+  category: z.enum(["donor_outreach", "thank_you", "follow_up", "general", "fundraising", "event_invitation", "update"]).optional(),
+  metadata: z.any().optional(),
+});
+
+const updateEmailExampleSchema = z.object({
+  id: z.number(),
+  subject: z.string().min(1, "Subject is required").optional(),
+  content: z.string().min(1, "Content is required").optional(),
+  category: z.enum(["donor_outreach", "thank_you", "follow_up", "general", "fundraising", "event_invitation", "update"]).nullable().optional(),
+  metadata: z.any().optional(),
+});
+
+const emailExampleIdSchema = z.object({
+  id: z.number(),
 });
 
 export const staffRouter = router({
@@ -241,4 +280,88 @@ export const staffRouter = router({
 
   // Note: Staff Gmail account management is now handled through the staffGmailRouter
   // Individual staff members authenticate their own Gmail accounts via OAuth
+
+  // Email example procedures
+  createEmailExample: protectedProcedure.input(createEmailExampleSchema).mutation(async ({ input, ctx }) => {
+    // Verify staff member exists and belongs to the organization
+    const staff = await getStaffById(input.staffId, ctx.auth.user.organizationId);
+    if (!staff) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+
+    const { staffId, subject, content, category, metadata } = input;
+    return await createEmailExample({
+      staffId,
+      organizationId: ctx.auth.user.organizationId,
+      subject,
+      content,
+      category: category || "general",
+      metadata: metadata || null,
+    });
+  }),
+
+  listEmailExamples: protectedProcedure.input(staffIdSchema).query(async ({ input, ctx }) => {
+    // Verify staff member exists and belongs to the organization
+    const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
+    if (!staff) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Staff member not found",
+      });
+    }
+
+    const examples = await getEmailExamplesByStaffId(input.id, ctx.auth.user.organizationId);
+    const count = await countEmailExamplesByStaffId(input.id, ctx.auth.user.organizationId);
+    
+    return { examples, count };
+  }),
+
+  getEmailExample: protectedProcedure.input(emailExampleIdSchema).query(async ({ input, ctx }) => {
+    const example = await getEmailExampleById(input.id, ctx.auth.user.organizationId);
+    if (!example) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Email example not found",
+      });
+    }
+    return example;
+  }),
+
+  updateEmailExample: protectedProcedure.input(updateEmailExampleSchema).mutation(async ({ input, ctx }) => {
+    const { id, ...updateData } = input;
+    
+    // Verify example exists
+    const existing = await getEmailExampleById(id, ctx.auth.user.organizationId);
+    if (!existing) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Email example not found",
+      });
+    }
+
+    const updated = await updateEmailExample(id, updateData, ctx.auth.user.organizationId);
+    if (!updated) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Email example not found",
+      });
+    }
+    return updated;
+  }),
+
+  deleteEmailExample: protectedProcedure.input(emailExampleIdSchema).mutation(async ({ input, ctx }) => {
+    // Verify example exists
+    const existing = await getEmailExampleById(input.id, ctx.auth.user.organizationId);
+    if (!existing) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Email example not found",
+      });
+    }
+
+    await deleteEmailExample(input.id, ctx.auth.user.organizationId);
+  }),
 });

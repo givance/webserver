@@ -351,6 +351,13 @@
       "when": 1750780824543,
       "tag": "0049_solid_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1750868910858,
+      "tag": "0050_exotic_khan",
+      "breakpoints": true
     }
   ]
 }
