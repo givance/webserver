@@ -244,7 +244,7 @@ export class EmailGenerationService {
         userMemories,
         organizationMemories,
         currentDate,
-        input.signature || user?.emailSignature || undefined, // Use provided signature or fallback to user signature
+        undefined, // No signature passed to generation
         previousInstruction, // Pass the previous instruction to enable stateful refinement
         chatHistory // Pass the chat history to the refinement agent
       );
@@ -292,68 +292,11 @@ export class EmailGenerationService {
       ),
     };
 
-    // Get primary staff for fallback
-    const primaryStaff = await db.query.staff.findFirst({
-      where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
-    });
-
-    // Add signatures to each generated email
-    const emailsWithSignatures = result.emails.map((email) => {
-      // Find the donor to get their assigned staff info
-      const donor = fullDonorData.find((d) => d.id === email.donorId);
-      const assignedStaff = donor?.assignedStaff;
-
-      // Create the appropriate signature
-      let signature: string;
-      let signatureSource: string;
-
-      if (input.signature && input.signature.trim()) {
-        // Use provided signature from WriteInstructionStep if available
-        signature = input.signature;
-        signatureSource = "provided custom signature";
-      } else if (assignedStaff?.signature && assignedStaff.signature.trim()) {
-        // Use custom signature if it exists and is not empty
-        signature = assignedStaff.signature;
-        signatureSource = `custom signature from assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
-      } else if (assignedStaff) {
-        // Default signature format: "Best, firstname"
-        signature = `Best,\n${assignedStaff.firstName}`;
-        signatureSource = `default format for assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
-      } else if (primaryStaff?.signature && primaryStaff.signature.trim()) {
-        // Use primary staff signature if available and not empty
-        signature = primaryStaff.signature;
-        signatureSource = `custom signature from primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
-      } else if (primaryStaff) {
-        // Default signature format for primary staff: "Best, firstname"
-        signature = `Best,\n${primaryStaff.firstName}`;
-        signatureSource = `default format for primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
-      } else {
-        // Fallback to user signature if no staff assigned and no primary staff
-        signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
-        signatureSource = user?.emailSignature ? "user email signature" : "default fallback signature";
-      }
-
-      // Log signature usage for debugging
-      logger.info(`Email for donor ${donor?.displayName || donor?.firstName}: Using ${signatureSource}`);
-
-      // Append signature to the structured content
-      const enhancedStructuredContent = [
-        ...email.structuredContent,
-        {
-          piece: signature,
-          references: ["signature"], // Mark as signature content
-          addNewlineAfter: false,
-        },
-      ];
-
-      return {
-        ...email,
-        structuredContent: enhancedStructuredContent,
-      };
-    });
+    // Return emails without signatures - signatures will be appended at display/send time
+    const emailsWithoutSignatures = result.emails;
 
     // Log comprehensive token usage summary
-    logger.info(`Successfully generated ${emailsWithSignatures.length} emails for organization ${organizationId}`);
+    logger.info(`Successfully generated ${emailsWithoutSignatures.length} emails for organization ${organizationId}`);
 
     logger.info(
       `Token usage summary for organization ${organizationId} email generation: Instruction Refinement: ${result.tokenUsage.instructionRefinement.totalTokens} tokens (${result.tokenUsage.instructionRefinement.promptTokens} input, ${result.tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${result.tokenUsage.emailGeneration.totalTokens} tokens (${result.tokenUsage.emailGeneration.promptTokens} input, ${result.tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${result.tokenUsage.total.totalTokens} tokens (${result.tokenUsage.total.promptTokens} input, ${result.tokenUsage.total.completionTokens} output)`
@@ -361,7 +304,7 @@ export class EmailGenerationService {
 
     return {
       ...result,
-      emails: emailsWithSignatures,
+      emails: emailsWithoutSignatures,
     };
   }
 
@@ -497,65 +440,8 @@ export class EmailGenerationService {
       originalInstruction: emailData.session.instruction,
     });
 
-    // Get primary staff for signature fallback
-    const primaryStaff = await db.query.staff.findFirst({
-      where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
-    });
-
-    // Get user data for signature fallback
-    const user = await getUserById(userId);
-
-    // Extract signature from the original email to get the signature type/source
-    const structuredContent = emailData.structuredContent as Array<{
-      piece: string;
-      references: string[];
-      addNewlineAfter: boolean;
-    }>;
-    const originalSignaturePiece = structuredContent?.find((piece: any) => piece.references?.includes("signature"));
-
-    // Create the appropriate signature (following the same logic as generateSmartEmails)
-    let signature: string;
-    let signatureSource: string;
-
-    const assignedStaff = emailData.donor.assignedStaff;
-
-    if (originalSignaturePiece) {
-      // Use the original signature if it exists
-      signature = originalSignaturePiece.piece;
-      signatureSource = "original signature preserved";
-    } else if (assignedStaff?.signature && assignedStaff.signature.trim()) {
-      // Use custom signature if it exists and is not empty
-      signature = assignedStaff.signature;
-      signatureSource = `custom signature from assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
-    } else if (assignedStaff) {
-      // Default signature format: "Best, firstname"
-      signature = `Best,\n${assignedStaff.firstName}`;
-      signatureSource = `default format for assigned staff ${assignedStaff.firstName} ${assignedStaff.lastName}`;
-    } else if (primaryStaff?.signature && primaryStaff.signature.trim()) {
-      // Use primary staff signature if available and not empty
-      signature = primaryStaff.signature;
-      signatureSource = `custom signature from primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
-    } else if (primaryStaff) {
-      // Default signature format for primary staff: "Best, firstname"
-      signature = `Best,\n${primaryStaff.firstName}`;
-      signatureSource = `default format for primary staff ${primaryStaff.firstName} ${primaryStaff.lastName}`;
-    } else {
-      // Fallback to user signature if no staff assigned and no primary staff
-      signature = user?.emailSignature || `Best,\n${user?.firstName || "Team"}`;
-      signatureSource = user?.emailSignature ? "user email signature" : "default fallback signature";
-    }
-
-    logger.info(`Enhanced email for donor ${emailData.donor.id}: Using ${signatureSource}`);
-
-    // Append signature to enhanced content
-    const finalStructuredContent = [
-      ...result.structuredContent,
-      {
-        piece: signature,
-        references: ["signature"], // Mark as signature content
-        addNewlineAfter: false,
-      },
-    ];
+    // Don't append signature - it will be added at display/send time
+    const finalStructuredContent = result.structuredContent;
 
     // Update the email in the database with the enhanced content
     const [updatedEmail] = await db
@@ -662,7 +548,7 @@ Please regenerate this email following the original instruction while incorporat
       userMemories,
       organizationMemories,
       new Date().toDateString(),
-      undefined, // signature will be handled separately
+      undefined, // No signature passed to generation
       originalInstruction // Use original instruction as previous for context
     );
 

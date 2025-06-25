@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit, Check, Clock, Sparkles, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/app/lib/trpc/client";
 
 interface EmailPiece {
   piece: string;
@@ -83,16 +84,13 @@ function PreviewEditModal({
 }: PreviewEditModalProps) {
   const [subject, setSubject] = useState(initialSubject);
   const [content, setContent] = useState("");
-  const [signaturePieces, setSignaturePieces] = useState<EmailPiece[]>([]);
 
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
-    // Filter out signature pieces
-    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references.includes("signature"));
-
-    // Store signature pieces separately
-    const sigs = structuredContent.filter((piece) => piece.references.includes("signature"));
-    setSignaturePieces(sigs);
+    // Remove signature pieces
+    const contentWithoutSignature = structuredContent.filter(
+      (piece) => !piece.references?.includes("signature")
+    );
 
     return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
@@ -125,13 +123,8 @@ function PreviewEditModal({
   }, [open, initialSubject, initialContent]);
 
   const handleSave = () => {
-    let structuredContent = plainTextToStructured(content);
-
-    // Re-append signature pieces at the end
-    if (signaturePieces.length > 0) {
-      structuredContent = [...structuredContent, ...signaturePieces];
-    }
-
+    const structuredContent = plainTextToStructured(content);
+    // Signature will be appended automatically when displaying
     onSave(subject, structuredContent);
   };
 
@@ -245,6 +238,23 @@ export function EmailDisplay({
 
   // Get email status to check if sent - only query if emailId exists
   const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
+
+  // For preview mode, we need to fetch signature separately
+  const displayContent = isPreviewMode ? previewContent : content;
+  const { data: signatureData } = trpc.emailCampaigns.getEmailWithSignature.useQuery(
+    {
+      donorId: donorId || 0,
+      structuredContent: displayContent,
+    },
+    {
+      enabled: isPreviewMode && !!donorId && displayContent.length > 0,
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    }
+  );
+
+  // Use signature-appended content for preview mode, otherwise content should already have signature
+  const contentWithSignature = isPreviewMode && signatureData ? signatureData.structuredContent : displayContent;
 
   return (
     <div className="space-y-4">
@@ -372,7 +382,7 @@ export function EmailDisplay({
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm font-sans">
-            {(isPreviewMode ? previewContent : content).map((piece, index) => {
+            {contentWithSignature.map((piece, index) => {
               // Check if this is signature content or contains HTML
               const isSignature = piece.references?.includes("signature") || false;
               const containsHTML = /<[^>]+>/.test(piece.piece);

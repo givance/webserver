@@ -29,7 +29,6 @@ import {
  * @param userMemories - User's personal memories
  * @param organizationMemories - Organization-wide memories
  * @param currentDate - Current date for time-sensitive content
- * @param emailSignature - Optional email signature
  * @param previousInstruction - Previous refined instruction to build upon
  * @returns Object containing refined instruction, reasoning, and generated emails
  */
@@ -47,7 +46,6 @@ export async function generateSmartDonorEmails(
   userMemories: string[] = [],
   organizationMemories: string[] = [],
   currentDate?: string,
-  emailSignature?: string,
   previousInstruction?: string,
   chatHistory?: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<{
@@ -70,10 +68,14 @@ export async function generateSmartDonorEmails(
   // Extract and concatenate all user messages from chat history to form the complete user instruction
   let completeUserInstruction = userInstruction;
 
-  console.log("chatHistory", chatHistory);
+  // Ensure chatHistory is an array
+  const validChatHistory = Array.isArray(chatHistory) ? chatHistory : [];
+  
+  console.log("chatHistory type:", typeof chatHistory, "isArray:", Array.isArray(chatHistory));
+  console.log("chatHistory value:", chatHistory);
 
-  if (chatHistory && chatHistory.length > 0) {
-    const userMessages = chatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
+  if (validChatHistory.length > 0) {
+    const userMessages = validChatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
     if (userMessages.length > 0) {
       completeUserInstruction = userMessages.join(" ");
       logger.info(`Concatenated ${userMessages.length} user messages from chat history to form complete instruction`);
@@ -85,7 +87,7 @@ export async function generateSmartDonorEmails(
       donors.length
     } donors with instruction: "${completeUserInstruction}" (previousInstruction: ${
       previousInstruction ? `"${previousInstruction}"` : "none"
-    }, chatHistoryLength: ${chatHistory?.length || 0})`
+    }, chatHistoryLength: ${validChatHistory.length})`
   );
 
   // Initialize token usage tracking
@@ -115,7 +117,6 @@ export async function generateSmartDonorEmails(
     userMemories,
     organizationMemories,
     currentDate,
-    emailSignature,
     completeUserInstruction // Pass the complete user instruction
   );
 

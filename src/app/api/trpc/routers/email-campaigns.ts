@@ -183,6 +183,17 @@ const updateEmailStatusSchema = z.object({
   status: z.enum(["PENDING_APPROVAL", "APPROVED"]),
 });
 
+const getEmailWithSignatureSchema = z.object({
+  donorId: z.number(),
+  structuredContent: z.array(
+    z.object({
+      piece: z.string(),
+      references: z.array(z.string()),
+      addNewlineAfter: z.boolean(),
+    })
+  ),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -483,5 +494,18 @@ export const emailCampaignsRouter = router({
   fixStuckCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.fixStuckCampaigns(ctx.auth.user.organizationId);
+  }),
+
+  /**
+   * Get email content with signature appended for display
+   */
+  getEmailWithSignature: protectedProcedure.input(getEmailWithSignatureSchema).query(async ({ ctx, input }) => {
+    const { appendSignatureToEmail } = await import("@/app/lib/utils/email-with-signature");
+    const contentWithSignature = await appendSignatureToEmail(input.structuredContent, {
+      donorId: input.donorId,
+      organizationId: ctx.auth.user.organizationId,
+      userId: ctx.auth.user.id,
+    });
+    return { structuredContent: contentWithSignature };
   }),
 });
