@@ -584,6 +584,9 @@ export const generatedEmails = pgTable("generated_emails", {
   subject: text("subject").notNull(),
   structuredContent: jsonb("structured_content").notNull(), // Array of EmailPiece objects
   referenceContexts: jsonb("reference_contexts").notNull(), // Record of reference IDs to context
+  // New fields for the updated format
+  emailContent: text("email_content"), // Plain text email content
+  reasoning: text("reasoning"), // AI's reasoning for the email generation
   status: text("status").notNull().default("PENDING_APPROVAL"), // 'PENDING_APPROVAL', 'APPROVED', 'SENT'
   isPreview: boolean("is_preview").default(false).notNull(), // Whether this was a preview email
   isSent: boolean("is_sent").default(false).notNull(), // Whether this email has been sent
