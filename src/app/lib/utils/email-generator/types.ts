@@ -123,6 +123,7 @@ export interface GeneratedEmail {
   // New format fields (for new generation)
   emailContent?: string; // Plain text email content
   reasoning?: string; // AI's reasoning for the email generation
+  response?: string; // User-facing summary of what was delivered
 
   tokenUsage: TokenUsage; // Add token usage tracking for individual email generation
 }

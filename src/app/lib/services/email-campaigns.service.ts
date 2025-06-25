@@ -98,6 +98,7 @@ export interface SaveGeneratedEmailInput {
   // New format fields
   emailContent?: string;
   reasoning?: string;
+  response?: string;
   isPreview?: boolean;
 }
 
@@ -1323,6 +1324,17 @@ export class EmailCampaignsService {
    * @returns Success confirmation
    */
   async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
+    console.log("[EmailCampaignsService.saveGeneratedEmail] Called with input:", {
+      sessionId: input.sessionId,
+      donorId: input.donorId,
+      subject: input.subject,
+      hasEmailContent: !!input.emailContent,
+      hasReasoning: !!input.reasoning,
+      hasResponse: !!input.response,
+      responseLength: input.response?.length || 0,
+      responsePreview: input.response?.substring(0, 50),
+    });
+    
     try {
       // Verify the session belongs to the organization
       const session = await db.query.emailGenerationSessions.findFirst({
@@ -1375,6 +1387,17 @@ export class EmailCampaignsService {
         if (input.reasoning) {
           updateData.reasoning = input.reasoning;
         }
+        if (input.response) {
+          updateData.response = input.response;
+        }
+
+        console.log("[EmailCampaignsService.saveGeneratedEmail] UPDATE - updateData:", {
+          hasSubject: !!updateData.subject,
+          hasEmailContent: !!updateData.emailContent,
+          hasReasoning: !!updateData.reasoning,
+          hasResponse: !!updateData.response,
+          responsePreview: updateData.response?.substring(0, 50),
+        });
 
         const [updatedEmail] = await db
           .update(generatedEmails)
@@ -1411,6 +1434,17 @@ export class EmailCampaignsService {
         if (input.reasoning) {
           insertData.reasoning = input.reasoning;
         }
+        if (input.response) {
+          insertData.response = input.response;
+        }
+
+        console.log("[EmailCampaignsService.saveGeneratedEmail] INSERT - insertData:", {
+          hasSubject: !!insertData.subject,
+          hasEmailContent: !!insertData.emailContent,
+          hasReasoning: !!insertData.reasoning,
+          hasResponse: !!insertData.response,
+          responsePreview: insertData.response?.substring(0, 50),
+        });
 
         const [newEmail] = await db.insert(generatedEmails).values(insertData).returning();
 

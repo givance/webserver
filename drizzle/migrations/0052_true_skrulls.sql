@@ -1,0 +1,1 @@
+ALTER TABLE "generated_emails" ADD COLUMN "response" text;

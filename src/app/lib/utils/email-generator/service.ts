@@ -226,13 +226,17 @@ export class EmailGenerationService implements EmailGeneratorTool {
           .string()
           .min(1)
           .describe("Complete plain text email content without any structured pieces, reference markers, or signature"),
+        response: z
+          .string()
+          .min(1)
+          .describe("A concise summary for the user highlighting what was accomplished, key donor insights utilized, and any important context that influenced the email"),
       });
 
       logger.info(
-        `[EmailGenerationService.generateDonorEmail] NEW SCHEMA DEFINED - Using schema with fields: subject, reasoning, emailContent`
+        `[EmailGenerationService.generateDonorEmail] NEW SCHEMA DEFINED - Using schema with fields: subject, reasoning, emailContent, response`
       );
 
-      let validatedResponse;
+      let validatedResponse: z.infer<typeof emailSchema>;
       let attempt = 1;
       const maxAttempts = 2;
 
@@ -261,14 +265,14 @@ export class EmailGenerationService implements EmailGeneratorTool {
           );
           logger.info(
             `[EmailGenerationService.generateDonorEmail] AI RESPONSE ANALYSIS - hasSubject: ${!!result.object
-              .subject}, hasReasoning: ${!!result.object.reasoning}, hasEmailContent: ${!!result.object.emailContent}`
+              .subject}, hasReasoning: ${!!result.object.reasoning}, hasEmailContent: ${!!result.object.emailContent}, hasResponse: ${!!result.object.response}`
           );
           logger.info(
             `[EmailGenerationService.generateDonorEmail] AI RESPONSE FIELD LENGTHS - subject: ${
               result.object.subject?.length || 0
             }, reasoning: ${result.object.reasoning?.length || 0}, emailContent: ${
               result.object.emailContent?.length || 0
-            }`
+            }, response: ${result.object.response?.length || 0}`
           );
 
           // Validate the response
@@ -353,7 +357,12 @@ export class EmailGenerationService implements EmailGeneratorTool {
       ];
 
       logger.info(
-        `Successfully generated email for donor ${donor.id}: subject="${validatedResponse.subject}", emailContentLength=${validatedResponse.emailContent.length}, reasoningLength=${validatedResponse.reasoning.length}`
+        `Successfully generated email for donor ${donor.id}: subject="${validatedResponse.subject}", emailContentLength=${validatedResponse.emailContent.length}, reasoningLength=${validatedResponse.reasoning.length}, responseLength=${validatedResponse.response.length}`
+      );
+
+      // Debug log to verify response field
+      logger.info(
+        `[DEBUG-RESPONSE] About to return email for donor ${donor.id} with response: "${validatedResponse.response.substring(0, 100)}..."`
       );
 
       return {
@@ -362,6 +371,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         // NEW FORMAT FIELDS (primary) - these will be saved to database
         emailContent: validatedResponse.emailContent,
         reasoning: validatedResponse.reasoning,
+        response: validatedResponse.response,
         // LEGACY FORMAT FIELDS (compatibility only) - for components that still expect them
         structuredContent: legacyStructuredContent,
         referenceContexts,
@@ -410,8 +420,11 @@ CURRENT DATE: ${currentDate || new Date().toLocaleDateString()}
 
 TASK: You must generate a personalized donor reengagement email with the following structure:
 1. **subject**: A compelling subject line (50 characters max)
-2. **reasoning**: A brief explanation of your strategy and personalization choices (2-3 sentences)
+2. **reasoning**: Technical explanation of your email strategy and personalization tactics (e.g., "Referenced recent donation to create connection, used urgency based on campaign deadline")
 3. **emailContent**: The complete email content as plain text (120-150 words)
+4. **response**: User-facing summary describing what was delivered (e.g., "Created a warm re-engagement email for Sarah highlighting her $500 Education Fund contribution. The email emphasizes her impact on student scholarships and invites continued support.")
+
+IMPORTANT: The reasoning explains WHY you made certain choices. The response tells the USER WHAT you delivered and key donor context used.
 
 REQUIREMENTS:
 - Write for a mid-level donor ($250-$999) who hasn't donated in 12-48 months

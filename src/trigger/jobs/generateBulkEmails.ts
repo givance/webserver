@@ -16,7 +16,7 @@ import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
-import type { RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import type { RawCommunicationThread, GeneratedEmail } from "@/app/lib/utils/email-generator/types";
 
 // Maximum number of concurrent operations
 const MAX_CONCURRENCY = 50;
@@ -283,7 +283,7 @@ export const generateBulkEmailsTask = task({
 
       // Generate emails in batches with concurrency limiting
       const { generateSmartDonorEmails } = await import("@/app/lib/utils/email-generator");
-      const allEmailResults: any[] = [];
+      const allEmailResults: GeneratedEmail[] = [];
 
       // Process donors in batches for email generation
       await processConcurrently(
@@ -335,9 +335,9 @@ export const generateBulkEmailsTask = task({
             triggerLogger.info(
               `[TRIGGER-FORMAT-CHECK] Donor ${
                 donorInfo.id
-              } - hasEmailContent: ${!!email.emailContent}, hasReasoning: ${!!email.reasoning}, emailContentLength: ${
+              } - hasEmailContent: ${!!email.emailContent}, hasReasoning: ${!!email.reasoning}, hasResponse: ${!!email.response}, emailContentLength: ${
                 email.emailContent?.length || 0
-              }, reasoningLength: ${email.reasoning?.length || 0}`
+              }, reasoningLength: ${email.reasoning?.length || 0}, responseLength: ${email.response?.length || 0}`
             );
             triggerLogger.info(
               `[TRIGGER-FORMAT-CHECK] Donor ${
@@ -349,7 +349,21 @@ export const generateBulkEmailsTask = task({
           }
 
           // Add results to the main array (thread-safe since we're awaiting each batch)
+          triggerLogger.info(
+            `[DEBUG-PUSH] Before push - singleDonorResult.emails[0] response: ${
+              singleDonorResult.emails[0]?.response ? 
+              `"${singleDonorResult.emails[0].response.substring(0, 50)}..."` : 
+              'undefined'
+            }`
+          );
           allEmailResults.push(...singleDonorResult.emails);
+          triggerLogger.info(
+            `[DEBUG-PUSH] After push - allEmailResults last item response: ${
+              allEmailResults[allEmailResults.length - 1]?.response ? 
+              `"${allEmailResults[allEmailResults.length - 1].response.substring(0, 50)}..."` : 
+              'undefined'
+            }`
+          );
           return singleDonorResult.emails;
         },
         MAX_CONCURRENCY
@@ -380,7 +394,14 @@ export const generateBulkEmailsTask = task({
       });
 
       // Store generated emails in database with staff signatures automatically appended
-      const emailInserts = allEmailResults.map((email: any) => {
+      const emailInserts = allEmailResults.map((email) => {
+        // Log the email object to debug
+        triggerLogger.info(`[DEBUG] Email object keys for donor ${email.donorId}: ${Object.keys(email).join(', ')}`);
+        triggerLogger.info(`[DEBUG] Email object for donor ${email.donorId}: ${JSON.stringify({ 
+          hasResponse: !!email.response, 
+          responseLength: email.response?.length || 0,
+          responsePreview: email.response?.substring(0, 100) 
+        })}`);
         // Find the donor to get their assigned staff info
         const donor = donorsToGenerate.find((d) => d.id === email.donorId);
         const assignedStaff = donor?.assignedStaff;
@@ -465,7 +486,7 @@ export const generateBulkEmailsTask = task({
 
         const enhancedStructuredContent = [...email.structuredContent, ...signaturePieces];
 
-        return {
+        const insertData = {
           sessionId,
           donorId: email.donorId,
           subject: email.subject,
@@ -475,6 +496,7 @@ export const generateBulkEmailsTask = task({
           // New format fields
           emailContent: email.emailContent,
           reasoning: email.reasoning,
+          response: email.response,
           status: "APPROVED",
           isPreview: false,
           isSent: false,
@@ -482,6 +504,14 @@ export const generateBulkEmailsTask = task({
           createdAt: new Date(),
           updatedAt: new Date(),
         };
+        
+        // Log what we're inserting
+        triggerLogger.info(`[DEBUG] Insert data for donor ${email.donorId}: ${JSON.stringify({
+          hasResponse: !!insertData.response,
+          responseLength: insertData.response?.length || 0
+        })}`);
+        
+        return insertData;
       });
 
       await db.insert(generatedEmails).values(emailInserts);

@@ -181,6 +181,7 @@ const saveGeneratedEmailSchema = z.object({
   // New format fields
   emailContent: z.string().optional(),
   reasoning: z.string().optional(),
+  response: z.string().optional(),
   isPreview: z.boolean().optional().default(true),
 });
 
@@ -372,6 +373,13 @@ export const emailCampaignsRouter = router({
    * Save a generated email incrementally with PENDING_APPROVAL status
    */
   saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
+    console.log("[tRPC saveGeneratedEmail] Called with input:", {
+      sessionId: input.sessionId,
+      donorId: input.donorId,
+      hasResponse: !!input.response,
+      responseLength: input.response?.length || 0,
+      responsePreview: input.response?.substring(0, 50),
+    });
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.saveGeneratedEmail(input, ctx.auth.user.organizationId);
   }),

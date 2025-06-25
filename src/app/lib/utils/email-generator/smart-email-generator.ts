@@ -125,9 +125,9 @@ export async function generateSmartDonorEmails(
     logger.info(
       `[generateSmartDonorEmails] First email format check - donorId: ${
         firstEmail.donorId
-      }, hasEmailContent: ${!!firstEmail.emailContent}, hasReasoning: ${!!firstEmail.reasoning}, hasStructuredContent: ${!!firstEmail.structuredContent}, structuredContentLength: ${
+      }, hasEmailContent: ${!!firstEmail.emailContent}, hasReasoning: ${!!firstEmail.reasoning}, hasResponse: ${!!firstEmail.response}, hasStructuredContent: ${!!firstEmail.structuredContent}, structuredContentLength: ${
         firstEmail.structuredContent?.length || 0
-      }`
+      }, responseLength: ${firstEmail.response?.length || 0}`
     );
   }
 

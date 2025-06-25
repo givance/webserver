@@ -587,6 +587,7 @@ export const generatedEmails = pgTable("generated_emails", {
   // New fields for the updated format
   emailContent: text("email_content"), // Plain text email content
   reasoning: text("reasoning"), // AI's reasoning for the email generation
+  response: text("response"), // User-facing summary of what was delivered
   status: text("status").notNull().default("PENDING_APPROVAL"), // 'PENDING_APPROVAL', 'APPROVED', 'SENT'
   isPreview: boolean("is_preview").default(false).notNull(), // Whether this was a preview email
   isSent: boolean("is_sent").default(false).notNull(), // Whether this email has been sent

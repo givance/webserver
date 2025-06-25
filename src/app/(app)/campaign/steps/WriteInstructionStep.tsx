@@ -77,6 +77,7 @@ interface GeneratedEmail {
   // New format fields (for new generation)
   emailContent?: string; // Plain text email content
   reasoning?: string; // AI's reasoning for the email generation
+  response?: string; // User-facing summary of what was delivered
 }
 
 interface ThreadMessage {
@@ -677,6 +678,11 @@ export function WriteInstructionStep({
         // Save newly generated emails incrementally if we have a sessionId
         if (sessionId) {
           const savePromises = emailResult.emails.map(async (email) => {
+            console.log(`[WriteInstructionStep] About to save email for donor ${email.donorId}:`, {
+              hasResponse: !!email.response,
+              responseLength: email.response?.length || 0,
+              responsePreview: email.response?.substring(0, 50),
+            });
             try {
               const result = await saveGeneratedEmail.mutateAsync({
                 sessionId,
@@ -686,6 +692,7 @@ export function WriteInstructionStep({
                 referenceContexts: email.referenceContexts,
                 emailContent: email.emailContent,
                 reasoning: email.reasoning,
+                response: email.response,
                 isPreview: true,
               });
 
@@ -883,6 +890,11 @@ export function WriteInstructionStep({
           );
 
           const savePromises = emailResult.emails.map(async (email) => {
+            console.log(`[WriteInstructionStep] About to save email for donor ${email.donorId}:`, {
+              hasResponse: !!email.response,
+              responseLength: email.response?.length || 0,
+              responsePreview: email.response?.substring(0, 50),
+            });
             try {
               const result = await saveGeneratedEmail.mutateAsync({
                 sessionId,
@@ -892,6 +904,7 @@ export function WriteInstructionStep({
                 referenceContexts: email.referenceContexts,
                 emailContent: email.emailContent,
                 reasoning: email.reasoning,
+                response: email.response,
                 isPreview: true,
               });
 
