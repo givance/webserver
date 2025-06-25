@@ -4,7 +4,12 @@ import { db } from "@/app/lib/db";
 import { organizations, donors as donorsSchema, staff, generatedEmails } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
-import { DonationWithDetails, listDonations, getMultipleComprehensiveDonorStats, getMultipleComprehensiveDonorStatsExcludingExternal } from "@/app/lib/data/donations";
+import {
+  DonationWithDetails,
+  listDonations,
+  getMultipleComprehensiveDonorStats,
+  getMultipleComprehensiveDonorStatsExcludingExternal,
+} from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
@@ -194,9 +199,7 @@ export class EmailGenerationService {
     donorHistories.forEach(({ donor, communicationHistory, donationHistory }) => {
       communicationHistories[donor.id] = communicationHistory;
       // Filter out donations from external projects for LLM
-      const nonExternalDonations = donationHistory.filter(
-        donation => !donation.project?.external
-      );
+      const nonExternalDonations = donationHistory.filter((donation) => !donation.project?.external);
       donationHistoriesMap[donor.id] = nonExternalDonations;
     });
 
@@ -244,7 +247,6 @@ export class EmailGenerationService {
         userMemories,
         organizationMemories,
         currentDate,
-        undefined, // No signature passed to generation
         previousInstruction, // Pass the previous instruction to enable stateful refinement
         chatHistory // Pass the chat history to the refinement agent
       );
@@ -548,8 +550,8 @@ Please regenerate this email following the original instruction while incorporat
       userMemories,
       organizationMemories,
       new Date().toDateString(),
-      undefined, // No signature passed to generation
-      originalInstruction // Use original instruction as previous for context
+      originalInstruction, // Use original instruction as previous for context
+      undefined // No chat history available in enhancement context
     );
 
     if (!result.emails || result.emails.length === 0) {

@@ -27,12 +27,16 @@ import Link from "next/link";
 export interface BaseGeneratedEmail {
   donorId: number;
   subject: string;
-  structuredContent: Array<{
+  // Legacy format fields (for backward compatibility - optional for new emails)
+  structuredContent?: Array<{
     piece: string;
     references: string[];
     addNewlineAfter: boolean;
   }>;
-  referenceContexts: Record<string, string>;
+  referenceContexts?: Record<string, string>;
+  // New format fields (for new generation)
+  emailContent?: string; // Plain text email content
+  reasoning?: string; // AI's reasoning for the email generation
   id?: number; // Optional for campaign results
   status?: "PENDING_APPROVAL" | "APPROVED"; // Approval status
 }
@@ -179,9 +183,11 @@ export function EmailListViewer({
   // Default searchable text extractor
   const defaultGetSearchableText = useCallback((email: BaseGeneratedEmail, donor: BaseDonor) => {
     const emailContent = email.structuredContent
-      .map((item) => item.piece)
-      .join(" ")
-      .toLowerCase();
+      ? email.structuredContent
+          .map((item) => item.piece)
+          .join(" ")
+          .toLowerCase()
+      : email.emailContent?.toLowerCase() || "";
     const donorName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
     const donorEmail = donor.email.toLowerCase();
     const subject = email.subject.toLowerCase();
@@ -468,6 +474,8 @@ export function EmailListViewer({
                           subject={email.subject}
                           content={email.structuredContent}
                           referenceContexts={referenceContexts[email.donorId] || {}}
+                          emailContent={email.emailContent}
+                          reasoning={email.reasoning}
                           emailId={email.id}
                           donorId={email.donorId}
                           sessionId={sessionId}

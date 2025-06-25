@@ -67,12 +67,16 @@ interface GeneratedEmail {
   id?: number; // ID from database after saving
   donorId: number;
   subject: string;
-  structuredContent: Array<{
+  // Legacy format fields (for backward compatibility - optional for new emails)
+  structuredContent?: Array<{
     piece: string;
     references: string[];
     addNewlineAfter: boolean;
   }>;
-  referenceContexts: Record<string, string>;
+  referenceContexts?: Record<string, string>;
+  // New format fields (for new generation)
+  emailContent?: string; // Plain text email content
+  reasoning?: string; // AI's reasoning for the email generation
 }
 
 interface ThreadMessage {
@@ -469,7 +473,7 @@ export function WriteInstructionStep({
 
             setReferenceContexts(
               emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-                acc[email.donorId] = email.referenceContexts;
+                acc[email.donorId] = email.referenceContexts || {};
                 return acc;
               }, {})
             );
@@ -489,6 +493,8 @@ export function WriteInstructionStep({
                     subject: email.subject,
                     structuredContent: email.structuredContent,
                     referenceContexts: email.referenceContexts,
+                    emailContent: email.emailContent,
+                    reasoning: email.reasoning,
                     isPreview: true,
                   });
 
@@ -661,7 +667,7 @@ export function WriteInstructionStep({
         const newReferenceContexts = { ...referenceContexts };
         const newStatuses = { ...emailStatuses };
         emailResult.emails.forEach((email) => {
-          newReferenceContexts[email.donorId] = email.referenceContexts;
+          newReferenceContexts[email.donorId] = email.referenceContexts || {};
           // Initialize all new emails as pending approval
           newStatuses[email.donorId] = "PENDING_APPROVAL";
         });
@@ -678,6 +684,8 @@ export function WriteInstructionStep({
                 subject: email.subject,
                 structuredContent: email.structuredContent,
                 referenceContexts: email.referenceContexts,
+                emailContent: email.emailContent,
+                reasoning: email.reasoning,
                 isPreview: true,
               });
 
@@ -843,7 +851,7 @@ export function WriteInstructionStep({
           // Merge reference contexts
           const combinedContexts = { ...preservedContexts };
           emailResult.emails.forEach((email) => {
-            combinedContexts[email.donorId] = email.referenceContexts;
+            combinedContexts[email.donorId] = email.referenceContexts || {};
           });
           setReferenceContexts(combinedContexts);
         } else {
@@ -860,7 +868,7 @@ export function WriteInstructionStep({
 
           setReferenceContexts(
             emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-              acc[email.donorId] = email.referenceContexts;
+              acc[email.donorId] = email.referenceContexts || {};
               return acc;
             }, {})
           );
@@ -882,6 +890,8 @@ export function WriteInstructionStep({
                 subject: email.subject,
                 structuredContent: email.structuredContent,
                 referenceContexts: email.referenceContexts,
+                emailContent: email.emailContent,
+                reasoning: email.reasoning,
                 isPreview: true,
               });
 
@@ -1224,6 +1234,8 @@ export function WriteInstructionStep({
                       emails={allGeneratedEmails.map((email) => ({
                         ...email,
                         status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
+                        emailContent: email.emailContent,
+                        reasoning: email.reasoning,
                       }))}
                       donors={
                         donorsData
@@ -1272,7 +1284,7 @@ export function WriteInstructionStep({
                               emailId: emailToUpdate.id,
                               subject: newSubject,
                               structuredContent: newContent,
-                              referenceContexts: emailToUpdate.referenceContexts,
+                              referenceContexts: emailToUpdate.referenceContexts || {},
                             });
                             toast.success("Email updated successfully!");
                           } catch (error) {
@@ -1343,7 +1355,7 @@ export function WriteInstructionStep({
                               // Update reference contexts
                               setReferenceContexts((prev) => ({
                                 ...prev,
-                                [donorId]: enhancedEmail.referenceContexts,
+                                [donorId]: enhancedEmail.referenceContexts || {},
                               }));
 
                               toast.success("Email enhanced successfully!");

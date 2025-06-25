@@ -10,8 +10,9 @@ import {
   DonorInfo,
   DonorStatistics,
   EmailGeneratorTool,
-  GenerateEmailOptions,
   GeneratedEmail,
+  EmailPiece,
+  GenerateEmailOptions,
   Organization,
   RawCommunicationThread,
   TokenUsage,
@@ -45,25 +46,27 @@ export class EmailGenerationService implements EmailGeneratorTool {
     donationHistories: Record<number, DonationWithDetails[]> = {},
     donorStatistics: Record<number, DonorStatistics> = {},
     personResearchResults: Record<number, PersonResearchResult> = {},
-    personalMemories: string[] = [],
-    organizationalMemories: string[] = [],
+    userMemories: string[] = [],
+    organizationMemories: string[] = [],
     currentDate?: string,
     originalInstruction?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
-      `Starting batch email generation for ${
-        donors.length
-      } donors (refinedInstruction: ${refinedInstruction}, organizationName: ${organizationName}, hasOrganization: ${!!organization}, hasWritingInstructions: ${!!organizationWritingInstructions}, communicationHistoriesCount: ${
-        Object.keys(communicationHistories).length
-      }, donationHistoriesCount: ${Object.keys(donationHistories).length}, donorStatisticsCount: ${
-        Object.keys(donorStatistics).length
-      }, currentDate: ${currentDate || "not provided"}, hasOriginalInstruction: ${!!originalInstruction})`
+      `[EmailGenerationService.generateEmails] ENTRY POINT - Starting generation for ${donors.length} donors`
     );
+    logger.info(`[EmailGenerationService.generateEmails] Using NEW FORMAT generation path`);
 
-    const promises = donors.map((donor) =>
-      this.generateDonorEmail({
+    const generatedEmails: GeneratedEmail[] = [];
+
+    // Generate emails for all donors concurrently
+    const emailPromises = donors.map((donor) => {
+      logger.info(
+        `[EmailGenerationService.generateEmails] Starting generation for donor ${donor.id} (${formatDonorName(donor)})`
+      );
+
+      return this.generateDonorEmail({
         donor,
-        instruction: refinedInstruction,
+        instruction: originalInstruction || refinedInstruction, // Use original instruction if available, otherwise use refined
         organizationName,
         organization,
         organizationWritingInstructions,
@@ -72,40 +75,36 @@ export class EmailGenerationService implements EmailGeneratorTool {
         donationHistory: donationHistories[donor.id] || [],
         donorStatistics: donorStatistics[donor.id],
         personResearch: personResearchResults[donor.id],
-        personalMemories,
-        organizationalMemories,
+        personalMemories: userMemories,
+        organizationalMemories: organizationMemories,
         currentDate,
         originalInstruction,
-      })
-    );
-
-    const results = await Promise.allSettled(promises);
-
-    const successfulEmails: GeneratedEmail[] = [];
-    const errors: string[] = [];
-
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        successfulEmails.push(result.value);
-      } else {
-        const donor = donors[index];
-        const errorMessage = `Failed to generate email for donor ${donor.id} (${formatDonorName(donor)}): ${
-          result.reason
-        }`;
-        errors.push(errorMessage);
-        logger.error(errorMessage);
-      }
+      });
     });
 
-    logger.info(
-      `Batch email generation completed: ${successfulEmails.length} successful, ${errors.length} failed out of ${donors.length} total donors`
-    );
+    const emails = await Promise.all(emailPromises);
+    generatedEmails.push(...emails);
 
-    if (errors.length > 0) {
-      logger.error(`Errors during batch generation: ${errors.join("; ")}`);
+    logger.info(`[EmailGenerationService.generateEmails] Generated ${generatedEmails.length} emails`);
+
+    // Log format verification for first email
+    if (generatedEmails.length > 0) {
+      const firstEmail = generatedEmails[0];
+      logger.info(
+        `[EmailGenerationService.generateEmails] First email verification - donorId: ${
+          firstEmail.donorId
+        }, hasEmailContent: ${!!firstEmail.emailContent}, hasReasoning: ${!!firstEmail.reasoning}, emailContentLength: ${
+          firstEmail.emailContent?.length || 0
+        }, reasoningLength: ${firstEmail.reasoning?.length || 0}`
+      );
+      logger.info(
+        `[EmailGenerationService.generateEmails] First email legacy fields - hasStructuredContent: ${!!firstEmail.structuredContent}, structuredContentLength: ${
+          firstEmail.structuredContent?.length || 0
+        }, hasReferenceContexts: ${!!firstEmail.referenceContexts}`
+      );
     }
 
-    return successfulEmails;
+    return generatedEmails;
   }
 
   /**
@@ -188,7 +187,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       });
     }
 
-    const promptParts = buildStructuredEmailPrompt(
+    // Build a new prompt for the new format (subject, reasoning, emailContent)
+    const newFormatPrompt = await this.buildNewFormatPrompt(
       donor,
       instruction,
       organizationName,
@@ -201,78 +201,81 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personResearch,
       personalMemories,
       organizationalMemories,
+      donationContexts,
       currentDate,
       originalInstruction
     );
 
-    // Combine the system prompt and donor context for the AI call
-    const prompt = `${promptParts.systemPrompt}\n\n${promptParts.donorContext}`;
-
     logger.info(
-      `Built email prompt for donor ${donor.id}: systemPromptLength=${
-        promptParts.systemPrompt.length
-      }, donorContextLength=${promptParts.donorContext.length}, totalPromptLength=${
-        prompt.length
-      }, donationContextsCount=${Object.keys(donationContexts).length}, model=${env.MID_MODEL}`
+      `[EmailGenerationService.generateDonorEmail] Built NEW FORMAT prompt for donor ${donor.id}: promptLength=${
+        newFormatPrompt.length
+      }, donationContextsCount=${Object.keys(donationContexts).length}`
     );
 
     try {
-      // Define the schema for the expected response
+      // Define the new schema for the expected response
       const emailSchema = z.object({
         subject: z.string().min(1).max(100).describe("A compelling subject line for the email (1-100 characters)"),
-        content: z
-          .array(
-            z.object({
-              piece: z
-                .string()
-                .min(1)
-                .describe(
-                  "A clean string segment of the email (sentence or paragraph) without any reference markers, footnote numbers, or bracketed placeholders"
-                ),
-              references: z
-                .array(z.string())
-                .describe("Array of context IDs that informed this piece (e.g., ['donation-context', 'comm-01-02'])"),
-              addNewlineAfter: z
-                .boolean()
-                .describe("Whether a newline should be added after this piece for formatting"),
-            })
-          )
+        reasoning: z
+          .string()
           .min(1)
-          .describe("Array of email content pieces with references (at least 1 piece required)"),
+          .describe(
+            "Explanation of why this email was crafted this way, including strategy and personalization choices"
+          ),
+        emailContent: z
+          .string()
+          .min(1)
+          .describe("Complete plain text email content without any structured pieces, reference markers, or signature"),
       });
+
+      logger.info(
+        `[EmailGenerationService.generateDonorEmail] NEW SCHEMA DEFINED - Using schema with fields: subject, reasoning, emailContent`
+      );
 
       let validatedResponse;
       let attempt = 1;
       const maxAttempts = 2;
 
       while (attempt <= maxAttempts) {
-        try {
-          logger.info(`Attempt ${attempt}/${maxAttempts} for donor ${donor.id}`);
+        logger.info(
+          `[EmailGenerationService.generateDonorEmail] AI REQUEST ATTEMPT ${attempt}/${maxAttempts} for donor ${donor.id}`
+        );
+        logger.info(
+          `[EmailGenerationService.generateDonorEmail] AI REQUEST PROMPT (first 500 chars): ${newFormatPrompt.substring(
+            0,
+            500
+          )}...`
+        );
 
+        try {
           const result = await generateObject({
             model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
-            messages: [
-              { role: "system", content: promptParts.systemPrompt },
-              { role: "user", content: promptParts.donorContext },
-            ],
             schema: emailSchema,
-            schemaName: "EmailResponse",
-            schemaDescription: "A personalized donor email with subject and structured content pieces",
+            prompt: newFormatPrompt,
             temperature: 0.7,
           });
 
           logger.info(
-            `Email prompt: ${JSON.stringify([
-              { role: "system", content: promptParts.systemPrompt },
-              { role: "user", content: promptParts.donorContext },
-            ])}`
+            `[EmailGenerationService.generateDonorEmail] AI RESPONSE RAW for donor ${donor.id}:`,
+            JSON.stringify(result.object, null, 2)
           );
-          logger.info(`Email response: ${JSON.stringify(result.object, null, 2)}`);
+          logger.info(
+            `[EmailGenerationService.generateDonorEmail] AI RESPONSE ANALYSIS - hasSubject: ${!!result.object
+              .subject}, hasReasoning: ${!!result.object.reasoning}, hasEmailContent: ${!!result.object.emailContent}`
+          );
+          logger.info(
+            `[EmailGenerationService.generateDonorEmail] AI RESPONSE FIELD LENGTHS - subject: ${
+              result.object.subject?.length || 0
+            }, reasoning: ${result.object.reasoning?.length || 0}, emailContent: ${
+              result.object.emailContent?.length || 0
+            }`
+          );
 
-          validatedResponse = result.object;
-
-          const openaiMetadata = result.providerMetadata?.openai;
-          console.log(openaiMetadata);
+          // Validate the response
+          validatedResponse = emailSchema.parse(result.object);
+          logger.info(
+            `[EmailGenerationService.generateDonorEmail] AI RESPONSE VALIDATION SUCCESS for donor ${donor.id} on attempt ${attempt}`
+          );
 
           // Extract token usage information
           const tokenUsage: TokenUsage = {
@@ -281,9 +284,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
             totalTokens: result.usage?.totalTokens || 0,
           };
 
-          logger.info(`Successfully generated object for donor ${donor.id} on attempt ${attempt}`);
           logger.info(
-            `Token usage for donor ${donor.id} email generation: ${tokenUsage.totalTokens} tokens (${tokenUsage.promptTokens} input, ${tokenUsage.completionTokens} output)`
+            `[EmailGenerationService.generateDonorEmail] TOKEN USAGE for donor ${donor.id}: ${tokenUsage.totalTokens} tokens (${tokenUsage.promptTokens} input, ${tokenUsage.completionTokens} output)`
           );
 
           // Store token usage for later use
@@ -291,22 +293,13 @@ export class EmailGenerationService implements EmailGeneratorTool {
           break;
         } catch (error: any) {
           logger.error(
-            `OpenAI generateObject call failed for donor ${donor.id} (attempt ${attempt}/${maxAttempts}): error="${
-              error instanceof Error ? error.message : "Unknown error"
-            }", type=${error instanceof Error ? error.constructor.name : typeof error}, errorName=${
-              error?.name
-            }, errorCode=${error?.code}`
+            `[EmailGenerationService.generateDonorEmail] AI REQUEST/VALIDATION FAILED for donor ${
+              donor.id
+            } on attempt ${attempt}: ${error instanceof Error ? error.message : "Unknown error"}`
           );
-
           if (attempt === maxAttempts) {
-            logger.error(
-              `All attempts failed for donor ${donor.id}. Prompt details: promptLength=${
-                prompt.length
-              }, donorName="${formatDonorName(donor)}", promptPreview="${prompt.substring(0, 500)}..."`
-            );
             throw error;
           }
-
           attempt++;
           // Brief delay before retry
           await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -320,13 +313,22 @@ export class EmailGenerationService implements EmailGeneratorTool {
       logger.info(
         `Successfully received and validated OpenAI response for donor ${donor.id}: subject="${
           validatedResponse.subject
-        }", subjectLength=${validatedResponse.subject.length}, contentPieces=${
-          validatedResponse.content.length
-        }, allReferences=[${validatedResponse.content.flatMap((p) => p.references).join(", ")}]`
+        }", reasoning="${validatedResponse.reasoning.substring(0, 100)}...", emailContentLength=${
+          validatedResponse.emailContent.length
+        }`
       );
 
-      // Build reference contexts
+      logger.info(
+        `[EmailGenerationService.generateDonorEmail] NEW FORMAT EMAIL GENERATED: ${JSON.stringify(
+          validatedResponse,
+          null,
+          2
+        )}`
+      );
+
+      // Build basic reference contexts for legacy compatibility only
       const referenceContexts: Record<string, string> = {
+        "email-content": "Generated email content",
         ...donationContexts,
       };
 
@@ -340,40 +342,28 @@ export class EmailGenerationService implements EmailGeneratorTool {
         });
       }
 
-      // Add communication and summary contexts
-      validatedResponse.content.forEach((piece) => {
-        piece.references.forEach((ref) => {
-          if (ref.startsWith("comm-")) {
-            const [_, threadIndex, messageIndex] = ref.split("-").map(Number);
-            const thread = communicationHistory[threadIndex - 1];
-            if (thread?.content?.[messageIndex - 1]) {
-              const message = thread.content[messageIndex - 1];
-              referenceContexts[ref] = `Previous message: ${message.content}`;
-            }
-          }
-          // Website summary is disabled - skip summary-paragraph references
-          // else if (ref.startsWith("summary-paragraph-")) {
-          //   const paragraphIndex = parseInt(ref.split("-")[2]) - 1;
-          //   const paragraphs = organization?.websiteSummary?.split(/\n\s*\n/) || [];
-          //   if (paragraphs[paragraphIndex]) {
-          //     referenceContexts[ref] = `Organization summary: ${paragraphs[paragraphIndex].trim()}`;
-          //   }
-          // }
-        });
-      });
+      // Create legacy structured format ONLY for backward compatibility in the response
+      // This will NOT be saved to database - only used for components that still expect it
+      const legacyStructuredContent: EmailPiece[] = [
+        {
+          piece: validatedResponse.emailContent,
+          references: ["email-content"],
+          addNewlineAfter: false,
+        },
+      ];
 
       logger.info(
-        `Successfully generated email for donor ${donor.id}: subjectLength=${
-          validatedResponse.subject.length
-        }, contentPieces=${validatedResponse.content.length}, referenceContextsCount=${
-          Object.keys(referenceContexts).length
-        }`
+        `Successfully generated email for donor ${donor.id}: subject="${validatedResponse.subject}", emailContentLength=${validatedResponse.emailContent.length}, reasoningLength=${validatedResponse.reasoning.length}`
       );
 
       return {
         donorId: donor.id,
         subject: validatedResponse.subject,
-        structuredContent: validatedResponse.content,
+        // NEW FORMAT FIELDS (primary) - these will be saved to database
+        emailContent: validatedResponse.emailContent,
+        reasoning: validatedResponse.reasoning,
+        // LEGACY FORMAT FIELDS (compatibility only) - for components that still expect them
+        structuredContent: legacyStructuredContent,
         referenceContexts,
         tokenUsage: (validatedResponse as any).tokenUsage || createEmptyTokenUsage(),
       };
@@ -385,5 +375,90 @@ export class EmailGenerationService implements EmailGeneratorTool {
       );
       throw error;
     }
+  }
+
+  private async buildNewFormatPrompt(
+    donor: DonorInfo,
+    instruction: string,
+    organizationName: string,
+    organization: Organization | null,
+    organizationWritingInstructions?: string,
+    personalWritingInstructions?: string,
+    communicationHistory: RawCommunicationThread[] = [],
+    donationHistory: DonationWithDetails[] = [],
+    donorStatistics?: DonorStatistics,
+    personResearch?: PersonResearchResult,
+    personalMemories: string[] = [],
+    organizationalMemories: string[] = [],
+    donationContexts: Record<string, string> = {},
+    currentDate?: string,
+    originalInstruction?: string
+  ): Promise<string> {
+    // Build system prompt for new format
+    const systemPrompt = `You are an expert fundraising copywriter specializing in donor reengagement emails for ${organizationName}.
+
+ORGANIZATION CONTEXT:
+${organization?.description ? `Organization Description: ${organization.description}` : ""}
+${organization?.rawWebsiteSummary ? `Organization Website Summary: ${organization.rawWebsiteSummary}` : ""}
+${organizationWritingInstructions ? `Organization Writing Guidelines: ${organizationWritingInstructions}` : ""}
+${personalWritingInstructions ? `Personal Writing Guidelines: ${personalWritingInstructions}` : ""}
+
+${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
+${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}
+
+CURRENT DATE: ${currentDate || new Date().toLocaleDateString()}
+
+TASK: You must generate a personalized donor reengagement email with the following structure:
+1. **subject**: A compelling subject line (50 characters max)
+2. **reasoning**: A brief explanation of your strategy and personalization choices (2-3 sentences)
+3. **emailContent**: The complete email content as plain text (120-150 words)
+
+REQUIREMENTS:
+- Write for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
+- Tone: Warm, personal, confident
+- Use specific donation amounts and dates from the history when available
+- Reference their impact using past donation history
+- Include a real donation URL (https://example.org/donate) instead of placeholder text
+- DO NOT include any signature, closing, or sign-off - this is added automatically
+- DO NOT use reference markers, footnotes, or bracketed placeholders
+- Be specific and avoid general statements
+
+PRIORITY: User Notes about the donor take precedence over all other guidelines.`;
+
+    // Build donor context
+    let donorContext = "";
+
+    // Task section
+    if (originalInstruction && originalInstruction.trim() !== instruction.trim()) {
+      donorContext += `ORIGINAL USER INSTRUCTION: ${originalInstruction}\nREFINED INSTRUCTION: ${instruction}\n\n`;
+    } else {
+      donorContext += `TASK: ${instruction}\n\n`;
+    }
+
+    // Donor basic info
+    donorContext += `DONOR: ${formatDonorName(donor)} (${donor.email})\n`;
+    if (donor.notes) {
+      donorContext += `User Notes about this Donor: ${donor.notes}\n`;
+    }
+
+    // Donation contexts
+    if (Object.keys(donationContexts).length > 0) {
+      donorContext += "\nDONATION INFORMATION:\n";
+      Object.entries(donationContexts).forEach(([key, value]) => {
+        donorContext += `- ${value}\n`;
+      });
+    }
+
+    // Communication history if available
+    if (communicationHistory.length > 0) {
+      donorContext += "\nPAST COMMUNICATIONS:\n";
+      communicationHistory.forEach((thread, index) => {
+        if (thread.content && thread.content.length > 0) {
+          donorContext += `Communication ${index + 1}: ${thread.content[0].content.substring(0, 200)}...\n`;
+        }
+      });
+    }
+
+    return `${systemPrompt}\n\n${donorContext}`;
   }
 }

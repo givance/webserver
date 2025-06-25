@@ -167,14 +167,20 @@ const saveGeneratedEmailSchema = z.object({
   sessionId: z.number(),
   donorId: z.number(),
   subject: z.string(),
-  structuredContent: z.array(
-    z.object({
-      piece: z.string(),
-      references: z.array(z.string()),
-      addNewlineAfter: z.boolean(),
-    })
-  ),
-  referenceContexts: z.record(z.string(), z.string()),
+  // Legacy format fields (optional for new emails)
+  structuredContent: z
+    .array(
+      z.object({
+        piece: z.string(),
+        references: z.array(z.string()),
+        addNewlineAfter: z.boolean(),
+      })
+    )
+    .optional(),
+  referenceContexts: z.record(z.string(), z.string()).optional(),
+  // New format fields
+  emailContent: z.string().optional(),
+  reasoning: z.string().optional(),
   isPreview: z.boolean().optional().default(true),
 });
 

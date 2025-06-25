@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Check, Clock, Sparkles, AlertCircle } from "lucide-react";
+import { Edit, Check, Clock, Sparkles, AlertCircle, Info } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { EmailEditModal } from "./EmailEditModal";
@@ -33,8 +33,12 @@ interface EmailDisplayProps {
   donorName: string;
   donorEmail: string;
   subject: string;
-  content: EmailPiece[];
-  referenceContexts: Record<string, string>; // Map of reference IDs to their context
+  // Legacy format (structured content)
+  content?: EmailPiece[];
+  referenceContexts?: Record<string, string>; // Map of reference IDs to their context
+  // New format
+  emailContent?: string;
+  reasoning?: string;
   emailId?: number;
   donorId?: number;
   sessionId?: number;
@@ -88,9 +92,7 @@ function PreviewEditModal({
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Remove signature pieces
-    const contentWithoutSignature = structuredContent.filter(
-      (piece) => !piece.references?.includes("signature")
-    );
+    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references?.includes("signature"));
 
     return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
@@ -214,6 +216,8 @@ export function EmailDisplay({
   subject,
   content,
   referenceContexts,
+  emailContent,
+  reasoning,
   emailId,
   donorId,
   sessionId,
@@ -233,28 +237,33 @@ export function EmailDisplay({
 }: EmailDisplayProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
-  const [previewContent, setPreviewContent] = useState(content);
+  const [previewContent, setPreviewContent] = useState(content || []);
   const { getEmailStatus } = useCommunications();
+
+  // Determine which format to use
+  const isNewFormat = emailContent !== undefined;
+  const isLegacyFormat = content !== undefined && content.length > 0;
 
   // Get email status to check if sent - only query if emailId exists
   const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
 
-  // For preview mode, we need to fetch signature separately
-  const displayContent = isPreviewMode ? previewContent : content;
+  // For preview mode, we need to fetch signature separately (only for legacy format)
+  const displayContent = isPreviewMode ? previewContent : content || [];
   const { data: signatureData } = trpc.emailCampaigns.getEmailWithSignature.useQuery(
     {
       donorId: donorId || 0,
       structuredContent: displayContent,
     },
     {
-      enabled: isPreviewMode && !!donorId && displayContent.length > 0,
+      enabled: isPreviewMode && !!donorId && displayContent.length > 0 && isLegacyFormat,
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+      gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     }
   );
 
-  // Use signature-appended content for preview mode, otherwise content should already have signature
-  const contentWithSignature = isPreviewMode && signatureData ? signatureData.structuredContent : displayContent;
+  // Use signature-appended content for preview mode in legacy format, otherwise use provided content
+  const contentWithSignature =
+    isPreviewMode && signatureData && isLegacyFormat ? signatureData.structuredContent : displayContent;
 
   return (
     <div className="space-y-4">
@@ -350,8 +359,8 @@ export function EmailDisplay({
                   emailId={emailId || 0}
                   sessionId={sessionId}
                   currentSubject={isPreviewMode ? previewSubject : subject}
-                  currentContent={isPreviewMode ? previewContent : content}
-                  currentReferenceContexts={referenceContexts}
+                  currentContent={isPreviewMode ? previewContent : content || []}
+                  currentReferenceContexts={referenceContexts || {}}
                   isPreviewMode={isPreviewMode}
                   onPreviewEnhance={
                     isPreviewMode && onPreviewEnhance && donorId
@@ -382,29 +391,47 @@ export function EmailDisplay({
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm font-sans">
-            {contentWithSignature.map((piece, index) => {
-              // Check if this is signature content or contains HTML
-              const isSignature = piece.references?.includes("signature") || false;
-              const containsHTML = /<[^>]+>/.test(piece.piece);
-              const shouldRenderHTML = isSignature || containsHTML;
+            {isNewFormat ? (
+              // New format: Show plain email content without references
+              <div className="whitespace-pre-wrap">
+                {/* Show reasoning for new format emails */}
+                {reasoning && (
+                  <div className="mt-2 p-2 bg-muted/30 rounded-md border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Info className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground">AI Generation Strategy</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground font-light leading-relaxed">{reasoning}</p>
+                  </div>
+                )}
+                {emailContent}
+              </div>
+            ) : (
+              // Legacy format: Show structured content with references
+              contentWithSignature.map((piece, index) => {
+                // Check if this is signature content or contains HTML
+                const isSignature = piece.references?.includes("signature") || false;
+                const containsHTML = /<[^>]+>/.test(piece.piece);
+                const shouldRenderHTML = isSignature || containsHTML;
 
-              return (
-                <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
-                  {shouldRenderHTML ? (
-                    <div
-                      className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
-                      dangerouslySetInnerHTML={{ __html: piece.piece }}
-                    />
-                  ) : (
-                    <span className="whitespace-pre-wrap">{piece.piece}</span>
-                  )}
-                  {/* Only show references for non-signature content */}
-                  {!isSignature && (
-                    <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts} />
-                  )}
-                </div>
-              );
-            })}
+                return (
+                  <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                    {shouldRenderHTML ? (
+                      <div
+                        className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
+                        dangerouslySetInnerHTML={{ __html: piece.piece }}
+                      />
+                    ) : (
+                      <span className="whitespace-pre-wrap">{piece.piece}</span>
+                    )}
+                    {/* Only show references for non-signature content */}
+                    {!isSignature && (
+                      <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts || {}} />
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </CardContent>
       </Card>
@@ -441,8 +468,8 @@ export function EmailDisplay({
           onOpenChange={setIsEditModalOpen}
           emailId={emailId}
           initialSubject={subject}
-          initialContent={content}
-          initialReferenceContexts={referenceContexts}
+          initialContent={content || []}
+          initialReferenceContexts={referenceContexts || {}}
           donorName={donorName}
           donorEmail={donorEmail}
         />

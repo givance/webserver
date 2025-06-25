@@ -18,6 +18,7 @@ import { templatesRouter } from "./templates";
 import { listsRouter } from "./lists";
 import { personResearchRouter } from "./person-research";
 import { whatsappRouter } from "./whatsapp";
+import { emailCampaignsRouter } from "./email-campaigns";
 
 /**
  * Root router for the tRPC API
@@ -43,6 +44,7 @@ export const appRouter = router({
   lists: listsRouter,
   personResearch: personResearchRouter,
   whatsapp: whatsappRouter,
+  emailCampaigns: emailCampaignsRouter,
 });
 
 // Export type definition of API

@@ -11,6 +11,7 @@ import {
   TokenUsage,
   addTokenUsage,
   createEmptyEmailGenerationTokenUsage,
+  GeneratedEmail,
 } from "./types";
 
 /**
@@ -26,6 +27,7 @@ import {
  * @param communicationHistories - Optional map of donor communication histories
  * @param donationHistories - Optional map of donor donation histories
  * @param donorStatistics - Optional map of comprehensive donor statistics
+ * @param personResearchResults - Optional map of person research results
  * @param userMemories - User's personal memories
  * @param organizationMemories - Organization-wide memories
  * @param currentDate - Current date for time-sensitive content
@@ -51,17 +53,7 @@ export async function generateSmartDonorEmails(
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
-  emails: Array<{
-    donorId: number;
-    subject: string;
-    structuredContent: Array<{
-      piece: string;
-      references: string[];
-      addNewlineAfter: boolean;
-    }>;
-    referenceContexts: Record<string, string>;
-    tokenUsage: TokenUsage;
-  }>;
+  emails: GeneratedEmail[];
   suggestedMemories?: string[];
   tokenUsage: EmailGenerationTokenUsage;
 }> {
@@ -70,20 +62,25 @@ export async function generateSmartDonorEmails(
 
   // Ensure chatHistory is an array
   const validChatHistory = Array.isArray(chatHistory) ? chatHistory : [];
-  
-  console.log("chatHistory type:", typeof chatHistory, "isArray:", Array.isArray(chatHistory));
-  console.log("chatHistory value:", chatHistory);
+
+  logger.info(`[generateSmartDonorEmails] ENTRY POINT - Starting NEW FORMAT generation for ${donors.length} donors`);
+  logger.info(
+    `[generateSmartDonorEmails] chatHistory type: ${typeof chatHistory}, isArray: ${Array.isArray(chatHistory)}`
+  );
+  logger.info(`[generateSmartDonorEmails] userInstruction: "${userInstruction}"`);
 
   if (validChatHistory.length > 0) {
     const userMessages = validChatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
     if (userMessages.length > 0) {
       completeUserInstruction = userMessages.join(" ");
-      logger.info(`Concatenated ${userMessages.length} user messages from chat history to form complete instruction`);
+      logger.info(
+        `[generateSmartDonorEmails] Concatenated ${userMessages.length} user messages from chat history to form complete instruction`
+      );
     }
   }
 
   logger.info(
-    `Starting smart donor email generation for ${
+    `[generateSmartDonorEmails] Starting smart donor email generation for ${
       donors.length
     } donors with instruction: "${completeUserInstruction}" (previousInstruction: ${
       previousInstruction ? `"${previousInstruction}"` : "none"
@@ -97,11 +94,11 @@ export async function generateSmartDonorEmails(
   const emailGenerator = new EmailGenerationService();
 
   // Then, use the refined instruction to generate emails using the second agent
-  logger.info(`Starting email generation stage for ${donors.length} donors`);
+  logger.info(`[generateSmartDonorEmails] Starting email generation stage for ${donors.length} donors`);
   // Determine which writing instructions to use - staff overrides organizational
 
-  console.log("completeUserInstruction", completeUserInstruction);
-  console.log("previousInstruction", previousInstruction);
+  logger.info(`[generateSmartDonorEmails] completeUserInstruction: "${completeUserInstruction}"`);
+  logger.info(`[generateSmartDonorEmails] previousInstruction: "${previousInstruction}"`);
 
   const emails = await emailGenerator.generateEmails(
     donors,
@@ -120,6 +117,20 @@ export async function generateSmartDonorEmails(
     completeUserInstruction // Pass the complete user instruction
   );
 
+  logger.info(`[generateSmartDonorEmails] Generated ${emails.length} emails, checking format...`);
+
+  // Log first email to verify format
+  if (emails.length > 0) {
+    const firstEmail = emails[0];
+    logger.info(
+      `[generateSmartDonorEmails] First email format check - donorId: ${
+        firstEmail.donorId
+      }, hasEmailContent: ${!!firstEmail.emailContent}, hasReasoning: ${!!firstEmail.reasoning}, hasStructuredContent: ${!!firstEmail.structuredContent}, structuredContentLength: ${
+        firstEmail.structuredContent?.length || 0
+      }`
+    );
+  }
+
   // Accumulate email generation tokens from all individual emails
   emails.forEach((email) => {
     tokenUsage.emailGeneration = addTokenUsage(tokenUsage.emailGeneration, email.tokenUsage);
@@ -130,11 +141,11 @@ export async function generateSmartDonorEmails(
 
   // Log comprehensive token usage summary
   logger.info(
-    `Smart donor email generation completed successfully - Donors: ${donors.length}, Instruction: "${completeUserInstruction}"`
+    `[generateSmartDonorEmails] Smart donor email generation completed successfully - Donors: ${donors.length}, Instruction: "${completeUserInstruction}"`
   );
 
   logger.info(
-    `Token usage summary for email generation: Instruction Refinement: ${tokenUsage.instructionRefinement.totalTokens} tokens (${tokenUsage.instructionRefinement.promptTokens} input, ${tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${tokenUsage.emailGeneration.totalTokens} tokens (${tokenUsage.emailGeneration.promptTokens} input, ${tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
+    `[generateSmartDonorEmails] Token usage summary for email generation: Instruction Refinement: ${tokenUsage.instructionRefinement.totalTokens} tokens (${tokenUsage.instructionRefinement.promptTokens} input, ${tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${tokenUsage.emailGeneration.totalTokens} tokens (${tokenUsage.emailGeneration.promptTokens} input, ${tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
   );
 
   // Return both the refinement information and the generated emails

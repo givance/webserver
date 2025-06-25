@@ -95,17 +95,20 @@ export function GenerateEmailsStep({
 
     setIsGenerating(true);
     try {
+      const selectedEmail = sampleEmails[selectedSampleIndex];
+      if (!selectedEmail.structuredContent) return;
+
       // In a real implementation, this would call your OpenAI endpoint with the refinement prompt
       const refinedEmail = {
-        ...sampleEmails[selectedSampleIndex],
+        ...selectedEmail,
         structuredContent: [
-          ...sampleEmails[selectedSampleIndex].structuredContent.slice(0, -2),
+          ...selectedEmail.structuredContent.slice(0, -2),
           {
             piece: `[This would be the AI-refined content based on prompt: ${aiPrompt}]`,
             references: [],
             addNewlineAfter: true,
           },
-          ...sampleEmails[selectedSampleIndex].structuredContent.slice(-2),
+          ...selectedEmail.structuredContent.slice(-2),
         ],
       };
 

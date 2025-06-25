@@ -325,10 +325,28 @@ export const generateBulkEmailsTask = task({
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default
-            user.emailSignature ?? undefined, // Pass user's email signature
             undefined, // previousInstruction - not needed with chat history
             chatHistory // Pass the chat history to handle conversation context
           );
+
+          // Log format verification for each generated email
+          if (singleDonorResult.emails.length > 0) {
+            const email = singleDonorResult.emails[0];
+            triggerLogger.info(
+              `[TRIGGER-FORMAT-CHECK] Donor ${
+                donorInfo.id
+              } - hasEmailContent: ${!!email.emailContent}, hasReasoning: ${!!email.reasoning}, emailContentLength: ${
+                email.emailContent?.length || 0
+              }, reasoningLength: ${email.reasoning?.length || 0}`
+            );
+            triggerLogger.info(
+              `[TRIGGER-FORMAT-CHECK] Donor ${
+                donorInfo.id
+              } - hasStructuredContent: ${!!email.structuredContent}, structuredContentLength: ${
+                email.structuredContent?.length || 0
+              }`
+            );
+          }
 
           // Add results to the main array (thread-safe since we're awaiting each batch)
           allEmailResults.push(...singleDonorResult.emails);
@@ -451,8 +469,12 @@ export const generateBulkEmailsTask = task({
           sessionId,
           donorId: email.donorId,
           subject: email.subject,
+          // Legacy format fields (for backward compatibility)
           structuredContent: enhancedStructuredContent,
           referenceContexts: email.referenceContexts,
+          // New format fields
+          emailContent: email.emailContent,
+          reasoning: email.reasoning,
           status: "APPROVED",
           isPreview: false,
           isSent: false,

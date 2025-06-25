@@ -88,12 +88,16 @@ export interface SaveGeneratedEmailInput {
   sessionId: number;
   donorId: number;
   subject: string;
-  structuredContent: Array<{
+  // Legacy format fields (optional for new emails)
+  structuredContent?: Array<{
     piece: string;
     references: string[];
     addNewlineAfter: boolean;
   }>;
-  referenceContexts: Record<string, string>;
+  referenceContexts?: Record<string, string>;
+  // New format fields
+  emailContent?: string;
+  reasoning?: string;
   isPreview?: boolean;
 }
 
@@ -1342,21 +1346,39 @@ export class EmailCampaignsService {
       // Import the signature helper
       const { removeSignatureFromContent } = await import("@/app/lib/utils/email-with-signature");
 
-      // Remove signature from content before saving
-      const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
+      // Remove signature from content before saving (only if structuredContent exists)
+      const contentWithoutSignature = input.structuredContent
+        ? removeSignatureFromContent(input.structuredContent)
+        : undefined;
 
       if (existingEmail) {
         // Update existing email
+        const updateData: any = {
+          subject: input.subject,
+          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+          isPreview: input.isPreview || false,
+          updatedAt: new Date(),
+        };
+
+        // Add legacy format fields if provided
+        if (contentWithoutSignature) {
+          updateData.structuredContent = contentWithoutSignature;
+        }
+        if (input.referenceContexts) {
+          updateData.referenceContexts = input.referenceContexts;
+        }
+
+        // Add new format fields if provided
+        if (input.emailContent) {
+          updateData.emailContent = input.emailContent;
+        }
+        if (input.reasoning) {
+          updateData.reasoning = input.reasoning;
+        }
+
         const [updatedEmail] = await db
           .update(generatedEmails)
-          .set({
-            subject: input.subject,
-            structuredContent: contentWithoutSignature, // Save without signature
-            referenceContexts: input.referenceContexts,
-            status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
-            isPreview: input.isPreview || false,
-            updatedAt: new Date(),
-          })
+          .set(updateData)
           .where(eq(generatedEmails.id, existingEmail.id))
           .returning();
 
@@ -1364,20 +1386,33 @@ export class EmailCampaignsService {
         return { success: true, email: updatedEmail };
       } else {
         // Create new email
-        const [newEmail] = await db
-          .insert(generatedEmails)
-          .values({
-            sessionId: input.sessionId,
-            donorId: input.donorId,
-            subject: input.subject,
-            structuredContent: contentWithoutSignature, // Save without signature
-            referenceContexts: input.referenceContexts,
-            status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
-            isPreview: input.isPreview || false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .returning();
+        const insertData: any = {
+          sessionId: input.sessionId,
+          donorId: input.donorId,
+          subject: input.subject,
+          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+          isPreview: input.isPreview || false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Add legacy format fields if provided
+        if (contentWithoutSignature) {
+          insertData.structuredContent = contentWithoutSignature;
+        }
+        if (input.referenceContexts) {
+          insertData.referenceContexts = input.referenceContexts;
+        }
+
+        // Add new format fields if provided
+        if (input.emailContent) {
+          insertData.emailContent = input.emailContent;
+        }
+        if (input.reasoning) {
+          insertData.reasoning = input.reasoning;
+        }
+
+        const [newEmail] = await db.insert(generatedEmails).values(insertData).returning();
 
         console.log(`Created new email for donor ${input.donorId} in session ${input.sessionId}`);
         return { success: true, email: newEmail };

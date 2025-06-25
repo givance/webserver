@@ -95,11 +95,35 @@ export interface EmailPiece {
   addNewlineAfter: boolean; // Whether to add a newline after this piece
 }
 
-export interface GeneratedEmail {
+// New simplified email format
+export interface NewEmailFormat {
+  subject: string;
+  reasoning: string;
+  emailContent: string;
+}
+
+// Legacy email format (current)
+export interface LegacyEmailFormat {
   donorId: number;
-  subject: string; // The email subject line
+  subject: string;
   structuredContent: EmailPiece[];
   referenceContexts: Record<string, string>; // Map of reference IDs to their context
+  tokenUsage: TokenUsage;
+}
+
+// Combined format for backward compatibility
+export interface GeneratedEmail {
+  donorId: number;
+  subject: string;
+
+  // Legacy format fields (for backward compatibility - optional for new emails)
+  structuredContent?: EmailPiece[];
+  referenceContexts?: Record<string, string>; // Map of reference IDs to their context
+
+  // New format fields (for new generation)
+  emailContent?: string; // Plain text email content
+  reasoning?: string; // AI's reasoning for the email generation
+
   tokenUsage: TokenUsage; // Add token usage tracking for individual email generation
 }
 

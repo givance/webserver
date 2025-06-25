@@ -79,7 +79,9 @@ export default function CampaignDetailPage() {
     if (!sessionData?.emails) return [];
 
     return sessionData.emails.map((email) => ({
-      ...email,
+      donorId: email.donorId,
+      subject: email.subject,
+      id: email.id,
       // Type cast the structuredContent from unknown to the proper type
       structuredContent: email.structuredContent as Array<{
         piece: string;
@@ -88,6 +90,9 @@ export default function CampaignDetailPage() {
       }>,
       // Type cast referenceContexts from unknown to the proper type
       referenceContexts: email.referenceContexts as Record<string, string>,
+      // Convert null values to undefined to match interface
+      emailContent: email.emailContent || undefined,
+      reasoning: email.reasoning || undefined,
       // Type cast status to proper union type
       status:
         email.status === "PENDING_APPROVAL" || email.status === "APPROVED"
@@ -113,7 +118,7 @@ export default function CampaignDetailPage() {
   const referenceContexts = useMemo(() => {
     const contexts: Record<number, Record<string, string>> = {};
     typedEmails.forEach((email) => {
-      contexts[email.donorId] = email.referenceContexts;
+      contexts[email.donorId] = email.referenceContexts || {};
     });
     return contexts;
   }, [typedEmails]);
