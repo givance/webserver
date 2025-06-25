@@ -51,7 +51,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
@@ -61,7 +61,7 @@ export const whatsappRouter = router({
       if (!result) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to add phone number",
+          message: "Unable to add the phone number. Please try again.",
         });
       }
 
@@ -75,7 +75,9 @@ export const whatsappRouter = router({
 
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error ? error.message : "Failed to add phone number",
+        message: error instanceof Error && error.message.includes("already exists") 
+          ? "This phone number is already associated with the staff member."
+          : "Unable to add the phone number. Please try again.",
       });
     }
   }),
@@ -93,7 +95,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
@@ -103,7 +105,7 @@ export const whatsappRouter = router({
       if (!result) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to remove phone number",
+          message: "Unable to remove the phone number. Please try again.",
         });
       }
 
@@ -114,7 +116,9 @@ export const whatsappRouter = router({
 
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error ? error.message : "Failed to remove phone number",
+        message: error instanceof Error && error.message.includes("not found") 
+          ? "This phone number is not associated with the staff member."
+          : "Unable to remove the phone number. Please try again.",
       });
     }
   }),
@@ -132,7 +136,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
@@ -167,7 +171,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
@@ -203,7 +207,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
@@ -271,7 +275,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Staff member not found",
+          message: "The staff member you're trying to update doesn't exist in your organization.",
         });
       }
 
