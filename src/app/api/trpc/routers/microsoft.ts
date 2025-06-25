@@ -5,6 +5,7 @@ import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
+import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
@@ -549,7 +550,15 @@ export const microsoftRouter = router({
 
         // Process content with tracking
         const structuredContent = [{ piece: content, addNewlineAfter: true, references: [] }];
-        const processedContent = await processEmailContentWithTracking(structuredContent as any, trackingId);
+        
+        // Append signature to email content before processing
+        const contentWithSignature = await appendSignatureToEmail(structuredContent as any, {
+          donorId: donorId,
+          organizationId: organizationId,
+          userId: userId,
+        });
+
+        const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);
 
         // Save link trackers to database
         if (processedContent.linkTrackers.length > 0) {

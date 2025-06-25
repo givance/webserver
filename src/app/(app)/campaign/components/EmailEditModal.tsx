@@ -51,16 +51,13 @@ export function EmailEditModal({
   const [content, setContent] = useState("");
   const [referenceContexts, setReferenceContexts] = useState(initialReferenceContexts);
   const [showPreview, setShowPreview] = useState(false);
-  const [signaturePieces, setSignaturePieces] = useState<EmailPiece[]>([]);
 
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
-    // Filter out signature pieces
-    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references.includes("signature"));
-
-    // Store signature pieces separately
-    const sigs = structuredContent.filter((piece) => piece.references.includes("signature"));
-    setSignaturePieces(sigs);
+    // Remove signature pieces
+    const contentWithoutSignature = structuredContent.filter(
+      (piece) => !piece.references?.includes("signature")
+    );
 
     return contentWithoutSignature
       .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
@@ -105,12 +102,8 @@ export function EmailEditModal({
       return;
     }
 
-    let structuredContent = plainTextToStructured(content);
-
-    // Re-append signature pieces at the end
-    if (signaturePieces.length > 0) {
-      structuredContent = [...structuredContent, ...signaturePieces];
-    }
+    const structuredContent = plainTextToStructured(content);
+    // Signature will be appended automatically when displaying/sending
 
     try {
       await updateEmail.mutateAsync({
@@ -127,12 +120,8 @@ export function EmailEditModal({
   };
 
   const renderPreview = () => {
-    let previewStructured = plainTextToStructured(content);
-
-    // Re-append signature pieces for preview
-    if (signaturePieces.length > 0) {
-      previewStructured = [...previewStructured, ...signaturePieces];
-    }
+    const previewStructured = plainTextToStructured(content);
+    // Note: Signature will be appended when actually displayed
 
     return (
       <div className="space-y-4">

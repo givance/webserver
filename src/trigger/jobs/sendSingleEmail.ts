@@ -8,6 +8,7 @@ import { processEmailContentWithTracking, createHtmlEmail } from "@/app/lib/util
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { google } from "googleapis";
 import { env } from "@/app/lib/env";
+import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 
 // Gmail OAuth configuration
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
@@ -254,8 +255,15 @@ export const sendSingleEmailTask = task({
         sessionId: sessionId,
       });
 
+      // Append signature to email content before processing
+      const contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
+        donorId: email.donorId,
+        organizationId: organizationId,
+        userId: userId,
+      });
+
       // Process content with tracking
-      const processedContent = await processEmailContentWithTracking(email.structuredContent as any, trackingId);
+      const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);
 
       // Create link trackers
       if (processedContent.linkTrackers.length > 0) {

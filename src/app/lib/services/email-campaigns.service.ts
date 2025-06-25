@@ -416,9 +416,34 @@ export class EmailCampaignsService {
       // Get generated emails for this session
       const emails = await db.select().from(generatedEmails).where(eq(generatedEmails.sessionId, sessionId));
 
+      // Import the signature helper
+      const { appendSignatureToEmail } = await import("@/app/lib/utils/email-with-signature");
+
+      // Append signatures to each email for display
+      const emailsWithSignatures = await Promise.all(
+        emails.map(async (email) => {
+          const structuredContent = email.structuredContent as Array<{
+            piece: string;
+            references: string[];
+            addNewlineAfter: boolean;
+          }>;
+
+          const contentWithSignature = await appendSignatureToEmail(structuredContent, {
+            donorId: email.donorId,
+            organizationId: organizationId,
+            userId: session.userId,
+          });
+
+          return {
+            ...email,
+            structuredContent: contentWithSignature,
+          };
+        })
+      );
+
       return {
         session,
-        emails,
+        emails: emailsWithSignatures,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
@@ -776,12 +801,18 @@ export class EmailCampaignsService {
         });
       }
 
+      // Import the signature helper
+      const { removeSignatureFromContent } = await import("@/app/lib/utils/email-with-signature");
+
+      // Remove signature from content before saving
+      const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
+
       // Update the email and reset status to PENDING_APPROVAL since content was edited
       const [updatedEmail] = await db
         .update(generatedEmails)
         .set({
           subject: input.subject,
-          structuredContent: input.structuredContent,
+          structuredContent: contentWithoutSignature, // Save without signature
           referenceContexts: input.referenceContexts,
           status: "PENDING_APPROVAL", // Reset status when email is edited
           updatedAt: new Date(),
@@ -1308,13 +1339,19 @@ export class EmailCampaignsService {
         columns: { id: true },
       });
 
+      // Import the signature helper
+      const { removeSignatureFromContent } = await import("@/app/lib/utils/email-with-signature");
+
+      // Remove signature from content before saving
+      const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
+
       if (existingEmail) {
         // Update existing email
         const [updatedEmail] = await db
           .update(generatedEmails)
           .set({
             subject: input.subject,
-            structuredContent: input.structuredContent,
+            structuredContent: contentWithoutSignature, // Save without signature
             referenceContexts: input.referenceContexts,
             status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
             isPreview: input.isPreview || false,
@@ -1333,7 +1370,7 @@ export class EmailCampaignsService {
             sessionId: input.sessionId,
             donorId: input.donorId,
             subject: input.subject,
-            structuredContent: input.structuredContent,
+            structuredContent: contentWithoutSignature, // Save without signature
             referenceContexts: input.referenceContexts,
             status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
             isPreview: input.isPreview || false,

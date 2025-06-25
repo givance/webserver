@@ -48,7 +48,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     personalMemories: string[] = [],
     organizationalMemories: string[] = [],
     currentDate?: string,
-    emailSignature?: string,
     originalInstruction?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(

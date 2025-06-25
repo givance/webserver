@@ -6,6 +6,7 @@ import { logger } from "@/app/lib/logger";
 import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
 import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
+import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { google } from "googleapis";
@@ -444,11 +445,18 @@ async function processEmailForDelivery(
     sessionId: sessionId,
   });
 
-  // Process email content with tracking (this includes signature processing)
-  const processedContent = await processEmailContentWithTracking(email.structuredContent as any, trackingId);
+  // Append signature to email content before processing
+  const contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
+    donorId: email.donorId,
+    organizationId: organizationId,
+    userId: userId,
+  });
+
+  // Process email content with tracking (including the appended signature)
+  const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);
 
   // Debug logging for signature content
-  const signaturePieces = email.structuredContent.filter(
+  const signaturePieces = contentWithSignature.filter(
     (piece: any) => piece.references && piece.references.includes("signature")
   );
   if (signaturePieces.length > 0) {
