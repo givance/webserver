@@ -1,0 +1,1 @@
+ALTER TYPE "public"."staff_whatsapp_activity_type" ADD VALUE 'donor_analysis_executed';

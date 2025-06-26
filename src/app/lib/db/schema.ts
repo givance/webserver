@@ -216,7 +216,9 @@ export const donors = pgTable(
     address: text("address"),
     state: varchar("state", { length: 50 }),
     gender: genderEnum("gender"), // For individual donors
-    notes: jsonb("notes").$type<DonorNote[]>().default(sql`'[]'::jsonb`),
+    notes: jsonb("notes")
+      .$type<DonorNote[]>()
+      .default(sql`'[]'::jsonb`),
     assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
     currentStageName: varchar("current_stage_name", { length: 255 }),
     classificationReasoning: text("classification_reasoning"),
@@ -1120,6 +1122,7 @@ export const staffWhatsappActivityTypeEnum = pgEnum("staff_whatsapp_activity_typ
   "ai_response_generated",
   "voice_transcribed",
   "error_occurred",
+  "donor_analysis_executed",
 ]);
 
 /**
