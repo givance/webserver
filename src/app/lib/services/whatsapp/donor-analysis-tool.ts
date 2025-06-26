@@ -241,14 +241,21 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   formatted += `\nDonation Summary:\n`;
   formatted += `- Total Donated: $${(totalDonated / 100).toFixed(2)}\n`;
   formatted += `- Number of Donations: ${donationCount}\n`;
-  if (firstDonationDate) formatted += `- First Donation: ${firstDonationDate.toLocaleDateString()}\n`;
-  if (lastDonationDate) formatted += `- Last Donation: ${lastDonationDate.toLocaleDateString()}\n`;
+  if (firstDonationDate) {
+    const firstDate = new Date(firstDonationDate);
+    formatted += `- First Donation: ${firstDate.toLocaleDateString()}\n`;
+  }
+  if (lastDonationDate) {
+    const lastDate = new Date(lastDonationDate);
+    formatted += `- Last Donation: ${lastDate.toLocaleDateString()}\n`;
+  }
 
   // Recent donations
   if (donations.length > 0) {
     formatted += `\nRecent Donations (last 10):\n`;
     donations.slice(0, 10).forEach((donation) => {
-      formatted += `- ${donation.date.toLocaleDateString()}: $${(donation.amount / 100).toFixed(2)} to ${
+      const donationDate = new Date(donation.date);
+      formatted += `- ${donationDate.toLocaleDateString()}: $${(donation.amount / 100).toFixed(2)} to ${
         donation.projectName
       }\n`;
     });
@@ -280,7 +287,8 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   if (communications.length > 0) {
     formatted += `\nRecent Communications (last 5):\n`;
     communications.slice(0, 5).forEach((comm) => {
-      formatted += `- ${comm.datetime.toLocaleDateString()} [${comm.channel}] ${comm.direction}: ${comm.content}\n`;
+      const commDate = new Date(comm.datetime);
+      formatted += `- ${commDate.toLocaleDateString()} [${comm.channel}] ${comm.direction}: ${comm.content}\n`;
     });
   }
 
@@ -290,7 +298,10 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
     formatted += `\nActive Tasks:\n`;
     activeTodos.forEach((todo) => {
       formatted += `- [${todo.priority}] ${todo.title}: ${todo.description}\n`;
-      if (todo.dueDate) formatted += `  Due: ${todo.dueDate.toLocaleDateString()}\n`;
+      if (todo.dueDate) {
+        const dueDate = new Date(todo.dueDate);
+        formatted += `  Due: ${dueDate.toLocaleDateString()}\n`;
+      }
     });
   }
 
