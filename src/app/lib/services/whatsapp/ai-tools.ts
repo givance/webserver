@@ -82,7 +82,7 @@ export function createAITools(
   fromPhoneNumber: string
 ) {
   const schemaDescription = sqlEngine.getSchemaDescription();
-  const donorAnalysisTool = createDonorAnalysisTool(organizationId);
+  const donorAnalysisTool = createDonorAnalysisTool(organizationId, loggingService, staffId, fromPhoneNumber);
 
   return {
     executeSQL: {
@@ -100,9 +100,7 @@ export function createAITools(
         const maxRetries = 2;
         const retryAttempt = params.retryAttempt || 0;
 
-        logger.info(
-          `[WhatsApp AI] Executing SQL query (attempt ${retryAttempt + 1}): ${params.query}`
-        );
+        logger.info(`[WhatsApp AI] Executing SQL query (attempt ${retryAttempt + 1}): ${params.query}`);
 
         // Security validation - check for dangerous operations
         const queryUpper = params.query.toUpperCase().trim();

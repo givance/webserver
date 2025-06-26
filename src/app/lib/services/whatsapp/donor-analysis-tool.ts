@@ -280,9 +280,7 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   if (communications.length > 0) {
     formatted += `\nRecent Communications (last 5):\n`;
     communications.slice(0, 5).forEach((comm) => {
-      formatted += `- ${comm.datetime.toLocaleDateString()} [${comm.channel}] ${
-        comm.direction
-      }: ${comm.content}\n`;
+      formatted += `- ${comm.datetime.toLocaleDateString()} [${comm.channel}] ${comm.direction}: ${comm.content}\n`;
     });
   }
 
@@ -302,7 +300,12 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
 /**
  * Create the donor analysis tool configuration
  */
-export function createDonorAnalysisTool(organizationId: string) {
+export function createDonorAnalysisTool(
+  organizationId: string,
+  loggingService?: any,
+  staffId?: number,
+  fromPhoneNumber?: string
+) {
   return {
     analyzeDonors: {
       description: `Analyze multiple donors to answer questions about their history, donations, relationships, patterns, information, and more. 
@@ -313,7 +316,7 @@ export function createDonorAnalysisTool(organizationId: string) {
         - Active tasks and todos
         - High potential donor status
 
-        Use this tool when you need to analyze patterns across multiple donors or answer questions that require detailed donor context.`,
+        Use this tool when you need to analyze patterns across multiple donors or answer questions that require detailed donor context. Or if the execSQL tool fails, use this tool to try again.`,
       parameters: z.object({
         donorIds: z.array(z.number()).describe("Array of donor IDs to analyze"),
         question: z.string().describe("The question to answer about these donors"),
@@ -366,6 +369,21 @@ export function createDonorAnalysisTool(organizationId: string) {
           logger.info(
             `[WhatsApp AI] LLM analysis completed in ${llmTime}ms - ${result.usage?.totalTokens || 0} tokens used`
           );
+
+          // Log the donor analysis execution if logging service is available
+          if (loggingService && staffId && fromPhoneNumber) {
+            await loggingService.logDonorAnalysis(
+              staffId,
+              organizationId,
+              fromPhoneNumber,
+              donorIds,
+              question,
+              result.text,
+              donorHistories.size,
+              result.usage?.totalTokens || 0,
+              Date.now() - startTime
+            );
+          }
 
           return {
             success: true,

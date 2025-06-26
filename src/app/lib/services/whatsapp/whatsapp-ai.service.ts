@@ -42,15 +42,23 @@ export class WhatsAppAIService {
    */
   async processMessage(request: WhatsAppAIRequest): Promise<WhatsAppAIResponse> {
     const { message, organizationId, staffId, fromPhoneNumber, isTranscribed = false } = request;
+    const startTime = Date.now();
 
     // Check if this is a retry of a recently processed message
     const isRetry = checkAndMarkMessage(message, fromPhoneNumber, organizationId);
 
     // Only log if this is not a recent retry
     if (!isRetry) {
-      logger.info(`Processing WhatsApp message from ${fromPhoneNumber} for organization ${organizationId}`);
+      logger.info(`[WhatsApp AI] Processing new message request`, {
+        fromPhoneNumber,
+        organizationId,
+        staffId,
+        messageLength: message.length,
+        isTranscribed,
+        message: message,
+      });
     } else {
-      logger.debug(`Skipping duplicate log for retry from ${fromPhoneNumber} (message already processed recently)`);
+      logger.debug(`[WhatsApp AI] Processing retry message from ${fromPhoneNumber} (already processed recently)`);
     }
 
     try {
@@ -70,8 +78,14 @@ export class WhatsAppAIService {
       const systemPrompt = this.getSystemPrompt(organizationId);
       const userPrompt = buildUserPrompt(message, isTranscribed, historyContext);
 
-      logger.info(`[WhatsApp AI] Sending request to Azure OpenAI - ${chatHistory.length} messages in context`);
+      logger.info(`[WhatsApp AI] Sending request to Azure OpenAI`, {
+        chatHistoryLength: chatHistory.length,
+        systemPromptLength: systemPrompt.length,
+        userPromptLength: userPrompt.length,
+        deployment: env.AZURE_OPENAI_DEPLOYMENT_NAME,
+      });
 
+      const aiStartTime = Date.now();
       const result = await generateText({
         model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         system: systemPrompt,
@@ -82,6 +96,7 @@ export class WhatsAppAIService {
         toolChoice: "auto",
         maxSteps: 10,
       });
+      const aiProcessingTime = Date.now() - aiStartTime;
 
       const tokensUsed = {
         promptTokens: result.usage?.promptTokens || 0,
@@ -89,12 +104,21 @@ export class WhatsAppAIService {
         totalTokens: result.usage?.totalTokens || 0,
       };
 
-      // Simplified logging
-      logger.info(
-        `[WhatsApp AI] Response generated - ${tokensUsed.totalTokens} tokens used, ${
-          result.toolCalls?.length || 0
-        } tools called`
-      );
+      // Enhanced logging with tool details
+      const toolDetails =
+        result.toolCalls?.map((call) => ({
+          toolName: call.toolName,
+          args: call.args,
+        })) || [];
+
+      logger.info(`[WhatsApp AI] Response generated successfully`, {
+        tokensUsed,
+        toolCallCount: result.toolCalls?.length || 0,
+        toolDetails,
+        aiProcessingTimeMs: aiProcessingTime,
+        responseLength: result.text.length,
+        steps: result.steps?.length || 0,
+      });
 
       // Handle empty responses - this should NOT happen if AI is working properly
       const responseText = result.text.trim();
@@ -119,18 +143,36 @@ export class WhatsAppAIService {
         tokensUsed,
       });
 
+      const totalProcessingTime = Date.now() - startTime;
+
+      logger.info(`[WhatsApp AI] Request completed successfully`, {
+        fromPhoneNumber,
+        organizationId,
+        totalProcessingTimeMs: totalProcessingTime,
+        responsePreview: responseText.substring(0, 100) + (responseText.length > 100 ? "..." : ""),
+        tokensUsed,
+      });
+
       return {
         response: responseText,
         tokensUsed,
       };
     } catch (error) {
-      logger.error(`Error processing WhatsApp message: ${error instanceof Error ? error.message : String(error)}`);
+      const totalProcessingTime = Date.now() - startTime;
+
+      logger.error(`[WhatsApp AI] Error processing WhatsApp message`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        fromPhoneNumber,
+        organizationId,
+        staffId,
+        totalProcessingTimeMs: totalProcessingTime,
+      });
 
       // Re-throw the error so the webhook can handle it
       throw error;
     }
   }
-
 
   /**
    * Get the system prompt for the AI assistant (cached for performance)

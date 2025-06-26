@@ -4,6 +4,7 @@
  */
 
 import crypto from "crypto";
+import { logger } from "@/app/lib/logger";
 
 interface ProcessedMessage {
   timestamp: number;
@@ -20,11 +21,17 @@ const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 export function cleanupProcessedMessages(): void {
   const now = Date.now();
   const cutoff = now - DEDUP_WINDOW_MS;
+  let cleanedCount = 0;
 
   for (const [key, value] of processedMessages.entries()) {
     if (value.timestamp < cutoff) {
       processedMessages.delete(key);
+      cleanedCount++;
     }
+  }
+
+  if (cleanedCount > 0) {
+    logger.debug(`[Message Dedup] Cleaned up ${cleanedCount} expired message entries, ${processedMessages.size} remaining`);
   }
 }
 
@@ -81,6 +88,18 @@ export function checkAndMarkMessage(message: string, fromPhoneNumber: string, or
   
   if (!isRetry) {
     markMessageProcessed(messageKey, messageHash);
+    logger.debug(`[Message Dedup] New message marked as processed`, {
+      fromPhoneNumber,
+      organizationId,
+      messageHash,
+      cacheSize: processedMessages.size
+    });
+  } else {
+    logger.debug(`[Message Dedup] Duplicate message detected`, {
+      fromPhoneNumber,
+      organizationId,
+      messageHash
+    });
   }
   
   return isRetry;

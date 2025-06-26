@@ -10,7 +10,8 @@ export type WhatsAppActivityType =
   | "db_query_executed"
   | "ai_response_generated"
   | "voice_transcribed"
-  | "error_occurred";
+  | "error_occurred"
+  | "donor_analysis_executed";
 
 export interface LogActivityParams {
   staffId: number;
@@ -239,6 +240,46 @@ export class WhatsAppStaffLoggingService {
         transcriptionLength: transcription.length,
         processingTimeMs,
         audioSource: "whatsapp_voice",
+      },
+    });
+  }
+
+  /**
+   * Log donor analysis tool execution
+   */
+  async logDonorAnalysis(
+    staffId: number,
+    organizationId: string,
+    phoneNumber: string,
+    donorIds: number[],
+    question: string,
+    analysisResult: string,
+    donorsAnalyzed: number,
+    tokensUsed: number,
+    processingTimeMs?: number
+  ): Promise<boolean> {
+    return this.logActivity({
+      staffId,
+      organizationId,
+      activityType: "donor_analysis_executed",
+      phoneNumber,
+      summary: `Analyzed ${donorsAnalyzed} donors: "${question}"`,
+      data: {
+        donorIds,
+        question,
+        analysisResult,
+        donorsAnalyzed,
+        tokensUsed,
+        timestamp: new Date(),
+      },
+      metadata: {
+        donorCount: donorIds.length,
+        analyzedCount: donorsAnalyzed,
+        questionLength: question.length,
+        resultLength: analysisResult.length,
+        tokensUsed,
+        processingTimeMs,
+        efficiency: tokensUsed > 0 ? analysisResult.length / tokensUsed : 0,
       },
     });
   }

@@ -30,31 +30,49 @@ export class WhatsAppSQLEngineService {
   async executeRawSQL(params: { query: string; organizationId: string }): Promise<SQLExecutionResult> {
     const { query: rawQuery, organizationId } = params;
 
-    logger.info(`[SQL Engine] Executing raw SQL query for organization ${organizationId}`);
-    logger.info(`[SQL Engine] Query: ${rawQuery}`);
+    logger.info(`[SQL Engine] Executing raw SQL query`, {
+      organizationId,
+      queryLength: rawQuery.length,
+      queryType: rawQuery.trim().split(' ')[0].toUpperCase(),
+      query: rawQuery
+    });
 
     try {
       // Basic security checks
       this.validateSQLQuery(rawQuery);
 
       // Execute the raw SQL query
+      const startTime = Date.now();
       const result = await db.execute(sql.raw(rawQuery));
+      const executionTime = Date.now() - startTime;
 
       // Convert QueryResult to array
       const rows = Array.isArray(result) ? result : result.rows || [];
 
-      logger.info(`[SQL Engine] Query executed successfully, returned ${rows.length} rows`);
+      logger.info(`[SQL Engine] Query executed successfully`, {
+        organizationId,
+        rowsReturned: rows.length,
+        executionTimeMs: executionTime,
+        queryType: rawQuery.trim().split(' ')[0].toUpperCase()
+      });
       return {
         success: true,
         data: rows,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[SQL Engine] Error executing SQL query: ${errorMessage}`);
-
+      
       // Classify error type for better AI understanding
       const errorType = this.classifyError(errorMessage);
       const suggestion = this.generateErrorSuggestion(errorMessage, rawQuery);
+
+      logger.error(`[SQL Engine] SQL query execution failed`, {
+        error: errorMessage,
+        errorType,
+        organizationId,
+        query: rawQuery,
+        suggestion
+      });
 
       return {
         success: false,
