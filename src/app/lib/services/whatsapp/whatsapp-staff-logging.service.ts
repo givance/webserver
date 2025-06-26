@@ -83,9 +83,7 @@ export class WhatsAppStaffLoggingService {
       organizationId,
       activityType: "message_received",
       phoneNumber,
-      summary: `Received ${messageType} message: "${messageContent.substring(0, 100)}${
-        messageContent.length > 100 ? "..." : ""
-      }"`,
+      summary: `Received ${messageType} message: "${messageContent}"`,
       data: {
         messageContent,
         messageType,
@@ -114,7 +112,7 @@ export class WhatsAppStaffLoggingService {
       organizationId,
       activityType: "message_sent",
       phoneNumber,
-      summary: `Sent AI response: "${responseContent.substring(0, 100)}${responseContent.length > 100 ? "..." : ""}"`,
+      summary: `Sent AI response: "${responseContent}"`,
       data: {
         responseContent,
         timestamp: new Date(),
@@ -147,7 +145,7 @@ export class WhatsAppStaffLoggingService {
       phoneNumber,
       summary: `Generated AI response using ${tokensUsed.totalTokens} tokens`,
       data: {
-        prompt: prompt.substring(0, 500), // Truncate long prompts
+        prompt: prompt,
         response,
         tokensUsed,
         toolCalls: toolCalls || [],
@@ -201,7 +199,7 @@ export class WhatsAppStaffLoggingService {
       organizationId,
       activityType: "db_query_executed",
       phoneNumber,
-      summary: `Executed DB query: ${query.substring(0, 100)}${query.length > 100 ? "..." : ""}`,
+      summary: `Executed DB query: ${query}`,
       data: {
         query,
         queryResult,
@@ -231,9 +229,7 @@ export class WhatsAppStaffLoggingService {
       organizationId,
       activityType: "voice_transcribed",
       phoneNumber,
-      summary: `Transcribed voice message: "${transcription.substring(0, 100)}${
-        transcription.length > 100 ? "..." : ""
-      }"`,
+      summary: `Transcribed voice message: "${transcription}"`,
       data: {
         audioId,
         transcription,

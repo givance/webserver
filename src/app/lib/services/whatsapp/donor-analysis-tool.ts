@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { logger } from "@/app/lib/logger";
 import { db } from "@/app/lib/db";
-import { donors, donations, communicationContent, todos, personResearch, projects, communicationThreads } from "@/app/lib/db/schema";
+import {
+  donors,
+  donations,
+  communicationContent,
+  todos,
+  personResearch,
+  projects,
+  communicationThreads,
+} from "@/app/lib/db/schema";
 import { eq, and, desc, sql, or } from "drizzle-orm";
 import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
@@ -110,7 +118,6 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
       .where(eq(donations.donorId, donorId))
       .orderBy(desc(donations.date));
 
-
     // Fetch communications (both sent and received)
     const communicationsData = await db
       .select({
@@ -126,12 +133,7 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
         `,
       })
       .from(communicationContent)
-      .where(
-        or(
-          eq(communicationContent.fromDonorId, donorId),
-          eq(communicationContent.toDonorId, donorId)
-        )
-      )
+      .where(or(eq(communicationContent.fromDonorId, donorId), eq(communicationContent.toDonorId, donorId)))
       .orderBy(desc(communicationContent.datetime));
 
     // Fetch person research (get live research or most recent)
@@ -144,12 +146,7 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
         updatedAt: personResearch.updatedAt,
       })
       .from(personResearch)
-      .where(
-        and(
-          eq(personResearch.donorId, donorId),
-          eq(personResearch.organizationId, organizationId)
-        )
-      )
+      .where(and(eq(personResearch.donorId, donorId), eq(personResearch.organizationId, organizationId)))
       .orderBy(desc(personResearch.isLive), desc(personResearch.updatedAt))
       .limit(1);
 
@@ -192,11 +189,9 @@ async function fetchMultipleDonorHistories(
   organizationId: string
 ): Promise<Map<number, DonorHistory>> {
   const historyMap = new Map<number, DonorHistory>();
-  
+
   // Process donors in parallel
-  const results = await Promise.allSettled(
-    donorIds.map(donorId => fetchDonorHistory(donorId, organizationId))
-  );
+  const results = await Promise.allSettled(donorIds.map((donorId) => fetchDonorHistory(donorId, organizationId)));
 
   results.forEach((result, index) => {
     if (result.status === "fulfilled" && result.value) {
@@ -213,15 +208,27 @@ async function fetchMultipleDonorHistories(
  * Format donor history for LLM analysis
  */
 function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
-  const { donor, donations, communications, research, todos, totalDonated, donationCount, lastDonationDate, firstDonationDate } = donorHistory;
-  
+  const {
+    donor,
+    donations,
+    communications,
+    research,
+    todos,
+    totalDonated,
+    donationCount,
+    lastDonationDate,
+    firstDonationDate,
+  } = donorHistory;
+
   let formatted = `=== Donor Profile: ${donor.firstName} ${donor.lastName} ===\n`;
-  
+
   // Basic info
   formatted += `\nBasic Information:\n`;
   formatted += `- Name: ${donor.displayName || `${donor.firstName} ${donor.lastName}`}\n`;
   if (donor.isCouple) {
-    formatted += `- Couple: ${donor.hisFirstName || ""} ${donor.hisLastName || ""} & ${donor.herFirstName || ""} ${donor.herLastName || ""}\n`;
+    formatted += `- Couple: ${donor.hisFirstName || ""} ${donor.hisLastName || ""} & ${donor.herFirstName || ""} ${
+      donor.herLastName || ""
+    }\n`;
   }
   formatted += `- Email: ${donor.email}\n`;
   if (donor.phone) formatted += `- Phone: ${donor.phone}\n`;
@@ -229,30 +236,32 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   if (donor.state) formatted += `- State: ${donor.state}\n`;
   if (donor.currentStageName) formatted += `- Current Stage: ${donor.currentStageName}\n`;
   if (donor.highPotentialDonor !== null) formatted += `- High Potential: ${donor.highPotentialDonor ? "Yes" : "No"}\n`;
-  
+
   // Donation summary
   formatted += `\nDonation Summary:\n`;
   formatted += `- Total Donated: $${(totalDonated / 100).toFixed(2)}\n`;
   formatted += `- Number of Donations: ${donationCount}\n`;
   if (firstDonationDate) formatted += `- First Donation: ${firstDonationDate.toLocaleDateString()}\n`;
   if (lastDonationDate) formatted += `- Last Donation: ${lastDonationDate.toLocaleDateString()}\n`;
-  
+
   // Recent donations
   if (donations.length > 0) {
     formatted += `\nRecent Donations (last 10):\n`;
-    donations.slice(0, 10).forEach(donation => {
-      formatted += `- ${donation.date.toLocaleDateString()}: $${(donation.amount / 100).toFixed(2)} to ${donation.projectName}\n`;
+    donations.slice(0, 10).forEach((donation) => {
+      formatted += `- ${donation.date.toLocaleDateString()}: $${(donation.amount / 100).toFixed(2)} to ${
+        donation.projectName
+      }\n`;
     });
   }
-  
+
   // Notes
   if (donor.notes && Array.isArray(donor.notes) && donor.notes.length > 0) {
     formatted += `\nNotes:\n`;
-    (donor.notes as any[]).forEach(note => {
+    (donor.notes as any[]).forEach((note) => {
       formatted += `- ${note.content} (${new Date(note.createdAt).toLocaleDateString()})\n`;
     });
   }
-  
+
   // Research insights
   if (research) {
     formatted += `\nResearch Insights:\n`;
@@ -266,25 +275,27 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
     }
     formatted += `Version: ${research.version} (${research.isLive ? "Live" : "Historical"})\n`;
   }
-  
+
   // Recent communications
   if (communications.length > 0) {
     formatted += `\nRecent Communications (last 5):\n`;
-    communications.slice(0, 5).forEach(comm => {
-      formatted += `- ${comm.datetime.toLocaleDateString()} [${comm.channel}] ${comm.direction}: ${comm.content.substring(0, 100)}...\n`;
+    communications.slice(0, 5).forEach((comm) => {
+      formatted += `- ${comm.datetime.toLocaleDateString()} [${comm.channel}] ${
+        comm.direction
+      }: ${comm.content}\n`;
     });
   }
-  
+
   // Active todos
-  const activeTodos = todos.filter(todo => todo.status !== "COMPLETED");
+  const activeTodos = todos.filter((todo) => todo.status !== "COMPLETED");
   if (activeTodos.length > 0) {
     formatted += `\nActive Tasks:\n`;
-    activeTodos.forEach(todo => {
+    activeTodos.forEach((todo) => {
       formatted += `- [${todo.priority}] ${todo.title}: ${todo.description}\n`;
       if (todo.dueDate) formatted += `  Due: ${todo.dueDate.toLocaleDateString()}\n`;
     });
   }
-  
+
   return formatted;
 }
 
@@ -294,14 +305,14 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
 export function createDonorAnalysisTool(organizationId: string) {
   return {
     analyzeDonors: {
-      description: `Analyze multiple donors to answer questions about their history, donations, relationships, and patterns. 
+      description: `Analyze multiple donors to answer questions about their history, donations, relationships, patterns, information, and more. 
         This tool fetches comprehensive donor information including:
         - Complete donation history
         - Notes and research insights
         - Communication history
         - Active tasks and todos
         - High potential donor status
-        
+
         Use this tool when you need to analyze patterns across multiple donors or answer questions that require detailed donor context.`,
       parameters: z.object({
         donorIds: z.array(z.number()).describe("Array of donor IDs to analyze"),
@@ -309,38 +320,38 @@ export function createDonorAnalysisTool(organizationId: string) {
       }),
       execute: async (params: { donorIds: number[]; question: string }) => {
         const { donorIds, question } = params;
-        
-        logger.info(`[WhatsApp AI] Analyzing ${donorIds.length} donors for question: ${question.substring(0, 100)}...`);
-        
+
+        logger.info(`[WhatsApp AI] Analyzing ${donorIds.length} donors for question: ${question}`);
+
         try {
           // Fetch all donor histories in parallel
           const startTime = Date.now();
           const donorHistories = await fetchMultipleDonorHistories(donorIds, organizationId);
           const fetchTime = Date.now() - startTime;
-          
+
           logger.info(`[WhatsApp AI] Fetched history for ${donorHistories.size} donors in ${fetchTime}ms`);
-          
+
           if (donorHistories.size === 0) {
             return {
               success: false,
               error: "No valid donor data found for the provided IDs",
             };
           }
-          
+
           // Format all donor data for LLM
           let donorDataFormatted = "";
           donorHistories.forEach((history) => {
             donorDataFormatted += formatDonorHistoryForLLM(history) + "\n\n";
           });
-          
+
           // Create prompt for LLM
           const systemPrompt = `You are an AI assistant analyzing donor data for a nonprofit organization. 
             You have been provided with comprehensive donor histories including donations, notes, communications, and research insights.
             Answer the question based on the data provided. Be specific and cite relevant information from the donor records.
             If the data doesn't contain enough information to fully answer the question, indicate what additional information would be helpful.`;
-          
+
           const userPrompt = `Here is the donor data:\n\n${donorDataFormatted}\n\nQuestion: ${question}\n\nPlease analyze the donor data and answer the question.`;
-          
+
           // Send to LLM for analysis
           const llmStartTime = Date.now();
           const result = await generateText({
@@ -351,16 +362,17 @@ export function createDonorAnalysisTool(organizationId: string) {
             maxTokens: 2000,
           });
           const llmTime = Date.now() - llmStartTime;
-          
-          logger.info(`[WhatsApp AI] LLM analysis completed in ${llmTime}ms - ${result.usage?.totalTokens || 0} tokens used`);
-          
+
+          logger.info(
+            `[WhatsApp AI] LLM analysis completed in ${llmTime}ms - ${result.usage?.totalTokens || 0} tokens used`
+          );
+
           return {
             success: true,
             analysis: result.text,
             donorsAnalyzed: donorHistories.size,
             tokensUsed: result.usage?.totalTokens || 0,
           };
-          
         } catch (error) {
           logger.error(`[WhatsApp AI] Error in donor analysis:`, error);
           return {

@@ -25,11 +25,7 @@ const FORBIDDEN_SQL_OPERATIONS = [
 /**
  * Generate helpful feedback for SQL errors to guide AI retry attempts
  */
-export function generateSQLErrorFeedback(
-  error: SQLError,
-  failedQuery: string,
-  retryAttempt: number
-): string {
+export function generateSQLErrorFeedback(error: SQLError, failedQuery: string, retryAttempt: number): string {
   const feedback = [];
 
   feedback.push(`SQL Error (${error.type}): ${error.message}`);
@@ -95,7 +91,7 @@ export function createAITools(
         query: z
           .string()
           .describe(
-            "The SQL query to execute (SELECT, INSERT, or UPDATE). Must include proper organization_id filtering."
+            "The SQL query to execute (SELECT, INSERT, or UPDATE). Can be used to fetch data from the database including donor information, projects, donations, and more."
           ),
         retryAttempt: z.number().optional().describe("Internal: retry attempt number (used for error recovery)"),
         previousError: z.string().optional().describe("Internal: previous error message for context"),
@@ -105,12 +101,12 @@ export function createAITools(
         const retryAttempt = params.retryAttempt || 0;
 
         logger.info(
-          `[WhatsApp AI] Executing SQL query (attempt ${retryAttempt + 1}): ${params.query.substring(0, 100)}...`
+          `[WhatsApp AI] Executing SQL query (attempt ${retryAttempt + 1}): ${params.query}`
         );
 
         // Security validation - check for dangerous operations
         const queryUpper = params.query.toUpperCase().trim();
-        
+
         for (const operation of FORBIDDEN_SQL_OPERATIONS) {
           if (queryUpper.includes(operation)) {
             logger.error(`[WhatsApp AI] Blocked dangerous operation: ${operation}`);
