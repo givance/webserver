@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { WhatsAppAIService } from "@/app/lib/services/whatsapp-ai.service";
-import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp-permission.service";
-import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp-staff-logging.service";
+import { WhatsAppAIService } from "@/app/lib/services/whatsapp/whatsapp-ai.service";
+import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp/whatsapp-permission.service";
+import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp/whatsapp-staff-logging.service";
 import OpenAI from "openai";
 
 // Create OpenAI client for transcription

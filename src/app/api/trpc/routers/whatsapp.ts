@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp-permission.service";
-import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp-staff-logging.service";
+import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp/whatsapp-permission.service";
+import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp/whatsapp-staff-logging.service";
 import { getStaffById } from "@/app/lib/data/staff";
 
 // Input validation schemas
@@ -75,9 +75,10 @@ export const whatsappRouter = router({
 
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error && error.message.includes("already exists") 
-          ? "This phone number is already associated with the staff member."
-          : "Unable to add the phone number. Please try again.",
+        message:
+          error instanceof Error && error.message.includes("already exists")
+            ? "This phone number is already associated with the staff member."
+            : "Unable to add the phone number. Please try again.",
       });
     }
   }),
@@ -116,9 +117,10 @@ export const whatsappRouter = router({
 
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error && error.message.includes("not found") 
-          ? "This phone number is not associated with the staff member."
-          : "Unable to remove the phone number. Please try again.",
+        message:
+          error instanceof Error && error.message.includes("not found")
+            ? "This phone number is not associated with the staff member."
+            : "Unable to remove the phone number. Please try again.",
       });
     }
   }),
@@ -280,7 +282,7 @@ export const whatsappRouter = router({
       }
 
       // Import WhatsAppHistoryService
-      const { WhatsAppHistoryService } = await import("@/app/lib/services/whatsapp-history.service");
+      const { WhatsAppHistoryService } = await import("@/app/lib/services/whatsapp/whatsapp-history.service");
       const historyService = new WhatsAppHistoryService();
 
       const messages = await historyService.getChatHistory(organizationId, staffId, phoneNumber, limit);
