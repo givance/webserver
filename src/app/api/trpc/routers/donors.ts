@@ -15,7 +15,7 @@ import {
 import { countListsForDonor } from "@/app/lib/data/donor-lists";
 import { getStaffById } from "@/app/lib/data/staff";
 import { db } from "@/app/lib/db";
-import { donors } from "@/app/lib/db/schema";
+import { donors, type DonorNote } from "@/app/lib/db/schema";
 import { and, inArray, eq, sql } from "drizzle-orm";
 
 /**
@@ -61,7 +61,6 @@ const createDonorSchema = z.object({
   postalCode: z.string().optional(),
   country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  notes: z.string().optional(),
   isAnonymous: z.boolean().default(false),
   isOrganization: z.boolean().default(false),
   organizationName: z.string().optional(),
@@ -80,7 +79,6 @@ const updateDonorSchema = z.object({
   postalCode: z.string().optional(),
   country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  notes: z.string().optional(),
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
   organizationName: z.string().optional(),
@@ -124,6 +122,11 @@ const validateDonorStaffEmailSchema = z.object({
   donorIds: z.array(z.number()),
 });
 
+const addDonorNoteSchema = z.object({
+  donorId: z.number(),
+  content: z.string().min(1, "Note content is required"),
+});
+
 /**
  * Base donor schema for consistent type validation across operations
  */
@@ -149,7 +152,14 @@ const baseDonorSchema = z.object({
   address: z.string().nullish(),
   state: z.string().nullish(),
   gender: z.enum(["male", "female"]).nullish(),
-  notes: z.string().nullish(),
+  notes: z.union([
+    z.string().nullish(),
+    z.array(z.object({
+      createdAt: z.string(),
+      createdBy: z.string(),
+      content: z.string(),
+    }))
+  ]).optional(),
   assignedToStaffId: z.number().nullish(),
   currentStageName: z.string().nullish(),
   classificationReasoning: z.string().nullish(),
@@ -621,4 +631,58 @@ export const donorsRouter = router({
         errorMessage,
       };
     }),
+
+  /**
+   * Adds a note to a donor
+   * @param input.donorId - The donor ID to add the note to
+   * @param input.content - The note content
+   * @returns The updated donor data
+   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   */
+  addNote: protectedProcedure.input(addDonorNoteSchema).mutation(async ({ input, ctx }) => {
+    const { donorId, content } = input;
+    
+    // First, get the donor to ensure it exists and belongs to the organization
+    const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
+    if (!donor) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Donor not found",
+      });
+    }
+
+    // Create the new note
+    const newNote: DonorNote = {
+      createdAt: new Date().toISOString(),
+      createdBy: ctx.auth.user.id,
+      content: content.trim(),
+    };
+
+    // Get existing notes or default to empty array
+    const existingNotes = (donor.notes as DonorNote[]) || [];
+
+    // Update the donor with the new notes array
+    const [updatedDonor] = await db
+      .update(donors)
+      .set({
+        notes: [...existingNotes, newNote],
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(donors.id, donorId),
+          eq(donors.organizationId, ctx.auth.user.organizationId)
+        )
+      )
+      .returning();
+
+    if (!updatedDonor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to add note",
+      });
+    }
+
+    return updatedDonor;
+  }),
 });

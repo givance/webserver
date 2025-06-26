@@ -46,7 +46,7 @@ export interface DonorDetailsResult {
   hisLastName: string | null;
   herFirstName: string | null;
   herLastName: string | null;
-  notes: string | null;
+  notes: string | Array<{ createdAt: string; createdBy: string; content: string }> | null;
   currentStageName: string | null;
   highPotentialDonor: boolean | null;
   assignedStaff: {

@@ -10,6 +10,7 @@ import {
   emailTrackers,
   generatedEmails,
   todos,
+  type DonorNote,
 } from "../db/schema";
 import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
@@ -47,6 +48,33 @@ export type CommunicationDonor = Pick<
 >;
 
 /**
+ * Helper function to normalize notes field from string to array format
+ * This ensures backward compatibility during the migration period
+ */
+function normalizeDonorNotes(donor: any): any {
+  if (!donor) return donor;
+  
+  // If notes is already an array or null/undefined, return as is
+  if (!donor.notes || Array.isArray(donor.notes)) {
+    return donor;
+  }
+  
+  // Convert string notes to array format
+  if (typeof donor.notes === 'string') {
+    return {
+      ...donor,
+      notes: [{
+        createdAt: new Date().toISOString(),
+        createdBy: 'system_migration',
+        content: donor.notes
+      }]
+    };
+  }
+  
+  return donor;
+}
+
+/**
  * Retrieves a donor by their ID and organization ID.
  * @param id - The ID of the donor to retrieve.
  * @param organizationId - The ID of the organization the donor belongs to.
@@ -59,7 +87,7 @@ export async function getDonorById(id: number, organizationId: string): Promise<
       .from(donors)
       .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)))
       .limit(1);
-    return result[0];
+    return normalizeDonorNotes(result[0]);
   } catch (error) {
     console.error("Failed to retrieve donor by ID:", error);
     throw new Error("Could not retrieve donor.");
@@ -102,7 +130,7 @@ export async function getDonorsByIds(ids: number[], organizationId: string): Pro
       .select()
       .from(donors)
       .where(and(inArray(donors.id, ids), eq(donors.organizationId, organizationId)));
-    return result;
+    return result.map(donor => normalizeDonorNotes(donor));
   } catch (error) {
     console.error("Failed to retrieve donors by IDs:", error);
     throw new Error("Could not retrieve donors by IDs.");
@@ -117,7 +145,7 @@ export async function getDonorsByIds(ids: number[], organizationId: string): Pro
 export async function createDonor(donorData: Omit<NewDonor, "id" | "createdAt" | "updatedAt">): Promise<Donor> {
   try {
     const result = await db.insert(donors).values(donorData).returning();
-    return result[0];
+    return normalizeDonorNotes(result[0]);
   } catch (error) {
     console.error("Failed to create donor:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
@@ -145,7 +173,7 @@ export async function updateDonor(
       .set({ ...donorData, updatedAt: sql`now()` })
       .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)))
       .returning();
-    return result[0];
+    return normalizeDonorNotes(result[0]);
   } catch (error) {
     console.error("Failed to update donor:", error);
     if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
@@ -614,11 +642,11 @@ export async function listDonors(
           }
         }
 
-        return {
+        return normalizeDonorNotes({
           ...donor,
           predictedActions: processedPredictedActions, // Use processed value
           ...stageInfo,
-        };
+        });
       })
     );
 

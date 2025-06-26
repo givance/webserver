@@ -59,7 +59,7 @@ export type Donor = DonorNameFields & {
   assignedToStaffId: string | null;
   highPotentialDonor: boolean; // NEW: High potential donor flag from research
   highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
-  notes?: string | null; // Notes about the donor
+  notes?: string | Array<{ createdAt: string; createdBy: string; content: string }> | null; // Notes about the donor
 };
 
 // EmailEditCell component for inline email editing
@@ -92,66 +92,42 @@ function EmailEditCell({ donor }: { donor: Donor }) {
   );
 }
 
-// NotesEditCell component for inline notes editing
+// NotesEditCell component for displaying notes (read-only in table view)
 function NotesEditCell({ donor }: { donor: Donor }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [notesValue, setNotesValue] = useState(donor.notes || "");
-  const { updateDonor } = useDonors();
-
-  const handleStartEdit = () => {
-    setNotesValue(donor.notes || "");
-    setIsEditing(true);
-  };
-
-  const handleCancel = () => {
-    setNotesValue(donor.notes || "");
-    setIsEditing(false);
-  };
-
-  const handleSave = async () => {
-    try {
-      await updateDonor({
-        id: parseInt(donor.id),
-        notes: notesValue.trim() || undefined,
-      });
-      setIsEditing(false);
-    } catch (error) {
-      console.error("Failed to update notes:", error);
+  // Extract notes content based on the type
+  const getNotesDisplay = () => {
+    if (!donor.notes) return "";
+    
+    // Handle array format
+    if (Array.isArray(donor.notes)) {
+      if (donor.notes.length === 0) return "";
+      // Show the most recent note (last in array)
+      const latestNote = donor.notes[donor.notes.length - 1];
+      return latestNote.content;
     }
+    
+    // Handle string format (backward compatibility)
+    if (typeof donor.notes === 'string') {
+      return donor.notes;
+    }
+    
+    return "";
   };
 
-  if (isEditing) {
-    return (
-      <div className="w-full max-w-[300px]">
-        <Textarea
-          value={notesValue}
-          onChange={(e) => setNotesValue(e.target.value)}
-          placeholder="Add notes..."
-          className="min-h-[60px] text-sm"
-          autoFocus
-        />
-        <div className="flex gap-1 mt-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSave}
-            className="h-6 px-2 text-green-600 hover:text-green-700"
-          >
-            <Save className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleCancel} className="h-6 px-2 text-red-600 hover:text-red-700">
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const notesDisplay = getNotesDisplay();
+  const notesCount = Array.isArray(donor.notes) ? donor.notes.length : (donor.notes ? 1 : 0);
 
   return (
-    <div className="w-full max-w-[300px] group cursor-pointer" onClick={handleStartEdit}>
+    <div className="w-full max-w-[300px]">
       <div className="flex items-start justify-between">
-        <p className="text-sm text-muted-foreground line-clamp-2 flex-1">{donor.notes || "Click to add notes..."}</p>
-        <Edit className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-2 mt-0.5 flex-shrink-0" />
+        <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
+          {notesDisplay || "No notes"}
+        </p>
+        {notesCount > 1 && (
+          <span className="text-xs text-muted-foreground ml-2">
+            (+{notesCount - 1} more)
+          </span>
+        )}
       </div>
     </div>
   );

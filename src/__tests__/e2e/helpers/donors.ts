@@ -11,7 +11,6 @@ export interface DonorData {
   state?: string;
   postalCode?: string;
   country?: string;
-  notes?: string;
   gender?: "Male" | "Female" | "Other";
 }
 
@@ -74,10 +73,6 @@ export class DonorsHelper {
     
     if (donor.country) {
       await this.page.fill('input[placeholder="United States"]', donor.country);
-    }
-    
-    if (donor.notes) {
-      await this.page.fill('textarea[placeholder*="Additional information"]', donor.notes);
     }
     
     if (donor.gender) {

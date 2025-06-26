@@ -62,7 +62,7 @@ export interface DonorStatistics {
 export interface DonorInfo extends DonorNameFields {
   id: number;
   email: string;
-  notes?: string | null; // User notes about the donor
+  notes?: string | Array<{ createdAt: string; createdBy: string; content: string }> | null; // User notes about the donor
   donationHistory?: DonationInfo[]; // Will be processed to add IDs
 }
 

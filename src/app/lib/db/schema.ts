@@ -167,6 +167,15 @@ export const communicationChannelEnum = pgEnum("communication_channel", ["email"
 export const genderEnum = pgEnum("gender", ["male", "female"]);
 
 /**
+ * Type for donor notes array items
+ */
+export type DonorNote = {
+  createdAt: string;
+  createdBy: string; // User ID who created the note
+  content: string;
+};
+
+/**
  * Donors table to store donor information
  * Updated to support couple information from CSV imports
  */
@@ -207,7 +216,7 @@ export const donors = pgTable(
     address: text("address"),
     state: varchar("state", { length: 50 }),
     gender: genderEnum("gender"), // For individual donors
-    notes: text("notes"),
+    notes: jsonb("notes").$type<DonorNote[]>().default(sql`'[]'::jsonb`),
     assignedToStaffId: integer("assigned_to_staff_id").references(() => staff.id),
     currentStageName: varchar("current_stage_name", { length: 255 }),
     classificationReasoning: text("classification_reasoning"),

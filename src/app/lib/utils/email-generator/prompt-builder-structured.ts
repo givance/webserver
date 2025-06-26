@@ -213,7 +213,9 @@ REFINED INSTRUCTION: ${refinedInstruction}`;
   return `${taskSection}
 
 Donor: ${formatDonorName(donor)} (${donor.email})
-${donor.notes ? `\nUser Notes about this Donor: ${donor.notes}` : ""}${statisticsPrompt}
+${donor.notes && Array.isArray(donor.notes) && donor.notes.length > 0 
+  ? `\nUser Notes about this Donor:\n${donor.notes.map((note: any) => `- ${note.content}`).join('\n')}` 
+  : ""}${statisticsPrompt}
 ${projectsPrompt}
 ${donationHistoryPrompt ? `Donation History:\n${donationHistoryPrompt}\n` : ""}
 

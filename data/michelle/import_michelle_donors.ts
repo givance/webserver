@@ -3,7 +3,7 @@ import path from "path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { eq } from "drizzle-orm";
-import { organizations, donors, donations, projects, staff } from "../../src/app/lib/db/schema.js";
+import { organizations, donors, donations, projects, staff, type DonorNote } from "../../src/app/lib/db/schema.js";
 import type { InferInsertModel } from "drizzle-orm";
 import { parse } from "csv-parse/sync";
 import dotenv from "dotenv";
@@ -404,7 +404,11 @@ async function importDataToDatabase(organizationId: string): Promise<void> {
             isCouple: false, // Assuming single donors from the data
             address: address || "Unknown",
             state: record["State"] || "",
-            notes: record["Contact Type"] ? `Contact Type: ${record["Contact Type"]}` : "",
+            notes: record["Contact Type"] ? [{
+              createdAt: new Date().toISOString(),
+              createdBy: 'system_import',
+              content: `Contact Type: ${record["Contact Type"]}`
+            }] : [],
             // Assign to staff member
             assignedToStaffId: insertedStaff.id,
           };

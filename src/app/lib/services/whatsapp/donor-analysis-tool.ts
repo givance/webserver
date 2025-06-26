@@ -31,7 +31,7 @@ interface DonorHistory {
     hisLastName: string | null;
     herFirstName: string | null;
     herLastName: string | null;
-    notes: string | null;
+    notes: string | Array<{ createdAt: string; createdBy: string; content: string }> | null;
     currentStageName: string | null;
     highPotentialDonor: boolean | null;
     createdAt: Date;
@@ -246,8 +246,11 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   }
   
   // Notes
-  if (donor.notes) {
-    formatted += `\nNotes:\n${donor.notes}\n`;
+  if (donor.notes && Array.isArray(donor.notes) && donor.notes.length > 0) {
+    formatted += `\nNotes:\n`;
+    (donor.notes as any[]).forEach(note => {
+      formatted += `- ${note.content} (${new Date(note.createdAt).toLocaleDateString()})\n`;
+    });
   }
   
   // Research insights

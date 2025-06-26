@@ -182,7 +182,11 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         state: "CA",
         isCouple: false,
         gender: "female",
-        notes: "Regular donor, prefers email communication",
+        notes: [{
+          createdAt: new Date().toISOString(),
+          createdBy: testUserId,
+          content: "Regular donor, prefers email communication"
+        }],
         assignedToStaffId: null,
         currentStageName: "engaged",
         classificationReasoning: "Regular donation pattern",
@@ -201,7 +205,11 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         state: "NY",
         isCouple: false,
         gender: "male",
-        notes: "Major donor, high engagement",
+        notes: [{
+          createdAt: new Date().toISOString(),
+          createdBy: testUserId,
+          content: "Major donor, high engagement"
+        }],
         assignedToStaffId: null,
         currentStageName: "committed",
         classificationReasoning: "High donation amounts and frequency",
@@ -220,7 +228,11 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         state: "TX",
         isCouple: false,
         gender: "female",
-        notes: "New donor, potential for growth",
+        notes: [{
+          createdAt: new Date().toISOString(),
+          createdBy: testUserId,
+          content: "New donor, potential for growth"
+        }],
         assignedToStaffId: null,
         currentStageName: "new",
         classificationReasoning: "Recent first-time donor",

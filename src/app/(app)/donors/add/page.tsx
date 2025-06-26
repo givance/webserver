@@ -32,7 +32,6 @@ const formSchema = z.object({
   postalCode: z.string().optional(),
   country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  notes: z.string().optional(),
   isAnonymous: z.boolean(),
   isOrganization: z.boolean(),
   organizationName: z.string().optional(),
@@ -58,7 +57,6 @@ export default function AddDonorPage() {
       postalCode: "",
       country: "",
       gender: null,
-      notes: "",
       isAnonymous: false,
       isOrganization: false,
       organizationName: "",
@@ -311,26 +309,6 @@ export default function AddDonorPage() {
                         <SelectItem value="female">Female</SelectItem>
                       </SelectContent>
                     </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              // @ts-ignore - Known type mismatch with react-hook-form's Control type
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Additional information about this donor"
-                      className="min-h-[100px]"
-                      {...field}
-                      value={field.value || ""}
-                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

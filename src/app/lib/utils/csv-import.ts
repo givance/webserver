@@ -1,5 +1,5 @@
 import { db } from "@/app/lib/db";
-import { donors, donations, projects, donorListMembers } from "@/app/lib/db/schema";
+import { donors, donations, projects, donorListMembers, type DonorNote } from "@/app/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "@/app/lib/logger";
 
@@ -828,11 +828,22 @@ export async function processCSVFiles(params: {
         }
 
         // Build notes field with salutation instruction if "Salutation - use" column exists
-        let notes = accountRecord.ACT_Notes || null;
+        const notesArray = [];
+        if (accountRecord.ACT_Notes) {
+          notesArray.push({
+            createdAt: new Date().toISOString(),
+            createdBy: params.userId,
+            content: accountRecord.ACT_Notes
+          });
+        }
+        
         const preferredSalutation = accountRecord["Salutation - use"];
         if (preferredSalutation && preferredSalutation.trim()) {
-          const salutationNote = `Preferred salutation: ${preferredSalutation.trim()}`;
-          notes = notes ? `${notes}\n\n${salutationNote}` : salutationNote;
+          notesArray.push({
+            createdAt: new Date().toISOString(),
+            createdBy: params.userId,
+            content: `Preferred salutation: ${preferredSalutation.trim()}`
+          });
         }
 
         const donorData = {
@@ -854,7 +865,7 @@ export async function processCSVFiles(params: {
           phone: phone || null,
           address: address || null,
           state: accountRecord.ADR_State || null,
-          notes: notes,
+          notes: notesArray.length > 0 ? notesArray : [],
         };
 
         if (existingDonor) {

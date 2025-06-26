@@ -38,6 +38,8 @@ import { useMemo, useState, useEffect } from "react";
 import { DonorResearchDisplay } from "@/components/research/DonorResearchDisplay";
 import { useDonorResearchData } from "@/app/hooks/use-donor-research";
 import { toast } from "sonner";
+import { trpc } from "@/app/lib/trpc/client";
+import { type DonorNote } from "@/app/lib/db/schema";
 
 type DonationRow = {
   id: number;
@@ -65,12 +67,13 @@ export default function DonorProfilePage() {
   const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
 
   // Notes editing state
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState("");
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteContent, setNewNoteContent] = useState("");
 
   // Fetch donor data
   const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
-  const { data: donor, isLoading: isDonorLoading, error: donorError } = getDonorQuery(donorId);
+  const donorQuery = getDonorQuery(donorId);
+  const { data: donor, isLoading: isDonorLoading, error: donorError } = donorQuery;
 
   // Fetch staff members for assignment dropdown
   const { staffMembers = [] } = useStaffMembers();
@@ -107,12 +110,19 @@ export default function DonorProfilePage() {
   // Fetch donor research data
   const { hasResearch, conductResearch, isConductingResearch } = useDonorResearchData(donorId);
 
-  // Initialize notes value when donor loads
-  useEffect(() => {
-    if (donor?.notes) {
-      setNotesValue(donor.notes);
-    }
-  }, [donor?.notes]);
+  // Add note mutation
+  const addNoteMutation = trpc.donors.addNote.useMutation({
+    onSuccess: () => {
+      toast.success("Note added successfully");
+      setNewNoteContent("");
+      setIsAddingNote(false);
+      // Refetch donor data to get updated notes
+      donorQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to add note");
+    },
+  });
 
   // Helper functions for inline editing
   const handleUpdateField = async (field: string, value: any) => {
@@ -148,29 +158,26 @@ export default function DonorProfilePage() {
     return null;
   };
 
-  // Handle notes editing
-  const handleStartEditingNotes = () => {
-    setNotesValue(donor?.notes || "");
-    setIsEditingNotes(true);
-  };
-
-  const handleCancelEditingNotes = () => {
-    setNotesValue(donor?.notes || "");
-    setIsEditingNotes(false);
-  };
-
-  const handleSaveNotes = async () => {
-    try {
-      await updateDonor({
-        id: donorId,
-        notes: notesValue.trim() || undefined,
-      });
-      setIsEditingNotes(false);
-    } catch (error) {
-      console.error("Failed to update notes:", error);
-      // TODO: Add toast notification for error
+  // Handle notes
+  const handleAddNote = async () => {
+    if (!newNoteContent.trim()) {
+      toast.error("Note content cannot be empty");
+      return;
     }
+
+    await addNoteMutation.mutateAsync({
+      donorId,
+      content: newNoteContent.trim(),
+    });
   };
+
+  const handleCancelAddNote = () => {
+    setNewNoteContent("");
+    setIsAddingNote(false);
+  };
+
+  // Format notes for display
+  const notes = (donor?.notes as DonorNote[]) || [];
 
   // Process donations data
   const { donations, totalDonated, donationCount, totalCount } = useMemo(() => {
@@ -455,41 +462,57 @@ export default function DonorProfilePage() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium">Notes</h4>
-              {!isEditingNotes ? (
-                <Button variant="ghost" size="sm" onClick={handleStartEditingNotes} className="h-8 px-2">
+              {!isAddingNote && (
+                <Button variant="ghost" size="sm" onClick={() => setIsAddingNote(true)} className="h-8 px-2">
                   <Edit className="h-4 w-4" />
                 </Button>
-              ) : (
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSaveNotes}
-                    className="h-8 px-2 text-green-600 hover:text-green-700"
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCancelEditingNotes}
-                    className="h-8 px-2 text-red-600 hover:text-red-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
               )}
             </div>
-            {isEditingNotes ? (
-              <Textarea
-                value={notesValue}
-                onChange={(e) => setNotesValue(e.target.value)}
-                placeholder="Add notes about this donor..."
-                className="min-h-[100px]"
-                autoFocus
-              />
-            ) : (
-              <p className="text-muted-foreground min-h-[24px]">{donor.notes || "No notes added yet."}</p>
+            
+            {/* Notes list */}
+            <div className="space-y-2 mb-3">
+              {notes.length === 0 ? (
+                <p className="text-muted-foreground">No notes added yet.</p>
+              ) : (
+                notes.map((note, index) => (
+                  <div key={index} className="border rounded-md p-3 bg-muted/30">
+                    <p className="text-sm">{note.content}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(note.createdAt).toLocaleDateString()} at {new Date(note.createdAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add note form */}
+            {isAddingNote && (
+              <div className="border rounded-md p-3 bg-muted/10">
+                <Textarea
+                  value={newNoteContent}
+                  onChange={(e) => setNewNoteContent(e.target.value)}
+                  placeholder="Add a note about this donor..."
+                  className="min-h-[80px] mb-2"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleAddNote}
+                    disabled={!newNoteContent.trim() || addNoteMutation.isPending}
+                  >
+                    {addNoteMutation.isPending ? "Adding..." : "Add Note"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelAddNote}
+                    disabled={addNoteMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </CardContent>
