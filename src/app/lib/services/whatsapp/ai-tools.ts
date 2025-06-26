@@ -8,6 +8,7 @@ import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
 import { WhatsAppStaffLoggingService } from "./whatsapp-staff-logging.service";
 import { SQL_TOOL_DESCRIPTION } from "./prompts";
 import { SQLError } from "./types";
+import { createDonorAnalysisTool } from "./donor-analysis-tool";
 
 const FORBIDDEN_SQL_OPERATIONS = [
   "DELETE FROM",
@@ -85,6 +86,7 @@ export function createAITools(
   fromPhoneNumber: string
 ) {
   const schemaDescription = sqlEngine.getSchemaDescription();
+  const donorAnalysisTool = createDonorAnalysisTool(organizationId);
 
   return {
     executeSQL: {
@@ -213,5 +215,6 @@ export function createAITools(
         };
       },
     },
+    ...donorAnalysisTool,
   };
 }

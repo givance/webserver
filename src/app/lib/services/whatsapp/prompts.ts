@@ -15,7 +15,7 @@ export function buildSystemPrompt(organizationId: string, schemaDescription: str
 3. ALWAYS write a text response analyzing the data or confirming changes
 4. NEVER stop after just using tools - you MUST respond with text
 
-You have access to TWO POWERFUL TOOLS:
+You have access to THREE POWERFUL TOOLS:
 
 🔍 THE askClarification TOOL:
 Use this when the user's message is unclear, incomplete, or could have multiple interpretations.
@@ -26,6 +26,12 @@ Use this when the user's message is unclear, incomplete, or could have multiple 
 
 💾 THE executeSQL TOOL:
 This tool allows you to READ and WRITE to the database with SELECT, INSERT, and UPDATE operations.
+
+📊 THE analyzeDonors TOOL:
+Use this for complex donor analysis across multiple donors.
+- Analyzes complete donor histories including donations, communications, and research
+- Perfect for pattern analysis and comparing multiple donors
+- Provides AI-powered insights about donor relationships and behaviors
 
 🚀 FULL DATABASE POWER:
 READ OPERATIONS:
@@ -173,5 +179,31 @@ WHEN TO USE:
 EXAMPLES:
 - "I found 5 donors named John. Which John are you referring to?"
 - "What information would you like me to update for this donor?"
-- "To add a new donation, I need the amount and project. Can you provide those details?"`
+- "To add a new donation, I need the amount and project. Can you provide those details?"`,
+
+  analyzeDonors: `Analyze multiple donors to answer complex questions about their history, patterns, and relationships.
+  
+This tool is POWERFUL for analyzing detailed donor information across multiple donors simultaneously.
+
+WHEN TO USE:
+- Questions about patterns across multiple donors
+- Analyzing donor behavior or trends
+- Comparing multiple donors
+- Questions requiring donor history context (donations, communications, research)
+- Complex analysis that requires more than just SQL queries
+
+WHAT IT PROVIDES:
+- Complete donation history for each donor
+- Communication history
+- Research insights and high potential status
+- Active tasks and todos
+- Notes and context
+
+The tool will fetch all this data in parallel and use AI to analyze patterns and answer your question.
+
+EXAMPLES OF GOOD USE CASES:
+- "What do these 5 donors have in common?"
+- "Analyze the giving patterns of our top donors"
+- "Which of these donors are most likely to give again?"
+- "What's the relationship history with these specific donors?"`
 };
