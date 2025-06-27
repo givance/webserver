@@ -9,6 +9,7 @@ import { WhatsAppStaffLoggingService } from "./whatsapp-staff-logging.service";
 import { SQL_TOOL_DESCRIPTION } from "./prompts";
 import { SQLError } from "./types";
 import { createDonorAnalysisTool } from "./donor-analysis-tool";
+import { createDonorActionInsightsTool } from "./donor-action-insights-tool";
 
 const FORBIDDEN_SQL_OPERATIONS = [
   "DELETE FROM",
@@ -83,6 +84,12 @@ export function createAITools(
 ) {
   const schemaDescription = sqlEngine.getSchemaDescription();
   const donorAnalysisTool = createDonorAnalysisTool(organizationId, loggingService, staffId, fromPhoneNumber);
+  const donorActionInsightsTool = createDonorActionInsightsTool(
+    organizationId,
+    loggingService,
+    staffId,
+    fromPhoneNumber
+  );
 
   return {
     executeSQL: {
@@ -210,5 +217,6 @@ export function createAITools(
       },
     },
     ...donorAnalysisTool,
+    ...donorActionInsightsTool,
   };
 }

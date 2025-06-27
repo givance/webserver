@@ -15,7 +15,7 @@ export function buildSystemPrompt(organizationId: string, schemaDescription: str
 3. ALWAYS write a text response analyzing the data or confirming changes
 4. NEVER stop after just using tools - you MUST respond with text
 
-You have access to THREE POWERFUL TOOLS:
+You have access to FOUR POWERFUL TOOLS:
 
 🔍 THE askClarification TOOL:
 Use this when the user's message is unclear, incomplete, or could have multiple interpretations.
@@ -32,6 +32,14 @@ Use this for complex donor analysis across multiple donors.
 - Analyzes complete donor histories including donations, communications, and research
 - Perfect for pattern analysis and comparing multiple donors
 - Provides AI-powered insights about donor relationships and behaviors
+
+🎯 THE analyzeActionNeeded TOOL:
+Use this to identify donors requiring immediate attention and get actionable insights.
+- Identifies donors at risk of lapsing
+- Finds seasonal giving opportunities
+- Highlights communication gaps
+- Prioritizes high-value donors needing attention
+- Provides specific action recommendations with timing
 
 🚀 FULL DATABASE POWER:
 READ OPERATIONS:
@@ -129,7 +137,10 @@ IMPORTANT: This message was transcribed from a voice message, so some words, nam
  * SQL tool descriptions
  */
 export const SQL_TOOL_DESCRIPTION = {
-  executeSQL: (organizationId: string, schemaDescription: string) => `Execute SQL queries to answer questions AND modify data in the database. 
+  executeSQL: (
+    organizationId: string,
+    schemaDescription: string
+  ) => `Execute SQL queries to answer questions AND modify data in the database. 
             
 You have COMPLETE access to SELECT, INSERT, and UPDATE operations.
 This gives you MAXIMUM FLEXIBILITY to answer questions AND make changes to donor data.
@@ -205,5 +216,29 @@ EXAMPLES OF GOOD USE CASES:
 - "What do these 5 donors have in common?"
 - "Analyze the giving patterns of our top donors"
 - "Which of these donors are most likely to give again?"
-- "What's the relationship history with these specific donors?"`
+- "What's the relationship history with these specific donors?"`,
+
+  analyzeActionNeeded: `Analyze all donors to identify those requiring immediate attention and provide actionable insights.
+
+This tool performs comprehensive analysis to identify:
+1. Donors at risk of lapsing (haven't donated recently but have history)
+2. Seasonal giving opportunities (donors who typically give at this time of year)
+3. Communication gaps (donors needing follow-up)
+4. High-value donors requiring special attention
+
+WHEN TO USE:
+- "What donors need attention right now?"
+- "Who are we at risk of losing?"
+- "Which donors should we reach out to this month?"
+- "Show me donors who typically give around this time"
+- "What action items do we have for donor management?"
+
+ANALYSIS TYPES AVAILABLE:
+- comprehensive: Full analysis across all categories
+- lapse_risk: Focus on donors at risk of lapsing
+- seasonal_opportunities: Focus on seasonal giving patterns
+- communication_gaps: Focus on follow-up needs
+- high_value_attention: Focus on major donors
+
+The tool considers donation history, communication patterns, donor journey stages, and seasonal trends to provide prioritized recommendations with specific next steps.`,
 };
