@@ -60,7 +60,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    finalInstruction: string;
     previewDonorIds: number[];
   } | null>(null);
   // Add state to persist chat history and generated emails
@@ -222,7 +221,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   const handleSessionDataChange = useCallback(
     (newSessionData: {
       chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-      finalInstruction: string;
       previewDonorIds: number[];
       generatedEmails?: any[];
       referenceContexts?: Record<number, Record<string, string>>;

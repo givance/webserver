@@ -39,7 +39,6 @@ interface WriteInstructionStepProps {
   selectedDonors: number[];
   onSessionDataChange?: (sessionData: {
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    finalInstruction: string;
     previewDonorIds: number[];
     generatedEmails?: GeneratedEmail[];
     referenceContexts?: Record<number, Record<string, string>>;
@@ -339,12 +338,11 @@ export function WriteInstructionStep({
   const sessionData = useMemo(
     () => ({
       chatHistory: chatMessages,
-      finalInstruction: previousInstruction || instruction,
       previewDonorIds,
       generatedEmails: allGeneratedEmails,
       referenceContexts,
     }),
-    [chatMessages, previousInstruction, instruction, previewDonorIds, allGeneratedEmails, referenceContexts]
+    [chatMessages, previewDonorIds, allGeneratedEmails, referenceContexts]
   );
 
   // Automatically persist session data whenever it changes (with throttling)
@@ -352,7 +350,6 @@ export function WriteInstructionStep({
     if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
       const currentDataString = JSON.stringify({
         chatHistory: sessionData.chatHistory,
-        finalInstruction: sessionData.finalInstruction,
         previewDonorIds: sessionData.previewDonorIds,
         generatedEmailsCount: sessionData.generatedEmails.length,
         referenceContextsKeys: Object.keys(sessionData.referenceContexts),
@@ -956,18 +953,23 @@ export function WriteInstructionStep({
       return;
     }
 
-    // Remove the check that prevents launching when no emails need generation
-    // The backend will handle marking the campaign as COMPLETED if all emails exist
-
-    const finalInstruction = previousInstruction || instruction;
-    if (!finalInstruction || finalInstruction.trim().length === 0) {
-      toast.error("No instruction provided. Please generate emails first.");
+    // Check if we have either generated emails or a meaningful chat history
+    if (allGeneratedEmails.length === 0 && chatMessages.length === 0) {
+      toast.error("Please generate emails first before launching the campaign.");
       return;
+    }
+
+    // If we have no generated emails but have chat history, ensure there's at least one user message
+    if (allGeneratedEmails.length === 0 && chatMessages.length > 0) {
+      const hasUserMessage = chatMessages.some((msg) => msg.role === "user" && msg.content.trim().length > 0);
+      if (!hasUserMessage) {
+        toast.error("Please provide instructions and generate emails first.");
+        return;
+      }
     }
 
     const currentSessionData = {
       chatHistory: chatMessages,
-      finalInstruction: finalInstruction.trim(),
       previewDonorIds,
     };
 
@@ -1020,9 +1022,9 @@ export function WriteInstructionStep({
       return;
     }
 
-    const finalInstruction = previousInstruction || instruction;
-    if (!finalInstruction || finalInstruction.trim().length === 0) {
-      toast.error("No instruction provided. Please generate emails first.");
+    // Check if we have meaningful chat history (if no emails generated)
+    if (generatedEmails.length === 0 && chatMessages.length === 0) {
+      toast.error("Please generate emails first before proceeding.");
       return;
     }
 
@@ -1030,7 +1032,6 @@ export function WriteInstructionStep({
     if (onSessionDataChange) {
       onSessionDataChange({
         chatHistory: chatMessages,
-        finalInstruction: finalInstruction.trim(),
         previewDonorIds,
         generatedEmails,
         referenceContexts,
