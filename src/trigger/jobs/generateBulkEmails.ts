@@ -291,19 +291,33 @@ export const generateBulkEmailsTask = task({
 
           // Determine the appropriate staff writing instructions for this donor
           let donorStaffWritingInstructions: string | undefined;
+          let staffName: string | undefined;
+
           if (assignedStaff?.writingInstructions && assignedStaff.writingInstructions.trim()) {
             donorStaffWritingInstructions = assignedStaff.writingInstructions;
+            staffName = `${assignedStaff.firstName} ${assignedStaff.lastName}`;
             triggerLogger.info(
               `Using assigned staff writing instructions for donor ${donorInfo.id} from ${assignedStaff.firstName} ${assignedStaff.lastName}`
             );
           } else if (primaryStaffForWriting?.writingInstructions && primaryStaffForWriting.writingInstructions.trim()) {
             donorStaffWritingInstructions = primaryStaffForWriting.writingInstructions;
+            staffName = `${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`;
             triggerLogger.info(
               `Using primary staff writing instructions for donor ${donorInfo.id} from ${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`
             );
           } else {
+            // Use assigned staff name even if no writing instructions
+            if (assignedStaff) {
+              staffName = `${assignedStaff.firstName} ${assignedStaff.lastName}`;
+            } else if (primaryStaffForWriting) {
+              staffName = `${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`;
+            }
             donorStaffWritingInstructions = undefined;
-            triggerLogger.info(`No staff writing instructions available for donor ${donorInfo.id}`);
+            triggerLogger.info(
+              `No staff writing instructions available for donor ${donorInfo.id}, using staff name: ${
+                staffName || "None"
+              }`
+            );
           }
 
           // Generate email for single donor using generateSmartDonorEmails directly
@@ -322,7 +336,8 @@ export const generateBulkEmailsTask = task({
             organizationMemories,
             undefined, // currentDate - will use default
             undefined, // previousInstruction - not needed with chat history
-            chatHistory // Pass the chat history to handle conversation context
+            chatHistory, // Pass the chat history to handle conversation context
+            staffName // Pass the staff name
           );
 
           // Log format verification for each generated email

@@ -63,7 +63,8 @@ export function buildStructuredSystemPrompt(
   personalWritingInstructions?: string,
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
-  currentDate?: string
+  currentDate?: string,
+  staffName?: string
 ): string {
   // Website summary is disabled - not included in prompts
   // const { promptString: websiteSummaryPrompt } = formatWebsiteSummaryWithIds(organization);
@@ -71,12 +72,16 @@ export function buildStructuredSystemPrompt(
   // Format current date if provided
   const dateContext = currentDate ? `Current Date: ${currentDate}\n` : "";
 
+  // Format staff context if provided
+  const staffContext = staffName ? `Email is being sent by: ${staffName}\n` : "";
+
   const systemPrompt = `You are an expert in donor communications writing personalized emails.
 
 CONTEXT:
 Organization: ${organizationName}
 ${organization?.description ? `Organization Description: ${organization.description}\n` : ""}
 ${dateContext}
+${staffContext}
 ${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
 ${personalWritingInstructions ? `Personal Writing Guidelines: ${personalWritingInstructions}` : ""}
 
@@ -248,7 +253,8 @@ export function buildStructuredEmailPrompt(
   personalMemories: string[] = [],
   organizationalMemories: string[] = [],
   currentDate?: string,
-  originalInstruction?: string
+  originalInstruction?: string,
+  staffName?: string
 ): {
   systemPrompt: string;
   donorContext: string;
@@ -260,7 +266,8 @@ export function buildStructuredEmailPrompt(
     personalWritingInstructions,
     personalMemories,
     organizationalMemories,
-    currentDate
+    currentDate,
+    staffName
   );
 
   const donorContext = buildStructuredDonorContext(

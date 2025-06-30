@@ -49,7 +49,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
     userMemories: string[] = [],
     organizationMemories: string[] = [],
     currentDate?: string,
-    originalInstruction?: string
+    originalInstruction?: string,
+    staffName?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
       `[EmailGenerationService.generateEmails] ENTRY POINT - Starting generation for ${donors.length} donors`
@@ -79,6 +80,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         organizationalMemories: organizationMemories,
         currentDate,
         originalInstruction,
+        staffName,
       });
     });
 
@@ -126,6 +128,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationalMemories,
       currentDate,
       originalInstruction,
+      staffName,
     } = options;
 
     // Sort donations and prepare reference contexts
@@ -203,7 +206,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationalMemories,
       donationContexts,
       currentDate,
-      originalInstruction
+      originalInstruction,
+      staffName
     );
 
     logger.info(
@@ -407,7 +411,8 @@ export class EmailGenerationService implements EmailGeneratorTool {
     organizationalMemories: string[] = [],
     donationContexts: Record<string, string> = {},
     currentDate?: string,
-    originalInstruction?: string
+    originalInstruction?: string,
+    staffName?: string
   ): Promise<string> {
     // Build system prompt for new format
     const systemPrompt = `You are an expert fundraising copywriter specializing in donor reengagement emails for ${organizationName}.
@@ -415,6 +420,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
 ORGANIZATION CONTEXT:
 ${organization?.description ? `Organization Description: ${organization.description}` : ""}
 ${organization?.rawWebsiteSummary ? `Organization Website Summary: ${organization.rawWebsiteSummary}` : ""}
+${staffName ? `Email is being sent by: ${staffName}` : ""}
 ${organizationWritingInstructions ? `Organization Writing Guidelines: ${organizationWritingInstructions}` : ""}
 ${personalWritingInstructions ? `Personal Writing Guidelines: ${personalWritingInstructions}` : ""}
 

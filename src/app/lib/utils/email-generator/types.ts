@@ -87,6 +87,7 @@ export interface GenerateEmailOptions {
   currentDate?: string; // Added for today's date
   emailSignature?: string; // User's email signature
   originalInstruction?: string; // Original user instruction before refinement
+  staffName?: string; // Name of the staff member sending the email
 }
 
 export interface EmailPiece {

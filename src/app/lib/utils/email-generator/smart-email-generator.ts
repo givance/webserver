@@ -33,6 +33,7 @@ import {
  * @param currentDate - Current date for time-sensitive content
  * @param previousInstruction - Previous refined instruction to build upon
  * @param chatHistory - Optional chat history
+ * @param staffName - Optional staff name
  * @returns Object containing refined instruction, reasoning, and generated emails
  */
 export async function generateSmartDonorEmails(
@@ -50,7 +51,8 @@ export async function generateSmartDonorEmails(
   organizationMemories: string[] = [],
   currentDate?: string,
   previousInstruction?: string,
-  chatHistory?: Array<{ role: "user" | "assistant"; content: string }>
+  chatHistory?: Array<{ role: "user" | "assistant"; content: string }>,
+  staffName?: string
 ): Promise<{
   refinedInstruction: string;
   reasoning: string;
@@ -115,7 +117,8 @@ export async function generateSmartDonorEmails(
     userMemories,
     organizationMemories,
     currentDate,
-    completeUserInstruction // Pass the complete user instruction
+    completeUserInstruction, // Pass the complete user instruction
+    staffName
   );
 
   logger.info(`[generateSmartDonorEmails] Generated ${emails.length} emails, checking format...`);

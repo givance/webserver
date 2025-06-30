@@ -224,19 +224,31 @@ export class EmailGenerationService {
 
       // Determine the appropriate staff writing instructions for this donor
       let donorStaffWritingInstructions: string | undefined;
+      let staffName: string | undefined;
+
       if (assignedStaff?.writingInstructions && assignedStaff.writingInstructions.trim()) {
         donorStaffWritingInstructions = assignedStaff.writingInstructions;
+        staffName = `${assignedStaff.firstName} ${assignedStaff.lastName}`;
         logger.info(
           `Using assigned staff writing instructions for donor ${donorInfo.id} from ${assignedStaff.firstName} ${assignedStaff.lastName}`
         );
       } else if (primaryStaffForWriting?.writingInstructions && primaryStaffForWriting.writingInstructions.trim()) {
         donorStaffWritingInstructions = primaryStaffForWriting.writingInstructions;
+        staffName = `${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`;
         logger.info(
           `Using primary staff writing instructions for donor ${donorInfo.id} from ${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`
         );
       } else {
+        // Use assigned staff name even if no writing instructions
+        if (assignedStaff) {
+          staffName = `${assignedStaff.firstName} ${assignedStaff.lastName}`;
+        } else if (primaryStaffForWriting) {
+          staffName = `${primaryStaffForWriting.firstName} ${primaryStaffForWriting.lastName}`;
+        }
         donorStaffWritingInstructions = undefined;
-        logger.info(`No staff writing instructions available for donor ${donorInfo.id}`);
+        logger.info(
+          `No staff writing instructions available for donor ${donorInfo.id}, using staff name: ${staffName || "None"}`
+        );
       }
 
       // Generate email for this single donor with their specific staff writing instructions
@@ -255,7 +267,8 @@ export class EmailGenerationService {
         organizationMemories,
         currentDate,
         previousInstruction, // Pass the previous instruction to enable stateful refinement
-        chatHistory // Pass the chat history to the refinement agent
+        chatHistory, // Pass the chat history to the refinement agent
+        staffName // Pass the staff name
       );
     });
 
