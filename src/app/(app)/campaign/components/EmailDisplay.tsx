@@ -318,9 +318,11 @@ export function EmailDisplay({
       structuredContent: displayContent,
     },
     {
-      enabled: !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat,
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+      enabled: !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat && !isPreviewMode,
+      staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+      gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+      refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
+      refetchOnMount: false, // Prevent refetch on mount if data exists
     }
   );
 
@@ -331,9 +333,11 @@ export function EmailDisplay({
       emailContent: emailContent || "",
     },
     {
-      enabled: !!donorId && !!emailContent && isNewFormat,
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+      enabled: !!donorId && !!emailContent && isNewFormat && !isPreviewMode,
+      staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+      gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+      refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
+      refetchOnMount: false, // Prevent refetch on mount if data exists
     }
   );
 

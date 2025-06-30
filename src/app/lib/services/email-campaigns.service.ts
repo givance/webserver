@@ -1319,17 +1319,6 @@ export class EmailCampaignsService {
    * @returns Success confirmation
    */
   async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
-    console.log("[EmailCampaignsService.saveGeneratedEmail] Called with input:", {
-      sessionId: input.sessionId,
-      donorId: input.donorId,
-      subject: input.subject,
-      hasEmailContent: !!input.emailContent,
-      hasReasoning: !!input.reasoning,
-      hasResponse: !!input.response,
-      responseLength: input.response?.length || 0,
-      responsePreview: input.response?.substring(0, 50),
-    });
-
     try {
       // Verify the session belongs to the organization
       const session = await db.query.emailGenerationSessions.findFirst({
@@ -1386,21 +1375,11 @@ export class EmailCampaignsService {
           updateData.response = input.response;
         }
 
-        console.log("[EmailCampaignsService.saveGeneratedEmail] UPDATE - updateData:", {
-          hasSubject: !!updateData.subject,
-          hasEmailContent: !!updateData.emailContent,
-          hasReasoning: !!updateData.reasoning,
-          hasResponse: !!updateData.response,
-          responsePreview: updateData.response?.substring(0, 50),
-        });
-
         const [updatedEmail] = await db
           .update(generatedEmails)
           .set(updateData)
           .where(eq(generatedEmails.id, existingEmail.id))
           .returning();
-
-        console.log(`Updated existing email for donor ${input.donorId} in session ${input.sessionId}`);
         return { success: true, email: updatedEmail };
       } else {
         // Create new email
@@ -1433,17 +1412,7 @@ export class EmailCampaignsService {
           insertData.response = input.response;
         }
 
-        console.log("[EmailCampaignsService.saveGeneratedEmail] INSERT - insertData:", {
-          hasSubject: !!insertData.subject,
-          hasEmailContent: !!insertData.emailContent,
-          hasReasoning: !!insertData.reasoning,
-          hasResponse: !!insertData.response,
-          responsePreview: insertData.response?.substring(0, 50),
-        });
-
         const [newEmail] = await db.insert(generatedEmails).values(insertData).returning();
-
-        console.log(`Created new email for donor ${input.donorId} in session ${input.sessionId}`);
         return { success: true, email: newEmail };
       }
     } catch (error) {

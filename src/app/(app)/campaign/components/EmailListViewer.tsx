@@ -349,7 +349,7 @@ export function EmailListViewer({
                 variant="outline"
                 size="sm"
                 onClick={onRegenerate}
-                disabled={isRegenerating}
+                disabled={isRegenerating || emails.length === 0}
                 className="flex items-center gap-2"
               >
                 <RefreshCw className="h-3 w-3" />

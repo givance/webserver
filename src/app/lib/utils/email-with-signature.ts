@@ -16,6 +16,47 @@ interface SignatureOptions {
   customSignature?: string;
 }
 
+// Cache for signature results to avoid redundant database calls
+const signatureCache = new Map<string, { signature: string; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+// Tracking for logging to avoid spam
+const loggedSignatures = new Set<string>();
+
+// Cleanup interval to prevent memory leaks
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+function startCleanupInterval() {
+  if (cleanupInterval) return;
+
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of signatureCache.entries()) {
+      if (now - entry.timestamp > CACHE_TTL) {
+        signatureCache.delete(key);
+      }
+    }
+
+    // Clear logged signatures periodically to allow fresh logging
+    if (loggedSignatures.size > 1000) {
+      loggedSignatures.clear();
+    }
+  }, CACHE_TTL);
+}
+
+// Start cleanup when module loads
+startCleanupInterval();
+
+function getCacheKey(options: SignatureOptions): string {
+  return `${options.donorId}-${options.organizationId}-${options.userId || "none"}-${
+    options.customSignature || "none"
+  }`;
+}
+
+function isValidCacheEntry(entry: { signature: string; timestamp: number }): boolean {
+  return Date.now() - entry.timestamp < CACHE_TTL;
+}
+
 /**
  * Gets the appropriate signature text for a donor
  * @param options - Signature options
@@ -26,8 +67,20 @@ async function getSignatureText(options: SignatureOptions): Promise<string> {
 
   // If custom signature is provided, use it
   if (customSignature && customSignature.trim()) {
-    logger.info(`Using provided custom signature for donor ${donorId}`);
+    // Only log once per session to avoid spam
+    const logKey = `custom-${donorId}`;
+    if (!loggedSignatures.has(logKey)) {
+      logger.info(`Using provided custom signature for donor ${donorId}`);
+      loggedSignatures.add(logKey);
+    }
     return customSignature;
+  }
+
+  // Check cache first
+  const cacheKey = getCacheKey(options);
+  const cachedEntry = signatureCache.get(cacheKey);
+  if (cachedEntry && isValidCacheEntry(cachedEntry)) {
+    return cachedEntry.signature;
   }
 
   try {
@@ -87,7 +140,16 @@ async function getSignatureText(options: SignatureOptions): Promise<string> {
       }
     }
 
-    logger.info(`Email for donor ${donorId}: Using ${signatureSource}`);
+    // Cache the result
+    signatureCache.set(cacheKey, { signature, timestamp: Date.now() });
+
+    // Only log once per unique signature source to avoid spam
+    const logKey = `${donorId}-${signatureSource}`;
+    if (!loggedSignatures.has(logKey)) {
+      logger.info(`Email for donor ${donorId}: Using ${signatureSource}`);
+      loggedSignatures.add(logKey);
+    }
+
     return signature;
   } catch (error) {
     logger.error(

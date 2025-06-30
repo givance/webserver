@@ -271,12 +271,14 @@ export function WriteInstructionStep({
   }, [selectedSignatureType, customSignature, selectedStaff]);
 
   // Generate random subset of donors for preview on component mount (memoized to prevent recalculation)
+  // If we have saved preview donor IDs from database, use those. Otherwise, randomly select new ones.
   const initialPreviewDonors = useMemo(() => {
     if (selectedDonors.length > 0 && initialPreviewDonorIds.length === 0) {
+      // Random selection for new campaigns - will be saved to database
       const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
       return shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
     }
-    return initialPreviewDonorIds;
+    return initialPreviewDonorIds; // Use saved preview donor IDs from database
   }, [selectedDonors, initialPreviewDonorIds]);
 
   // Set preview donors only once when component mounts
@@ -285,6 +287,43 @@ export function WriteInstructionStep({
       setPreviewDonorIds(initialPreviewDonors);
     }
   }, [initialPreviewDonors, previewDonorIds.length]);
+
+  // Save preview donor IDs to database immediately when they're set (for persistence across page reloads)
+  useEffect(() => {
+    const savePreviewDonorIds = async () => {
+      if (previewDonorIds.length > 0 && sessionId && campaignName) {
+        try {
+          await saveDraft.mutateAsync({
+            sessionId,
+            campaignName,
+            selectedDonorIds: selectedDonors,
+            templateId,
+            instruction: instruction || "",
+            chatHistory: chatMessages,
+            previewDonorIds,
+          });
+          console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
+        } catch (error) {
+          console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
+        }
+      }
+    };
+
+    // Only save if these are newly set preview donor IDs (not loaded from database)
+    if (previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0) {
+      savePreviewDonorIds();
+    }
+  }, [
+    previewDonorIds,
+    sessionId,
+    campaignName,
+    selectedDonors,
+    templateId,
+    instruction,
+    chatMessages,
+    saveDraft,
+    initialPreviewDonorIds.length,
+  ]);
 
   // Function to save chat history - called after messages are sent/received
   const saveChatHistory = useCallback(
@@ -477,14 +516,9 @@ export function WriteInstructionStep({
 
             // Save generated emails incrementally if we have a sessionId
             if (sessionId) {
-              console.log(
-                `[WriteInstructionStep] Saving ${emailResult.emails.length} generated emails to session ${sessionId}`
-              );
-
               const savePromises = emailResult.emails.map(async (email) => {
                 try {
-                  console.log(`[WriteInstructionStep] Saving email for donor ${email.donorId}`);
-                  const result = await saveGeneratedEmail.mutateAsync({
+                  await saveGeneratedEmail.mutateAsync({
                     sessionId,
                     donorId: email.donorId,
                     subject: email.subject,
@@ -494,26 +528,17 @@ export function WriteInstructionStep({
                     reasoning: email.reasoning,
                     isPreview: true,
                   });
-
-                  // The service only returns { success: boolean }, no email object
-                  console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
                   return email;
                 } catch (error) {
-                  console.error(`[WriteInstructionStep] Failed to save email for donor ${email.donorId}:`, error);
+                  console.error(`Failed to save email for donor ${email.donorId}:`, error);
                   return email;
                 }
               });
 
               // Save all emails in parallel
-              Promise.all(savePromises)
-                .then((savedEmails) => {
-                  console.log(`[WriteInstructionStep] Successfully saved ${emailResult.emails.length} emails to draft`);
-                })
-                .catch((error) => {
-                  console.error(`[WriteInstructionStep] Error saving some emails:`, error);
-                });
-            } else {
-              console.log(`[WriteInstructionStep] No sessionId available, skipping email save`);
+              Promise.all(savePromises).catch((error) => {
+                console.error(`Error saving some emails:`, error);
+              });
             }
 
             const responseMessage = instructionToSubmit
@@ -605,17 +630,37 @@ export function WriteInstructionStep({
       return;
     }
 
-    // Get donors that haven't been generated yet
+    // Get donors that haven't been generated yet from the EXISTING preview set + selectedDonors
+    // This ensures we maintain the same base set while allowing expansion
     const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
-    const remainingDonors = selectedDonors.filter((id) => !alreadyGeneratedDonorIds.has(id));
 
-    if (remainingDonors.length === 0) {
-      toast.error("All selected donors have emails generated already");
-      return;
+    // First, check if there are any ungenerated donors from the current preview set
+    const remainingFromPreview = previewDonorIds.filter((id) => !alreadyGeneratedDonorIds.has(id));
+
+    // If we've exhausted the preview set, we can add more from selectedDonors
+    // but we should add them to the preview set permanently to maintain consistency
+    let nextBatchDonors: number[] = [];
+
+    if (remainingFromPreview.length > 0) {
+      // Use remaining from current preview set first
+      nextBatchDonors = remainingFromPreview.slice(0, Math.min(GENERATE_MORE_COUNT, remainingFromPreview.length));
+    } else {
+      // If preview set is exhausted, add new donors from selectedDonors
+      const remainingFromSelected = selectedDonors.filter(
+        (id) => !alreadyGeneratedDonorIds.has(id) && !previewDonorIds.includes(id)
+      );
+
+      if (remainingFromSelected.length === 0) {
+        toast.error("All selected donors have emails generated already");
+        return;
+      }
+
+      // Take next batch from remaining selected donors (deterministic order, no random selection)
+      nextBatchDonors = remainingFromSelected.slice(0, Math.min(GENERATE_MORE_COUNT, remainingFromSelected.length));
+
+      // Add these new donors to the preview set permanently to maintain consistency
+      setPreviewDonorIds((prev) => [...prev, ...nextBatchDonors]);
     }
-
-    // Select next batch of donors (up to GENERATE_MORE_COUNT)
-    const nextBatchDonors = remainingDonors.slice(0, Math.min(GENERATE_MORE_COUNT, remainingDonors.length));
 
     setIsGeneratingMore(true);
 
@@ -674,13 +719,8 @@ export function WriteInstructionStep({
         // Save newly generated emails incrementally if we have a sessionId
         if (sessionId) {
           const savePromises = emailResult.emails.map(async (email) => {
-            console.log(`[WriteInstructionStep] About to save email for donor ${email.donorId}:`, {
-              hasResponse: !!email.response,
-              responseLength: email.response?.length || 0,
-              responsePreview: email.response?.substring(0, 50),
-            });
             try {
-              const result = await saveGeneratedEmail.mutateAsync({
+              await saveGeneratedEmail.mutateAsync({
                 sessionId,
                 donorId: email.donorId,
                 subject: email.subject,
@@ -691,9 +731,6 @@ export function WriteInstructionStep({
                 response: email.response,
                 isPreview: true,
               });
-
-              // The service only returns { success: boolean }, no email object
-              console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
               return email;
             } catch (error) {
               console.error(`Failed to save email for donor ${email.donorId}:`, error);
@@ -702,9 +739,7 @@ export function WriteInstructionStep({
           });
 
           // Save all emails in parallel
-          Promise.all(savePromises).then((savedEmails) => {
-            console.log(`Saved ${emailResult.emails.length} more emails to draft`);
-          });
+          Promise.all(savePromises);
         }
 
         setChatMessages((prev) => {
@@ -752,7 +787,8 @@ export function WriteInstructionStep({
     previousInstruction,
     instruction,
     allGeneratedEmails,
-    selectedDonors,
+    previewDonorIds, // Changed from selectedDonors to previewDonorIds
+    selectedDonors, // Still need this for expanding the set
     donorsData,
     generateEmails,
     referenceContexts,
@@ -767,19 +803,28 @@ export function WriteInstructionStep({
   // Handle regenerating all emails with same instructions without affecting chat history
   const handleRegenerateAllEmails = async (onlyUnapproved = false) => {
     if (isRegenerating || !organization) return;
+
+    // Check if there are any generated emails to regenerate
+    if (allGeneratedEmails.length === 0) {
+      toast.error("No emails to regenerate. Please generate emails first.");
+      return;
+    }
+
     setIsRegenerating(true);
     setShowRegenerateDialog(false);
 
     try {
-      // Determine which donors to regenerate
-      let donorsToRegenerate = previewDonorIds;
+      // Determine which donors to regenerate - ONLY use donors from currently generated emails
+      let donorsToRegenerate: number[] = [];
       let preservedEmails: GeneratedEmail[] = [];
       const preservedStatuses = { ...emailStatuses };
       const preservedContexts = { ...referenceContexts };
 
       if (onlyUnapproved) {
-        // Only regenerate emails for donors with pending approval status
-        donorsToRegenerate = previewDonorIds.filter((donorId) => emailStatuses[donorId] !== "APPROVED");
+        // Only regenerate emails for donors with pending approval status from existing generated emails
+        donorsToRegenerate = allGeneratedEmails
+          .filter((email) => emailStatuses[email.donorId] !== "APPROVED")
+          .map((email) => email.donorId);
 
         // Preserve approved emails
         preservedEmails = allGeneratedEmails.filter((email) => emailStatuses[email.donorId] === "APPROVED");
@@ -795,6 +840,9 @@ export function WriteInstructionStep({
           `Regenerating ${donorsToRegenerate.length} unapproved emails, keeping ${preservedEmails.length} approved emails`
         );
       } else {
+        // For full regeneration, use ALL donors from currently generated emails
+        donorsToRegenerate = allGeneratedEmails.map((email) => email.donorId);
+
         // Clear everything for full regeneration
         setGeneratedEmails([]);
         setAllGeneratedEmails([]);
@@ -824,119 +872,41 @@ export function WriteInstructionStep({
         day: "numeric",
       });
 
-      // Generate emails using the hook without affecting chat history
-      const result = await generateEmails.mutateAsync({
-        instruction: "",
-        donors: donorData,
-        organizationName: organization.name,
-        organizationWritingInstructions: organization.writingInstructions ?? undefined,
-        previousInstruction,
-        currentDate,
-        chatHistory: chatMessages, // Pass existing chat history but don't modify it
-        signature: currentSignature, // Pass the selected signature
+      // Use the regenerateAllEmails API which handles backend generation and saving
+      if (!sessionId) {
+        throw new Error("No session ID available for regeneration");
+      }
+
+      const result = await regenerateAllEmails.mutateAsync({
+        sessionId,
+        instruction: "", // Use existing instruction from session
+        chatHistory: chatMessages,
       });
 
-      if (result && !("isAgenticFlow" in result)) {
-        const emailResult = result as GenerateEmailsResponse;
-
+      if (result?.success) {
+        // Clear local state - data will be refetched automatically via TRPC invalidation
         if (onlyUnapproved) {
-          // Combine preserved approved emails with newly generated ones
-          const combinedEmails = [...preservedEmails, ...emailResult.emails];
-          setAllGeneratedEmails(combinedEmails);
-          setGeneratedEmails(combinedEmails);
-
-          // Update statuses for new emails as pending
-          const newStatuses = { ...preservedStatuses };
-          emailResult.emails.forEach((email) => {
-            newStatuses[email.donorId] = "PENDING_APPROVAL";
-          });
-          setEmailStatuses(newStatuses);
-
-          // Merge reference contexts
-          const combinedContexts = { ...preservedContexts };
-          emailResult.emails.forEach((email) => {
-            combinedContexts[email.donorId] = email.referenceContexts || {};
-          });
-          setReferenceContexts(combinedContexts);
+          // Keep approved emails in local state until refetch completes
+          setAllGeneratedEmails(preservedEmails);
+          setGeneratedEmails(preservedEmails);
+          setEmailStatuses(preservedStatuses);
+          setReferenceContexts(preservedContexts);
         } else {
-          // Full regeneration - replace everything
-          setAllGeneratedEmails(emailResult.emails);
-          setGeneratedEmails(emailResult.emails);
-
-          // Initialize all as pending
-          const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
-          emailResult.emails.forEach((email) => {
-            newStatuses[email.donorId] = "PENDING_APPROVAL";
-          });
-          setEmailStatuses(newStatuses);
-
-          setReferenceContexts(
-            emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-              acc[email.donorId] = email.referenceContexts || {};
-              return acc;
-            }, {})
-          );
+          // Clear everything for full regeneration
+          setAllGeneratedEmails([]);
+          setGeneratedEmails([]);
+          setReferenceContexts({});
+          setEmailStatuses({});
         }
 
-        setPreviousInstruction(emailResult.refinedInstruction);
-
-        // Save generated emails incrementally if we have a sessionId
-        if (sessionId) {
-          console.log(
-            `[WriteInstructionStep] Saving ${emailResult.emails.length} regenerated emails to session ${sessionId}`
-          );
-
-          const savePromises = emailResult.emails.map(async (email) => {
-            console.log(`[WriteInstructionStep] About to save email for donor ${email.donorId}:`, {
-              hasResponse: !!email.response,
-              responseLength: email.response?.length || 0,
-              responsePreview: email.response?.substring(0, 50),
-            });
-            try {
-              const result = await saveGeneratedEmail.mutateAsync({
-                sessionId,
-                donorId: email.donorId,
-                subject: email.subject,
-                structuredContent: email.structuredContent,
-                referenceContexts: email.referenceContexts,
-                emailContent: email.emailContent,
-                reasoning: email.reasoning,
-                response: email.response,
-                isPreview: true,
-              });
-
-              // The service only returns { success: boolean }, no email object
-              console.log(`[WriteInstructionStep] Successfully saved email for donor ${email.donorId}`);
-              return email;
-            } catch (error) {
-              console.error(
-                `[WriteInstructionStep] Failed to save regenerated email for donor ${email.donorId}:`,
-                error
-              );
-              return email;
-            }
-          });
-
-          // Save all emails in parallel
-          Promise.all(savePromises)
-            .then((savedEmails) => {
-              console.log(
-                `[WriteInstructionStep] Successfully saved ${emailResult.emails.length} regenerated emails to draft`
-              );
-            })
-            .catch((error) => {
-              console.error(`[WriteInstructionStep] Error saving some regenerated emails:`, error);
-            });
-        }
-
-        // Auto-switch to preview tab after email regeneration
+        // Auto-switch to preview tab
         setTimeout(() => {
           setActiveTab("preview");
         }, 500);
 
-        toast.success(`Successfully regenerated ${emailResult.emails.length} emails!`);
+        toast.success(`Successfully started regeneration of emails! Refreshing...`);
       } else {
-        throw new Error("Failed to regenerate emails");
+        throw new Error("Failed to start regeneration");
       }
     } catch (error) {
       console.error("Error regenerating emails:", error);
@@ -1107,10 +1077,15 @@ export function WriteInstructionStep({
     [sessionId, updateEmailStatus, allGeneratedEmails]
   );
 
-  // Check if we can generate more emails
+  // Check if we can generate more emails - use consistent logic with handleGenerateMore
   const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
-  const remainingDonors = selectedDonors.filter((id) => !alreadyGeneratedDonorIds.has(id));
-  const canGenerateMore = remainingDonors.length > 0;
+  // First check remaining from current preview set, then remaining from selectedDonors
+  const remainingFromPreview = previewDonorIds.filter((id) => !alreadyGeneratedDonorIds.has(id));
+  const remainingFromSelected = selectedDonors.filter(
+    (id) => !alreadyGeneratedDonorIds.has(id) && !previewDonorIds.includes(id)
+  );
+  const totalRemainingDonors = remainingFromPreview.length + remainingFromSelected.length;
+  const canGenerateMore = totalRemainingDonors > 0;
 
   // Count approved vs pending emails
   const approvedCount = Object.values(emailStatuses).filter((status) => status === "APPROVED").length;
@@ -1207,7 +1182,7 @@ export function WriteInstructionStep({
                         <div className="flex justify-end gap-2">
                           <Button
                             onClick={() => setShowRegenerateDialog(true)}
-                            disabled={isRegenerating || isGenerating}
+                            disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
                             variant="outline"
                             className="flex items-center gap-2"
                           >
@@ -1400,7 +1375,7 @@ export function WriteInstructionStep({
                       canGenerateMore={canGenerateMore}
                       onGenerateMore={handleGenerateMore}
                       isGeneratingMore={isGeneratingMore}
-                      remainingDonorsCount={remainingDonors.length}
+                      remainingDonorsCount={totalRemainingDonors}
                       generateMoreCount={GENERATE_MORE_COUNT}
                       getStaffName={(staffId) => {
                         if (!staffId || !staffData?.staff) return "Unassigned";

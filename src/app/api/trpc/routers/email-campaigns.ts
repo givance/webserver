@@ -355,33 +355,14 @@ export const emailCampaignsRouter = router({
    * Save campaign as draft - auto-saves campaign data without triggering generation
    */
   saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {
-    console.log("[tRPC saveDraft] Mutation called with input:", {
-      sessionId: input.sessionId,
-      campaignName: input.campaignName,
-      selectedDonorCount: input.selectedDonorIds?.length,
-      templateId: input.templateId,
-      organizationId: ctx.auth.user.organizationId,
-      userId: ctx.auth.user.id,
-    });
-
     const campaignsService = new EmailCampaignsService();
-    const result = await campaignsService.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
-
-    console.log("[tRPC saveDraft] Mutation completed with result:", result);
-    return result;
+    return await campaignsService.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
    * Save a generated email incrementally with PENDING_APPROVAL status
    */
   saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
-    console.log("[tRPC saveGeneratedEmail] Called with input:", {
-      sessionId: input.sessionId,
-      donorId: input.donorId,
-      hasResponse: !!input.response,
-      responseLength: input.response?.length || 0,
-      responsePreview: input.response?.substring(0, 50),
-    });
     const campaignsService = new EmailCampaignsService();
     return await campaignsService.saveGeneratedEmail(input, ctx.auth.user.organizationId);
   }),

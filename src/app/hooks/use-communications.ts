@@ -62,30 +62,9 @@ export function useCommunications() {
   const sendBulkEmails = trpc.gmail.sendBulkEmails.useMutation();
   const updateEmail = trpc.communications.campaigns.updateEmail.useMutation({
     onSuccess: async (data) => {
-      console.log("[updateEmail onSuccess] Called with data:", data);
-      
-      // Get sessionId from the response data
+      // Only invalidate once, no excessive refetching
       if (data?.sessionId) {
-        console.log("[updateEmail onSuccess] Invalidating and refetching session:", data.sessionId);
-        
-        try {
-          // First invalidate to mark as stale
-          await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-          
-          // Then explicitly refetch
-          await utils.communications.campaigns.getSession.refetch({ sessionId: data.sessionId });
-          
-          // Also invalidate without parameters to catch any cached versions
-          await utils.communications.campaigns.getSession.invalidate();
-          
-          console.log("[updateEmail onSuccess] Successfully invalidated and refetched");
-        } catch (error) {
-          console.error("[updateEmail onSuccess] Error during invalidation/refetch:", error);
-        }
-      } else {
-        // Fallback to invalidating all sessions if no sessionId in response
-        console.log("[updateEmail onSuccess] No sessionId in response, invalidating all sessions");
-        await utils.communications.campaigns.getSession.invalidate();
+        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
       }
     },
   });
@@ -99,58 +78,23 @@ export function useCommunications() {
 
   const updateCampaign = trpc.communications.campaigns.updateCampaign.useMutation({
     onSuccess: async (data, variables) => {
-      console.log("[updateCampaign onSuccess] Called with data:", data);
-      
       // Invalidate campaigns list
       await utils.communications.campaigns.listCampaigns.invalidate();
-      
-      // If we have a campaign ID, invalidate and refetch that specific session
+
+      // If we have a campaign ID, invalidate that specific session
       const sessionId = data?.campaign?.id || variables.campaignId;
       if (sessionId) {
-        try {
-          await utils.communications.campaigns.getSession.invalidate({ sessionId });
-          await utils.communications.campaigns.getSession.refetch({ sessionId });
-          console.log("[updateCampaign onSuccess] Successfully invalidated and refetched session:", sessionId);
-        } catch (error) {
-          console.error("[updateCampaign onSuccess] Error during invalidation/refetch:", error);
-        }
-      } else {
-        // Fallback to invalidating all sessions
-        await utils.communications.campaigns.getSession.invalidate();
+        await utils.communications.campaigns.getSession.invalidate({ sessionId });
       }
     },
   });
 
   const enhanceEmail = trpc.communications.campaigns.enhanceEmail.useMutation({
-    onSuccess: async (data, variables) => {
-      console.log("[enhanceEmail onSuccess] Called with data:", data);
-      console.log("[enhanceEmail onSuccess] Variables:", variables);
-
-      // Invalidate and refetch the session query to get updated emails immediately
+    onSuccess: async (data) => {
+      // Only invalidate once
       if (data?.sessionId) {
-        console.log("[enhanceEmail onSuccess] Invalidating and refetching session:", data.sessionId);
-
-        try {
-          // First invalidate to mark as stale
-          await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-
-          // Then explicitly refetch
-          await utils.communications.campaigns.getSession.refetch({ sessionId: data.sessionId });
-
-          // Also invalidate without parameters to catch any cached versions
-          await utils.communications.campaigns.getSession.invalidate();
-          await utils.communications.campaigns.getSession.refetch();
-
-          console.log("[enhanceEmail onSuccess] Successfully invalidated and refetched");
-        } catch (error) {
-          console.error("[enhanceEmail onSuccess] Error during invalidation/refetch:", error);
-        }
-      } else {
-        console.warn("[enhanceEmail onSuccess] No sessionId in response data");
+        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
       }
-    },
-    onError: (error) => {
-      console.error("[enhanceEmail onError] Mutation failed:", error);
     },
   });
 
@@ -164,53 +108,30 @@ export function useCommunications() {
   // Regenerate all emails mutation hook
   const regenerateAllEmails = trpc.communications.campaigns.regenerateAllEmails.useMutation({
     onSuccess: async (data) => {
-      console.log("[regenerateAllEmails onSuccess] Called with data:", data);
-      
       // Invalidate the session query to refetch updated status
       if (data.sessionId) {
-        try {
-          await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-          await utils.communications.campaigns.getSession.refetch({ sessionId: data.sessionId });
-          await utils.communications.campaigns.listCampaigns.invalidate();
-          console.log("[regenerateAllEmails onSuccess] Successfully invalidated and refetched session");
-        } catch (error) {
-          console.error("[regenerateAllEmails onSuccess] Error during invalidation/refetch:", error);
-        }
+        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+        await utils.communications.campaigns.listCampaigns.invalidate();
       }
     },
   });
 
   // Save draft mutation hook
   const saveDraft = trpc.communications.campaigns.saveDraft.useMutation({
-    onMutate: (variables) => {
-      console.log("[useCommunications] saveDraft.onMutate called with:", variables);
-    },
-    onSuccess: (data, variables) => {
-      console.log("[useCommunications] saveDraft.onSuccess called with:", { data, variables });
+    onSuccess: (data) => {
       // Invalidate campaigns list to show the new draft
       utils.communications.campaigns.listCampaigns.invalidate();
       if (data.sessionId) {
         utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
       }
     },
-    onError: (error, variables) => {
-      console.error("[useCommunications] saveDraft.onError called with:", { error, variables });
-    },
   });
 
   // Save generated email mutation hook
   const saveGeneratedEmail = trpc.communications.campaigns.saveGeneratedEmail.useMutation({
     onSuccess: async (data, variables) => {
-      console.log("[saveGeneratedEmail onSuccess] Called with variables:", variables);
-      
-      // Invalidate and refetch the session to ensure immediate update
-      try {
-        await utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
-        await utils.communications.campaigns.getSession.refetch({ sessionId: variables.sessionId });
-        console.log("[saveGeneratedEmail onSuccess] Successfully invalidated and refetched session");
-      } catch (error) {
-        console.error("[saveGeneratedEmail onSuccess] Error during invalidation/refetch:", error);
-      }
+      // Only invalidate, no excessive refetching
+      await utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
     },
   });
 
