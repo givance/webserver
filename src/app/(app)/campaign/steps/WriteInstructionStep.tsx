@@ -313,7 +313,6 @@ export function WriteInstructionStep({
           templateId,
           instruction: instruction || "",
           chatHistory: messagesToSave,
-          refinedInstruction: refinedToSave,
           previewDonorIds,
         });
         console.log("[WriteInstructionStep] Successfully saved chat history with", messagesToSave.length, "messages");
@@ -987,7 +986,6 @@ export function WriteInstructionStep({
         chatHistory: currentSessionData.chatHistory,
         selectedDonorIds: selectedDonors,
         previewDonorIds: currentSessionData.previewDonorIds,
-        refinedInstruction: "", // Empty refined instruction - chat history will be used instead
         templateId: templateId,
       });
 

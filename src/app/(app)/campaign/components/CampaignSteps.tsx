@@ -23,7 +23,6 @@ interface CampaignStepsProps {
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     instruction: string;
     templateId?: number;
-    refinedInstruction?: string;
     existingGeneratedEmails?: any[];
   };
 }
@@ -31,12 +30,12 @@ interface CampaignStepsProps {
 export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
-  // - If refinedInstruction exists, go to Write Instructions (step 3)
-  // - If templateId exists but no refinedInstruction, go to Write Instructions (step 3)
+  // - If instruction exists, go to Write Instructions (step 3)
+  // - If templateId exists, go to Write Instructions (step 3)
   // - Otherwise, go to Template Selection (step 2)
   const getInitialStep = () => {
     if (editMode) {
-      if (existingCampaignData?.refinedInstruction || existingCampaignData?.instruction) {
+      if (existingCampaignData?.instruction) {
         return 3; // Go to Write Instructions step
       } else {
         return 2; // Go to Template Selection step
@@ -120,7 +119,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             templateId: selectedTemplateId,
             instruction,
             chatHistory: persistedChatHistory,
-            refinedInstruction: existingCampaignData?.refinedInstruction,
             previewDonorIds: persistedPreviewDonorIds,
           });
         } catch (error) {
@@ -137,7 +135,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       selectedTemplateId,
       instruction,
       persistedChatHistory,
-      existingCampaignData?.refinedInstruction,
       persistedPreviewDonorIds,
       navigationAutoSave,
     ]
@@ -171,7 +168,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
           templateId: selectedTemplateId,
           instruction,
           chatHistory: persistedChatHistory,
-          refinedInstruction: existingCampaignData?.refinedInstruction,
           previewDonorIds: persistedPreviewDonorIds,
         });
 
@@ -304,7 +300,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             }
             initialReferenceContexts={persistedReferenceContexts}
             initialPreviewDonorIds={persistedPreviewDonorIds}
-            initialRefinedInstruction={existingCampaignData?.refinedInstruction}
             campaignName={campaignName}
             templateId={selectedTemplateId}
             onBulkGenerationComplete={handleBulkGenerationComplete}
