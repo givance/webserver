@@ -32,6 +32,7 @@ import {
  * @param organizationMemories - Organization-wide memories
  * @param currentDate - Current date for time-sensitive content
  * @param previousInstruction - Previous refined instruction to build upon
+ * @param chatHistory - Optional chat history
  * @returns Object containing refined instruction, reasoning, and generated emails
  */
 export async function generateSmartDonorEmails(

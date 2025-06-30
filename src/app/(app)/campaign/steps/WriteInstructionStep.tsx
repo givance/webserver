@@ -650,6 +650,7 @@ export function WriteInstructionStep({
         previousInstruction,
         currentDate,
         chatHistory: chatMessages, // Use current chat history as no new message is added in generate more
+        signature: currentSignature, // Pass the selected signature
       });
 
       if (result && !("isAgenticFlow" in result)) {
@@ -760,6 +761,7 @@ export function WriteInstructionStep({
     saveGeneratedEmail,
     sessionId,
     emailStatuses,
+    currentSignature,
   ]);
 
   // Handle regenerating all emails with same instructions without affecting chat history
@@ -831,6 +833,7 @@ export function WriteInstructionStep({
         previousInstruction,
         currentDate,
         chatHistory: chatMessages, // Pass existing chat history but don't modify it
+        signature: currentSignature, // Pass the selected signature
       });
 
       if (result && !("isAgenticFlow" in result)) {
@@ -987,6 +990,7 @@ export function WriteInstructionStep({
         selectedDonorIds: selectedDonors,
         previewDonorIds: currentSessionData.previewDonorIds,
         templateId: templateId,
+        signature: currentSignature, // Pass the selected signature
       });
 
       if (!response?.sessionId) {
@@ -1111,6 +1115,8 @@ export function WriteInstructionStep({
   // Count approved vs pending emails
   const approvedCount = Object.values(emailStatuses).filter((status) => status === "APPROVED").length;
   const pendingCount = Object.values(emailStatuses).filter((status) => status === "PENDING_APPROVAL").length;
+
+  // TODO: Add signature refetch functionality for edit mode later
 
   return (
     <div className="flex flex-col h-full space-y-6">

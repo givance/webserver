@@ -410,12 +410,33 @@ function convertStructuredContentToText(structuredContent: Array<{ piece: string
  * Shared utility function for processing emails for sending/drafts
  * This ensures consistent email processing across send and draft operations
  */
+/**
+ * Converts plain text email content to structured format for processing
+ */
+function convertPlainTextToStructuredContent(
+  emailContent: string
+): Array<{ piece: string; references: string[]; addNewlineAfter: boolean }> {
+  if (!emailContent || !emailContent.trim()) {
+    return [{ piece: "", references: [], addNewlineAfter: false }];
+  }
+
+  // Split by double newlines to create paragraphs
+  const paragraphs = emailContent.split(/\n\s*\n/);
+
+  return paragraphs.map((paragraph, index) => ({
+    piece: paragraph.trim(),
+    references: [],
+    addNewlineAfter: index < paragraphs.length - 1, // Add newline after all except the last
+  }));
+}
+
 async function processEmailForDelivery(
   email: {
     id: number;
     donorId: number;
     subject: string;
     structuredContent: any;
+    emailContent?: string | null; // Add support for new format, can be null from database
     donor: {
       firstName: string;
       lastName: string;
@@ -445,12 +466,37 @@ async function processEmailForDelivery(
     sessionId: sessionId,
   });
 
-  // Append signature to email content before processing
-  const contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
-    donorId: email.donorId,
-    organizationId: organizationId,
-    userId: userId,
-  });
+  let contentWithSignature;
+
+  // Handle both new format (emailContent) and legacy format (structuredContent)
+  if (email.emailContent && email.emailContent.trim().length > 0) {
+    // New format: Convert plain text to structured content first
+    logger.info(`Processing new format email ${email.id} with emailContent`);
+    const structuredFromPlainText = convertPlainTextToStructuredContent(email.emailContent);
+
+    // Append signature to the converted structured content
+    contentWithSignature = await appendSignatureToEmail(structuredFromPlainText, {
+      donorId: email.donorId,
+      organizationId: organizationId,
+      userId: userId,
+    });
+  } else if (email.structuredContent) {
+    // Legacy format: Use existing logic
+    logger.info(`Processing legacy format email ${email.id} with structuredContent`);
+    contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
+      donorId: email.donorId,
+      organizationId: organizationId,
+      userId: userId,
+    });
+  } else {
+    // Fallback: Empty content
+    logger.warn(`Email ${email.id} has no content in either format, using empty content`);
+    contentWithSignature = await appendSignatureToEmail([], {
+      donorId: email.donorId,
+      organizationId: organizationId,
+      userId: userId,
+    });
+  }
 
   // Process email content with tracking (including the appended signature)
   const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);
@@ -675,6 +721,7 @@ export const gmailRouter = router({
             donorId: generatedEmails.donorId,
             subject: generatedEmails.subject,
             structuredContent: generatedEmails.structuredContent,
+            emailContent: generatedEmails.emailContent, // Add new format field
             donor: {
               firstName: donors.firstName,
               lastName: donors.lastName,
@@ -795,6 +842,7 @@ export const gmailRouter = router({
             donorId: generatedEmails.donorId,
             subject: generatedEmails.subject,
             structuredContent: generatedEmails.structuredContent,
+            emailContent: generatedEmails.emailContent, // Add new format field
             donor: {
               firstName: donors.firstName,
               lastName: donors.lastName,
@@ -917,6 +965,7 @@ export const gmailRouter = router({
             donorId: generatedEmails.donorId,
             subject: generatedEmails.subject,
             structuredContent: generatedEmails.structuredContent,
+            emailContent: generatedEmails.emailContent, // Add new format field
             isSent: generatedEmails.isSent,
             donor: {
               firstName: donors.firstName,
@@ -1041,6 +1090,7 @@ export const gmailRouter = router({
             donorId: generatedEmails.donorId,
             subject: generatedEmails.subject,
             structuredContent: generatedEmails.structuredContent,
+            emailContent: generatedEmails.emailContent, // Add new format field
             isSent: generatedEmails.isSent,
             donor: {
               firstName: donors.firstName,

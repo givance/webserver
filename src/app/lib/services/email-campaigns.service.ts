@@ -26,6 +26,10 @@ export interface CreateSessionInput {
   selectedDonorIds: number[];
   previewDonorIds: number[];
   templateId?: number;
+  // Signature configuration
+  signatureType?: "none" | "custom" | "staff";
+  customSignature?: string;
+  selectedStaffId?: number;
 }
 
 export interface ListCampaignsInput {
@@ -78,6 +82,10 @@ export interface SaveDraftInput {
     content: string;
   }>;
   previewDonorIds?: number[];
+  // Signature configuration
+  signatureType?: "none" | "custom" | "staff";
+  customSignature?: string;
+  selectedStaffId?: number;
 }
 
 export interface SaveGeneratedEmailInput {
@@ -392,9 +400,10 @@ export class EmailCampaignsService {
    * Gets an email generation session with generated emails
    * @param sessionId - The session ID
    * @param organizationId - The organization ID for authorization
+   * @param customSignature - Optional custom signature to use instead of assigned staff signatures
    * @returns The session with emails
    */
-  async getSession(sessionId: number, organizationId: string) {
+  async getSession(sessionId: number, organizationId: string, customSignature?: string) {
     try {
       const [session] = await db
         .select()
@@ -428,6 +437,7 @@ export class EmailCampaignsService {
             donorId: email.donorId,
             organizationId: organizationId,
             userId: session.userId,
+            customSignature: customSignature, // Pass the custom signature from UI
           });
 
           return {

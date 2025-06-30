@@ -58,10 +58,12 @@ const launchCampaignSchema = z.object({
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
   templateId: z.number().optional(),
+  signature: z.string().optional(),
 });
 
 const getSessionSchema = z.object({
   sessionId: z.number(),
+  signature: z.string().optional(),
 });
 
 const getSessionStatusSchema = z.object({
@@ -196,6 +198,11 @@ const getEmailWithSignatureSchema = z.object({
   ),
 });
 
+const getPlainTextEmailWithSignatureSchema = z.object({
+  donorId: z.number(),
+  emailContent: z.string(),
+});
+
 /**
  * Router for email campaign management
  * Handles email generation, campaign management, and email operations
@@ -268,7 +275,7 @@ export const emailCampaignsRouter = router({
    */
   getSession: protectedProcedure.input(getSessionSchema).query(async ({ ctx, input }) => {
     const campaignsService = new EmailCampaignsService();
-    return await campaignsService.getSession(input.sessionId, ctx.auth.user.organizationId);
+    return await campaignsService.getSession(input.sessionId, ctx.auth.user.organizationId, input.signature);
   }),
 
   /**
@@ -517,4 +524,19 @@ export const emailCampaignsRouter = router({
     });
     return { structuredContent: contentWithSignature };
   }),
+
+  /**
+   * Get plain text email content with signature appended for display
+   */
+  getPlainTextEmailWithSignature: protectedProcedure
+    .input(getPlainTextEmailWithSignatureSchema)
+    .query(async ({ ctx, input }) => {
+      const { appendSignatureToPlainText } = await import("@/app/lib/utils/email-with-signature");
+      const contentWithSignature = await appendSignatureToPlainText(input.emailContent, {
+        donorId: input.donorId,
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+      });
+      return { emailContent: contentWithSignature };
+    }),
 });

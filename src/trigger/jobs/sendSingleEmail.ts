@@ -27,6 +27,26 @@ const sendSingleEmailPayloadSchema = z.object({
 type SendSingleEmailPayload = z.infer<typeof sendSingleEmailPayloadSchema>;
 
 /**
+ * Converts plain text email content to structured format for processing
+ */
+function convertPlainTextToStructuredContent(
+  emailContent: string
+): Array<{ piece: string; references: string[]; addNewlineAfter: boolean }> {
+  if (!emailContent || !emailContent.trim()) {
+    return [{ piece: "", references: [], addNewlineAfter: false }];
+  }
+
+  // Split by double newlines to create paragraphs
+  const paragraphs = emailContent.split(/\n\s*\n/);
+
+  return paragraphs.map((paragraph, index) => ({
+    piece: paragraph.trim(),
+    references: [],
+    addNewlineAfter: index < paragraphs.length - 1, // Add newline after all except the last
+  }));
+}
+
+/**
  * Helper to get Gmail client (reused from gmail router logic)
  */
 async function getGmailClientForDonor(donorId: number, organizationId: string, fallbackUserId: string) {
@@ -186,6 +206,7 @@ export const sendSingleEmailTask = task({
           donorId: generatedEmails.donorId,
           subject: generatedEmails.subject,
           structuredContent: generatedEmails.structuredContent,
+          emailContent: generatedEmails.emailContent, // Add new format field
           sendStatus: generatedEmails.sendStatus,
           isSent: generatedEmails.isSent,
           donor: {
@@ -255,12 +276,37 @@ export const sendSingleEmailTask = task({
         sessionId: sessionId,
       });
 
-      // Append signature to email content before processing
-      const contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
-        donorId: email.donorId,
-        organizationId: organizationId,
-        userId: userId,
-      });
+      // Handle both new format (emailContent) and legacy format (structuredContent)
+      let contentWithSignature;
+
+      if (email.emailContent && email.emailContent.trim().length > 0) {
+        // New format: Convert plain text to structured content first
+        triggerLogger.info(`Processing new format email ${email.id} with emailContent`);
+        const structuredFromPlainText = convertPlainTextToStructuredContent(email.emailContent);
+
+        // Append signature to the converted structured content
+        contentWithSignature = await appendSignatureToEmail(structuredFromPlainText, {
+          donorId: email.donorId,
+          organizationId: organizationId,
+          userId: userId,
+        });
+      } else if (email.structuredContent) {
+        // Legacy format: Use existing logic
+        triggerLogger.info(`Processing legacy format email ${email.id} with structuredContent`);
+        contentWithSignature = await appendSignatureToEmail(email.structuredContent as any, {
+          donorId: email.donorId,
+          organizationId: organizationId,
+          userId: userId,
+        });
+      } else {
+        // Fallback: Empty content
+        triggerLogger.warn(`Email ${email.id} has no content in either format, using empty content`);
+        contentWithSignature = await appendSignatureToEmail([], {
+          donorId: email.donorId,
+          organizationId: organizationId,
+          userId: userId,
+        });
+      }
 
       // Process content with tracking
       const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);

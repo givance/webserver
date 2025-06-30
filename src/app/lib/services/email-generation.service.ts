@@ -54,7 +54,7 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory } = input;
+    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory, signature } = input;
     const currentDate = new Date().toDateString();
 
     // Debug logging for chat history
@@ -65,6 +65,13 @@ export class EmailGenerationService {
           chatHistory[chatHistory.length - 1]?.content
         }"`
       );
+    }
+
+    // Log signature usage
+    if (signature && signature.trim()) {
+      logger.info(`[EmailGenerationService] Using custom signature from UI: ${signature.length} characters`);
+    } else {
+      logger.info(`[EmailGenerationService] No custom signature provided, will use assigned staff signatures`);
     }
 
     // Process project mentions in the instruction

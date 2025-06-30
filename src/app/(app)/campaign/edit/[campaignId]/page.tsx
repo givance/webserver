@@ -14,7 +14,14 @@ export default function EditCampaignPage() {
   const { getSession } = useCommunications();
 
   // Load existing campaign data
-  const { data: sessionData, isLoading: isLoadingSession, error: sessionError } = getSession({ sessionId: campaignId });
+  const {
+    data: sessionData,
+    isLoading: isLoadingSession,
+    error: sessionError,
+  } = getSession({
+    sessionId: campaignId,
+    // Note: signature will be handled in WriteInstructionStep component where UI signature selection is available
+  });
 
   useEffect(() => {
     if (sessionError) {

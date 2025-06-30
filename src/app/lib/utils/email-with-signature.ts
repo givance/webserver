@@ -17,35 +17,23 @@ interface SignatureOptions {
 }
 
 /**
- * Appends the appropriate signature to email structured content
- * without modifying the original content array
+ * Gets the appropriate signature text for a donor
+ * @param options - Signature options
+ * @returns The signature text
  */
-export async function appendSignatureToEmail(
-  structuredContent: EmailPiece[],
-  options: SignatureOptions
-): Promise<EmailPiece[]> {
+async function getSignatureText(options: SignatureOptions): Promise<string> {
   const { donorId, organizationId, userId, customSignature } = options;
 
   // If custom signature is provided, use it
   if (customSignature && customSignature.trim()) {
     logger.info(`Using provided custom signature for donor ${donorId}`);
-    return [
-      ...structuredContent,
-      {
-        piece: customSignature,
-        references: ["signature"],
-        addNewlineAfter: false,
-      },
-    ];
+    return customSignature;
   }
 
   try {
     // Get donor with assigned staff
     const donor = await db.query.donors.findFirst({
-      where: and(
-        eq(donors.id, donorId),
-        eq(donors.organizationId, organizationId)
-      ),
+      where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
       with: {
         assignedStaff: true,
       },
@@ -53,7 +41,7 @@ export async function appendSignatureToEmail(
 
     if (!donor) {
       logger.warn(`Donor ${donorId} not found for signature`);
-      return structuredContent;
+      return "Best,\nTeam";
     }
 
     let signature: string;
@@ -69,10 +57,7 @@ export async function appendSignatureToEmail(
     } else {
       // Get primary staff as fallback
       const primaryStaff = await db.query.staff.findFirst({
-        where: and(
-          eq(staff.organizationId, organizationId),
-          eq(staff.isPrimary, true)
-        ),
+        where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
       });
 
       if (primaryStaff?.signature && primaryStaff.signature.trim()) {
@@ -87,7 +72,7 @@ export async function appendSignatureToEmail(
           const user = await db.query.users.findFirst({
             where: eq(users.id, userId),
           });
-          
+
           if (user?.emailSignature) {
             signature = user.emailSignature;
             signatureSource = "user email signature";
@@ -103,30 +88,55 @@ export async function appendSignatureToEmail(
     }
 
     logger.info(`Email for donor ${donorId}: Using ${signatureSource}`);
-
-    // Append signature to content
-    return [
-      ...structuredContent,
-      {
-        piece: signature,
-        references: ["signature"],
-        addNewlineAfter: false,
-      },
-    ];
+    return signature;
   } catch (error) {
     logger.error(
-      `Failed to append signature for donor ${donorId}: ${
-        error instanceof Error ? error.message : String(error)
-      }`
+      `Failed to get signature for donor ${donorId}: ${error instanceof Error ? error.message : String(error)}`
     );
-    // Return original content on error
-    return structuredContent;
+    return "Best,\nTeam";
   }
+}
+
+/**
+ * Appends the appropriate signature to email structured content
+ * without modifying the original content array
+ */
+export async function appendSignatureToEmail(
+  structuredContent: EmailPiece[],
+  options: SignatureOptions
+): Promise<EmailPiece[]> {
+  const signature = await getSignatureText(options);
+
+  // Append signature to content
+  return [
+    ...structuredContent,
+    {
+      piece: signature,
+      references: ["signature"],
+      addNewlineAfter: false,
+    },
+  ];
+}
+
+/**
+ * Appends the appropriate signature to plain text email content (for new format emails)
+ * @param emailContent - The plain text email content
+ * @param options - Signature options
+ * @returns The email content with signature appended
+ */
+export async function appendSignatureToPlainText(emailContent: string, options: SignatureOptions): Promise<string> {
+  const signature = await getSignatureText(options);
+
+  // Add signature with proper spacing
+  const emailWithSignature = emailContent.trim() + "\n\n" + signature;
+
+  logger.info(`Appended signature to plain text email for donor ${options.donorId}`);
+  return emailWithSignature;
 }
 
 /**
  * Removes signature pieces from structured content
  */
 export function removeSignatureFromContent(structuredContent: EmailPiece[]): EmailPiece[] {
-  return structuredContent.filter(piece => !piece.references?.includes("signature"));
+  return structuredContent.filter((piece) => !piece.references?.includes("signature"));
 }

@@ -261,9 +261,26 @@ export function EmailDisplay({
     }
   );
 
+  // For new format, fetch plain text email content with signature
+  const { data: plainTextSignatureData } = trpc.emailCampaigns.getPlainTextEmailWithSignature.useQuery(
+    {
+      donorId: donorId || 0,
+      emailContent: emailContent || "",
+    },
+    {
+      enabled: !!donorId && !!emailContent && isNewFormat,
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    }
+  );
+
   // Use signature-appended content for legacy format when available, otherwise use provided content
   const contentWithSignature =
     signatureData && isLegacyFormat && !isNewFormat ? signatureData.structuredContent : displayContent;
+
+  // Use signature-appended content for new format when available
+  const emailContentWithSignature =
+    plainTextSignatureData && isNewFormat ? plainTextSignatureData.emailContent : emailContent;
 
   return (
     <div className="space-y-4">
@@ -393,7 +410,7 @@ export function EmailDisplay({
           <div className="space-y-2 text-sm font-sans">
             {isNewFormat ? (
               // New format: Show plain email content without references
-              <div className="whitespace-pre-wrap">
+              <div>
                 {/* Show reasoning for new format emails */}
                 {reasoning && (
                   <div className="mt-2 p-2 bg-muted/30 rounded-md border">
@@ -404,7 +421,78 @@ export function EmailDisplay({
                     <p className="text-xs text-muted-foreground font-light leading-relaxed">{reasoning}</p>
                   </div>
                 )}
-                {emailContent}
+
+                {/* Handle email content with potential HTML signature */}
+                {(() => {
+                  const content = emailContentWithSignature || emailContent || "";
+
+                  // Check if content contains HTML (likely from signature)
+                  const hasHTML = /<[^>]+>/.test(content);
+
+                  if (!hasHTML) {
+                    // No HTML, render as plain text
+                    return <div className="whitespace-pre-wrap">{content}</div>;
+                  }
+
+                  // Content has HTML, try to split email content from signature
+                  // Look for the last double newline before HTML content
+                  let emailPart = content;
+                  let signaturePart = "";
+
+                  // Find the last occurrence of \n\n followed by content that contains HTML
+                  const splitRegex = /\n\n/g;
+                  const matches = [];
+                  let match;
+
+                  while ((match = splitRegex.exec(content)) !== null) {
+                    matches.push(match.index);
+                  }
+
+                  // Work backwards through the matches to find the split point
+                  for (let i = matches.length - 1; i >= 0; i--) {
+                    const splitIndex = matches[i] + 2; // +2 to skip the \n\n
+                    const afterSplit = content.substring(splitIndex);
+
+                    // If the content after this split contains HTML, this is likely our signature
+                    if (/<[^>]+>/.test(afterSplit)) {
+                      emailPart = content.substring(0, matches[i]).trim();
+                      signaturePart = afterSplit.trim();
+                      break;
+                    }
+                  }
+
+                  // Fallback: if no split found, treat entire content as having both parts mixed
+                  if (!signaturePart && hasHTML) {
+                    // Just render the entire content as HTML since we can't safely split it
+                    return (
+                      <div
+                        className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
+                        dangerouslySetInnerHTML={{ __html: content }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div>
+                      {/* Email content as plain text */}
+                      {emailPart && <div className="whitespace-pre-wrap">{emailPart}</div>}
+
+                      {/* Signature as HTML if it contains HTML tags */}
+                      {signaturePart && (
+                        <div className="mt-4">
+                          {/<[^>]+>/.test(signaturePart) ? (
+                            <div
+                              className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
+                              dangerouslySetInnerHTML={{ __html: signaturePart }}
+                            />
+                          ) : (
+                            <div className="whitespace-pre-wrap">{signaturePart}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               // Legacy format: Show structured content with references

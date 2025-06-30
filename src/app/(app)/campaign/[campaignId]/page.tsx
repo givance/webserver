@@ -27,8 +27,15 @@ export default function CampaignDetailPage() {
   const { getSession, getEmailSchedule } = useCommunications();
   const { listStaff, getPrimaryStaff } = useStaff();
 
-  // Get campaign data
-  const { data: sessionData, isLoading: isLoadingSession, error: sessionError } = getSession({ sessionId: campaignId });
+  // Get campaign data with signatures appended for display
+  const {
+    data: sessionData,
+    isLoading: isLoadingSession,
+    error: sessionError,
+  } = getSession({
+    sessionId: campaignId,
+    signature: "",
+  });
 
   // Fetch staff data for assignment display
   const { data: staffData } = listStaff({
