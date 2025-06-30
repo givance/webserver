@@ -11,7 +11,6 @@ interface CampaignDraftData {
   templateId?: number;
   instruction?: string;
   chatHistory?: Array<{ role: "user" | "assistant"; content: string }>;
-  refinedInstruction?: string;
   previewDonorIds?: number[];
 }
 
@@ -42,7 +41,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
         templateId: data.templateId,
         instruction: data.instruction?.trim(),
         chatHistory: data.chatHistory || [],
-        refinedInstruction: data.refinedInstruction?.trim(),
         previewDonorIds: data.previewDonorIds || [],
       });
 
@@ -67,7 +65,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
             templateId: data.templateId,
             instruction: data.instruction?.trim(),
             chatHistory: data.chatHistory,
-            refinedInstruction: data.refinedInstruction?.trim(),
             previewDonorIds: data.previewDonorIds,
           };
 
@@ -108,7 +105,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
           templateId: data.templateId,
           instruction: data.instruction?.trim(),
           chatHistory: data.chatHistory,
-          refinedInstruction: data.refinedInstruction?.trim(),
           previewDonorIds: data.previewDonorIds,
         };
 

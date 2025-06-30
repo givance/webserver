@@ -379,6 +379,13 @@
       "when": 1750976343358,
       "tag": "0053_wandering_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1751247650957,
+      "tag": "0054_broad_talisman",
+      "breakpoints": true
     }
   ]
 }

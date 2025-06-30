@@ -51,7 +51,6 @@ const generateBulkEmailsPayloadSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
   instruction: z.string(),
-  refinedInstruction: z.string().optional(),
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
   chatHistory: z.array(
@@ -78,7 +77,6 @@ export const generateBulkEmailsTask = task({
       organizationId,
       userId,
       instruction,
-      refinedInstruction,
       selectedDonorIds,
       previewDonorIds,
       chatHistory,
@@ -153,7 +151,6 @@ export const generateBulkEmailsTask = task({
           .set({
             status: EmailGenerationSessionStatus.COMPLETED,
             completedDonors: selectedDonorIds.length,
-            refinedInstruction: "", // Empty since we use chat history instead
             completedAt: new Date(),
             updatedAt: new Date(),
           })
@@ -164,7 +161,6 @@ export const generateBulkEmailsTask = task({
           sessionId,
           emailsGenerated: 0,
           message: "All emails were already generated",
-          refinedInstruction: "", // Empty since we use chat history instead
         };
       }
 
@@ -529,7 +525,6 @@ export const generateBulkEmailsTask = task({
         .set({
           status: EmailGenerationSessionStatus.COMPLETED,
           completedDonors: totalCompletedDonors,
-          refinedInstruction: "", // Empty since we use chat history instead
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -541,7 +536,6 @@ export const generateBulkEmailsTask = task({
         status: "success",
         sessionId,
         emailsGenerated: allEmailResults.length,
-        refinedInstruction: "", // Empty since we use chat history instead
       };
     } catch (error) {
       triggerLogger.error(

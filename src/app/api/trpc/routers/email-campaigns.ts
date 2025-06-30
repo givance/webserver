@@ -43,7 +43,6 @@ const createSessionSchema = z.object({
   ),
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
-  refinedInstruction: z.string().optional(),
   templateId: z.number().optional(),
 });
 
@@ -58,7 +57,6 @@ const launchCampaignSchema = z.object({
   ),
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
-  refinedInstruction: z.string().optional(),
   templateId: z.number().optional(),
 });
 
@@ -115,7 +113,6 @@ const updateCampaignSchema = z.object({
     .optional(),
   selectedDonorIds: z.array(z.number()).optional(),
   previewDonorIds: z.array(z.number()).optional(),
-  refinedInstruction: z.string().optional(),
   templateId: z.number().optional(),
 });
 
@@ -142,7 +139,6 @@ const regenerateAllEmailsSchema = z.object({
       content: z.string(),
     })
   ),
-  refinedInstruction: z.string().optional(),
 });
 
 const saveDraftSchema = z.object({
@@ -159,7 +155,6 @@ const saveDraftSchema = z.object({
       })
     )
     .optional(),
-  refinedInstruction: z.string().optional(),
   previewDonorIds: z.array(z.number()).optional(),
 });
 

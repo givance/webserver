@@ -1478,19 +1478,6 @@ export function WriteInstructionStep({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Final Instruction</p>
-                  <div className="bg-muted rounded-lg">
-                    <ScrollArea className="h-28 w-full">
-                      <div className="p-3">
-                        <p className="text-sm whitespace-pre-wrap">
-                          {(previousInstruction || instruction || "").trim() || "No instruction provided"}
-                        </p>
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </div>
-
                 {selectedSignatureType !== "none" && currentSignature && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Selected Signature</p>

@@ -567,7 +567,6 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
   templateId: integer("template_id").references(() => templates.id), // Optional reference to template used
   jobName: varchar("job_name", { length: 255 }).notNull(), // Name for the campaign
   instruction: text("instruction").notNull(),
-  refinedInstruction: text("refined_instruction"),
   chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
   selectedDonorIds: jsonb("selected_donor_ids").notNull(), // Array of donor IDs
   previewDonorIds: jsonb("preview_donor_ids").notNull(), // Array of donor IDs used for preview
