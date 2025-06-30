@@ -24,8 +24,8 @@ test.describe("Campaign Email Editing", () => {
 
     let viewableRow = null;
     const actionSelectors = [
-      'button:has-text("View")', 
-      'button:has-text("Results")', 
+      'button:has-text("View")',
+      'button:has-text("Results")',
       'button:has-text("Details")',
       'button:has-text("Open")',
       'a:has-text("View")',
@@ -36,7 +36,7 @@ test.describe("Campaign Email Editing", () => {
     for (let i = 1; i < rowCount; i++) {
       const row = rows.nth(i);
       let hasActionButton = false;
-      
+
       for (const selector of actionSelectors) {
         if ((await row.locator(selector).count()) > 0) {
           hasActionButton = true;
@@ -44,7 +44,7 @@ test.describe("Campaign Email Editing", () => {
           break;
         }
       }
-      
+
       if (hasActionButton) {
         viewableRow = row;
         break;
@@ -100,15 +100,15 @@ test.describe("Campaign Email Editing", () => {
     if (!tabClicked) {
       throw new Error("Could not click Email List tab with any selector");
     }
-    
+
     // Wait for tab content to switch and be visible
     await page.waitForTimeout(1000);
-    
+
     // Verify the Email List tab content is now visible
     // Use .first() to avoid strict mode violation with nested tabs
     const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
     await expect(emailListContent).toBeVisible({ timeout: 5000 });
-    
+
     // Additional wait for content to fully load
     await page.waitForTimeout(2000);
 
@@ -160,7 +160,7 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     await waitForModalToClose(page);
 
     // Wait a moment for React to process the update
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // This is the critical test - verify content updated immediately
     console.log("Checking if content updated immediately without page refresh...");
@@ -205,8 +205,8 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
 
     let viewableRow = null;
     const actionSelectors = [
-      'button:has-text("View")', 
-      'button:has-text("Results")', 
+      'button:has-text("View")',
+      'button:has-text("Results")',
       'button:has-text("Details")',
       'button:has-text("Open")',
       'a:has-text("View")',
@@ -217,7 +217,7 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     for (let i = 1; i < rowCount; i++) {
       const row = rows.nth(i);
       let hasActionButton = false;
-      
+
       for (const selector of actionSelectors) {
         if ((await row.locator(selector).count()) > 0) {
           hasActionButton = true;
@@ -225,7 +225,7 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
           break;
         }
       }
-      
+
       if (hasActionButton) {
         viewableRow = row;
         break;
@@ -272,15 +272,15 @@ This tests the cache invalidation fix in the updateEmail mutation.`;
     }
 
     await emailListTab.click();
-    
+
     // Wait for tab content to switch and be visible
     await page.waitForTimeout(1000);
-    
+
     // Verify the Email List tab content is now visible
     // Use .first() to avoid strict mode violation with nested tabs
     const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
     await expect(emailListContent).toBeVisible({ timeout: 5000 });
-    
+
     // Additional wait for content to fully load
     await page.waitForTimeout(2000);
 
@@ -306,18 +306,20 @@ This content should persist after page refresh, proving the database was actuall
 
     // After refresh, we need to navigate back to the Email List tab and then the donor
     console.log("After refresh, clicking Email List tab again...");
-    
+
     // First check if we need to click the Email List tab
-    const emailListTabAfterRefresh = page.locator('button[role="tab"]:has-text("Email List"), button:has-text("Email List")').first();
+    const emailListTabAfterRefresh = page
+      .locator('button[role="tab"]:has-text("Email List"), button:has-text("Email List")')
+      .first();
     if (await emailListTabAfterRefresh.isVisible().catch(() => false)) {
       await emailListTabAfterRefresh.click();
       await page.waitForTimeout(1000);
-      
+
       // Wait for the tab content to be visible after clicking
       const emailListContent = page.locator('[role="tabpanel"][data-state="active"]').first();
       await expect(emailListContent).toBeVisible({ timeout: 5000 });
       await page.waitForTimeout(1000);
-      
+
       // Then select the first donor tab again
       await selectDonorTab(page, 0);
       await page.waitForTimeout(2000);
@@ -331,7 +333,7 @@ This content should persist after page refresh, proving the database was actuall
     // Verify content persisted after refresh - try multiple strategies
     try {
       // Strategy 1: Look for the specific text content
-      const persistedContent = page.locator(`text*="PERSISTENT TEST CONTENT"`);
+      const persistedContent = page.locator(`text="PERSISTENT TEST CONTENT"`);
       await expect(persistedContent).toBeVisible({ timeout: 5000 });
       console.log("✅ SUCCESS: Email changes persisted after page refresh (found via text content)!");
     } catch (error1) {
