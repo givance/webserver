@@ -20,7 +20,7 @@ export function useWhatsAppChat(phoneNumber: string) {
   const [isLoading, setIsLoading] = useState(false);
 
   const utils = trpc.useUtils();
-  
+
   // Check phone permission to get staff ID
   const { data: permissionData } = trpc.whatsapp.checkPhonePermission.useQuery(
     { phoneNumber },
@@ -30,18 +30,18 @@ export function useWhatsAppChat(phoneNumber: string) {
   // Load conversation history
   const { data: conversationHistory } = trpc.whatsapp.getConversationHistory.useQuery(
     {
-      staffId: permissionData?.isAllowed && 'staffId' in permissionData ? permissionData.staffId : 0,
+      staffId:
+        permissionData?.isAllowed && "staffId" in permissionData && permissionData.staffId ? permissionData.staffId : 0,
       phoneNumber: phoneNumber,
       limit: 50,
     },
     {
-      enabled: !!permissionData?.isAllowed && 'staffId' in permissionData && !!permissionData.staffId && !!phoneNumber,
+      enabled: !!permissionData?.isAllowed && "staffId" in permissionData && !!permissionData.staffId && !!phoneNumber,
     }
   );
 
   // Process test message mutation
   const processTestMessage = trpc.whatsapp.processTestMessage.useMutation();
-
 
   // Convert history to chat messages
   useEffect(() => {
@@ -86,7 +86,7 @@ export function useWhatsAppChat(phoneNumber: string) {
           isTranscribed,
         });
 
-        if (result.success && 'response' in result) {
+        if (result.success && "response" in result) {
           // Add assistant response
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
@@ -103,10 +103,10 @@ export function useWhatsAppChat(phoneNumber: string) {
               description: `Staff: ${result.staffInfo.name}`,
             });
           }
-        } else if ('error' in result) {
+        } else if ("error" in result) {
           // Remove the user message on error
           setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
-          
+
           toast.error(result.permissionDenied ? "Permission Denied" : "Error", {
             description: result.error || "Failed to process message",
           });
@@ -114,7 +114,7 @@ export function useWhatsAppChat(phoneNumber: string) {
       } catch (error) {
         // Remove the user message on error
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
-        
+
         toast.error("Error", {
           description: error instanceof Error ? error.message : "Failed to send message",
         });
@@ -135,6 +135,6 @@ export function useWhatsAppChat(phoneNumber: string) {
     sendMessage,
     clearMessages,
     isAllowed: permissionData?.isAllowed || false,
-    staffName: permissionData && 'staffName' in permissionData ? permissionData.staffName : undefined,
+    staffName: permissionData && "staffName" in permissionData ? permissionData.staffName : undefined,
   };
 }
