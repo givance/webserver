@@ -3,9 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Check, Clock, Sparkles, AlertCircle, Info } from "lucide-react";
+import { Edit, Check, Clock, Sparkles, AlertCircle, Info, HelpCircle, DollarSign, Calendar, Hash } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
@@ -238,7 +238,70 @@ export function EmailDisplay({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
+
+  // Donation tooltip state
+  const [isLoadingDonations, setIsLoadingDonations] = useState(false);
+  const [donorDonations, setDonorDonations] = useState<{
+    donations: any[];
+    totalCount: number;
+    totalAmount: number;
+  } | null>(null);
+
   const { getEmailStatus } = useCommunications();
+  const utils = trpc.useUtils();
+
+  // Helper functions for donation tooltip
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount / 100); // Convert cents to dollars
+  };
+
+  const formatDate = (date: string | Date) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Load donor donations function
+  const loadDonorDonations = useCallback(
+    async (donorId: number) => {
+      if (isLoadingDonations || donorDonations) return;
+
+      setIsLoadingDonations(true);
+
+      try {
+        // Get accurate donation statistics
+        const statsResult = await utils.donations.getDonorStats.fetch({ donorId });
+
+        // Get recent donations for display
+        const donationsResult = await utils.donations.list.fetch({
+          donorId,
+          limit: 20,
+          orderBy: "date",
+          orderDirection: "desc",
+          includeProject: true,
+        });
+
+        if (statsResult && donationsResult) {
+          setDonorDonations({
+            donations: donationsResult.donations,
+            totalCount: donationsResult.totalCount, // Total count of all donations
+            totalAmount: statsResult.totalDonated, // Accurate total amount from stats
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load donations:", error);
+      } finally {
+        setIsLoadingDonations(false);
+      }
+    },
+    [utils.donations.list, utils.donations.getDonorStats, isLoadingDonations, donorDonations]
+  );
 
   // Determine which format to use
   const isNewFormat = emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
@@ -292,14 +355,84 @@ export function EmailDisplay({
                 <CardTitle className="text-sm flex items-center gap-2">
                   <span>To:</span>
                   {donorId ? (
-                    <Link
-                      href={`/donors/${donorId}`}
-                      className="text-primary hover:underline font-medium"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {donorName}
-                    </Link>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild onMouseEnter={() => loadDonorDonations(donorId)}>
+                          <div className="flex items-center gap-1">
+                            <Link
+                              href={`/donors/${donorId}`}
+                              className="text-primary hover:underline font-medium"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {donorName}
+                            </Link>
+                            <HelpCircle className="h-3 w-3 text-muted-foreground opacity-60 cursor-help" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start" className="max-w-sm p-0 bg-background border">
+                          <div className="p-4 space-y-3">
+                            <div className="font-semibold text-sm border-b pb-2">{donorName}</div>
+
+                            {isLoadingDonations ? (
+                              <div className="text-sm text-gray-600 dark:text-gray-400">Loading donations...</div>
+                            ) : donorDonations ? (
+                              <>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <div className="text-gray-600 dark:text-gray-400">Total Donations</div>
+                                    <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
+                                      <Hash className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                      {donorDonations.totalCount || 0}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-gray-600 dark:text-gray-400">Total Amount</div>
+                                    <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
+                                      <DollarSign className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                      {formatCurrency(donorDonations.totalAmount || 0)}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {donorDonations.donations.length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                      Recent Donations
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto space-y-1">
+                                      {donorDonations.donations.slice(0, 20).map((donation: any, idx: number) => (
+                                        <div
+                                          key={idx}
+                                          className="flex items-center justify-between text-xs py-1 border-b last:border-0"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <Calendar className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                            <span className="text-gray-900 dark:text-gray-100">
+                                              {formatDate(donation.date)}
+                                            </span>
+                                            {donation.project && (
+                                              <span className="text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
+                                                • {donation.project.name}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                                            {formatCurrency(donation.amount)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-sm text-gray-600 dark:text-gray-400">No donations found</div>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   ) : (
                     <span className="font-medium">{donorName}</span>
                   )}

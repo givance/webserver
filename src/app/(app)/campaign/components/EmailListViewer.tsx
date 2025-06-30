@@ -22,6 +22,7 @@ import {
   DollarSign,
   Calendar,
   Hash,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
@@ -428,8 +429,9 @@ export function EmailListViewer({
                             {showDonorTooltips ? (
                               <Tooltip>
                                 <TooltipTrigger asChild onMouseEnter={() => loadDonorDonations(donor.id)}>
-                                  <span className="font-medium text-sm truncate flex-1 cursor-help hover:text-primary transition-colors">
+                                  <span className="font-medium text-sm truncate flex-1 cursor-help hover:text-primary transition-colors flex items-center gap-1">
                                     {formatDonorName(donor)}
+                                    <HelpCircle className="h-3 w-3 text-muted-foreground opacity-60" />
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent
