@@ -436,7 +436,6 @@ REQUIREMENTS:
 - Tone: Warm, personal, confident
 - Use specific donation amounts and dates from the history when available
 - Reference their impact using past donation history
-- Include a real donation URL (https://example.org/donate) instead of placeholder text
 - DO NOT include any signature, closing, or sign-off - this is added automatically
 - DO NOT use reference markers, footnotes, or bracketed placeholders
 - Be specific and avoid general statements
