@@ -37,6 +37,12 @@ const conversationHistorySchema = z.object({
   limit: z.number().min(1).max(100).default(20),
 });
 
+const processTestMessageSchema = z.object({
+  message: z.string().min(1, "Message cannot be empty"),
+  phoneNumber: z.string().min(10, "Valid phone number required"),
+  isTranscribed: z.boolean().default(false),
+});
+
 export const whatsappRouter = router({
   /**
    * Add a phone number to a staff member's WhatsApp permissions
@@ -277,7 +283,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
+          message: "The staff member doesn't exist in your organization.",
         });
       }
 
@@ -298,6 +304,134 @@ export const whatsappRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get conversation history",
+      });
+    }
+  }),
+
+  /**
+   * Process a test WhatsApp message (for testing UI)
+   * This replicates the exact logic from the WhatsApp webhook
+   */
+  processTestMessage: protectedProcedure.input(processTestMessageSchema).mutation(async ({ input, ctx }) => {
+    const { message, phoneNumber, isTranscribed } = input;
+    
+    try {
+      // Import required services
+      const { WhatsAppAIService } = await import("@/app/lib/services/whatsapp/whatsapp-ai.service");
+      const { WhatsAppPermissionService } = await import("@/app/lib/services/whatsapp/whatsapp-permission.service");
+      const { WhatsAppStaffLoggingService } = await import("@/app/lib/services/whatsapp/whatsapp-staff-logging.service");
+      
+      const permissionService = new WhatsAppPermissionService();
+      const whatsappAI = new WhatsAppAIService();
+      const loggingService = new WhatsAppStaffLoggingService();
+      
+      // Check permissions first (same as webhook)
+      const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
+      
+      if (!permissionResult.isAllowed) {
+        // Log permission denied event
+        await loggingService.logPermissionDenied(
+          phoneNumber,
+          permissionResult.reason || "Unknown reason",
+          message
+        );
+        
+        return {
+          success: false,
+          error: "Sorry, you don't have permission to use this WhatsApp service. Please contact your administrator.",
+          permissionDenied: true,
+        };
+      }
+      
+      const { staffId, organizationId, staff: staffInfo } = permissionResult;
+      
+      // Verify the permission is for the current user's organization
+      if (organizationId !== ctx.auth.user.organizationId) {
+        return {
+          success: false,
+          error: "Permission denied for this organization.",
+          permissionDenied: true,
+        };
+      }
+      
+      // Log message received
+      await loggingService.logMessageReceived(
+        staffId!,
+        organizationId!,
+        phoneNumber,
+        message,
+        isTranscribed ? "audio" : "text",
+        `test-${Date.now()}`
+      );
+      
+      // Process message with AI (same as webhook)
+      const aiResponse = await whatsappAI.processMessage({
+        message,
+        organizationId: organizationId!,
+        staffId: staffId!,
+        fromPhoneNumber: phoneNumber,
+        isTranscribed,
+      });
+      
+      const responseText = aiResponse.response;
+      
+      // Log AI response generated
+      await loggingService.logAIResponseGenerated(
+        staffId!,
+        organizationId!,
+        phoneNumber,
+        message,
+        responseText,
+        aiResponse.tokensUsed
+      );
+      
+      // Log message sent
+      await loggingService.logMessageSent(
+        staffId!,
+        organizationId!,
+        phoneNumber,
+        responseText,
+        aiResponse.tokensUsed
+      );
+      
+      return {
+        success: true,
+        response: responseText,
+        tokensUsed: aiResponse.tokensUsed,
+        staffInfo: {
+          id: staffInfo?.id,
+          name: `${staffInfo?.firstName} ${staffInfo?.lastName}`,
+          email: staffInfo?.email,
+        },
+      };
+    } catch (error) {
+      console.error("Error processing test message:", error);
+      
+      // Try to log the error if we have staff info
+      if (input.phoneNumber) {
+        try {
+          const permissionService = new WhatsAppPermissionService();
+          const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
+          
+          if (permissionResult.isAllowed && permissionResult.staffId && permissionResult.organizationId) {
+            const loggingService = new WhatsAppStaffLoggingService();
+            await loggingService.logError(
+              permissionResult.staffId,
+              permissionResult.organizationId,
+              phoneNumber,
+              error instanceof Error ? error.message : String(error),
+              error,
+              "test_message_processing"
+            );
+          }
+        } catch (logError) {
+          console.error("Error logging error:", logError);
+        }
+      }
+      
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error instanceof Error ? error.message : "Failed to process message",
       });
     }
   }),
