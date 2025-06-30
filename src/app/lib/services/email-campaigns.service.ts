@@ -119,29 +119,34 @@ export class EmailCampaignsService {
    */
   async launchCampaign(input: CreateSessionInput, organizationId: string, userId: string) {
     try {
-      // First check if there's an existing draft with the same name
-      const existingDraft = await db
+      // First check if there's an existing campaign with the same name that can be updated
+      // Include DRAFT, READY_TO_SEND, and COMPLETED statuses (but not GENERATING as those can't be edited)
+      const existingCampaign = await db
         .select()
         .from(emailGenerationSessions)
         .where(
           and(
             eq(emailGenerationSessions.organizationId, organizationId),
             eq(emailGenerationSessions.jobName, input.campaignName),
-            eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT)
+            or(
+              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT),
+              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.READY_TO_SEND),
+              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.COMPLETED)
+            )
           )
         )
         .limit(1);
 
       let sessionId: number;
 
-      if (existingDraft[0]) {
+      if (existingCampaign[0]) {
         // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
         const existingEmailsForSelectedDonors = await db
           .select({ donorId: generatedEmails.donorId })
           .from(generatedEmails)
           .where(
             and(
-              eq(generatedEmails.sessionId, existingDraft[0].id),
+              eq(generatedEmails.sessionId, existingCampaign[0].id),
               or(eq(generatedEmails.status, "PENDING_APPROVAL"), eq(generatedEmails.status, "APPROVED"))
             )
           );
@@ -156,10 +161,10 @@ export class EmailCampaignsService {
           ? EmailGenerationSessionStatus.READY_TO_SEND
           : EmailGenerationSessionStatus.GENERATING;
 
-        // Update existing draft with appropriate status
-        logger.info(`[createSession] Updating existing draft ${existingDraft[0].id} to ${newStatus} status`, {
-          draftId: existingDraft[0].id,
-          oldStatus: existingDraft[0].status,
+        // Update existing campaign with appropriate status
+        logger.info(`[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`, {
+          campaignId: existingCampaign[0].id,
+          oldStatus: existingCampaign[0].status,
           newStatus,
           totalDonors: input.selectedDonorIds.length,
           currentCompletedCount,
@@ -180,7 +185,7 @@ export class EmailCampaignsService {
             completedDonors: currentCompletedCount, // Set the initial completed count
             updatedAt: new Date(),
           })
-          .where(eq(emailGenerationSessions.id, existingDraft[0].id))
+          .where(eq(emailGenerationSessions.id, existingCampaign[0].id))
           .returning();
 
         sessionId = updatedSession.id;
@@ -198,7 +203,7 @@ export class EmailCampaignsService {
           .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
 
         logger.info(
-          `Updated existing draft session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
+          `Updated existing campaign session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
         );
       } else {
         // Create new session - new sessions always need generation
