@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Search,
   X,
@@ -18,10 +19,13 @@ import {
   RefreshCw,
   Plus,
   AlertCircle,
+  DollarSign,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmailDisplay } from "./EmailDisplay";
 import Link from "next/link";
+import { useDonations } from "@/app/hooks/use-donations";
 
 // Base email interface that both components can extend
 export interface BaseGeneratedEmail {
@@ -80,6 +84,7 @@ export interface EmailListViewerProps {
   showEditButton?: boolean; // Control whether to show edit buttons in EmailDisplay
   emailsPerPage?: number;
   maxHeight?: string;
+  showDonorTooltips?: boolean; // Control whether to show donor info tooltips
 
   // Optional data for enhanced features
   trackingStats?: TrackingStats[];
@@ -137,6 +142,7 @@ export function EmailListViewer({
   showEditButton = false,
   emailsPerPage = 20,
   maxHeight = "calc(100vh - 400px)",
+  showDonorTooltips = true,
   trackingStats = [],
   getStaffName,
   getStaffDetails,
@@ -163,6 +169,10 @@ export function EmailListViewer({
 }: EmailListViewerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [loadingDonations, setLoadingDonations] = useState<Record<number, boolean>>({});
+  const [donorDonations, setDonorDonations] = useState<Record<number, { donations: any[], totalCount: number, totalAmount: number }>>({});
+  
+  const { list: listDonations } = useDonations();
 
   // Helper function to get donor data
   const getDonorData = useCallback(
@@ -236,6 +246,58 @@ export function EmailListViewer({
   const formatDonorName = (donor: BaseDonor) => {
     return `${donor.firstName} ${donor.lastName}`;
   };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (date: string | Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  // Load donations for a donor
+  const loadDonorDonations = useCallback(async (donorId: number) => {
+    if (loadingDonations[donorId] || donorDonations[donorId]) return;
+    
+    setLoadingDonations(prev => ({ ...prev, [donorId]: true }));
+    
+    try {
+      const result = await listDonations({ 
+        donorId, 
+        limit: 20,
+        orderBy: 'date',
+        orderDirection: 'desc',
+        includeProject: true
+      });
+      
+      if (result.data) {
+        const totalAmount = result.data.donations.reduce((sum, d) => sum + d.amount, 0);
+        setDonorDonations(prev => ({
+          ...prev,
+          [donorId]: {
+            donations: result.data.donations,
+            totalCount: result.data.totalCount,
+            totalAmount
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load donations:', error);
+    } finally {
+      setLoadingDonations(prev => ({ ...prev, [donorId]: false }));
+    }
+  }, [listDonations, loadingDonations, donorDonations]);
 
   return (
     <div className="h-full flex flex-col space-y-4">
@@ -354,7 +416,73 @@ export function EmailListViewer({
                           )}
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
+                            {showDonorTooltips ? (
+                              <Tooltip>
+                                <TooltipTrigger 
+                                  asChild
+                                  onMouseEnter={() => loadDonorDonations(donor.id)}
+                                >
+                                  <span className="font-medium text-sm truncate flex-1 cursor-help hover:text-primary transition-colors">
+                                    {formatDonorName(donor)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-sm p-0 bg-background border">
+                                  <div className="p-4 space-y-3">
+                                    <div className="font-semibold text-sm border-b pb-2">
+                                      {formatDonorName(donor)}
+                                    </div>
+                                    
+                                    {loadingDonations[donor.id] ? (
+                                      <div className="text-sm text-muted-foreground">Loading donations...</div>
+                                    ) : donorDonations[donor.id] ? (
+                                      <>
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                          <div>
+                                            <div className="text-muted-foreground">Total Donations</div>
+                                            <div className="font-semibold flex items-center gap-1">
+                                              <DollarSign className="h-3 w-3" />
+                                              {donorDonations[donor.id].totalCount}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <div className="text-muted-foreground">Total Amount</div>
+                                            <div className="font-semibold">
+                                              {formatCurrency(donorDonations[donor.id].totalAmount)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        {donorDonations[donor.id].donations.length > 0 && (
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Recent Donations</div>
+                                            <div className="max-h-48 overflow-y-auto space-y-1">
+                                              {donorDonations[donor.id].donations.slice(0, 20).map((donation: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
+                                                  <div className="flex items-center gap-2">
+                                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                                    <span>{formatDate(donation.date)}</span>
+                                                    {donation.project && (
+                                                      <span className="text-muted-foreground truncate max-w-[120px]">
+                                                        • {donation.project.name}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <span className="font-medium">{formatCurrency(donation.amount)}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <div className="text-sm text-muted-foreground">No donations found</div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
+                            )}
                             <div className="flex items-center gap-1">
                               {/* Email connection error icon */}
                               {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
