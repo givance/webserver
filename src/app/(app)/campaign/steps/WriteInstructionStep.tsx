@@ -1247,12 +1247,22 @@ export function WriteInstructionStep({
                 ) : allGeneratedEmails.length > 0 ? (
                   <div className="h-full p-6">
                     <EmailListViewer
-                      emails={allGeneratedEmails.map((email) => ({
-                        ...email,
-                        status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
-                        emailContent: email.emailContent,
-                        reasoning: email.reasoning,
-                      }))}
+                      emails={allGeneratedEmails
+                        .map((email) => ({
+                          ...email,
+                          status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
+                          emailContent: email.emailContent,
+                          reasoning: email.reasoning,
+                        }))
+                        .sort((a, b) => {
+                          // Sort emails by donor name
+                          const donorA = donorsData?.find((d) => d.id === a.donorId);
+                          const donorB = donorsData?.find((d) => d.id === b.donorId);
+                          if (!donorA || !donorB) return 0;
+                          const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
+                          const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
+                          return nameA.localeCompare(nameB);
+                        })}
                       donors={
                         donorsData
                           ?.filter((donor) => !!donor)

@@ -54,8 +54,6 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     existingCampaignData?.chatHistory.length ? "" : existingCampaignData?.instruction || ""
   );
 
-  console.log("instruction", instruction);
-  console.log("existingCampaignData", existingCampaignData);
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
