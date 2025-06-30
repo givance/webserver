@@ -1271,6 +1271,7 @@ export function WriteInstructionStep({
                       showStaffAssignment={true}
                       showSendButton={false}
                       showEditButton={true}
+                      showDonorTooltips={true}
                       emailsPerPage={EMAILS_PER_PAGE}
                       maxHeight="calc(100vh - 280px)"
                       emptyStateTitle="No emails generated yet"
