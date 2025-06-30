@@ -110,8 +110,16 @@ async function fetchDonorActionInsights(organizationId: string): Promise<DonorAc
   // Process and enrich donor data
   const insights: DonorActionInsight[] = donorData.map((donor) => {
     const lastCommunicationDate = communicationMap.get(donor.donorId) || null;
-    const monthsSinceLastDonation = donor.lastDonationDate
-      ? Math.floor((Date.now() - donor.lastDonationDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
+    
+    // Ensure lastDonationDate is a proper Date object
+    const lastDonationDateObj = donor.lastDonationDate 
+      ? donor.lastDonationDate instanceof Date 
+        ? donor.lastDonationDate 
+        : new Date(donor.lastDonationDate)
+      : null;
+    
+    const monthsSinceLastDonation = lastDonationDateObj
+      ? Math.floor((Date.now() - lastDonationDateObj.getTime()) / (1000 * 60 * 60 * 24 * 30))
       : null;
 
     // Calculate donation pattern
@@ -127,8 +135,16 @@ async function fetchDonorActionInsights(organizationId: string): Promise<DonorAc
 
     // Calculate average time between donations
     let avgTimeBetweenDonations: number | null = null;
-    if (donor.firstDonationDate && donor.lastDonationDate && donor.donationCount > 1) {
-      const timeDiff = donor.lastDonationDate.getTime() - donor.firstDonationDate.getTime();
+    
+    // Ensure firstDonationDate is a proper Date object
+    const firstDonationDateObj = donor.firstDonationDate 
+      ? donor.firstDonationDate instanceof Date 
+        ? donor.firstDonationDate 
+        : new Date(donor.firstDonationDate)
+      : null;
+    
+    if (firstDonationDateObj && lastDonationDateObj && donor.donationCount > 1) {
+      const timeDiff = lastDonationDateObj.getTime() - firstDonationDateObj.getTime();
       avgTimeBetweenDonations = Math.floor(timeDiff / (1000 * 60 * 60 * 24 * 30) / (donor.donationCount - 1));
     }
 
@@ -140,7 +156,14 @@ async function fetchDonorActionInsights(organizationId: string): Promise<DonorAc
       riskFactors.push("No donation in over 6 months");
     }
 
-    if (!lastCommunicationDate || Date.now() - lastCommunicationDate.getTime() > 90 * 24 * 60 * 60 * 1000) {
+    // Ensure lastCommunicationDate is a proper Date object
+    const lastCommunicationDateObj = lastCommunicationDate 
+      ? lastCommunicationDate instanceof Date 
+        ? lastCommunicationDate 
+        : new Date(lastCommunicationDate)
+      : null;
+      
+    if (!lastCommunicationDateObj || Date.now() - lastCommunicationDateObj.getTime() > 90 * 24 * 60 * 60 * 1000) {
       riskFactors.push("No recent communication");
     }
 
@@ -171,9 +194,9 @@ async function fetchDonorActionInsights(organizationId: string): Promise<DonorAc
       currentStage: donor.currentStage,
       totalDonated: donor.totalDonated,
       donationCount: donor.donationCount,
-      lastDonationDate: donor.lastDonationDate,
-      firstDonationDate: donor.firstDonationDate,
-      lastCommunicationDate,
+      lastDonationDate: lastDonationDateObj,
+      firstDonationDate: firstDonationDateObj,
+      lastCommunicationDate: lastCommunicationDateObj,
       averageDonationAmount: donor.avgDonationAmount,
       monthsSinceLastDonation,
       donationPattern: {
