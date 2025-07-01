@@ -241,15 +241,6 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                   </div>
                 );
               })}
-
-              {/* Show more indicator */}
-              {pendingEmails.length > 5 && (
-                <div className="text-center py-2">
-                  <span className="text-xs text-muted-foreground">
-                    ... and {pendingEmails.length - 5} more scheduled
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
