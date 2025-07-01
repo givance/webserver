@@ -179,7 +179,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
             <h4 className="text-sm font-medium">Email Timeline</h4>
             <div className="max-h-64 overflow-y-auto space-y-2">
               {/* Recently sent emails */}
-              {sentEmailsList.slice(0, 3).map((email) => {
+              {sentEmailsList.map((email) => {
                 const donor = donorMap.get(email.donorId);
                 return (
                   <div key={email.emailId} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
@@ -217,7 +217,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
               )}
 
               {/* Upcoming emails */}
-              {pendingEmails.slice(0, 5).map((email) => {
+              {pendingEmails.map((email) => {
                 const donor = donorMap.get(email.donorId);
                 return (
                   <div
