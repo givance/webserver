@@ -131,6 +131,9 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                 </Badge>
               )}
               {stats.failed > 0 && <Badge variant="destructive">{stats.failed} Failed</Badge>}
+              <Badge variant="secondary" className="text-xs">
+                Live Updates
+              </Badge>
             </div>
           </div>
         </CardHeader>

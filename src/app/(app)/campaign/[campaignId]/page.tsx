@@ -11,6 +11,7 @@ import { ArrowLeft, Edit, AlertCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { EmailScheduleViewer } from "../components/EmailScheduleViewer";
 import { EmailScheduleControlPanel } from "../components/EmailScheduleControlPanel";
+import { EmailStatsViewer } from "../components/EmailStatsViewer";
 // Removed EmailScheduleSettings - moved to organization settings
 import { EmailListViewer, BaseGeneratedEmail } from "../components/EmailListViewer";
 import { Badge } from "@/components/ui/badge";
@@ -193,7 +194,9 @@ export default function CampaignDetailPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <h1 className="text-2xl font-bold">{session.jobName}</h1>
+            <Link href={`/campaign/edit/${campaignId}`} className="hover:text-primary transition-colors">
+              <h1 className="text-2xl font-bold cursor-pointer">{session.jobName}</h1>
+            </Link>
             {getStatusBadge(session.status)}
           </div>
           {canEdit && (
@@ -255,9 +258,10 @@ export default function CampaignDetailPage() {
       )}
 
       {/* Main Content */}
-      <Tabs defaultValue={hasSchedule ? "schedule" : "emails"} className="space-y-4">
+      <Tabs defaultValue={hasSchedule ? "stats" : "emails"} className="space-y-4">
         <TabsList>
-          {hasSchedule && <TabsTrigger value="schedule">Schedule & Status</TabsTrigger>}
+          {hasSchedule && <TabsTrigger value="schedule">Schedule</TabsTrigger>}
+          {hasSchedule && <TabsTrigger value="stats">Statistics</TabsTrigger>}
           <TabsTrigger value="emails">Email List ({typedEmails.length})</TabsTrigger>
         </TabsList>
 
@@ -272,6 +276,13 @@ export default function CampaignDetailPage() {
                 <EmailScheduleControlPanel sessionId={campaignId} />
               </div>
             </div>
+          </TabsContent>
+        )}
+
+        {/* Statistics Tab */}
+        {hasSchedule && (
+          <TabsContent value="stats" className="space-y-6">
+            <EmailStatsViewer sessionId={campaignId} />
           </TabsContent>
         )}
 
