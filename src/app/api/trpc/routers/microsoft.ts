@@ -3,7 +3,11 @@ import { db } from "@/app/lib/db";
 import { donors, generatedEmails, microsoftOAuthTokens, staff, users } from "@/app/lib/db/schema";
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
-import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
+import {
+  createHtmlEmail,
+  processEmailContentWithTracking,
+  formatSenderField,
+} from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { Client } from "@microsoft/microsoft-graph-client";
@@ -550,7 +554,7 @@ export const microsoftRouter = router({
 
         // Process content with tracking
         const structuredContent = [{ piece: content, addNewlineAfter: true, references: [] }];
-        
+
         // Append signature to email content before processing
         const contentWithSignature = await appendSignatureToEmail(structuredContent as any, {
           donorId: donorId,
@@ -571,7 +575,7 @@ export const microsoftRouter = router({
           subject,
           processedContent.htmlContent,
           processedContent.textContent,
-          senderInfo.email || undefined
+          formatSenderField(senderInfo)
         );
 
         // Create message for Microsoft Graph API

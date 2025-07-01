@@ -4,7 +4,11 @@ import { db } from "@/app/lib/db";
 import { emailSendJobs, generatedEmails, emailGenerationSessions, donors } from "@/app/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
-import { processEmailContentWithTracking, createHtmlEmail } from "@/app/lib/utils/email-tracking/content-processor";
+import {
+  processEmailContentWithTracking,
+  createHtmlEmail,
+  formatSenderField,
+} from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { google } from "googleapis";
 import { env } from "@/app/lib/env";
@@ -322,7 +326,7 @@ export const sendSingleEmailTask = task({
         email.subject,
         processedContent.htmlContent,
         processedContent.textContent,
-        senderInfo.email || undefined
+        formatSenderField(senderInfo)
       );
 
       // Encode for Gmail API

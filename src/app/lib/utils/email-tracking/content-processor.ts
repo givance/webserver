@@ -205,14 +205,14 @@ export async function processEmailContentWithTracking(
           console.log("[SIGNATURE DEBUG] Contains src attribute:", processedPiece.includes("src="));
           console.log("[SIGNATURE DEBUG] Contains data:image:", processedPiece.includes("data:image"));
           console.log("[SIGNATURE DEBUG] Contains hosted URL:", processedPiece.includes("/api/signature-image/"));
-          
+
           // Extract and log all img tags for detailed debugging
           const imgMatches = processedPiece.match(/<img[^>]*>/gi);
           if (imgMatches) {
             console.log(`[SIGNATURE DEBUG] Found ${imgMatches.length} image(s) in signature`);
             imgMatches.forEach((img, index) => {
               console.log(`[SIGNATURE DEBUG] Image ${index + 1} full tag:`, img);
-              
+
               // Extract src attribute
               const srcMatch = img.match(/src=["']([^"']+)["']/i);
               if (srcMatch) {
@@ -220,7 +220,7 @@ export async function processEmailContentWithTracking(
               } else {
                 console.log(`[SIGNATURE DEBUG] Image ${index + 1} has NO src attribute!`);
               }
-              
+
               // Extract class attribute
               const classMatch = img.match(/class=["']([^"']+)["']/i);
               if (classMatch) {
@@ -236,9 +236,9 @@ export async function processEmailContentWithTracking(
 
           // Clean up the HTML to ensure proper structure
           processedPiece = processedPiece.trim();
-          
+
           // Remove empty paragraphs with only &nbsp; or whitespace
-          processedPiece = processedPiece.replace(/<p[^>]*>(\s|&nbsp;|&#160;|&#xA0;)*<\/p>/gi, '');
+          processedPiece = processedPiece.replace(/<p[^>]*>(\s|&nbsp;|&#160;|&#xA0;)*<\/p>/gi, "");
 
           // Always wrap signature in a div with controlled spacing
           // This ensures all signature content is contained and styled together
@@ -248,7 +248,7 @@ export async function processEmailContentWithTracking(
           console.log("[SIGNATURE DEBUG] After cleaning and wrapping:");
           console.log("[SIGNATURE DEBUG] Final length:", processedPiece.length);
           console.log("[SIGNATURE DEBUG] Final content (first 500 chars):", processedPiece.substring(0, 500));
-          
+
           // Check final image tags
           const finalImgMatches = processedPiece.match(/<img[^>]*>/gi);
           if (finalImgMatches) {
@@ -308,6 +308,25 @@ function encodeEmailHeaderValue(value: string): string {
   // Encode using base64 with UTF-8 charset per RFC 2047
   const encoded = Buffer.from(value, "utf8").toString("base64");
   return `=?UTF-8?B?${encoded}?=`;
+}
+
+/**
+ * Formats sender information for email "From" field
+ * @param senderInfo Object containing name and email
+ * @returns Properly formatted "From" field string
+ */
+export function formatSenderField(senderInfo: { name: string; email: string | null }): string | undefined {
+  if (!senderInfo.email) {
+    return undefined;
+  }
+
+  // If we have both name and email, format as "Name" <email@example.com>
+  if (senderInfo.name && senderInfo.name.trim() && senderInfo.name !== "Organization") {
+    return `"${senderInfo.name}" <${senderInfo.email}>`;
+  }
+
+  // If we only have email or the name is just "Organization", return just the email
+  return senderInfo.email;
 }
 
 /**

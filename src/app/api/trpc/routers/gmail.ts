@@ -4,7 +4,11 @@ import { donors, emailGenerationSessions, generatedEmails, gmailOAuthTokens, sta
 import { env } from "@/app/lib/env";
 import { logger } from "@/app/lib/logger";
 import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
-import { createHtmlEmail, processEmailContentWithTracking } from "@/app/lib/utils/email-tracking/content-processor";
+import {
+  createHtmlEmail,
+  processEmailContentWithTracking,
+  formatSenderField,
+} from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { TRPCError } from "@trpc/server";
@@ -524,7 +528,7 @@ async function processEmailForDelivery(
     email.subject,
     processedContent.htmlContent,
     processedContent.textContent,
-    senderInfo.email || undefined
+    formatSenderField(senderInfo)
   );
 
   // Debug logging for final HTML content
