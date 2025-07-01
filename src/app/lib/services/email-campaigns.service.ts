@@ -117,118 +117,102 @@ export class EmailCampaignsService {
    * @param userId - The user ID
    * @returns The launched session
    */
-  async launchCampaign(input: CreateSessionInput, organizationId: string, userId: string) {
+  async launchCampaign(input: UpdateCampaignInput, organizationId: string, userId: string) {
     try {
-      // First check if there's an existing campaign with the same name that can be updated
-      // Include DRAFT, READY_TO_SEND, and COMPLETED statuses (but not GENERATING as those can't be edited)
+      // Validate required fields
+      if (!input.selectedDonorIds || input.selectedDonorIds.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Selected donor IDs are required to launch a campaign",
+        });
+      }
+
+      // First check if there's an existing campaign with the same ID
       const existingCampaign = await db
         .select()
         .from(emailGenerationSessions)
         .where(
           and(
-            eq(emailGenerationSessions.organizationId, organizationId),
-            eq(emailGenerationSessions.jobName, input.campaignName),
-            or(
-              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT),
-              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.READY_TO_SEND),
-              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.COMPLETED)
-            )
+            eq(emailGenerationSessions.id, input.campaignId),
+            eq(emailGenerationSessions.organizationId, organizationId)
           )
         )
         .limit(1);
 
-      let sessionId: number;
-
-      if (existingCampaign[0]) {
-        // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
-        const existingEmailsForSelectedDonors = await db
-          .select({ donorId: generatedEmails.donorId })
-          .from(generatedEmails)
-          .where(
-            and(
-              eq(generatedEmails.sessionId, existingCampaign[0].id),
-              or(eq(generatedEmails.status, "PENDING_APPROVAL"), eq(generatedEmails.status, "APPROVED"))
-            )
-          );
-
-        // Count how many of the selected donors already have emails
-        const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
-        const currentCompletedCount = input.selectedDonorIds.filter((id) => existingDonorIds.includes(id)).length;
-
-        // Determine the appropriate status based on whether emails need to be generated
-        const allEmailsExist = currentCompletedCount === input.selectedDonorIds.length;
-        const newStatus = allEmailsExist
-          ? EmailGenerationSessionStatus.READY_TO_SEND
-          : EmailGenerationSessionStatus.GENERATING;
-
-        // Update existing campaign with appropriate status
-        logger.info(`[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`, {
-          campaignId: existingCampaign[0].id,
-          oldStatus: existingCampaign[0].status,
-          newStatus,
-          totalDonors: input.selectedDonorIds.length,
-          currentCompletedCount,
-          allEmailsExist,
-          organizationId,
-          userId,
+      if (!existingCampaign[0]) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign not found",
         });
-
-        const [updatedSession] = await db
-          .update(emailGenerationSessions)
-          .set({
-            status: newStatus,
-            instruction: input.instruction,
-            chatHistory: input.chatHistory,
-            selectedDonorIds: input.selectedDonorIds,
-            previewDonorIds: input.previewDonorIds,
-            totalDonors: input.selectedDonorIds.length,
-            completedDonors: currentCompletedCount, // Set the initial completed count
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, existingCampaign[0].id))
-          .returning();
-
-        sessionId = updatedSession.id;
-
-        // Update any PENDING_APPROVAL emails to APPROVED
-        await db
-          .update(generatedEmails)
-          .set({
-            status: "APPROVED",
-            isPreview: false,
-            isSent: false,
-            sendStatus: "pending",
-            updatedAt: new Date(),
-          })
-          .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
-
-        logger.info(
-          `Updated existing campaign session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
-        );
-      } else {
-        // Create new session - new sessions always need generation
-        const [session] = await db
-          .insert(emailGenerationSessions)
-          .values({
-            organizationId,
-            userId,
-            templateId: input.templateId,
-            jobName: input.campaignName,
-            instruction: input.instruction,
-            chatHistory: input.chatHistory,
-            selectedDonorIds: input.selectedDonorIds,
-            previewDonorIds: input.previewDonorIds,
-            totalDonors: input.selectedDonorIds.length,
-            completedDonors: 0, // Initialize to 0 for new sessions
-            status: EmailGenerationSessionStatus.GENERATING, // New sessions always start generating
-          })
-          .returning();
-
-        sessionId = session.id;
-        logger.info(
-          `Created new email generation session ${sessionId} with ${EmailGenerationSessionStatus.GENERATING} status for user ${userId}`
-        );
       }
+
+      let sessionId: number = existingCampaign[0].id;
+
+      // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
+      const existingEmailsForSelectedDonors = await db
+        .select({ donorId: generatedEmails.donorId })
+        .from(generatedEmails)
+        .where(
+          and(
+            eq(generatedEmails.sessionId, existingCampaign[0].id),
+            or(eq(generatedEmails.status, "PENDING_APPROVAL"), eq(generatedEmails.status, "APPROVED"))
+          )
+        );
+
+      // Count how many of the selected donors already have emails
+      const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
+      const currentCompletedCount = input.selectedDonorIds.filter((id) => existingDonorIds.includes(id)).length;
+
+      // Determine the appropriate status based on whether emails need to be generated
+      const allEmailsExist = currentCompletedCount === input.selectedDonorIds.length;
+      const newStatus = allEmailsExist
+        ? EmailGenerationSessionStatus.READY_TO_SEND
+        : EmailGenerationSessionStatus.GENERATING;
+
+      // Update existing campaign with appropriate status
+      logger.info(`[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`, {
+        campaignId: existingCampaign[0].id,
+        oldStatus: existingCampaign[0].status,
+        newStatus,
+        totalDonors: input.selectedDonorIds.length,
+        currentCompletedCount,
+        allEmailsExist,
+        organizationId,
+        userId,
+      });
+
+      const [updatedSession] = await db
+        .update(emailGenerationSessions)
+        .set({
+          status: newStatus,
+          instruction: input.instruction ?? existingCampaign[0].instruction,
+          chatHistory: input.chatHistory ?? existingCampaign[0].chatHistory,
+          selectedDonorIds: input.selectedDonorIds,
+          previewDonorIds: input.previewDonorIds ?? [],
+          totalDonors: input.selectedDonorIds.length,
+          completedDonors: currentCompletedCount, // Set the initial completed count
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, existingCampaign[0].id))
+        .returning();
+
+      sessionId = updatedSession.id;
+
+      // Update any PENDING_APPROVAL emails to APPROVED
+      await db
+        .update(generatedEmails)
+        .set({
+          status: "APPROVED",
+          isPreview: false,
+          isSent: false,
+          sendStatus: "pending",
+          updatedAt: new Date(),
+        })
+        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
+
+      logger.info(
+        `Updated existing campaign session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
+      );
 
       // Get the list of donors that already have approved emails
       const existingEmails = await db
@@ -250,11 +234,14 @@ export class EmailCampaignsService {
             sessionId,
             organizationId,
             userId,
-            instruction: input.instruction,
+            instruction: input.instruction ?? existingCampaign[0].instruction,
             selectedDonorIds: donorsToGenerate,
-            previewDonorIds: input.previewDonorIds,
-            chatHistory: input.chatHistory,
-            templateId: input.templateId,
+            previewDonorIds: input.previewDonorIds ?? [],
+            chatHistory:
+              input.chatHistory ??
+              (existingCampaign[0].chatHistory as Array<{ role: "user" | "assistant"; content: string }>) ??
+              [],
+            templateId: input.templateId ?? existingCampaign[0].templateId ?? undefined,
           });
 
           logger.info(
@@ -285,7 +272,7 @@ export class EmailCampaignsService {
         }
       } else {
         logger.info(
-          `[createSession] All donors already have emails, marking session ${sessionId} as ${EmailGenerationSessionStatus.READY_TO_SEND} (ready to send)`,
+          `[launchCampaign] All donors already have emails, session ${sessionId} already marked as ${EmailGenerationSessionStatus.READY_TO_SEND} (ready to send)`,
           {
             sessionId,
             totalDonors: input.selectedDonorIds.length,
@@ -295,27 +282,29 @@ export class EmailCampaignsService {
           }
         );
 
-        // If all donors already have emails, mark session as ready to send
-        await db
-          .update(emailGenerationSessions)
-          .set({
-            status: EmailGenerationSessionStatus.READY_TO_SEND,
-            completedDonors: input.selectedDonorIds.length,
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, sessionId));
+        // If all donors already have emails, ensure session status is READY_TO_SEND
+        if (newStatus !== EmailGenerationSessionStatus.READY_TO_SEND) {
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              status: EmailGenerationSessionStatus.READY_TO_SEND,
+              completedDonors: input.selectedDonorIds.length,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailGenerationSessions.id, sessionId));
+        }
       }
 
-      // Call checkAndUpdateCampaignCompletion to ensure proper status after session creation/update
+      // Call checkAndUpdateCampaignCompletion to ensure proper status after session update
       logger.info(
-        `[createSession] Calling checkAndUpdateCampaignCompletion for session ${sessionId} to ensure proper status`
+        `[launchCampaign] Calling checkAndUpdateCampaignCompletion for session ${sessionId} to ensure proper status`
       );
       await this.checkAndUpdateCampaignCompletion(sessionId, organizationId);
 
       return { sessionId };
     } catch (error) {
       logger.error(
-        `Failed to create email generation session: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to launch email generation campaign: ${error instanceof Error ? error.message : String(error)}`
       );
 
       // If it's already a TRPCError, re-throw it
@@ -325,7 +314,7 @@ export class EmailCampaignsService {
 
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to create email generation session",
+        message: "Failed to launch email generation campaign",
       });
     }
   }

@@ -47,16 +47,19 @@ const createSessionSchema = z.object({
 });
 
 const launchCampaignSchema = z.object({
-  campaignName: z.string().min(1).max(255),
-  instruction: z.string(),
-  chatHistory: z.array(
-    z.object({
-      role: z.enum(["user", "assistant"]),
-      content: z.string(),
-    })
-  ),
-  selectedDonorIds: z.array(z.number()),
-  previewDonorIds: z.array(z.number()),
+  campaignId: z.number(),
+  campaignName: z.string().min(1).max(255).optional(),
+  instruction: z.string().optional(),
+  chatHistory: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      })
+    )
+    .optional(),
+  selectedDonorIds: z.array(z.number()).optional(),
+  previewDonorIds: z.array(z.number()).optional(),
   templateId: z.number().optional(),
   signature: z.string().optional(),
 });

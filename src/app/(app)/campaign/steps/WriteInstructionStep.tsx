@@ -954,6 +954,7 @@ export function WriteInstructionStep({
       // 3. Trigger background jobs if needed
       // 4. Set completedDonors count correctly
       const response = await launchCampaign.mutateAsync({
+        campaignId: sessionId!, // Required campaignId
         campaignName: campaignName,
         instruction: "", // Empty instruction - chat history will be used instead
         chatHistory: currentSessionData.chatHistory,
