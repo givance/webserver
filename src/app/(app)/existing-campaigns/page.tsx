@@ -531,7 +531,17 @@ function ExistingCampaignsContent() {
     {
       accessorKey: "campaignName",
       header: "Campaign Name",
-      cell: ({ row }) => <div className="font-medium">{row.getValue("campaignName")}</div>,
+      cell: ({ row }) => {
+        const campaign = row.original;
+        return (
+          <Link
+            href={`/campaign/${campaign.id}`}
+            className="font-medium hover:text-primary hover:underline cursor-pointer"
+          >
+            {row.getValue("campaignName")}
+          </Link>
+        );
+      },
     },
     {
       accessorKey: "donors",
