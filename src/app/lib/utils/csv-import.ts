@@ -1,5 +1,5 @@
 import { db } from "@/app/lib/db";
-import { donors, donations, projects, donorListMembers, type DonorNote } from "@/app/lib/db/schema";
+import { donors, donations, projects, donorListMembers, staff, type DonorNote } from "@/app/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "@/app/lib/logger";
 
@@ -767,6 +767,28 @@ export async function processCSVFiles(params: {
     const existingByExternalId = existingDonors.filter((d) => d.externalId).length;
     logger.info(`Existing donors: ${existingByEmail} with emails, ${existingByExternalId} with external IDs`);
 
+    // Get staff members for solicitor assignment
+    const organizationStaff = await db
+      .select({ id: staff.id, firstName: staff.firstName, lastName: staff.lastName, email: staff.email })
+      .from(staff)
+      .where(eq(staff.organizationId, params.organizationId));
+
+    // Create staff email mapping for exact matches
+    const staffByEmail = new Map<string, number>();
+
+    organizationStaff.forEach((staffMember) => {
+      if (staffMember.email) {
+        staffByEmail.set(staffMember.email.toLowerCase().trim(), staffMember.id);
+      }
+    });
+
+    logger.info(`Found ${organizationStaff.length} staff members for solicitor assignment`);
+    if (organizationStaff.length > 0) {
+      logger.info(
+        `Staff members: ${organizationStaff.map((s) => `${s.firstName} ${s.lastName} (${s.email})`).join(", ")}`
+      );
+    }
+
     // Separate into new vs existing donors
     const donorsToInsert: any[] = [];
     const donorsToUpdate: { id: number; data: any; actId: string }[] = [];
@@ -833,17 +855,37 @@ export async function processCSVFiles(params: {
           notesArray.push({
             createdAt: new Date().toISOString(),
             createdBy: params.userId,
-            content: accountRecord.ACT_Notes
+            content: accountRecord.ACT_Notes,
           });
         }
-        
+
         const preferredSalutation = accountRecord["Salutation - use"];
         if (preferredSalutation && preferredSalutation.trim()) {
           notesArray.push({
             createdAt: new Date().toISOString(),
             createdBy: params.userId,
-            content: `Preferred salutation: ${preferredSalutation.trim()}`
+            content: `Preferred salutation: ${preferredSalutation.trim()}`,
           });
+        }
+
+        // Determine assigned staff based on Solicitor field (email)
+        let assignedToStaffId: number | null = null;
+        if (accountRecord.Solicitor && accountRecord.Solicitor.trim()) {
+          const solicitorEmail = accountRecord.Solicitor.trim();
+
+          // Try exact match with email
+          assignedToStaffId = staffByEmail.get(solicitorEmail.toLowerCase()) || null;
+
+          if (assignedToStaffId) {
+            const assignedStaff = organizationStaff.find((s) => s.id === assignedToStaffId);
+            logger.info(
+              `Assigned donor ${accountRecord.ACT_ID} to staff: ${assignedStaff?.firstName} ${assignedStaff?.lastName} (${assignedStaff?.email}) - Solicitor: "${solicitorEmail}"`
+            );
+          } else {
+            logger.info(
+              `No staff match found for Solicitor email: "${solicitorEmail}" (donor ${accountRecord.ACT_ID})`
+            );
+          }
         }
 
         const donorData = {
@@ -866,6 +908,7 @@ export async function processCSVFiles(params: {
           address: address || null,
           state: accountRecord.ADR_State || null,
           notes: notesArray.length > 0 ? notesArray : [],
+          assignedToStaffId: assignedToStaffId,
         };
 
         if (existingDonor) {
