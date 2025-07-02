@@ -5,12 +5,11 @@ import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
 import { useTemplates } from "@/app/hooks/use-templates";
-import { CampaignNameStep } from "../steps/CampaignNameStep";
-import { SelectDonorsStep } from "../steps/SelectDonorsStep";
+import { SelectDonorsAndNameStep } from "../steps/SelectDonorsAndNameStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
 
-const STEPS = ["Select Donors", "Campaign Name", "Select Template", "Write Instructions"] as const;
+const STEPS = ["Select Donors & Name", "Select Template", "Write Instructions"] as const;
 type Step = (typeof STEPS)[number];
 
 interface CampaignStepsProps {
@@ -30,15 +29,15 @@ interface CampaignStepsProps {
 export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
-  // - If instruction exists, go to Write Instructions (step 3)
-  // - If templateId exists, go to Write Instructions (step 3)
-  // - Otherwise, go to Template Selection (step 2)
+  // - If instruction exists, go to Write Instructions (step 2)
+  // - If templateId exists, go to Write Instructions (step 2)
+  // - Otherwise, go to Template Selection (step 1)
   const getInitialStep = () => {
     if (editMode) {
       if (existingCampaignData?.instruction) {
-        return 3; // Go to Write Instructions step
+        return 2; // Go to Write Instructions step
       } else {
-        return 2; // Go to Template Selection step
+        return 1; // Go to Template Selection step
       }
     }
     return 0; // Start from beginning for create mode
@@ -194,8 +193,8 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     }
 
     // Navigate to next step only if we're in edit mode and didn't redirect
-    console.log("[CampaignSteps] Navigating to step 2");
-    handleStepNavigation(2);
+    console.log("[CampaignSteps] Navigating to step 1");
+    handleStepNavigation(1);
   };
 
   const handleTemplateSelected = (templateId: number | null, templatePrompt?: string) => {
@@ -242,48 +241,36 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     switch (currentStep) {
       case 0:
         return (
-          <SelectDonorsStep
+          <SelectDonorsAndNameStep
             selectedDonors={selectedDonors}
             onDonorsSelected={handleDonorsSelected}
-            onNext={() => handleStepNavigation(1)}
-            sessionId={sessionId}
-            onSessionIdChange={setSessionId}
-            campaignName={campaignName}
-            templateId={selectedTemplateId}
-          />
-        );
-      case 1:
-        return (
-          <CampaignNameStep
-            selectedDonors={selectedDonors}
             campaignName={campaignName}
             onCampaignNameChange={setCampaignName}
-            onBack={() => handleStepNavigation(0)}
             onNext={(name: string) => handleCampaignNameSet(name)}
             sessionId={sessionId}
             onSessionIdChange={setSessionId}
             templateId={selectedTemplateId}
           />
         );
-      case 2:
+      case 1:
         return (
           <SelectTemplateStep
             selectedTemplateId={selectedTemplateId}
             onTemplateSelected={handleTemplateSelected}
-            onBack={() => handleStepNavigation(1)}
-            onNext={() => handleStepNavigation(3)}
+            onBack={() => handleStepNavigation(0)}
+            onNext={() => handleStepNavigation(2)}
             sessionId={sessionId}
             onSessionIdChange={setSessionId}
             campaignName={campaignName}
             selectedDonorIds={selectedDonors}
           />
         );
-      case 3:
+      case 2:
         return (
           <WriteInstructionStep
             instruction={instruction}
             onInstructionChange={setInstruction}
-            onBack={() => handleStepNavigation(2)}
+            onBack={() => handleStepNavigation(1)}
             onNext={() => {
               /* This is the final step, onNext could trigger a summary view or be disabled */
             }}
