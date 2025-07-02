@@ -68,7 +68,7 @@ export function CampaignNameStep({
 
     setError("");
     setIsProcessing(true);
-    
+
     try {
       const trimmedName = localCampaignName.trim();
       onCampaignNameChange(trimmedName);
@@ -126,7 +126,7 @@ export function CampaignNameStep({
             <Label htmlFor="campaignName">Campaign Name</Label>
             <Input
               id="campaignName"
-              placeholder="e.g., 'End of Year Appeal 2024'"
+              placeholder="e.g., 'My Organization Campaign 2024-12-15-09'"
               value={localCampaignName}
               onChange={(e) => handleCampaignNameChange(e.target.value)}
               className={error ? "border-red-500" : ""}
@@ -181,10 +181,7 @@ export function CampaignNameStep({
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button 
-          onClick={handleNext} 
-          disabled={!localCampaignName.trim() || isProcessing}
-        >
+        <Button onClick={handleNext} disabled={!localCampaignName.trim() || isProcessing}>
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

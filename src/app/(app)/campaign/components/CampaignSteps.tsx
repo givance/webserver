@@ -5,6 +5,8 @@ import { StepIndicator } from "@/components/ui/step-indicator";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
 import { useTemplates } from "@/app/hooks/use-templates";
+import { useOrganization } from "@/app/hooks/use-organization";
+import { generateDefaultCampaignName } from "@/app/lib/utils/campaign-utils";
 import { SelectDonorsAndNameStep } from "../steps/SelectDonorsAndNameStep";
 import { SelectTemplateStep } from "../steps/SelectTemplateStep";
 import { WriteInstructionStep } from "../steps/WriteInstructionStep";
@@ -27,6 +29,23 @@ interface CampaignStepsProps {
 }
 
 export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
+  // Get organization data for default campaign name generation
+  const { getOrganization } = useOrganization();
+  const { data: organization } = getOrganization();
+
+  // Generate default campaign name for new campaigns
+  const getDefaultCampaignName = () => {
+    if (editMode || existingCampaignData?.campaignName) {
+      return existingCampaignData?.campaignName || "";
+    }
+
+    if (organization?.name) {
+      return generateDefaultCampaignName(organization.name);
+    }
+
+    return ""; // Fallback if organization name isn't loaded yet
+  };
+
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
   // - If instruction exists, go to Write Instructions (step 2)
@@ -44,7 +63,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   };
   const [currentStep, setCurrentStep] = useState(getInitialStep());
   const [selectedDonors, setSelectedDonors] = useState<number[]>(existingCampaignData?.selectedDonorIds || []);
-  const [campaignName, setCampaignName] = useState(existingCampaignData?.campaignName || "");
+  const [campaignName, setCampaignName] = useState(getDefaultCampaignName());
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(
     existingCampaignData?.templateId || undefined
   );
@@ -78,6 +97,14 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     { id: selectedTemplateId! },
     { enabled: editMode && !!selectedTemplateId }
   );
+
+  // Update campaign name with default when organization data loads (for new campaigns)
+  useEffect(() => {
+    if (!editMode && organization?.name && !campaignName) {
+      const defaultName = generateDefaultCampaignName(organization.name);
+      setCampaignName(defaultName);
+    }
+  }, [organization?.name, editMode, campaignName]);
 
   // Update templatePrompt when template data is loaded in edit mode
   useEffect(() => {
