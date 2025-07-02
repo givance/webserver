@@ -653,12 +653,10 @@ function WriteInstructionStepComponent({
               console.log("Agentic flow needs user input:", agenticResult);
               return;
             } else {
-              // Agentic flow is complete, clear the input box (only if this is manual submission)
-              if (!instructionToSubmit) {
-                console.log("[WriteInstructionStep] Clearing input after agentic flow completion");
-                setLocalInstruction(""); // Clear local state
-                onInstructionChange(""); // Clear parent state
-              }
+              // Agentic flow is complete, clear the input box
+              console.log("[WriteInstructionStep] Clearing input after agentic flow completion");
+              setLocalInstruction(""); // Clear local state
+              onInstructionChange(""); // Clear parent state
             }
           } else {
             // Handle traditional email generation response
@@ -728,12 +726,10 @@ function WriteInstructionStepComponent({
               return newMessages;
             });
 
-            // Clear the local input box after successful generation (only if this is manual submission, not auto-generation)
-            if (!instructionToSubmit) {
-              console.log("[WriteInstructionStep] Clearing input after successful generation");
-              setLocalInstruction(""); // Clear local state
-              onInstructionChange(""); // Clear parent state
-            }
+            // Clear the local input box after successful generation
+            console.log("[WriteInstructionStep] Clearing input after successful generation");
+            setLocalInstruction(""); // Clear local state
+            onInstructionChange(""); // Clear parent state
 
             // Auto-switch to preview tab after email generation (removed since no tabs)
             // Preview is now always visible on the right side
