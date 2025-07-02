@@ -136,6 +136,7 @@ function IsolatedMentionsInput({
 }: IsolatedInputProps) {
   const [localValue, setLocalValue] = useState(initialValue);
   const valueRef = useRef(initialValue);
+  const [internalKey, setInternalKey] = useState(0);
 
   // Update local value when initial value changes (from external sources)
   useEffect(() => {
@@ -146,12 +147,19 @@ function IsolatedMentionsInput({
       localValueLength: localValue?.length || 0,
       willUpdate: initialValue !== localValue,
     });
-    // Always sync to initialValue to ensure external clearing works
-    console.log("[IsolatedInput] About to set localValue to:", JSON.stringify(initialValue));
-    setLocalValue(initialValue);
-    valueRef.current = initialValue;
-    console.log("[IsolatedInput] After setting - valueRef.current:", JSON.stringify(valueRef.current));
-  }, [initialValue]); // Only depend on initialValue to avoid infinite loops
+    // Force update when cleared from parent
+    if (initialValue === "" && localValue !== "") {
+      console.log("[IsolatedInput] Detected clear from parent, forcing update");
+      setLocalValue("");
+      valueRef.current = "";
+      setInternalKey(prev => prev + 1); // Force re-render of MentionsInput
+    } else if (initialValue !== localValue) {
+      // Normal sync for other changes
+      console.log("[IsolatedInput] Syncing to initialValue:", JSON.stringify(initialValue));
+      setLocalValue(initialValue);
+      valueRef.current = initialValue;
+    }
+  }, [initialValue]); // Don't include localValue to avoid circular dependencies
 
   const handleChange = useCallback(
     (event: any, newValue: string) => {
@@ -190,10 +198,11 @@ function IsolatedMentionsInput({
   return (
     <div className="max-h-[120px] overflow-y-auto p-4 pb-2">
       <MentionsInput
+        key={internalKey}
         value={localValue}
         onChange={handleChange}
         placeholder={placeholder}
-        className="mentions-input min-h-[60px]"
+        className="mentions-input"
         onKeyDown={handleKeyDownInternal}
         style={mentionsInputStyle}
       >
@@ -250,6 +259,7 @@ function WriteInstructionStepComponent({
   // Callback to keep ref in sync with isolated input
   const handleInstructionValueChange = useCallback((value: string) => {
     localInstructionRef.current = value;
+    setLocalInstruction(value);
   }, []);
 
   // Sync local instruction with prop when prop changes from external sources
@@ -656,6 +666,7 @@ function WriteInstructionStepComponent({
               // Agentic flow is complete, clear the input box
               console.log("[WriteInstructionStep] Clearing input after agentic flow completion");
               setLocalInstruction(""); // Clear local state
+              localInstructionRef.current = ""; // Clear ref
               onInstructionChange(""); // Clear parent state
             }
           } else {
@@ -729,6 +740,7 @@ function WriteInstructionStepComponent({
             // Clear the local input box after successful generation
             console.log("[WriteInstructionStep] Clearing input after successful generation");
             setLocalInstruction(""); // Clear local state
+            localInstructionRef.current = ""; // Clear ref
             onInstructionChange(""); // Clear parent state
 
             // Auto-switch to preview tab after email generation (removed since no tabs)
@@ -1559,8 +1571,8 @@ function WriteInstructionStepComponent({
                   Regenerate
                 </Button>
                 <Button
-                  onClick={() => handleSubmitInstruction()}
-                  disabled={isGenerating}
+                  onClick={() => handleSubmitInstruction(localInstructionRef.current)}
+                  disabled={isGenerating || !localInstructionRef.current?.trim()}
                   variant="default"
                   size="sm"
                   className="h-7 text-xs"
