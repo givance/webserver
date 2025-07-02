@@ -266,11 +266,14 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
     []
   );
 
-  const handleBulkGenerationComplete = useCallback((sessionId: number) => {
-    // Navigate to existing campaigns page
-    router.push(`/existing-campaigns`);
-    onClose();
-  }, [router, onClose]);
+  const handleBulkGenerationComplete = useCallback(
+    (sessionId: number) => {
+      // Navigate to existing campaigns page
+      router.push(`/existing-campaigns`);
+      onClose();
+    },
+    [router, onClose]
+  );
 
   // Create a stable callback for instruction changes
   const handleInstructionChange = useCallback((newInstruction: string) => {
@@ -360,4 +363,20 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   );
 }
 
-export const CampaignSteps = React.memo(CampaignStepsComponent);
+// Aggressive memoization for CampaignSteps to prevent unnecessary re-renders
+const areEqual = (prevProps: CampaignStepsProps, nextProps: CampaignStepsProps): boolean => {
+  // Only re-render for essential prop changes
+  const essentialPropsEqual =
+    prevProps.editMode === nextProps.editMode && prevProps.existingCampaignData === nextProps.existingCampaignData;
+
+  // We ignore onClose function changes since they're typically stable
+
+  if (!essentialPropsEqual) {
+    console.log("[CampaignSteps] Re-render: essential props changed");
+    return false;
+  }
+
+  return true; // Block all other re-renders
+};
+
+export const CampaignSteps = React.memo(CampaignStepsComponent, areEqual);
