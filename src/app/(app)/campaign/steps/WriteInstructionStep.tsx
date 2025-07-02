@@ -1121,9 +1121,9 @@ export function WriteInstructionStep({
   // TODO: Add signature refetch functionality for edit mode later
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-[calc(100vh-2rem)] space-y-4">
       {/* Navigation at top */}
-      <div className="flex justify-between pb-2">
+      <div className="flex justify-between pb-2 shrink-0">
         <Button variant="outline" onClick={onBack} size="sm">
           <ArrowLeft className="w-3 h-3 mr-2" />
           Back
@@ -1139,106 +1139,107 @@ export function WriteInstructionStep({
         <div className="h-full grid grid-cols-1 lg:grid-cols-2">
           {/* Left Side - Chat & Generate */}
           <div className="flex flex-col h-full border-r">
-            {/* Header */}
-            {/* Chat Messages & Input - All Scrollable */}
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="p-4 space-y-3">
-                {chatMessages.length === 0 ? (
-                  <div className="flex items-center justify-center min-h-[400px]">
-                    <div className="text-center text-muted-foreground">
-                      <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center mb-3">
-                        <Mail className="h-6 w-6" />
+            {/* Chat Messages - Scrollable */}
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full">
+                <div className="p-4 space-y-3">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex items-center justify-center min-h-[300px]">
+                      <div className="text-center text-muted-foreground">
+                        <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center mb-3">
+                          <Mail className="h-6 w-6" />
+                        </div>
+                        <p className="text-sm font-medium">Start your email generation</p>
+                        <p className="text-xs">Write instructions below to generate personalized emails</p>
                       </div>
-                      <p className="text-sm font-medium">Start your email generation</p>
-                      <p className="text-xs">Write instructions below to generate personalized emails</p>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    {chatMessages.map((message, index) => (
-                      <div
-                        key={index}
-                        className={cn("flex flex-col space-y-1", {
-                          "items-end": message.role === "user",
-                        })}
-                      >
+                  ) : (
+                    <>
+                      {chatMessages.map((message, index) => (
                         <div
-                          className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
-                            "bg-primary text-primary-foreground": message.role === "user",
-                            "bg-muted": message.role === "assistant",
+                          key={index}
+                          className={cn("flex flex-col space-y-1", {
+                            "items-end": message.role === "user",
                           })}
                         >
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          <div
+                            className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
+                              "bg-primary text-primary-foreground": message.role === "user",
+                              "bg-muted": message.role === "assistant",
+                            })}
+                          >
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          </div>
+                          {message.role === "assistant" &&
+                            suggestedMemories.length > 0 &&
+                            index === chatMessages.length - 1 && (
+                              <div className="w-full mt-3">
+                                <SuggestedMemories memories={suggestedMemories} />
+                              </div>
+                            )}
                         </div>
-                        {message.role === "assistant" &&
-                          suggestedMemories.length > 0 &&
-                          index === chatMessages.length - 1 && (
-                            <div className="w-full mt-3">
-                              <SuggestedMemories memories={suggestedMemories} />
-                            </div>
-                          )}
-                      </div>
-                    ))}
-                    <div ref={chatEndRef} />
-                  </>
-                )}
+                      ))}
+                      <div ref={chatEndRef} />
+                    </>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
 
-                {/* Input Area - Now scrollable */}
-                <div className="pt-4 border-t bg-background">
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <MentionsInput
-                        value={instruction}
-                        onChange={handleMentionChange}
-                        placeholder={
-                          isLoadingProjects
-                            ? "Loading projects... Type @ to mention projects once loaded"
-                            : projectMentions.length > 0
-                            ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                            : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
-                        }
-                        className="mentions-input min-h-[80px]"
-                        onKeyDown={handleKeyDown}
-                      >
-                        <Mention
-                          trigger="@"
-                          data={projectMentions}
-                          markup="@[__display__](__id__)"
-                          displayTransform={(id, display) => `@${display}`}
-                          appendSpaceOnAdd={true}
-                        />
-                      </MentionsInput>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        onClick={() => setShowRegenerateDialog(true)}
-                        disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Regenerate
-                      </Button>
-                      <Button
-                        onClick={() => handleSubmitInstruction()}
-                        disabled={isGenerating || !instruction.trim()}
-                        variant="default"
-                        size="sm"
-                      >
-                        {isGenerating ? "Generating..." : "Generate Emails"}
-                      </Button>
-                    </div>
-                  </div>
+            {/* Input Area - Fixed at bottom, always visible */}
+            <div className="p-4 border-t bg-background shrink-0">
+              <div className="space-y-3">
+                <div className="relative">
+                  <MentionsInput
+                    value={instruction}
+                    onChange={handleMentionChange}
+                    placeholder={
+                      isLoadingProjects
+                        ? "Loading projects... Type @ to mention projects once loaded"
+                        : projectMentions.length > 0
+                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                        : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
+                    }
+                    className="mentions-input min-h-[80px]"
+                    onKeyDown={handleKeyDown}
+                  >
+                    <Mention
+                      trigger="@"
+                      data={projectMentions}
+                      markup="@[__display__](__id__)"
+                      displayTransform={(id, display) => `@${display}`}
+                      appendSpaceOnAdd={true}
+                    />
+                  </MentionsInput>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    onClick={() => setShowRegenerateDialog(true)}
+                    disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Regenerate
+                  </Button>
+                  <Button
+                    onClick={() => handleSubmitInstruction()}
+                    disabled={isGenerating || !instruction.trim()}
+                    variant="default"
+                    size="sm"
+                  >
+                    {isGenerating ? "Generating..." : "Generate Emails"}
+                  </Button>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Right Side - Email Preview */}
           <div className="flex flex-col h-full">
             {/* Content Area - Independently Scrollable */}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="h-full overflow-hidden">
               {isGenerating && (
                 <div className="flex items-center justify-center h-full text-muted-foreground p-3">
                   <div className="flex flex-col items-center gap-2">
