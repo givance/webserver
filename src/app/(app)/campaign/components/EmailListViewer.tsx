@@ -134,7 +134,7 @@ export interface EmailListViewerProps {
   generateMoreCount?: number;
 }
 
-export function EmailListViewer({
+export const EmailListViewer = React.memo(function EmailListViewer({
   emails,
   donors,
   referenceContexts,
@@ -171,6 +171,12 @@ export function EmailListViewer({
   remainingDonorsCount = 0,
   generateMoreCount = 0,
 }: EmailListViewerProps) {
+  // Debug logging for re-renders
+  console.log(`[EmailListViewer] RENDER at ${new Date().toISOString()}`, {
+    emailsCount: emails?.length,
+    donorsCount: donors?.length,
+    sessionId,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingDonations, setLoadingDonations] = useState<Record<number, boolean>>({});
@@ -916,4 +922,4 @@ export function EmailListViewer({
       </div>
     </div>
   );
-}
+});

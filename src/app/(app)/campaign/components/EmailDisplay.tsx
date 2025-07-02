@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit, Check, Clock, Sparkles, AlertCircle, Info, HelpCircle, DollarSign, Calendar, Hash } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
@@ -210,7 +210,7 @@ function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayP
   );
 }
 
-export function EmailDisplay({
+export const EmailDisplay = React.memo(function EmailDisplay({
   donorName,
   donorEmail,
   subject,
@@ -235,6 +235,12 @@ export function EmailDisplay({
   hasLinkedEmail = true,
   defaultStaffEmail,
 }: EmailDisplayProps) {
+  // Debug logging for re-renders
+  console.log(`[EmailDisplay] RENDER at ${new Date().toISOString()}`, {
+    donorId,
+    emailId,
+    subjectLength: subject?.length,
+  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
@@ -365,10 +371,9 @@ export function EmailDisplay({
                           <div className="flex items-center gap-1">
                             <Link
                               href={`/donors/${donorId}`}
-                              className="text-primary hover:underline font-medium"
+                              className="text-xs text-primary hover:underline font-medium"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs"
                             >
                               {donorName}
                             </Link>
@@ -704,4 +709,4 @@ export function EmailDisplay({
       ) : null}
     </div>
   );
-}
+});

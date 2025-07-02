@@ -5,7 +5,7 @@ import { StepIndicator } from "@/components/ui/step-indicator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { useTemplates } from "@/app/hooks/use-templates";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { generateDefaultCampaignName } from "@/app/lib/utils/campaign-utils";
@@ -30,7 +30,9 @@ interface CampaignStepsProps {
   };
 }
 
-export function CampaignSteps({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
+function CampaignStepsComponent({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
+  // Debug logging
+  console.log(`[CampaignSteps] RENDER at ${new Date().toISOString()}`);
   // Get organization data for default campaign name generation
   const { getOrganization } = useOrganization();
   const { data: organization } = getOrganization();
@@ -133,6 +135,10 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
   });
 
   // Enhanced navigation handlers with auto-save
+  // Use refs to access current values without causing re-renders
+  const instructionRef = useRef(instruction);
+  instructionRef.current = instruction;
+
   const handleStepNavigation = useCallback(
     async (newStep: number) => {
       // Auto-save current state before navigation if we have enough data
@@ -143,7 +149,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
             campaignName,
             selectedDonorIds: selectedDonors,
             templateId: selectedTemplateId,
-            instruction,
+            instruction: instructionRef.current, // Use ref to get current value
             chatHistory: persistedChatHistory,
             previewDonorIds: persistedPreviewDonorIds,
           });
@@ -159,7 +165,7 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
       selectedDonors,
       sessionId,
       selectedTemplateId,
-      instruction,
+      // instruction removed from dependencies - using ref instead
       persistedChatHistory,
       persistedPreviewDonorIds,
       navigationAutoSave,
@@ -260,11 +266,25 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     []
   );
 
-  const handleBulkGenerationComplete = (sessionId: number) => {
+  const handleBulkGenerationComplete = useCallback((sessionId: number) => {
     // Navigate to existing campaigns page
     router.push(`/existing-campaigns`);
     onClose();
-  };
+  }, [router, onClose]);
+
+  // Create a stable callback for instruction changes
+  const handleInstructionChange = useCallback((newInstruction: string) => {
+    setInstruction(newInstruction);
+  }, []);
+
+  // Create stable callbacks for navigation
+  const handleBackToTemplates = useCallback(() => {
+    handleStepNavigation(1);
+  }, [handleStepNavigation]);
+
+  const handleNextFromWriteInstruction = useCallback(() => {
+    // This is the final step, onNext could trigger a summary view or be disabled
+  }, []);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -298,11 +318,9 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
         return (
           <WriteInstructionStep
             instruction={instruction}
-            onInstructionChange={setInstruction}
-            onBack={() => handleStepNavigation(1)}
-            onNext={() => {
-              /* This is the final step, onNext could trigger a summary view or be disabled */
-            }}
+            onInstructionChange={handleInstructionChange}
+            onBack={handleBackToTemplates}
+            onNext={handleNextFromWriteInstruction}
             selectedDonors={selectedDonors}
             onSessionDataChange={handleSessionDataChange}
             templatePrompt={templatePrompt}
@@ -341,3 +359,5 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
     </div>
   );
 }
+
+export const CampaignSteps = React.memo(CampaignStepsComponent);

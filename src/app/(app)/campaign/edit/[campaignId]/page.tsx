@@ -80,7 +80,7 @@ export default function EditCampaignPage() {
       </div>
 
       <CampaignSteps
-        key={`campaign-${campaignId}-${sessionData.emails?.length || 0}`}
+        key={`campaign-${campaignId}`}
         onClose={handleClose}
         editMode={true}
         existingCampaignData={{

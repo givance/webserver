@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye, ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mention, MentionsInput } from "react-mentions";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
@@ -119,7 +119,7 @@ interface AgenticFlowResponse {
 
 type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse;
 
-export function WriteInstructionStep({
+function WriteInstructionStepComponent({
   instruction,
   onInstructionChange,
   onBack,
@@ -140,6 +140,16 @@ export function WriteInstructionStep({
   onCanLaunchChange,
   onLaunchHandlerChange,
 }: WriteInstructionStepProps) {
+  // Debug logging for re-renders
+  const renderCountRef = useRef(0);
+  renderCountRef.current++;
+  console.log(`[WriteInstructionStep] RENDER #${renderCountRef.current} at ${new Date().toISOString()}`, {
+    instructionLength: instruction?.length,
+    selectedDonorsCount: selectedDonors?.length,
+    sessionId,
+    editMode,
+  });
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] =
     useState<Array<{ role: "user" | "assistant"; content: string }>>(initialChatHistory);
@@ -294,55 +304,56 @@ export function WriteInstructionStep({
     }
   }, [initialPreviewDonors, previewDonorIds.length]);
 
-  // Save preview donor IDs to database immediately when they're set (for persistence across page reloads)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // DISABLED: Auto-save was causing performance issues
+  // This was saving on every keystroke because `instruction` was in the dependency array
+  // const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
+  // useEffect(() => {
+  //   // Clear existing timeout
+  //   if (saveTimeoutRef.current) {
+  //     clearTimeout(saveTimeoutRef.current);
+  //   }
 
-    // Only save if these are newly set preview donor IDs (not loaded from database)
-    const shouldSave = previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0;
+  //   // Only save if these are newly set preview donor IDs (not loaded from database)
+  //   const shouldSave = previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0;
 
-    if (shouldSave && sessionId && campaignName) {
-      // Debounce the save operation
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          await saveDraft.mutateAsync({
-            sessionId,
-            campaignName,
-            selectedDonorIds: selectedDonors,
-            templateId,
-            instruction: instruction || "",
-            chatHistory: chatMessages,
-            previewDonorIds,
-          });
-          console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
-        } catch (error) {
-          console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
-        }
-      }, 1000);
-    }
+  //   if (shouldSave && sessionId && campaignName) {
+  //     // Debounce the save operation
+  //     saveTimeoutRef.current = setTimeout(async () => {
+  //       try {
+  //         await saveDraft.mutateAsync({
+  //           sessionId,
+  //           campaignName,
+  //           selectedDonorIds: selectedDonors,
+  //           templateId,
+  //           instruction: instruction || "",
+  //           chatHistory: chatMessages,
+  //           previewDonorIds,
+  //         });
+  //         console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
+  //       } catch (error) {
+  //         console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
+  //       }
+  //     }, 1000);
+  //   }
 
-    // Cleanup function
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [
-    previewDonorIds,
-    initialPreviewDonorIds.length,
-    sessionId,
-    campaignName,
-    selectedDonors,
-    templateId,
-    instruction,
-    chatMessages,
-    saveDraft,
-  ]);
+  //   // Cleanup function
+  //   return () => {
+  //     if (saveTimeoutRef.current) {
+  //       clearTimeout(saveTimeoutRef.current);
+  //     }
+  //   };
+  // }, [
+  //   previewDonorIds,
+  //   initialPreviewDonorIds.length,
+  //   sessionId,
+  //   campaignName,
+  //   selectedDonors,
+  //   templateId,
+  //   instruction,
+  //   chatMessages,
+  //   saveDraft,
+  // ]);
 
   // Function to save chat history - called after messages are sent/received
   const saveChatHistory = useCallback(
@@ -393,32 +404,36 @@ export function WriteInstructionStep({
 
   // Memoize session data to avoid unnecessary recalculations
   const sessionData = useMemo(
-    () => ({
-      chatHistory: chatMessages,
-      previewDonorIds,
-      generatedEmails: allGeneratedEmails,
-      referenceContexts,
-    }),
+    () => {
+      // console.log(`[sessionData] Recalculating at ${new Date().toISOString()}`);
+      return {
+        chatHistory: chatMessages,
+        previewDonorIds,
+        generatedEmails: allGeneratedEmails,
+        referenceContexts,
+      };
+    },
     [chatMessages, previewDonorIds, allGeneratedEmails, referenceContexts]
   );
 
-  // Automatically persist session data whenever it changes (with throttling)
-  useLayoutEffect(() => {
-    if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
-      const currentDataString = JSON.stringify({
-        chatHistory: sessionData.chatHistory,
-        previewDonorIds: sessionData.previewDonorIds,
-        generatedEmailsCount: sessionData.generatedEmails.length,
-        referenceContextsKeys: Object.keys(sessionData.referenceContexts),
-      });
+  // Temporarily disable auto-persistence to test if it's causing re-renders
+  // useEffect(() => {
+  //   if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
+  //     const currentDataString = JSON.stringify({
+  //       chatHistory: sessionData.chatHistory,
+  //       previewDonorIds: sessionData.previewDonorIds,
+  //       generatedEmailsCount: sessionData.generatedEmails.length,
+  //       referenceContextsKeys: Object.keys(sessionData.referenceContexts),
+  //     });
 
-      // Only persist if the data has actually changed
-      if (currentDataString !== lastPersistedData.current) {
-        lastPersistedData.current = currentDataString;
-        onSessionDataChange(sessionData);
-      }
-    }
-  }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
+  //     // Only persist if the data has actually changed
+  //     if (currentDataString !== lastPersistedData.current) {
+  //       console.log('[WriteInstructionStep] Persisting session data');
+  //       lastPersistedData.current = currentDataString;
+  //       onSessionDataChange(sessionData);
+  //     }
+  //   }
+  // }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1028,23 +1043,42 @@ export function WriteInstructionStep({
     setShowBulkGenerationDialog(true);
   }, [generatedEmails, chatMessages, onSessionDataChange, previewDonorIds, referenceContexts]);
 
-  // Handle mentions input change
+  // Monitor onInstructionChange for stability - commented out after verification
+  // useEffect(() => {
+  //   console.log(`[WriteInstructionStep] onInstructionChange changed at ${new Date().toISOString()}`);
+  // }, [onInstructionChange]);
+
+  // Monitor referenceContexts changes - commented out after verification
+  // useEffect(() => {
+  //   console.log(`[WriteInstructionStep] referenceContexts changed at ${new Date().toISOString()}`, {
+  //     keys: Object.keys(referenceContexts).length,
+  //   });
+  // }, [referenceContexts]);
+
+  // Handle mentions input change - memoized to prevent recreating on every render
   const handleMentionChange = useCallback(
     (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
+      console.log(`[handleMentionChange] Called at ${new Date().toISOString()}`, {
+        newValueLength: newValue?.length,
+        mentionsCount: mentions?.length,
+      });
       onInstructionChange(newValue);
     },
     [onInstructionChange]
   );
 
   // Handle keydown for submitting with Cmd/Ctrl + Enter
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault(); // Prevent default form submission or newline
-      if (!isGenerating && instruction.trim()) {
-        handleSubmitInstruction();
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault(); // Prevent default form submission or newline
+        if (!isGenerating && instruction.trim()) {
+          handleSubmitInstruction();
+        }
       }
-    }
-  };
+    },
+    [isGenerating, instruction, handleSubmitInstruction]
+  );
 
   // Handle email status change
   const handleEmailStatusChange = useCallback(
@@ -1125,6 +1159,186 @@ export function WriteInstructionStep({
 
   // TODO: Add signature refetch functionality for edit mode later
 
+  // Memoize MentionsInput style to prevent re-renders
+  const mentionsInputStyle = useMemo(() => ({ fontSize: '13px' }), []);
+
+  // Memoize placeholder to prevent re-renders from string concatenation
+  const mentionsInputPlaceholder = useMemo(() => {
+    if (isLoadingProjects) {
+      return "Loading projects... Type @ to mention projects once loaded";
+    }
+    if (projectMentions.length > 0) {
+      return `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`;
+    }
+    return "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send.";
+  }, [isLoadingProjects, projectMentions.length]);
+
+  // Memoize EmailListViewer callbacks to prevent recreating on every render
+  const handlePreviewEdit = useCallback(
+    async (donorId: number, newSubject: string, newContent: any) => {
+      // Update the local state with edited email
+      setAllGeneratedEmails((prev) =>
+        prev.map((email) =>
+          email.donorId === donorId
+            ? { ...email, subject: newSubject, structuredContent: newContent }
+            : email
+        )
+      );
+
+      // If we have a sessionId and the email has been saved (has an id), update it in the backend
+      const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
+      if (sessionId && emailToUpdate && emailToUpdate.id) {
+        try {
+          await updateEmail.mutateAsync({
+            emailId: emailToUpdate.id,
+            subject: newSubject,
+            structuredContent: newContent,
+            referenceContexts: emailToUpdate.referenceContexts || {},
+          });
+          toast.success("Email updated successfully!");
+        } catch (error) {
+          console.error("Failed to update email in backend:", error);
+          toast.error("Failed to save email changes. Changes are only saved locally.");
+        }
+      } else {
+        toast.success("Email updated locally!");
+      }
+    },
+    [allGeneratedEmails, sessionId, updateEmail]
+  );
+
+  const handlePreviewEnhance = useCallback(
+    async (donorId: number, enhanceInstruction: string) => {
+      // Find the email to enhance
+      const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
+      if (!emailToEnhance || !organization) return;
+
+      try {
+        toast.info("Enhancing email with AI...");
+
+        // Get donor data
+        const donor = donorsData?.find((d) => d.id === donorId);
+        if (!donor) return;
+
+        // Use the generate emails API with the enhancement instruction
+        const result = await generateEmails.mutateAsync({
+          instruction: `${
+            previousInstruction || instruction
+          }\n\nAdditional enhancement: ${enhanceInstruction}`,
+          donors: [
+            {
+              id: donor.id,
+              firstName: donor.firstName,
+              lastName: donor.lastName,
+              email: donor.email,
+            },
+          ],
+          organizationName: organization.name,
+          organizationWritingInstructions: organization.writingInstructions ?? undefined,
+          previousInstruction,
+          currentDate: new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          chatHistory: chatMessages,
+          signature: currentSignature,
+        });
+
+        if (result && !("isAgenticFlow" in result)) {
+          const emailResult = result as GenerateEmailsResponse;
+          if (emailResult.emails.length > 0) {
+            const enhancedEmail = emailResult.emails[0];
+
+            // Update the email in state
+            setAllGeneratedEmails((prev) =>
+              prev.map((email) =>
+                email.donorId === donorId
+                  ? {
+                      ...email,
+                      subject: enhancedEmail.subject,
+                      structuredContent: enhancedEmail.structuredContent,
+                      emailContent: enhancedEmail.emailContent,
+                      reasoning: enhancedEmail.reasoning,
+                      referenceContexts: enhancedEmail.referenceContexts,
+                    }
+                  : email
+              )
+            );
+
+            // If sessionId exists, save the enhanced email to backend
+            if (sessionId && emailToEnhance.id) {
+              try {
+                await updateEmail.mutateAsync({
+                  emailId: emailToEnhance.id,
+                  subject: enhancedEmail.subject,
+                  structuredContent: enhancedEmail.structuredContent || [],
+                  referenceContexts: enhancedEmail.referenceContexts || {},
+                });
+              } catch (error) {
+                console.error("Failed to save enhanced email to backend:", error);
+              }
+            }
+
+            toast.success("Email enhanced successfully!");
+          }
+        }
+      } catch (error) {
+        console.error("Error enhancing email:", error);
+        toast.error("Failed to enhance email. Please try again.");
+      }
+    },
+    [
+      allGeneratedEmails,
+      organization,
+      donorsData,
+      generateEmails,
+      previousInstruction,
+      instruction,
+      chatMessages,
+      currentSignature,
+      sessionId,
+      updateEmail,
+    ]
+  );
+
+  // Memoize EmailListViewer props to prevent re-renders on every keystroke
+  const emailListViewerEmails = useMemo(() => {
+    // console.log(`[emailListViewerEmails] Recalculating at ${new Date().toISOString()}`);
+    return allGeneratedEmails
+      .map((email) => ({
+        ...email,
+        status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
+        emailContent: email.emailContent,
+        reasoning: email.reasoning,
+      }))
+      .sort((a, b) => {
+        // Sort emails by donor name
+        const donorA = donorsData?.find((d) => d.id === a.donorId);
+        const donorB = donorsData?.find((d) => d.id === b.donorId);
+        if (!donorA || !donorB) return 0;
+        const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
+        const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+  }, [allGeneratedEmails, emailStatuses, donorsData]);
+
+  const emailListViewerDonors = useMemo(() => {
+    // console.log(`[emailListViewerDonors] Recalculating at ${new Date().toISOString()}`);
+    return (
+      donorsData
+        ?.filter((donor) => !!donor)
+        .map((donor) => ({
+          id: donor.id,
+          firstName: donor.firstName,
+          lastName: donor.lastName,
+          email: donor.email,
+          assignedToStaffId: donor.assignedToStaffId,
+        })) || []
+    );
+  }, [donorsData]);
+
   return (
     <div className="flex flex-col h-full space-y-3">
       {/* Compact Navigation Header */}
@@ -1201,16 +1415,10 @@ export function WriteInstructionStep({
                 <MentionsInput
                   value={instruction}
                   onChange={handleMentionChange}
-                  placeholder={
-                    isLoadingProjects
-                      ? "Loading projects... Type @ to mention projects once loaded"
-                      : projectMentions.length > 0
-                      ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                      : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
-                  }
+                  placeholder={mentionsInputPlaceholder}
                   className="mentions-input min-h-[60px]"
                   onKeyDown={handleKeyDown}
-                  style={{ fontSize: '13px' }}
+                  style={mentionsInputStyle}
                 >
                   <Mention
                     trigger="@"
@@ -1264,33 +1472,8 @@ export function WriteInstructionStep({
               {!isGenerating && allGeneratedEmails.length > 0 && (
                 <div className="h-full overflow-hidden p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
                   <EmailListViewer
-                    emails={allGeneratedEmails
-                      .map((email) => ({
-                        ...email,
-                        status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
-                        emailContent: email.emailContent,
-                        reasoning: email.reasoning,
-                      }))
-                      .sort((a, b) => {
-                        // Sort emails by donor name
-                        const donorA = donorsData?.find((d) => d.id === a.donorId);
-                        const donorB = donorsData?.find((d) => d.id === b.donorId);
-                        if (!donorA || !donorB) return 0;
-                        const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
-                        const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
-                        return nameA.localeCompare(nameB);
-                      })}
-                    donors={
-                      donorsData
-                        ?.filter((donor) => !!donor)
-                        .map((donor) => ({
-                          id: donor.id,
-                          firstName: donor.firstName,
-                          lastName: donor.lastName,
-                          email: donor.email,
-                          assignedToStaffId: donor.assignedToStaffId,
-                        })) || []
-                    }
+                    emails={emailListViewerEmails}
+                    donors={emailListViewerDonors}
                     referenceContexts={referenceContexts}
                     showSearch={true}
                     showPagination={true}
@@ -1310,116 +1493,8 @@ export function WriteInstructionStep({
                     onEmailStatusChange={handleEmailStatusChange}
                     isUpdatingStatus={isUpdatingStatus}
                     sessionId={sessionId}
-                    onPreviewEdit={async (donorId, newSubject, newContent) => {
-                      // Update the local state with edited email
-                      setAllGeneratedEmails((prev) =>
-                        prev.map((email) =>
-                          email.donorId === donorId
-                            ? { ...email, subject: newSubject, structuredContent: newContent }
-                            : email
-                        )
-                      );
-
-                      // If we have a sessionId and the email has been saved (has an id), update it in the backend
-                      const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
-                      if (sessionId && emailToUpdate && emailToUpdate.id) {
-                        try {
-                          await updateEmail.mutateAsync({
-                            emailId: emailToUpdate.id,
-                            subject: newSubject,
-                            structuredContent: newContent,
-                            referenceContexts: emailToUpdate.referenceContexts || {},
-                          });
-                          toast.success("Email updated successfully!");
-                        } catch (error) {
-                          console.error("Failed to update email in backend:", error);
-                          toast.error("Failed to save email changes. Changes are only saved locally.");
-                        }
-                      } else {
-                        toast.success("Email updated locally!");
-                      }
-                    }}
-                    onPreviewEnhance={async (donorId, enhanceInstruction) => {
-                      // Find the email to enhance
-                      const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
-                      if (!emailToEnhance || !organization) return;
-
-                      try {
-                        toast.info("Enhancing email with AI...");
-
-                        // Get donor data
-                        const donor = donorsData?.find((d) => d.id === donorId);
-                        if (!donor) return;
-
-                        // Use the generate emails API with the enhancement instruction
-                        const result = await generateEmails.mutateAsync({
-                          instruction: `${
-                            previousInstruction || instruction
-                          }\n\nAdditional enhancement: ${enhanceInstruction}`,
-                          donors: [
-                            {
-                              id: donor.id,
-                              firstName: donor.firstName,
-                              lastName: donor.lastName,
-                              email: donor.email,
-                            },
-                          ],
-                          organizationName: organization.name,
-                          organizationWritingInstructions: organization.writingInstructions ?? undefined,
-                          previousInstruction,
-                          currentDate: new Date().toLocaleDateString("en-US", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          }),
-                          chatHistory: chatMessages, // Use current chat history for enhancement context
-                          signature: currentSignature,
-                        });
-
-                        if (result && !("isAgenticFlow" in result)) {
-                          const emailResult = result as GenerateEmailsResponse;
-                          if (emailResult.emails.length > 0) {
-                            const enhancedEmail = emailResult.emails[0];
-
-                            // Update the email in state
-                            setAllGeneratedEmails((prev) =>
-                              prev.map((email) =>
-                                email.donorId === donorId
-                                  ? {
-                                      ...email,
-                                      subject: enhancedEmail.subject,
-                                      structuredContent: enhancedEmail.structuredContent,
-                                      emailContent: enhancedEmail.emailContent,
-                                      reasoning: enhancedEmail.reasoning,
-                                      referenceContexts: enhancedEmail.referenceContexts,
-                                    }
-                                  : email
-                              )
-                            );
-
-                            // If sessionId exists, save the enhanced email to backend
-                            if (sessionId && emailToEnhance.id) {
-                              try {
-                                await updateEmail.mutateAsync({
-                                  emailId: emailToEnhance.id,
-                                  subject: enhancedEmail.subject,
-                                  structuredContent: enhancedEmail.structuredContent || [],
-                                  referenceContexts: enhancedEmail.referenceContexts || {},
-                                });
-                              } catch (error) {
-                                console.error("Failed to save enhanced email to backend:", error);
-                              }
-                            }
-
-                            toast.success("Email enhanced successfully!");
-                          }
-                        }
-                      } catch (error) {
-                        console.error("Error enhancing email:", error);
-                        toast.error("Failed to enhance email. Please try again.");
-                      }
-                    }}
+                    onPreviewEdit={handlePreviewEdit}
+                    onPreviewEnhance={handlePreviewEnhance}
                     isGeneratingMore={isGeneratingMore}
                     remainingDonorsCount={totalRemainingDonors}
                     generateMoreCount={GENERATE_MORE_COUNT}
@@ -1650,3 +1725,24 @@ export function WriteInstructionStep({
     </div>
   );
 }
+
+// Custom comparison function for React.memo
+const arePropsEqual = (
+  prevProps: WriteInstructionStepProps,
+  nextProps: WriteInstructionStepProps
+): boolean => {
+  // Only re-render if these critical props change
+  const criticalPropsEqual = 
+    prevProps.instruction === nextProps.instruction &&
+    prevProps.selectedDonors === nextProps.selectedDonors &&
+    prevProps.sessionId === nextProps.sessionId &&
+    prevProps.campaignName === nextProps.campaignName &&
+    prevProps.editMode === nextProps.editMode;
+
+  // For callbacks, we assume they're stable (wrapped in useCallback in parent)
+  // This prevents re-renders from callback reference changes
+  
+  return criticalPropsEqual;
+};
+
+export const WriteInstructionStep = React.memo(WriteInstructionStepComponent, arePropsEqual);
