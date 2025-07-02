@@ -3,14 +3,14 @@
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, CheckCircle2, XCircle, AlertCircle, Send, Calendar, Timer } from "lucide-react";
-import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
-import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
+import { AlertCircle, Calendar, CheckCircle2, Clock, Send, Timer, XCircle } from "lucide-react";
 
 interface EmailScheduleViewerProps {
   sessionId: number;

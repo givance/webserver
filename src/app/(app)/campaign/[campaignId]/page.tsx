@@ -1,24 +1,23 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonors } from "@/app/hooks/use-donors";
 import { useStaff } from "@/app/hooks/use-staff";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, AlertCircle, AlertTriangle } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Edit } from "lucide-react";
 import Link from "next/link";
-import { EmailScheduleViewer } from "../components/EmailScheduleViewer";
+import { useParams, useRouter } from "next/navigation";
 import { EmailScheduleControlPanel } from "../components/EmailScheduleControlPanel";
+import { EmailScheduleViewer } from "../components/EmailScheduleViewer";
 import { EmailStatsViewer } from "../components/EmailStatsViewer";
 // Removed EmailScheduleSettings - moved to organization settings
-import { EmailListViewer, BaseGeneratedEmail } from "../components/EmailListViewer";
-import { Badge } from "@/components/ui/badge";
+import { useDonorStaffEmailValidation } from "@/app/hooks/use-donor-validation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useMemo, useState, useEffect } from "react";
-import React from "react";
-import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
+import { Badge } from "@/components/ui/badge";
+import React, { useMemo } from "react";
+import { BaseGeneratedEmail, EmailListViewer } from "../components/EmailListViewer";
 
 export default function CampaignDetailPage() {
   const params = useParams();

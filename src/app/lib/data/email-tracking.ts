@@ -1,15 +1,14 @@
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
-import { emailTrackers, linkTrackers, emailOpens, linkClicks, generatedEmails, donors } from "../db/schema";
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { donors, emailOpens, emailTrackers, linkClicks, linkTrackers } from "../db/schema";
 import type {
-  EmailTracker,
-  LinkTracker,
-  EmailOpen,
-  LinkClick,
-  TrackingMetadata,
-  EmailTrackingStats,
   DonorTrackingStats,
+  EmailOpen,
+  EmailTracker,
+  LinkClick,
+  LinkTracker,
   SessionTrackingStats,
+  TrackingMetadata,
 } from "../utils/email-tracking/types";
 
 /**

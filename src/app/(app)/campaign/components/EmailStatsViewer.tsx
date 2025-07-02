@@ -1,12 +1,12 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEmailTrackingBySession, useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Users, Activity, Clock, MapPin } from "lucide-react";
-import { useSessionTracking, useEmailTrackingBySession } from "@/app/hooks/use-email-tracking";
-import { formatDistanceToNow, format } from "date-fns";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format, formatDistanceToNow } from "date-fns";
+import { Clock, Eye, MapPin } from "lucide-react";
 import { useState } from "react";
 
 interface EmailStatsViewerProps {
