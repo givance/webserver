@@ -27,7 +27,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { EmailDisplay } from "./EmailDisplay";
 
 // Base email interface that both components can extend
@@ -184,6 +184,14 @@ export const EmailListViewer = React.memo(function EmailListViewer({
   >({});
   const [isRecipientsCollapsed, setIsRecipientsCollapsed] = useState(true); // Collapsed by default
 
+  // Use refs to track state without triggering callback recreation
+  const loadingDonationsRef = useRef<Record<number, boolean>>({});
+  const donorDonationsRef = useRef<Record<number, { donations: any[]; totalCount: number; totalAmount: number }>>({});
+
+  // Keep refs in sync with state
+  loadingDonationsRef.current = loadingDonations;
+  donorDonationsRef.current = donorDonations;
+
   const utils = trpc.useUtils();
 
   // Helper function to get donor data
@@ -286,7 +294,8 @@ export const EmailListViewer = React.memo(function EmailListViewer({
 
   const loadDonorDonations = useCallback(
     async (donorId: number) => {
-      if (loadingDonations[donorId] || donorDonations[donorId]) return;
+      // Use refs to avoid dependency on state - prevents callback recreation
+      if (loadingDonationsRef.current[donorId] || donorDonationsRef.current[donorId]) return;
 
       setLoadingDonations((prev) => ({ ...prev, [donorId]: true }));
 
@@ -319,7 +328,7 @@ export const EmailListViewer = React.memo(function EmailListViewer({
         setLoadingDonations((prev) => ({ ...prev, [donorId]: false }));
       }
     },
-    [utils.donations.list, utils.donations.getDonorStats, loadingDonations, donorDonations]
+    [utils.donations.list, utils.donations.getDonorStats]
   );
 
   return (

@@ -120,6 +120,7 @@ interface IsolatedInputProps {
   placeholder: string;
   projectMentions: Array<{ id: string; display: string }>;
   onSubmit: (value: string) => void;
+  onValueChange?: (value: string) => void; // Add callback for value changes
   isGenerating: boolean;
   onKeyDown?: (event: React.KeyboardEvent<any>) => void;
 }
@@ -129,6 +130,7 @@ function IsolatedMentionsInput({
   placeholder,
   projectMentions,
   onSubmit,
+  onValueChange,
   isGenerating,
   onKeyDown,
 }: IsolatedInputProps) {
@@ -137,23 +139,36 @@ function IsolatedMentionsInput({
 
   // Update local value when initial value changes (from external sources)
   useEffect(() => {
-    if (initialValue !== localValue) {
-      setLocalValue(initialValue);
-      valueRef.current = initialValue;
-    }
-  }, [initialValue]);
+    console.log("[IsolatedInput] initialValue changed:", {
+      initialValue: JSON.stringify(initialValue),
+      localValue: JSON.stringify(localValue),
+      initialValueLength: initialValue?.length || 0,
+      localValueLength: localValue?.length || 0,
+      willUpdate: initialValue !== localValue,
+    });
+    // Always sync to initialValue to ensure external clearing works
+    console.log("[IsolatedInput] About to set localValue to:", JSON.stringify(initialValue));
+    setLocalValue(initialValue);
+    valueRef.current = initialValue;
+    console.log("[IsolatedInput] After setting - valueRef.current:", JSON.stringify(valueRef.current));
+  }, [initialValue]); // Only depend on initialValue to avoid infinite loops
 
-  const handleChange = useCallback((event: any, newValue: string) => {
-    console.log(`[IsolatedInput] Typing - only input component re-renders`);
-    setLocalValue(newValue);
-    valueRef.current = newValue;
-  }, []);
+  const handleChange = useCallback(
+    (event: any, newValue: string) => {
+      console.log(`[IsolatedInput] Typing - only input component re-renders`);
+      setLocalValue(newValue);
+      valueRef.current = newValue;
+      // Notify parent component of value change
+      onValueChange?.(newValue);
+    },
+    [onValueChange]
+  );
 
   const handleSubmit = useCallback(() => {
     if (valueRef.current.trim()) {
+      console.log("[IsolatedInput] handleSubmit - submitting without clearing");
       onSubmit(valueRef.current);
-      setLocalValue(""); // Clear after submit
-      valueRef.current = "";
+      // Don't clear here - let the parent handle clearing after successful generation
     }
   }, [onSubmit]);
 
@@ -232,8 +247,18 @@ function WriteInstructionStepComponent({
   const localInstructionRef = useRef(localInstruction);
   localInstructionRef.current = localInstruction;
 
+  // Callback to keep ref in sync with isolated input
+  const handleInstructionValueChange = useCallback((value: string) => {
+    localInstructionRef.current = value;
+  }, []);
+
   // Sync local instruction with prop when prop changes from external sources
   useEffect(() => {
+    console.log("[WriteInstructionStep] instruction prop changed:", {
+      instructionLength: instruction?.length || 0,
+      localInstructionLength: localInstruction?.length || 0,
+      willUpdate: instruction !== localInstruction,
+    });
     if (instruction !== localInstruction) {
       setLocalInstruction(instruction || "");
     }
@@ -540,6 +565,12 @@ function WriteInstructionStepComponent({
     async (instructionToSubmit?: string) => {
       // Get instruction from parameter (called by isolated input) or fallback to ref
       const finalInstruction = instructionToSubmit || localInstructionRef.current;
+      console.log("[WriteInstructionStep] handleSubmitInstruction called", {
+        instructionToSubmit: instructionToSubmit?.length,
+        localInstructionRefCurrent: localInstructionRef.current?.length,
+        finalInstruction: finalInstruction?.length,
+        organizationExists: !!organization,
+      });
       if (!finalInstruction.trim() || !organization) return;
 
       // Notify parent of the instruction change only when submitting
@@ -556,12 +587,6 @@ function WriteInstructionStepComponent({
       const updatedChatMessages = [...chatMessages, { role: "user" as const, content: finalInstruction }];
 
       setChatMessages(updatedChatMessages);
-
-      // Clear the local input box only if this is manual submission (not auto-generation)
-      if (!instructionToSubmit) {
-        setLocalInstruction(""); // Clear local state
-        onInstructionChange(""); // Clear parent state
-      }
 
       try {
         // Prepare donor data for the API call - use only preview donors
@@ -589,6 +614,7 @@ function WriteInstructionStepComponent({
         console.log("updatedChatMessages", updatedChatMessages);
 
         // Generate emails using the hook with signature - use updatedChatMessages to include the latest user message
+        console.log("[WriteInstructionStep] About to call generateEmails.mutateAsync");
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
@@ -600,11 +626,15 @@ function WriteInstructionStepComponent({
           signature: currentSignature, // Pass the selected signature
         });
 
+        console.log("[WriteInstructionStep] generateEmails result:", result);
+
         if (result) {
           const typedResult = result as EmailGenerationResult;
+          console.log("[WriteInstructionStep] typedResult:", typedResult);
 
           // Check if this is an agentic flow response
           if ("isAgenticFlow" in typedResult && typedResult.isAgenticFlow) {
+            console.log("[WriteInstructionStep] Detected agentic flow response");
             // Handle agentic flow response
             const agenticResult = typedResult as AgenticFlowResponse;
 
@@ -622,9 +652,17 @@ function WriteInstructionStepComponent({
               // For now, just show the conversation
               console.log("Agentic flow needs user input:", agenticResult);
               return;
+            } else {
+              // Agentic flow is complete, clear the input box (only if this is manual submission)
+              if (!instructionToSubmit) {
+                console.log("[WriteInstructionStep] Clearing input after agentic flow completion");
+                setLocalInstruction(""); // Clear local state
+                onInstructionChange(""); // Clear parent state
+              }
             }
           } else {
             // Handle traditional email generation response
+            console.log("[WriteInstructionStep] Handling traditional email generation response");
             const emailResult = typedResult as GenerateEmailsResponse;
             setAllGeneratedEmails(emailResult.emails);
             setGeneratedEmails(emailResult.emails);
@@ -690,14 +728,22 @@ function WriteInstructionStepComponent({
               return newMessages;
             });
 
+            // Clear the local input box after successful generation (only if this is manual submission, not auto-generation)
+            if (!instructionToSubmit) {
+              console.log("[WriteInstructionStep] Clearing input after successful generation");
+              setLocalInstruction(""); // Clear local state
+              onInstructionChange(""); // Clear parent state
+            }
+
             // Auto-switch to preview tab after email generation (removed since no tabs)
             // Preview is now always visible on the right side
           }
         } else {
+          console.log("[WriteInstructionStep] No result from generateEmails - throwing error");
           throw new Error("Failed to generate emails");
         }
       } catch (error) {
-        console.error("Error generating emails:", error);
+        console.error("[WriteInstructionStep] Error generating emails:", error);
         toast.error("Failed to generate emails. Please try again.");
         setChatMessages((prev) => {
           const newMessages = [
@@ -1500,6 +1546,7 @@ function WriteInstructionStepComponent({
                 placeholder={mentionsInputPlaceholder}
                 projectMentions={projectMentions}
                 onSubmit={handleSubmitInstruction}
+                onValueChange={handleInstructionValueChange}
                 isGenerating={isGenerating}
                 onKeyDown={handleKeyDown}
               />
