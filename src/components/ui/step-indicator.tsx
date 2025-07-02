@@ -7,9 +7,16 @@ interface StepIndicatorProps {
   currentStep: number;
   className?: string;
   orientation?: "horizontal" | "vertical";
+  showOnlyNumbers?: boolean;
 }
 
-export function StepIndicator({ steps, currentStep, className, orientation = "horizontal" }: StepIndicatorProps) {
+export function StepIndicator({
+  steps,
+  currentStep,
+  className,
+  orientation = "horizontal",
+  showOnlyNumbers = false,
+}: StepIndicatorProps) {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
@@ -30,16 +37,18 @@ export function StepIndicator({ steps, currentStep, className, orientation = "ho
             >
               {index + 1}
             </div>
-            <span
-              className={cn(
-                "text-sm font-medium transition-colors",
-                isActive && "text-foreground",
-                !isActive && "text-muted-foreground"
-              )}
-            >
-              {step}
-            </span>
-            {index < steps.length - 1 && (
+            {!showOnlyNumbers && (
+              <span
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive && "text-foreground",
+                  !isActive && "text-muted-foreground"
+                )}
+              >
+                {step}
+              </span>
+            )}
+            {index < steps.length - 1 && !showOnlyNumbers && (
               <div
                 className={cn(
                   "flex-1 transition-colors",

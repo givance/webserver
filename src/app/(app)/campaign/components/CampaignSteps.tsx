@@ -312,8 +312,14 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
 
   return (
     <div className="flex h-full">
-      <div className="w-48 border-r bg-muted/30 py-4 px-2">
-        <StepIndicator steps={STEPS} currentStep={currentStep as number} orientation="vertical" className="mb-6" />
+      <div className="w-16 border-r bg-muted/30 py-4 px-3">
+        <StepIndicator
+          steps={STEPS}
+          currentStep={currentStep as number}
+          orientation="vertical"
+          className="mb-6"
+          showOnlyNumbers={true}
+        />
       </div>
       <div className="flex-1 px-6 py-4 overflow-auto">{renderStep()}</div>
     </div>
