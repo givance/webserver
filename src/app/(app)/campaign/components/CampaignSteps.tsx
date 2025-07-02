@@ -326,16 +326,16 @@ export function CampaignSteps({ onClose, editMode = false, existingCampaignData 
 
   return (
     <div className="flex h-full">
-      <div className="w-16 border-r bg-muted/30 py-4 px-3">
+      <div className="w-12 border-r bg-muted/30 py-3 px-2">
         <StepIndicator
           steps={STEPS}
           currentStep={currentStep as number}
           orientation="vertical"
-          className="mb-6"
+          className="mb-4"
           showOnlyNumbers={true}
         />
       </div>
-      <div className="flex-1 px-6 py-4 overflow-auto">{renderStep()}</div>
+      <div className="flex-1 px-4 py-3 overflow-auto">{renderStep()}</div>
     </div>
   );
 }

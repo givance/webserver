@@ -20,7 +20,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye } from "lucide-react";
+import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye, ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Mention, MentionsInput } from "react-mentions";
@@ -1095,55 +1095,67 @@ export function WriteInstructionStep({
   // TODO: Add signature refetch functionality for edit mode later
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex flex-col h-full space-y-4">
+      {/* Navigation at top */}
+      <div className="flex justify-between pb-2">
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ArrowLeft className="w-3 h-3 mr-2" />
+          Back
+        </Button>
+        <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating} size="sm">
+          Launch Campaign
+          <ArrowRight className="w-3 h-3 ml-2" />
+        </Button>
+      </div>
+
       {/* Main Content with Tabs */}
       <div className="flex-1 min-h-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="chat" className="flex items-center gap-2 text-sm">
+              <Users className="h-3 w-3" />
               Chat & Generate
             </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
+            <TabsTrigger value="preview" className="flex items-center gap-2 text-sm">
+              <Plus className="h-3 w-3" />
               Email Preview ({allGeneratedEmails.length})
             </TabsTrigger>
           </TabsList>
 
           {/* Chat Tab */}
-          <TabsContent value="chat" className="flex-1 min-h-0 mt-3">
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 h-full">
+          <TabsContent value="chat" className="flex-1 min-h-0 mt-2">
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 h-full">
               {/* Simplified Chat Interface */}
               <Card className="h-full flex flex-col">
                 <CardContent className="flex-1 flex flex-col min-h-0 p-0">
                   <div className="flex flex-col flex-1 min-h-0">
                     {/* Chat Messages */}
                     <ScrollArea className="flex-1 min-h-0">
-                      <div className="p-6 space-y-4">
+                      <div className="p-4 space-y-3">
                         {chatMessages.length === 0 ? (
-                          <div className="text-center py-12 text-muted-foreground">
-                            <p>Start by writing instructions for email generation below.</p>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p className="text-sm">Start by writing instructions for email generation below.</p>
                           </div>
                         ) : (
                           chatMessages.map((message, index) => (
                             <div
                               key={index}
-                              className={cn("flex flex-col space-y-2", {
+                              className={cn("flex flex-col space-y-1", {
                                 "items-end": message.role === "user",
                               })}
                             >
                               <div
-                                className={cn("rounded-lg px-4 py-3 max-w-[80%]", {
+                                className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
                                   "bg-primary text-primary-foreground": message.role === "user",
                                   "bg-muted": message.role === "assistant",
                                 })}
                               >
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                <p className="text-xs whitespace-pre-wrap">{message.content}</p>
                               </div>
                               {message.role === "assistant" &&
                                 suggestedMemories.length > 0 &&
                                 index === chatMessages.length - 1 && (
-                                  <div className="w-full mt-4">
+                                  <div className="w-full mt-3">
                                     <SuggestedMemories memories={suggestedMemories} />
                                   </div>
                                 )}
@@ -1155,8 +1167,8 @@ export function WriteInstructionStep({
                     </ScrollArea>
 
                     {/* Input Area */}
-                    <div className="p-6 border-t bg-background">
-                      <div className="space-y-4">
+                    <div className="p-4 border-t bg-background">
+                      <div className="space-y-3">
                         <div className="relative">
                           <MentionsInput
                             value={instruction}
@@ -1165,10 +1177,10 @@ export function WriteInstructionStep({
                               isLoadingProjects
                                 ? "Loading projects... Type @ to mention projects once loaded"
                                 : projectMentions.length > 0
-                                ? `Enter your instructions for email generation or continue the conversation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                                : "Enter your instructions for email generation or continue the conversation... Press Cmd/Ctrl + Enter to send."
+                                ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                                : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
                             }
-                            className="mentions-input min-h-[120px]"
+                            className="mentions-input min-h-[80px]"
                             onKeyDown={handleKeyDown}
                           >
                             <Mention
@@ -1185,15 +1197,17 @@ export function WriteInstructionStep({
                             onClick={() => setShowRegenerateDialog(true)}
                             disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
                             variant="outline"
-                            className="flex items-center gap-2"
+                            size="sm"
+                            className="flex items-center gap-1"
                           >
-                            <RefreshCw className="h-4 w-4" />
+                            <RefreshCw className="h-3 w-3" />
                             Regenerate
                           </Button>
                           <Button
                             onClick={() => handleSubmitInstruction()}
                             disabled={isGenerating || !instruction.trim()}
                             variant="default"
+                            size="sm"
                           >
                             {isGenerating ? "Generating..." : "Generate Emails"}
                           </Button>
@@ -1207,21 +1221,21 @@ export function WriteInstructionStep({
           </TabsContent>
 
           {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-3">
+          <TabsContent value="preview" className="flex-1 min-h-0 mt-2">
             <Card className="h-full flex flex-col">
               <CardContent className="flex-1 min-h-0 p-0">
                 {isGenerating ? (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       <div className="text-center">
-                        <p className="font-medium">Generating personalized emails...</p>
-                        <p className="text-sm">This may take a few moments</p>
+                        <p className="text-sm font-medium">Generating personalized emails...</p>
+                        <p className="text-xs">This may take a few moments</p>
                       </div>
                     </div>
                   </div>
                 ) : allGeneratedEmails.length > 0 ? (
-                  <div className="h-full p-6">
+                  <div className="h-full p-4">
                     <EmailListViewer
                       emails={allGeneratedEmails
                         .map((email) => ({
@@ -1259,7 +1273,7 @@ export function WriteInstructionStep({
                       showEditButton={true}
                       showDonorTooltips={true}
                       emailsPerPage={EMAILS_PER_PAGE}
-                      maxHeight="calc(100vh - 280px)"
+                      maxHeight="calc(100vh - 320px)"
                       emptyStateTitle="No emails generated yet"
                       emptyStateDescription={
                         templatePrompt
@@ -1349,32 +1363,38 @@ export function WriteInstructionStep({
                                         ...email,
                                         subject: enhancedEmail.subject,
                                         structuredContent: enhancedEmail.structuredContent,
+                                        emailContent: enhancedEmail.emailContent,
+                                        reasoning: enhancedEmail.reasoning,
                                         referenceContexts: enhancedEmail.referenceContexts,
                                       }
                                     : email
                                 )
                               );
 
-                              // Update reference contexts
-                              setReferenceContexts((prev) => ({
-                                ...prev,
-                                [donorId]: enhancedEmail.referenceContexts || {},
-                              }));
+                              // If sessionId exists, save the enhanced email to backend
+                              if (sessionId && emailToEnhance.id) {
+                                try {
+                                  await updateEmail.mutateAsync({
+                                    emailId: emailToEnhance.id,
+                                    subject: enhancedEmail.subject,
+                                    structuredContent: enhancedEmail.structuredContent || [],
+                                    emailContent: enhancedEmail.emailContent,
+                                    reasoning: enhancedEmail.reasoning,
+                                    referenceContexts: enhancedEmail.referenceContexts || {},
+                                  });
+                                } catch (error) {
+                                  console.error("Failed to save enhanced email to backend:", error);
+                                }
+                              }
 
                               toast.success("Email enhanced successfully!");
                             }
                           }
                         } catch (error) {
                           console.error("Error enhancing email:", error);
-                          toast.error("Failed to enhance email");
+                          toast.error("Failed to enhance email. Please try again.");
                         }
                       }}
-                      // Pass regenerate functionality to EmailListViewer
-                      showRegenerateButton={true}
-                      onRegenerate={() => setShowRegenerateDialog(true)}
-                      isRegenerating={isRegenerating}
-                      canGenerateMore={canGenerateMore}
-                      onGenerateMore={handleGenerateMore}
                       isGeneratingMore={isGeneratingMore}
                       remainingDonorsCount={totalRemainingDonors}
                       generateMoreCount={GENERATE_MORE_COUNT}
@@ -1392,13 +1412,13 @@ export function WriteInstructionStep({
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                        <Mail className="h-8 w-8" />
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center">
+                        <Mail className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-medium">No emails generated yet</p>
-                        <p className="text-sm">
+                        <p className="text-sm font-medium">No emails generated yet</p>
+                        <p className="text-xs">
                           {templatePrompt
                             ? "Generating emails from template..."
                             : "Switch to the Chat & Generate tab to get started"}
@@ -1413,83 +1433,65 @@ export function WriteInstructionStep({
         </Tabs>
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4 border-t">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating}>
-          Launch Campaign
-        </Button>
-      </div>
-
       {/* Bulk Generation Confirmation Dialog */}
       <Dialog open={showBulkGenerationDialog} onOpenChange={setShowBulkGenerationDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
+              <Mail className="h-4 w-4" />
               Confirm Campaign Launch
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               You&apos;re about to launch a campaign to generate personalized emails for all selected donors based on
               your current instruction.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Summary Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Users className="h-3 w-3" />
-                  Campaign Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium">Total Campaign</p>
-                    <p className="text-lg font-bold">{selectedDonors.length}</p>
-                    <p className="text-xs text-muted-foreground">donors</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-green-600">Already Reviewed</p>
-                    <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {approvedCount} approved, {pendingCount} pending
-                    </p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-blue-600">To Be Generated</p>
-                    <p className="text-lg font-bold text-blue-600">
-                      {selectedDonors.length - allGeneratedEmails.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">new emails</p>
+          <div className="space-y-3">
+            {/* Summary Card - more compact */}
+            <div className="p-3 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-3 w-3" />
+                <span className="text-sm font-medium">Campaign Summary</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Total Campaign</p>
+                  <p className="text-lg font-bold">{selectedDonors.length}</p>
+                  <p className="text-xs text-muted-foreground">donors</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-green-600">Already Reviewed</p>
+                  <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {approvedCount} approved, {pendingCount} pending
+                  </p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-blue-600">To Be Generated</p>
+                  <p className="text-lg font-bold text-blue-600">{selectedDonors.length - allGeneratedEmails.length}</p>
+                  <p className="text-xs text-muted-foreground">new emails</p>
+                </div>
+              </div>
+
+              {selectedSignatureType !== "none" && currentSignature && (
+                <div className="space-y-2 mt-3">
+                  <p className="text-xs font-medium">Selected Signature</p>
+                  <div className="bg-muted rounded p-2">
+                    <div
+                      className="prose prose-sm max-w-none text-xs"
+                      dangerouslySetInnerHTML={{
+                        __html:
+                          currentSignature.length > 150 ? currentSignature.substring(0, 150) + "..." : currentSignature,
+                      }}
+                    />
                   </div>
                 </div>
-
-                {selectedSignatureType !== "none" && currentSignature && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Selected Signature</p>
-                    <div className="bg-muted rounded-lg p-3">
-                      <div
-                        className="prose prose-sm max-w-none text-sm"
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            currentSignature.length > 200
-                              ? currentSignature.substring(0, 200) + "..."
-                              : currentSignature,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
+              <p className="text-xs text-blue-800">
                 {allGeneratedEmails.length > 0 ? (
                   <>
                     This will launch your campaign for all {selectedDonors.length} selected donors.{" "}
@@ -1520,34 +1522,35 @@ export function WriteInstructionStep({
               variant="outline"
               onClick={() => setShowBulkGenerationDialog(false)}
               disabled={isStartingBulkGeneration}
+              size="sm"
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration}>
+            <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration} size="sm">
               {isStartingBulkGeneration ? "Launching..." : "Launch Campaign"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Regenerate Confirmation Dialog */}
+      {/* Regenerate Confirmation Dialog - more compact */}
       <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
               Regenerate Emails
             </DialogTitle>
-            <DialogDescription>Choose which emails you want to regenerate</DialogDescription>
+            <DialogDescription className="text-sm">Choose which emails you want to regenerate</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label>Regeneration Options</Label>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-sm">Regeneration Options</Label>
               <div className="space-y-2">
                 <div
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    "flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-colors",
                     regenerateOption === "all" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
                   )}
                   onClick={() => setRegenerateOption("all")}
@@ -1556,17 +1559,17 @@ export function WriteInstructionStep({
                     type="radio"
                     checked={regenerateOption === "all"}
                     onChange={() => setRegenerateOption("all")}
-                    className="mt-1"
+                    className="mt-0.5"
                   />
                   <div className="flex-1">
-                    <div className="font-medium">Regenerate ALL emails ({allGeneratedEmails.length} total)</div>
-                    <div className="text-sm text-muted-foreground">This will replace all existing emails</div>
+                    <div className="text-sm font-medium">Regenerate ALL emails ({allGeneratedEmails.length} total)</div>
+                    <div className="text-xs text-muted-foreground">This will replace all existing emails</div>
                   </div>
                 </div>
 
                 <div
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    "flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-colors",
                     regenerateOption === "unapproved"
                       ? "border-primary bg-primary/5"
                       : "border-border hover:bg-muted/50",
@@ -1579,11 +1582,11 @@ export function WriteInstructionStep({
                     checked={regenerateOption === "unapproved"}
                     onChange={() => setRegenerateOption("unapproved")}
                     disabled={pendingCount === 0}
-                    className="mt-1"
+                    className="mt-0.5"
                   />
                   <div className="flex-1">
-                    <div className="font-medium">Regenerate only unapproved emails ({pendingCount} emails)</div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm font-medium">Regenerate only unapproved emails ({pendingCount} emails)</div>
+                    <div className="text-xs text-muted-foreground">
                       Keep your {approvedCount} approved emails unchanged
                     </div>
                   </div>
@@ -1592,7 +1595,7 @@ export function WriteInstructionStep({
             </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
+              <p className="text-xs text-blue-800">
                 {regenerateOption === "all"
                   ? `This will regenerate all ${allGeneratedEmails.length} emails using the same instructions.`
                   : `This will regenerate ${pendingCount} unapproved emails. Your ${approvedCount} approved emails will remain unchanged.`}
@@ -1601,12 +1604,18 @@ export function WriteInstructionStep({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRegenerateDialog(false)} disabled={isRegenerating}>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+              disabled={isRegenerating}
+              size="sm"
+            >
               Cancel
             </Button>
             <Button
               onClick={() => handleRegenerateAllEmails(regenerateOption === "unapproved")}
-              disabled={isRegenerating || (regenerateOption === "unapproved" && pendingCount === 0)}
+              disabled={isRegenerating}
+              size="sm"
             >
               {isRegenerating ? "Regenerating..." : "Regenerate"}
             </Button>

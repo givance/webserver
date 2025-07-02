@@ -222,114 +222,100 @@ export function SelectDonorsAndNameStep({
   const individualDonors = selectedDonors.length - donorsFromLists;
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Create Your Campaign</h3>
-        <p className="text-sm text-muted-foreground">Name your campaign and select the donors you'd like to include.</p>
+    <div className="space-y-4">
+      {/* Header - more compact */}
+      <div className="space-y-1">
+        <h3 className="text-lg font-medium">Campaign Setup</h3>
+        <p className="text-sm text-muted-foreground">Select donors and name your campaign.</p>
       </div>
 
-      {/* Campaign Name Input - Now at the top */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Campaign Name</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="campaignName">Campaign Name</Label>
-            <Input
-              id="campaignName"
-              placeholder="e.g., 'End of Year Appeal 2024'"
-              value={localCampaignName}
-              onChange={(e) => handleCampaignNameChange(e.target.value)}
-              className={error ? "border-red-500" : ""}
-              maxLength={255}
-            />
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{localCampaignName.length}/255 characters</p>
-              {isSaving && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Saving...</span>
-                </div>
-              )}
-              {!isSaving && localCampaignName.trim() !== "" && (
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <Check className="h-3 w-3" />
-                  <span>Saved</span>
-                </div>
-              )}
+      {/* Campaign Name Input - simplified without card */}
+      <div className="space-y-3 p-4 border rounded-lg bg-card">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="campaignName" className="text-sm font-medium">
+            Campaign Name
+          </Label>
+          {isSaving && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Saving...</span>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+          {!isSaving && localCampaignName.trim() !== "" && (
+            <div className="flex items-center gap-1 text-xs text-green-600">
+              <Check className="h-3 w-3" />
+              <span>Saved</span>
+            </div>
+          )}
+        </div>
+        <Input
+          id="campaignName"
+          placeholder="e.g., 'Holiday Campaign 2024'"
+          value={localCampaignName}
+          onChange={(e) => handleCampaignNameChange(e.target.value)}
+          className={error ? "border-red-500" : ""}
+          maxLength={255}
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{localCampaignName.length}/255 characters</span>
+          <span>{selectedDonors.length} donors selected</span>
+        </div>
+      </div>
 
-      {/* Validation Banner */}
+      {/* Validation Alert - compact */}
       {validationResult && !validationResult.isValid && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="py-3">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <p className="font-medium">⚠️ Email setup issues detected for selected donors:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                {validationResult.donorsWithoutStaff.length > 0 && (
-                  <li>
-                    <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
-                    staff members
-                  </li>
-                )}
-                {validationResult.donorsWithStaffButNoEmail.length > 0 && (
-                  <li>
-                    <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
-                    without connected Gmail accounts
-                  </li>
-                )}
-              </ul>
-              <p className="text-sm">
-                These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
-                ensure all staff have connected their Gmail accounts in Settings.
-              </p>
-            </div>
+          <AlertDescription className="text-sm">
+            <p className="font-medium">⚠️ Setup issues:</p>
+            <ul className="list-disc list-inside mt-1 space-y-0.5 text-xs">
+              {validationResult.donorsWithoutStaff.length > 0 && (
+                <li>{validationResult.donorsWithoutStaff.length} donor(s) need staff assignments</li>
+              )}
+              {validationResult.donorsWithStaffButNoEmail.length > 0 && (
+                <li>{validationResult.donorsWithStaffButNoEmail.length} staff member(s) need Gmail connection</li>
+              )}
+            </ul>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Donor Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Select Donors
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Donor Selection - more compact */}
+      <div className="border rounded-lg bg-card">
+        <div className="p-4 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4" />
+            <span className="text-sm font-medium">Select Donors</span>
+          </div>
+
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "donors" | "lists")}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="donors" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Individual Donors
+              <TabsTrigger value="donors" className="text-xs">
+                <Users className="h-3 w-3 mr-1" />
+                Individual
               </TabsTrigger>
-              <TabsTrigger value="lists" className="flex items-center gap-2">
-                <List className="h-4 w-4" />
-                Donor Lists
+              <TabsTrigger value="lists" className="text-xs">
+                <List className="h-3 w-3 mr-1" />
+                Lists
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="donors" className="space-y-4 mt-4">
-              <div className="flex items-center gap-4">
+            <TabsContent value="donors" className="space-y-3 mt-3">
+              <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Search donors by name or email..."
+                  placeholder="Search donors..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1"
+                  className="flex-1 h-8 text-sm"
                 />
-                <Button variant="outline" onClick={handleSelectAllDonors}>
+                <Button variant="outline" size="sm" onClick={handleSelectAllDonors}>
                   Select All
                 </Button>
               </div>
 
-              <ScrollArea className="h-[200px] border rounded-md p-4">
+              <ScrollArea className="h-[160px] border rounded p-3">
                 {isDonorsLoading ? (
-                  <div>Loading donors...</div>
+                  <div className="text-sm">Loading donors...</div>
                 ) : (
                   <div className="space-y-2">
                     {donorsData?.donors?.map((donor) => {
@@ -337,7 +323,7 @@ export function SelectDonorsAndNameStep({
                       const isSelected = selectedDonors.includes(donor.id);
 
                       return (
-                        <div key={donor.id} className="flex items-center justify-between space-x-2">
+                        <div key={donor.id} className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             <Checkbox
                               id={`donor-${donor.id}`}
@@ -347,131 +333,123 @@ export function SelectDonorsAndNameStep({
                             />
                             <label
                               htmlFor={`donor-${donor.id}`}
-                              className={`text-sm font-medium leading-none ${
-                                isDonorFromLists
-                                  ? "text-muted-foreground"
-                                  : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              }`}
+                              className={`text-xs leading-none ${isDonorFromLists ? "text-muted-foreground" : ""}`}
                             >
                               {formatDonorName(donor)} ({donor.email})
                             </label>
                           </div>
                           {isDonorFromLists && (
-                            <Badge variant="secondary" className="text-xs">
-                              From List
+                            <Badge variant="secondary" className="text-xs py-0 px-1">
+                              List
                             </Badge>
                           )}
                         </div>
                       );
                     })}
                     {donorsData?.donors?.length === 0 && (
-                      <div className="text-sm text-muted-foreground">No donors found</div>
+                      <div className="text-xs text-muted-foreground">No donors found</div>
                     )}
                   </div>
                 )}
               </ScrollArea>
 
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 Showing {displayedDonorCount} of {totalDonorCount} donors
               </div>
             </TabsContent>
 
-            <TabsContent value="lists" className="space-y-4 mt-4">
-              <div className="flex items-center gap-4">
+            <TabsContent value="lists" className="space-y-3 mt-3">
+              <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Search lists by name..."
+                  placeholder="Search lists..."
                   value={listSearchTerm}
                   onChange={(e) => setListSearchTerm(e.target.value)}
-                  className="flex-1"
+                  className="flex-1 h-8 text-sm"
                 />
-                <Button variant="outline" onClick={handleSelectAllLists}>
+                <Button variant="outline" size="sm" onClick={handleSelectAllLists}>
                   Select All
                 </Button>
               </div>
 
-              <ScrollArea className="h-[200px] border rounded-md p-4">
+              <ScrollArea className="h-[160px] border rounded p-3">
                 {isListsLoading ? (
-                  <div>Loading lists...</div>
+                  <div className="text-sm">Loading lists...</div>
                 ) : (
                   <div className="space-y-2">
                     {listsData?.lists?.map((list) => (
-                      <div key={list.id} className="flex items-center justify-between space-x-2">
+                      <div key={list.id} className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id={`list-${list.id}`}
                             checked={selectedLists.includes(list.id)}
                             onCheckedChange={() => handleToggleList(list.id)}
                           />
-                          <label
-                            htmlFor={`list-${list.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
+                          <label htmlFor={`list-${list.id}`} className="text-xs leading-none">
                             {list.name}
                             {list.description && (
                               <span className="text-muted-foreground ml-1">- {list.description}</span>
                             )}
                           </label>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {list.memberCount} {list.memberCount === 1 ? "donor" : "donors"}
+                        <Badge variant="outline" className="text-xs py-0 px-1">
+                          {list.memberCount}
                         </Badge>
                       </div>
                     ))}
                     {listsData?.lists?.length === 0 && (
-                      <div className="text-sm text-muted-foreground">No lists found</div>
+                      <div className="text-xs text-muted-foreground">No lists found</div>
                     )}
                   </div>
                 )}
               </ScrollArea>
 
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 Showing {displayedListCount} of {totalListCount} lists
               </div>
             </TabsContent>
           </Tabs>
+        </div>
 
-          {/* Summary */}
-          <div className="mt-4 p-4 bg-muted/30 rounded-lg">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">{selectedDonors.length} total donors selected</div>
-              <div className="text-xs text-muted-foreground space-y-1">
-                {selectedLists.length > 0 && (
-                  <div>
-                    • {donorsFromLists} from {selectedLists.length} list{selectedLists.length !== 1 ? "s" : ""}
-                  </div>
-                )}
-                {individualDonors > 0 && (
-                  <div>
-                    • {individualDonors} individual donor{individualDonors !== 1 ? "s" : ""}
-                  </div>
-                )}
+        {/* Summary - compact */}
+        <div className="px-4 pb-4">
+          <div className="p-3 bg-muted/30 rounded text-xs">
+            <div className="font-medium">{selectedDonors.length} total donors selected</div>
+            {selectedLists.length > 0 && (
+              <div className="text-muted-foreground">
+                • {donorsFromLists} from {selectedLists.length} list{selectedLists.length !== 1 ? "s" : ""}
               </div>
-            </div>
+            )}
+            {individualDonors > 0 && (
+              <div className="text-muted-foreground">
+                • {individualDonors} individual donor{individualDonors !== 1 ? "s" : ""}
+              </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Error Display */}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={handleClearAll}>
+      <div className="flex justify-between pt-2">
+        <Button variant="outline" onClick={handleClearAll} size="sm">
           Clear All
         </Button>
         <Button
           onClick={handleNext}
           disabled={!localCampaignName.trim() || selectedDonors.length === 0 || isProcessing}
+          size="sm"
         >
           {isProcessing ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating Campaign...
+              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+              Creating...
             </>
           ) : (
             <>
               Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
+              <ArrowRight className="w-3 h-3 ml-2" />
             </>
           )}
         </Button>

@@ -94,87 +94,99 @@ export function SelectTemplateStep({
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Select Template (Optional)</h2>
-          <p className="text-muted-foreground">Choose a template to start with, or continue without one.</p>
-        </div>
-        <div className="text-red-500">Error loading templates. You can continue without a template.</div>
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
+      <div className="space-y-4">
+        {/* Navigation at top */}
+        <div className="flex justify-between pb-2">
+          <Button variant="outline" onClick={onBack} size="sm">
+            <ArrowLeft className="w-3 h-3 mr-2" />
             Back
           </Button>
-          <Button onClick={handleNext}>
+          <Button onClick={handleNext} size="sm">
             Continue Without Template
-            <ArrowRight className="w-4 h-4 ml-2" />
+            <ArrowRight className="w-3 h-3 ml-2" />
           </Button>
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-lg font-medium">Select Template (Optional)</h2>
+          <p className="text-sm text-muted-foreground">Choose a template to start with, or continue without one.</p>
+        </div>
+        <div className="p-4 border rounded-lg bg-destructive/10 text-destructive">
+          Error loading templates. You can continue without a template.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Select Template (Optional)</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-4">
+      {/* Navigation at top */}
+      <div className="flex justify-between pb-2">
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ArrowLeft className="w-3 h-3 mr-2" />
+          Back
+        </Button>
+        <Button onClick={handleNext} size="sm">
+          Continue
+          <ArrowRight className="w-3 h-3 ml-2" />
+        </Button>
+      </div>
+
+      <div className="space-y-1">
+        <h2 className="text-lg font-medium">Select Template (Optional)</h2>
+        <p className="text-sm text-muted-foreground">
           Choose a template to start with, or continue without one to write your own instructions.
         </p>
       </div>
 
       {templates?.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <div className="text-muted-foreground mb-4">
-                No templates found. You can create templates in Settings to speed up future communications.
-              </div>
-              <Link href="/settings/templates">
-                <Button variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Templates
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="border rounded-lg p-6 text-center bg-card">
+          <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <div className="text-sm text-muted-foreground mb-3">
+            No templates found. You can create templates in Settings to speed up future communications.
+          </div>
+          <Link href="/settings/templates">
+            <Button variant="outline" size="sm">
+              <Plus className="w-3 h-3 mr-2" />
+              Create Templates
+            </Button>
+          </Link>
+        </div>
       ) : (
         <RadioGroup value={selectedTemplate?.toString() || "none"} onValueChange={handleTemplateChange}>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
+          <div className="grid gap-3">
+            <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
               <RadioGroupItem value="none" id="none" />
               <Label htmlFor="none" className="flex-1 cursor-pointer">
-                <Card className="p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">No Template</h3>
-                      <p className="text-sm text-muted-foreground">Write your own instructions from scratch</p>
-                    </div>
-                  </div>
-                </Card>
+                <div className="space-y-1">
+                  <h3 className="font-medium">No Template</h3>
+                  <p className="text-sm text-muted-foreground">Write your own instructions from scratch</p>
+                </div>
               </Label>
             </div>
 
             {templates?.map((template) => (
-              <div key={template.id} className="flex items-center space-x-2">
+              <div
+                key={template.id}
+                className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+              >
                 <RadioGroupItem value={template.id.toString()} id={template.id.toString()} />
                 <Label htmlFor={template.id.toString()} className="flex-1 cursor-pointer">
-                  <Card className="p-4">
-                    <div className="flex justify-between items-start mb-2">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <h3 className="font-medium">{template.name}</h3>
                         {template.description && (
                           <p className="text-sm text-muted-foreground">{template.description}</p>
                         )}
                       </div>
-                      <Badge variant="secondary">Template</Badge>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        Template
+                      </Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground bg-muted p-3 rounded max-h-32 overflow-y-auto">
+                    <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md max-h-24 overflow-y-auto">
                       {template.prompt}
                     </div>
-                  </Card>
+                  </div>
                 </Label>
               </div>
             ))}
@@ -182,23 +194,9 @@ export function SelectTemplateStep({
         </RadioGroup>
       )}
 
-      {selectedTemplate && selectedTemplatePrompt && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Selected Template Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea value={selectedTemplatePrompt} readOnly rows={6} className="bg-muted" />
-            <p className="text-sm text-muted-foreground mt-2">
-              This template will be used as your starting instruction. You can modify it in the next step.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Auto-save indicator */}
       {campaignName && selectedDonorIds && selectedDonorIds.length > 0 && (
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
           {isSaving ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -212,17 +210,6 @@ export function SelectTemplateStep({
           )}
         </div>
       )}
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <Button onClick={handleNext}>
-          Continue
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
     </div>
   );
 }

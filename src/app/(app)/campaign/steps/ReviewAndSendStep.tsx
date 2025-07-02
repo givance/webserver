@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { EmailDisplay } from "../components/EmailDisplay";
 import { toast } from "sonner";
-import { Clock, Send, AlertCircle, AlertTriangle } from "lucide-react";
+import { Clock, Send, AlertCircle, AlertTriangle, ArrowLeft } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
 
@@ -61,6 +61,48 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
 
   return (
     <div className="space-y-4">
+      {/* Navigation at top */}
+      <div className="flex justify-between items-center pb-2">
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ArrowLeft className="w-3 h-3 mr-2" />
+          Back
+        </Button>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">
+            {generatedEmails.length} email(s) ready
+            {validationResult && !validationResult.isValid ? " (setup issues)" : ""}
+          </span>
+          <Button
+            onClick={handleScheduleSend}
+            disabled={
+              isScheduling ||
+              generatedEmails.length === 0 ||
+              isValidating ||
+              (validationResult && !validationResult.isValid)
+            }
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            {isScheduling ? (
+              <>
+                <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                Scheduling...
+              </>
+            ) : isValidating ? (
+              <>
+                <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                Validating...
+              </>
+            ) : (
+              <>
+                <Clock className="h-3 w-3" />
+                Schedule & Send
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
       <div className="space-y-4">
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Review and Schedule Emails</h3>
@@ -150,45 +192,6 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
           })}
         </div>
       </ScrollArea>
-
-      <div className="flex justify-between items-center pt-4">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">
-            {generatedEmails.length} email(s) ready
-            {validationResult && !validationResult.isValid ? " (setup issues)" : ""}
-          </span>
-          <Button
-            onClick={handleScheduleSend}
-            disabled={
-              isScheduling ||
-              generatedEmails.length === 0 ||
-              isValidating ||
-              (validationResult && !validationResult.isValid)
-            }
-            className="flex items-center gap-2"
-          >
-            {isScheduling ? (
-              <>
-                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                Scheduling...
-              </>
-            ) : isValidating ? (
-              <>
-                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                Validating...
-              </>
-            ) : (
-              <>
-                <Clock className="h-4 w-4" />
-                Schedule & Send
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -90,40 +90,56 @@ export function CampaignNameStep({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
+    <div className="space-y-4">
+      {/* Navigation at top */}
+      <div className="flex justify-between pb-2">
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ArrowLeft className="w-3 h-3 mr-2" />
+          Back
+        </Button>
+        <Button onClick={handleNext} disabled={!localCampaignName.trim() || isProcessing} size="sm">
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+              Creating Campaign...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="w-3 h-3 ml-2" />
+            </>
+          )}
+        </Button>
+      </div>
+
+      <div className="space-y-1">
         <h3 className="text-lg font-medium">Name Your Campaign</h3>
         <p className="text-sm text-muted-foreground">Give your campaign a descriptive name for easy identification.</p>
       </div>
 
-      {/* Summary Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Selected Donors
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Total Donors Selected</p>
-            <p className="text-2xl font-bold">{selectedDonors.length}</p>
-            <p className="text-sm text-muted-foreground">
-              You will be creating personalized emails for {selectedDonors.length} donor
-              {selectedDonors.length !== 1 ? "s" : ""}.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Summary Card - more compact */}
+      <div className="p-4 border rounded-lg bg-card">
+        <div className="flex items-center gap-2 mb-3">
+          <Users className="h-4 w-4" />
+          <span className="text-sm font-medium">Selected Donors</span>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Total Donors Selected</p>
+          <p className="text-xl font-bold">{selectedDonors.length}</p>
+          <p className="text-xs text-muted-foreground">
+            You will be creating personalized emails for {selectedDonors.length} donor
+            {selectedDonors.length !== 1 ? "s" : ""}.
+          </p>
+        </div>
+      </div>
 
-      {/* Campaign Name Input */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Campaign Name</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Campaign Name Input - more compact */}
+      <div className="p-4 border rounded-lg bg-card">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm font-medium">Campaign Name</span>
+        </div>
+        <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="campaignName">Campaign Name</Label>
             <Input
               id="campaignName"
               placeholder="e.g., 'My Organization Campaign 2024-12-15-09'"
@@ -134,15 +150,15 @@ export function CampaignNameStep({
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{localCampaignName.length}/255 characters</p>
+              <p className="text-xs text-muted-foreground">{localCampaignName.length}/255 characters</p>
               {isSaving && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>Saving...</span>
                 </div>
               )}
               {!isSaving && localCampaignName.trim() !== "" && (
-                <div className="flex items-center gap-1 text-sm text-green-600">
+                <div className="flex items-center gap-1 text-xs text-green-600">
                   <Check className="h-3 w-3" />
                   <span>Saved</span>
                 </div>
@@ -151,8 +167,8 @@ export function CampaignNameStep({
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium">Suggestions:</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs font-medium">Suggestions:</p>
+            <div className="flex flex-wrap gap-1">
               {[
                 "Holiday Thank You Campaign",
                 "Q4 Donor Outreach",
@@ -165,35 +181,14 @@ export function CampaignNameStep({
                   variant="outline"
                   size="sm"
                   onClick={() => handleCampaignNameChange(suggestion)}
-                  className="text-xs"
+                  className="text-xs h-7"
                 >
                   {suggestion}
                 </Button>
               ))}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <Button onClick={handleNext} disabled={!localCampaignName.trim() || isProcessing}>
-          {isProcessing ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating Campaign...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </>
-          )}
-        </Button>
+        </div>
       </div>
     </div>
   );
