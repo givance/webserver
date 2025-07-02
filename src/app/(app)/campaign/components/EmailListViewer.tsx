@@ -393,10 +393,9 @@ export function EmailListViewer({
           >
             <div
               className={cn(
-                "grid border rounded-lg overflow-hidden transition-all duration-300",
+                "grid border rounded-lg overflow-hidden transition-all duration-300 h-full",
                 isRecipientsCollapsed ? "grid-cols-[80px_1fr]" : "grid-cols-[320px_1fr]"
               )}
-              style={{ height: maxHeight }}
             >
               <div className="border-r bg-background h-full overflow-y-auto">
                 <div className="flex flex-col min-h-full">
@@ -833,7 +832,7 @@ export function EmailListViewer({
                 </div>
               </div>
 
-              <div className="flex flex-col h-full" style={{ maxHeight: maxHeight }}>
+              <div className="flex flex-col h-full overflow-hidden">
                 {paginatedEmails.map((email) => {
                   const donor = getDonorData(email.donorId);
                   if (!donor) return null;

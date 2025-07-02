@@ -1142,14 +1142,14 @@ export function WriteInstructionStep({
         </Button>
       </div>
 
-      {/* Main Content - Claude Artifacts Style Layout */}
-      <div className="flex-1 min-h-0 bg-background border rounded-lg overflow-hidden">
+      {/* Main Content - Claude Artifacts Style Layout - Fixed Height */}
+      <div className="h-[600px] bg-background border rounded-lg overflow-hidden">
         <div className="h-full grid grid-cols-1 lg:grid-cols-2">
           {/* Left Side - Chat & Generate */}
-          <div className="flex flex-col h-full border-r">
+          <div className="flex flex-col h-full border-r overflow-hidden">
             {/* Chat Messages - Scrollable */}
             <div className="flex-1 min-h-0 overflow-hidden">
-              <ScrollArea className="h-full">
+              <ScrollArea className="h-full w-full">
                 <div className="p-4 space-y-3">
                   {chatMessages.length === 0 ? (
                     <div className="flex items-center justify-center min-h-[300px]">
@@ -1195,9 +1195,9 @@ export function WriteInstructionStep({
             </div>
 
             {/* Input Area - Fixed at bottom */}
-            <div className="border-t bg-background">
+            <div className="border-t bg-background flex-shrink-0">
               {/* Input Box - Scrollable */}
-              <div className="max-h-[200px] overflow-y-auto p-4 pb-2">
+              <div className="max-h-[120px] overflow-y-auto p-4 pb-2">
                 <MentionsInput
                   value={instruction}
                   onChange={handleMentionChange}
@@ -1247,7 +1247,7 @@ export function WriteInstructionStep({
           </div>
 
           {/* Right Side - Email Preview */}
-          <div className="flex flex-col h-full bg-muted/5">
+          <div className="flex flex-col h-full bg-muted/5 overflow-hidden">
             {/* Content Area - Independently Scrollable */}
             <div className="h-full overflow-hidden">
               {isGenerating && (
@@ -1262,7 +1262,7 @@ export function WriteInstructionStep({
                 </div>
               )}
               {!isGenerating && allGeneratedEmails.length > 0 && (
-                <div className="h-full p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
+                <div className="h-full overflow-hidden p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
                   <EmailListViewer
                     emails={allGeneratedEmails
                       .map((email) => ({
@@ -1300,7 +1300,7 @@ export function WriteInstructionStep({
                     showEditButton={true}
                     showDonorTooltips={true}
                     emailsPerPage={EMAILS_PER_PAGE}
-                    maxHeight="calc(100vh - 380px)"
+                    maxHeight="100%"
                     emptyStateTitle="No emails generated yet"
                     emptyStateDescription={
                       templatePrompt
