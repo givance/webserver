@@ -216,9 +216,10 @@ export function WriteInstructionStep({
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
 
-  // Batch fetch donor data for all selected donors
+  // Batch fetch donor data for all selected donors (memoized to prevent unnecessary calls)
   const { getDonorsQuery } = useDonors();
-  const { data: donorsData } = getDonorsQuery(selectedDonors);
+  const memoizedSelectedDonors = useMemo(() => selectedDonors, [selectedDonors]);
+  const { data: donorsData } = getDonorsQuery(memoizedSelectedDonors);
   const { data: organization } = getOrganization();
 
   // Fetch staff data for signature selection
@@ -289,9 +290,20 @@ export function WriteInstructionStep({
   }, [initialPreviewDonors, previewDonorIds.length]);
 
   // Save preview donor IDs to database immediately when they're set (for persistence across page reloads)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
-    const savePreviewDonorIds = async () => {
-      if (previewDonorIds.length > 0 && sessionId && campaignName) {
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Only save if these are newly set preview donor IDs (not loaded from database)
+    const shouldSave = previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0;
+
+    if (shouldSave && sessionId && campaignName) {
+      // Debounce the save operation
+      saveTimeoutRef.current = setTimeout(async () => {
         try {
           await saveDraft.mutateAsync({
             sessionId,
@@ -306,15 +318,18 @@ export function WriteInstructionStep({
         } catch (error) {
           console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
         }
+      }, 1000);
+    }
+
+    // Cleanup function
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
     };
-
-    // Only save if these are newly set preview donor IDs (not loaded from database)
-    if (previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0) {
-      savePreviewDonorIds();
-    }
   }, [
     previewDonorIds,
+    initialPreviewDonorIds.length,
     sessionId,
     campaignName,
     selectedDonors,
@@ -322,7 +337,6 @@ export function WriteInstructionStep({
     instruction,
     chatMessages,
     saveDraft,
-    initialPreviewDonorIds.length,
   ]);
 
   // Function to save chat history - called after messages are sent/received
@@ -1078,19 +1092,36 @@ export function WriteInstructionStep({
     [sessionId, updateEmailStatus, allGeneratedEmails]
   );
 
-  // Check if we can generate more emails - use consistent logic with handleGenerateMore
-  const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
-  // First check remaining from current preview set, then remaining from selectedDonors
-  const remainingFromPreview = previewDonorIds.filter((id) => !alreadyGeneratedDonorIds.has(id));
-  const remainingFromSelected = selectedDonors.filter(
-    (id) => !alreadyGeneratedDonorIds.has(id) && !previewDonorIds.includes(id)
-  );
-  const totalRemainingDonors = remainingFromPreview.length + remainingFromSelected.length;
-  const canGenerateMore = totalRemainingDonors > 0;
+  // Check if we can generate more emails - use consistent logic with handleGenerateMore (memoized for performance)
+  const {
+    alreadyGeneratedDonorIds,
+    remainingFromPreview,
+    remainingFromSelected,
+    totalRemainingDonors,
+    canGenerateMore,
+  } = useMemo(() => {
+    const generatedIds = new Set(allGeneratedEmails.map((email) => email.donorId));
+    const remainingPreview = previewDonorIds.filter((id) => !generatedIds.has(id));
+    const remainingSelected = selectedDonors.filter((id) => !generatedIds.has(id) && !previewDonorIds.includes(id));
+    const totalRemaining = remainingPreview.length + remainingSelected.length;
 
-  // Count approved vs pending emails
-  const approvedCount = Object.values(emailStatuses).filter((status) => status === "APPROVED").length;
-  const pendingCount = Object.values(emailStatuses).filter((status) => status === "PENDING_APPROVAL").length;
+    return {
+      alreadyGeneratedDonorIds: generatedIds,
+      remainingFromPreview: remainingPreview,
+      remainingFromSelected: remainingSelected,
+      totalRemainingDonors: totalRemaining,
+      canGenerateMore: totalRemaining > 0,
+    };
+  }, [allGeneratedEmails, previewDonorIds, selectedDonors]);
+
+  // Count approved vs pending emails (memoized for performance)
+  const { approvedCount, pendingCount } = useMemo(() => {
+    const statuses = Object.values(emailStatuses);
+    return {
+      approvedCount: statuses.filter((status) => status === "APPROVED").length,
+      pendingCount: statuses.filter((status) => status === "PENDING_APPROVAL").length,
+    };
+  }, [emailStatuses]);
 
   // TODO: Add signature refetch functionality for edit mode later
 
@@ -1378,8 +1409,6 @@ export function WriteInstructionStep({
                                     emailId: emailToEnhance.id,
                                     subject: enhancedEmail.subject,
                                     structuredContent: enhancedEmail.structuredContent || [],
-                                    emailContent: enhancedEmail.emailContent,
-                                    reasoning: enhancedEmail.reasoning,
                                     referenceContexts: enhancedEmail.referenceContexts || {},
                                   });
                                 } catch (error) {

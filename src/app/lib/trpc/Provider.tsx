@@ -19,15 +19,20 @@ interface TRPCProviderProps {
  * @param children Child components that will have access to tRPC client
  */
 export default function TRPCProvider({ children }: TRPCProviderProps) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 0, // Consider data stale immediately
-        refetchOnWindowFocus: false,
-        refetchOnMount: true,
-      },
-    },
-  }));
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 5 * 60 * 1000, // 5 minutes - prevent redundant calls
+            refetchOnWindowFocus: false,
+            refetchOnMount: "always", // Use "always" instead of true for better control
+            refetchOnReconnect: false, // Prevent automatic refetch on reconnect
+            retry: 1, // Limit retry attempts
+          },
+        },
+      })
+  );
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [

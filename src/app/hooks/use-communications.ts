@@ -17,8 +17,16 @@ export function useCommunications() {
   const getThread = trpc.communications.threads.getThread.useQuery;
   const getMessages = trpc.communications.threads.getMessages.useQuery;
 
-  // Query hooks - Email Campaigns
-  const getSession = trpc.communications.campaigns.getSession.useQuery;
+  // Query hooks - Email Campaigns with enhanced caching
+  const getSession = (input: any, opts?: any) =>
+    trpc.communications.campaigns.getSession.useQuery(input, {
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Prevent automatic refetch on mount
+      refetchOnReconnect: false,
+      retry: 1,
+      ...opts,
+    });
   const getSessionStatus = trpc.communications.campaigns.getSessionStatus.useQuery;
   const listCampaigns = trpc.communications.campaigns.listCampaigns.useQuery;
   const getEmailStatus = trpc.communications.campaigns.getEmailStatus.useQuery;
