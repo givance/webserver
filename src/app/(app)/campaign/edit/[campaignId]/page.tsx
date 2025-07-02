@@ -74,10 +74,9 @@ export default function EditCampaignPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Edit Campaign: {sessionData.session.jobName}</h1>
-        <p className="text-gray-600">Continue editing your campaign and chat with the AI to refine your messaging.</p>
+    <div className="container mx-auto py-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">{sessionData.session.jobName}</h1>
       </div>
 
       <CampaignSteps

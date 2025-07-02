@@ -102,9 +102,9 @@ export function EmailEnhanceButton({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4" />
-        AI Enhance
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="flex items-center gap-1.5 h-7 text-xs px-2">
+        <Sparkles className="h-3 w-3" />
+        Enhance
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

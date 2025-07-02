@@ -222,11 +222,28 @@ export function SelectDonorsAndNameStep({
   const individualDonors = selectedDonors.length - donorsFromLists;
 
   return (
-    <div className="space-y-4">
-      {/* Header - more compact */}
-      <div className="space-y-1">
-        <h3 className="text-lg font-medium">Campaign Setup</h3>
-        <p className="text-sm text-muted-foreground">Select donors and name your campaign.</p>
+    <div className="flex flex-col h-full space-y-3">
+      {/* Compact Navigation Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-muted-foreground">Select Donors & Name Campaign</h2>
+        <Button
+          onClick={handleNext}
+          disabled={!localCampaignName.trim() || selectedDonors.length === 0 || isProcessing}
+          size="sm"
+          className="h-7 text-xs"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="w-3 h-3 ml-1" />
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Campaign Name Input - simplified without card */}
@@ -431,27 +448,10 @@ export function SelectDonorsAndNameStep({
       {/* Error Display */}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-2">
-        <Button variant="outline" onClick={handleClearAll} size="sm">
+      {/* Clear All Button */}
+      <div className="pt-2">
+        <Button variant="outline" onClick={handleClearAll} size="sm" className="h-7 text-xs">
           Clear All
-        </Button>
-        <Button
-          onClick={handleNext}
-          disabled={!localCampaignName.trim() || selectedDonors.length === 0 || isProcessing}
-          size="sm"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="w-3 h-3 ml-2" />
-            </>
-          )}
         </Button>
       </div>
     </div>

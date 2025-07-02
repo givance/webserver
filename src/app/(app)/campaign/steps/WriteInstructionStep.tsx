@@ -55,6 +55,9 @@ interface WriteInstructionStepProps {
   // Edit mode props
   editMode?: boolean;
   sessionId?: number;
+  // Props for external button control
+  onCanLaunchChange?: (canLaunch: boolean) => void;
+  onLaunchHandlerChange?: (handler: (() => void) | null) => void;
 }
 
 // Configuration for preview donor count - can be changed later
@@ -134,6 +137,8 @@ export function WriteInstructionStep({
   editMode = false,
   sessionId,
   initialRefinedInstruction,
+  onCanLaunchChange,
+  onLaunchHandlerChange,
 }: WriteInstructionStepProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] =
@@ -998,7 +1003,7 @@ export function WriteInstructionStep({
   };
 
   // Handle next button click - show confirmation dialog
-  const handleNextClick = () => {
+  const handleNextClick = useCallback(() => {
     if (generatedEmails.length === 0) {
       toast.error("Please generate emails first before proceeding");
       return;
@@ -1021,7 +1026,7 @@ export function WriteInstructionStep({
     }
 
     setShowBulkGenerationDialog(true);
-  };
+  }, [generatedEmails, chatMessages, onSessionDataChange, previewDonorIds, referenceContexts]);
 
   // Handle mentions input change
   const handleMentionChange = useCallback(
@@ -1121,16 +1126,19 @@ export function WriteInstructionStep({
   // TODO: Add signature refetch functionality for edit mode later
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] space-y-4">
-      {/* Navigation at top */}
-      <div className="flex justify-between pb-2 shrink-0">
-        <Button variant="outline" onClick={onBack} size="sm">
-          <ArrowLeft className="w-3 h-3 mr-2" />
-          Back
-        </Button>
-        <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating} size="sm">
+    <div className="flex flex-col h-full space-y-3">
+      {/* Compact Navigation Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+            <ArrowLeft className="w-3 h-3 mr-1" />
+            Back
+          </Button>
+          <h2 className="text-sm font-medium text-muted-foreground">{campaignName}</h2>
+        </div>
+        <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating} size="sm" className="h-7 text-xs">
           Launch Campaign
-          <ArrowRight className="w-3 h-3 ml-2" />
+          <ArrowRight className="w-3 h-3 ml-1" />
         </Button>
       </div>
 
@@ -1140,17 +1148,17 @@ export function WriteInstructionStep({
           {/* Left Side - Chat & Generate */}
           <div className="flex flex-col h-full border-r">
             {/* Chat Messages - Scrollable */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <ScrollArea className="h-full">
                 <div className="p-4 space-y-3">
                   {chatMessages.length === 0 ? (
                     <div className="flex items-center justify-center min-h-[300px]">
                       <div className="text-center text-muted-foreground">
-                        <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center mb-3">
-                          <Mail className="h-6 w-6" />
+                        <div className="w-10 h-10 mx-auto bg-muted rounded-full flex items-center justify-center mb-2">
+                          <Mail className="h-5 w-5" />
                         </div>
-                        <p className="text-sm font-medium">Start your email generation</p>
-                        <p className="text-xs">Write instructions below to generate personalized emails</p>
+                        <p className="text-xs font-medium">Start your email generation</p>
+                        <p className="text-[10px]">Write instructions below to generate personalized emails</p>
                       </div>
                     </div>
                   ) : (
@@ -1168,7 +1176,7 @@ export function WriteInstructionStep({
                               "bg-muted": message.role === "assistant",
                             })}
                           >
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            <p className="text-xs whitespace-pre-wrap">{message.content}</p>
                           </div>
                           {message.role === "assistant" &&
                             suggestedMemories.length > 0 &&
@@ -1186,58 +1194,60 @@ export function WriteInstructionStep({
               </ScrollArea>
             </div>
 
-            {/* Input Area - Fixed at bottom, always visible */}
-            <div className="p-4 border-t bg-background shrink-0">
-              <div className="space-y-3">
-                <div className="relative">
-                  <MentionsInput
-                    value={instruction}
-                    onChange={handleMentionChange}
-                    placeholder={
-                      isLoadingProjects
-                        ? "Loading projects... Type @ to mention projects once loaded"
-                        : projectMentions.length > 0
-                        ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                        : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
-                    }
-                    className="mentions-input min-h-[80px]"
-                    onKeyDown={handleKeyDown}
-                  >
-                    <Mention
-                      trigger="@"
-                      data={projectMentions}
-                      markup="@[__display__](__id__)"
-                      displayTransform={(id, display) => `@${display}`}
-                      appendSpaceOnAdd={true}
-                    />
-                  </MentionsInput>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    onClick={() => setShowRegenerateDialog(true)}
-                    disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Regenerate
-                  </Button>
-                  <Button
-                    onClick={() => handleSubmitInstruction()}
-                    disabled={isGenerating || !instruction.trim()}
-                    variant="default"
-                    size="sm"
-                  >
-                    {isGenerating ? "Generating..." : "Generate Emails"}
-                  </Button>
-                </div>
+            {/* Input Area - Fixed at bottom */}
+            <div className="border-t bg-background">
+              {/* Input Box - Scrollable */}
+              <div className="max-h-[200px] overflow-y-auto p-4 pb-2">
+                <MentionsInput
+                  value={instruction}
+                  onChange={handleMentionChange}
+                  placeholder={
+                    isLoadingProjects
+                      ? "Loading projects... Type @ to mention projects once loaded"
+                      : projectMentions.length > 0
+                      ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                      : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
+                  }
+                  className="mentions-input min-h-[60px]"
+                  onKeyDown={handleKeyDown}
+                  style={{ fontSize: '13px' }}
+                >
+                  <Mention
+                    trigger="@"
+                    data={projectMentions}
+                    markup="@[__display__](__id__)"
+                    displayTransform={(id, display) => `@${display}`}
+                    appendSpaceOnAdd={true}
+                  />
+                </MentionsInput>
+              </div>
+              {/* Buttons - Bottom line */}
+              <div className="flex justify-end gap-2 px-4 py-2 border-t">
+                <Button
+                  onClick={() => setShowRegenerateDialog(true)}
+                  disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1 h-7 text-xs"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Regenerate
+                </Button>
+                <Button
+                  onClick={() => handleSubmitInstruction()}
+                  disabled={isGenerating || !instruction.trim()}
+                  variant="default"
+                  size="sm"
+                  className="h-7 text-xs"
+                >
+                  {isGenerating ? "Generating..." : "Generate Emails"}
+                </Button>
               </div>
             </div>
           </div>
 
           {/* Right Side - Email Preview */}
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full bg-muted/5">
             {/* Content Area - Independently Scrollable */}
             <div className="h-full overflow-hidden">
               {isGenerating && (
@@ -1252,7 +1262,7 @@ export function WriteInstructionStep({
                 </div>
               )}
               {!isGenerating && allGeneratedEmails.length > 0 && (
-                <div className="h-full p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto">
+                <div className="h-full p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
                   <EmailListViewer
                     emails={allGeneratedEmails
                       .map((email) => ({

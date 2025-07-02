@@ -78,10 +78,20 @@ export function SelectTemplateStep({
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Select Template (Optional)</h2>
-          <p className="text-muted-foreground">Choose a template to start with, or continue without one.</p>
+      <div className="flex flex-col h-full space-y-3">
+        {/* Compact Navigation Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+              <ArrowLeft className="w-3 h-3 mr-1" />
+              Back
+            </Button>
+            <h2 className="text-sm font-medium text-muted-foreground">Select Template (Optional)</h2>
+          </div>
+          <Button onClick={handleNext} size="sm" className="h-7 text-xs" disabled>
+            Continue
+            <ArrowRight className="w-3 h-3 ml-1" />
+          </Button>
         </div>
         <div className="space-y-4">
           <Skeleton className="h-20 w-full" />
@@ -94,21 +104,20 @@ export function SelectTemplateStep({
 
   if (error) {
     return (
-      <div className="space-y-4">
-        {/* Navigation at top */}
-        <div className="flex justify-between pb-2">
-          <Button variant="outline" onClick={onBack} size="sm">
-            <ArrowLeft className="w-3 h-3 mr-2" />
-            Back
-          </Button>
-          <Button onClick={handleNext} size="sm">
+      <div className="flex flex-col h-full space-y-3">
+        {/* Compact Navigation Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+              <ArrowLeft className="w-3 h-3 mr-1" />
+              Back
+            </Button>
+            <h2 className="text-sm font-medium text-muted-foreground">Select Template (Optional)</h2>
+          </div>
+          <Button onClick={handleNext} size="sm" className="h-7 text-xs">
             Continue Without Template
-            <ArrowRight className="w-3 h-3 ml-2" />
+            <ArrowRight className="w-3 h-3 ml-1" />
           </Button>
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-medium">Select Template (Optional)</h2>
-          <p className="text-sm text-muted-foreground">Choose a template to start with, or continue without one.</p>
         </div>
         <div className="p-4 border rounded-lg bg-destructive/10 text-destructive">
           Error loading templates. You can continue without a template.
@@ -118,24 +127,20 @@ export function SelectTemplateStep({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Navigation at top */}
-      <div className="flex justify-between pb-2">
-        <Button variant="outline" onClick={onBack} size="sm">
-          <ArrowLeft className="w-3 h-3 mr-2" />
-          Back
-        </Button>
-        <Button onClick={handleNext} size="sm">
+    <div className="flex flex-col h-full space-y-3">
+      {/* Compact Navigation Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+            <ArrowLeft className="w-3 h-3 mr-1" />
+            Back
+          </Button>
+          <h2 className="text-sm font-medium text-muted-foreground">Select Template (Optional)</h2>
+        </div>
+        <Button onClick={handleNext} size="sm" className="h-7 text-xs">
           Continue
-          <ArrowRight className="w-3 h-3 ml-2" />
+          <ArrowRight className="w-3 h-3 ml-1" />
         </Button>
-      </div>
-
-      <div className="space-y-1">
-        <h2 className="text-lg font-medium">Select Template (Optional)</h2>
-        <p className="text-sm text-muted-foreground">
-          Choose a template to start with, or continue without one to write your own instructions.
-        </p>
       </div>
 
       {templates?.length === 0 ? (
