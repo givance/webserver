@@ -170,15 +170,7 @@ export function SelectDonorsStep({
         </p>
       </div>
 
-      {/* Validation Banner */}
-      {isValidating && selectedDonors.length > 0 && (
-        <Alert className="border-blue-200 bg-blue-50">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Validating email setup for {selectedDonors.length} selected donor{selectedDonors.length !== 1 ? "s" : ""}...
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Validation Banner - Removed to prevent UI jumping */}
 
       {validationResult && !validationResult.isValid && (
         <Alert variant="destructive">
