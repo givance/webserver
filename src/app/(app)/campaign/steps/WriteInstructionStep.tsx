@@ -151,7 +151,7 @@ export function WriteInstructionStep({
   const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
   const [allGeneratedEmails, setAllGeneratedEmails] = useState<GeneratedEmail[]>(initialGeneratedEmails);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
-  const [activeTab, setActiveTab] = useState("chat");
+
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
@@ -574,10 +574,8 @@ export function WriteInstructionStep({
               return newMessages;
             });
 
-            // Auto-switch to preview tab after email generation
-            setTimeout(() => {
-              setActiveTab("preview");
-            }, 500);
+            // Auto-switch to preview tab after email generation (removed since no tabs)
+            // Preview is now always visible on the right side
           }
         } else {
           throw new Error("Failed to generate emails");
@@ -913,10 +911,7 @@ export function WriteInstructionStep({
           setEmailStatuses({});
         }
 
-        // Auto-switch to preview tab
-        setTimeout(() => {
-          setActiveTab("preview");
-        }, 500);
+        // Preview is now always visible on the right side (no tab switching needed)
 
         toast.success(`Successfully started regeneration of emails! Refreshing...`);
       } else {
@@ -1139,327 +1134,317 @@ export function WriteInstructionStep({
         </Button>
       </div>
 
-      {/* Main Content with Tabs */}
-      <div className="flex-1 min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="chat" className="flex items-center gap-2 text-sm">
-              <Users className="h-3 w-3" />
-              Chat & Generate
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2 text-sm">
-              <Plus className="h-3 w-3" />
-              Email Preview ({allGeneratedEmails.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Chat Tab */}
-          <TabsContent value="chat" className="flex-1 min-h-0 mt-2">
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 h-full">
-              {/* Simplified Chat Interface */}
-              <Card className="h-full flex flex-col">
-                <CardContent className="flex-1 flex flex-col min-h-0 p-0">
-                  <div className="flex flex-col flex-1 min-h-0">
-                    {/* Chat Messages */}
-                    <ScrollArea className="flex-1 min-h-0">
-                      <div className="p-4 space-y-3">
-                        {chatMessages.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <p className="text-sm">Start by writing instructions for email generation below.</p>
-                          </div>
-                        ) : (
-                          chatMessages.map((message, index) => (
-                            <div
-                              key={index}
-                              className={cn("flex flex-col space-y-1", {
-                                "items-end": message.role === "user",
-                              })}
-                            >
-                              <div
-                                className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
-                                  "bg-primary text-primary-foreground": message.role === "user",
-                                  "bg-muted": message.role === "assistant",
-                                })}
-                              >
-                                <p className="text-xs whitespace-pre-wrap">{message.content}</p>
-                              </div>
-                              {message.role === "assistant" &&
-                                suggestedMemories.length > 0 &&
-                                index === chatMessages.length - 1 && (
-                                  <div className="w-full mt-3">
-                                    <SuggestedMemories memories={suggestedMemories} />
-                                  </div>
-                                )}
-                            </div>
-                          ))
-                        )}
-                        <div ref={chatEndRef} />
-                      </div>
-                    </ScrollArea>
-
-                    {/* Input Area */}
-                    <div className="p-4 border-t bg-background">
-                      <div className="space-y-3">
-                        <div className="relative">
-                          <MentionsInput
-                            value={instruction}
-                            onChange={handleMentionChange}
-                            placeholder={
-                              isLoadingProjects
-                                ? "Loading projects... Type @ to mention projects once loaded"
-                                : projectMentions.length > 0
-                                ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                                : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
-                            }
-                            className="mentions-input min-h-[80px]"
-                            onKeyDown={handleKeyDown}
-                          >
-                            <Mention
-                              trigger="@"
-                              data={projectMentions}
-                              markup="@[__display__](__id__)"
-                              displayTransform={(id, display) => `@${display}`}
-                              appendSpaceOnAdd={true}
-                            />
-                          </MentionsInput>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            onClick={() => setShowRegenerateDialog(true)}
-                            disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            Regenerate
-                          </Button>
-                          <Button
-                            onClick={() => handleSubmitInstruction()}
-                            disabled={isGenerating || !instruction.trim()}
-                            variant="default"
-                            size="sm"
-                          >
-                            {isGenerating ? "Generating..." : "Generate Emails"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-2">
-            <Card className="h-full flex flex-col">
-              <CardContent className="flex-1 min-h-0 p-0">
-                {isGenerating ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium">Generating personalized emails...</p>
-                        <p className="text-xs">This may take a few moments</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : allGeneratedEmails.length > 0 ? (
-                  <div className="h-full p-4">
-                    <EmailListViewer
-                      emails={allGeneratedEmails
-                        .map((email) => ({
-                          ...email,
-                          status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
-                          emailContent: email.emailContent,
-                          reasoning: email.reasoning,
-                        }))
-                        .sort((a, b) => {
-                          // Sort emails by donor name
-                          const donorA = donorsData?.find((d) => d.id === a.donorId);
-                          const donorB = donorsData?.find((d) => d.id === b.donorId);
-                          if (!donorA || !donorB) return 0;
-                          const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
-                          const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
-                          return nameA.localeCompare(nameB);
-                        })}
-                      donors={
-                        donorsData
-                          ?.filter((donor) => !!donor)
-                          .map((donor) => ({
-                            id: donor.id,
-                            firstName: donor.firstName,
-                            lastName: donor.lastName,
-                            email: donor.email,
-                            assignedToStaffId: donor.assignedToStaffId,
-                          })) || []
-                      }
-                      referenceContexts={referenceContexts}
-                      showSearch={true}
-                      showPagination={true}
-                      showTracking={false}
-                      showStaffAssignment={true}
-                      showSendButton={false}
-                      showEditButton={true}
-                      showDonorTooltips={true}
-                      emailsPerPage={EMAILS_PER_PAGE}
-                      maxHeight="calc(100vh - 320px)"
-                      emptyStateTitle="No emails generated yet"
-                      emptyStateDescription={
-                        templatePrompt
-                          ? "Generating emails from template..."
-                          : "Switch to the Chat & Generate tab to generate emails"
-                      }
-                      onEmailStatusChange={handleEmailStatusChange}
-                      isUpdatingStatus={isUpdatingStatus}
-                      sessionId={sessionId}
-                      onPreviewEdit={async (donorId, newSubject, newContent) => {
-                        // Update the local state with edited email
-                        setAllGeneratedEmails((prev) =>
-                          prev.map((email) =>
-                            email.donorId === donorId
-                              ? { ...email, subject: newSubject, structuredContent: newContent }
-                              : email
-                          )
-                        );
-
-                        // If we have a sessionId and the email has been saved (has an id), update it in the backend
-                        const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
-                        if (sessionId && emailToUpdate && emailToUpdate.id) {
-                          try {
-                            await updateEmail.mutateAsync({
-                              emailId: emailToUpdate.id,
-                              subject: newSubject,
-                              structuredContent: newContent,
-                              referenceContexts: emailToUpdate.referenceContexts || {},
-                            });
-                            toast.success("Email updated successfully!");
-                          } catch (error) {
-                            console.error("Failed to update email in backend:", error);
-                            toast.error("Failed to save email changes. Changes are only saved locally.");
-                          }
-                        } else {
-                          toast.success("Email updated locally!");
-                        }
-                      }}
-                      onPreviewEnhance={async (donorId, enhanceInstruction) => {
-                        // Find the email to enhance
-                        const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
-                        if (!emailToEnhance || !organization) return;
-
-                        try {
-                          toast.info("Enhancing email with AI...");
-
-                          // Get donor data
-                          const donor = donorsData?.find((d) => d.id === donorId);
-                          if (!donor) return;
-
-                          // Use the generate emails API with the enhancement instruction
-                          const result = await generateEmails.mutateAsync({
-                            instruction: `${
-                              previousInstruction || instruction
-                            }\n\nAdditional enhancement: ${enhanceInstruction}`,
-                            donors: [
-                              {
-                                id: donor.id,
-                                firstName: donor.firstName,
-                                lastName: donor.lastName,
-                                email: donor.email,
-                              },
-                            ],
-                            organizationName: organization.name,
-                            organizationWritingInstructions: organization.writingInstructions ?? undefined,
-                            previousInstruction,
-                            currentDate: new Date().toLocaleDateString("en-US", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            }),
-                            chatHistory: chatMessages, // Use current chat history for enhancement context
-                            signature: currentSignature,
-                          });
-
-                          if (result && !("isAgenticFlow" in result)) {
-                            const emailResult = result as GenerateEmailsResponse;
-                            if (emailResult.emails.length > 0) {
-                              const enhancedEmail = emailResult.emails[0];
-
-                              // Update the email in state
-                              setAllGeneratedEmails((prev) =>
-                                prev.map((email) =>
-                                  email.donorId === donorId
-                                    ? {
-                                        ...email,
-                                        subject: enhancedEmail.subject,
-                                        structuredContent: enhancedEmail.structuredContent,
-                                        emailContent: enhancedEmail.emailContent,
-                                        reasoning: enhancedEmail.reasoning,
-                                        referenceContexts: enhancedEmail.referenceContexts,
-                                      }
-                                    : email
-                                )
-                              );
-
-                              // If sessionId exists, save the enhanced email to backend
-                              if (sessionId && emailToEnhance.id) {
-                                try {
-                                  await updateEmail.mutateAsync({
-                                    emailId: emailToEnhance.id,
-                                    subject: enhancedEmail.subject,
-                                    structuredContent: enhancedEmail.structuredContent || [],
-                                    referenceContexts: enhancedEmail.referenceContexts || {},
-                                  });
-                                } catch (error) {
-                                  console.error("Failed to save enhanced email to backend:", error);
-                                }
-                              }
-
-                              toast.success("Email enhanced successfully!");
-                            }
-                          }
-                        } catch (error) {
-                          console.error("Error enhancing email:", error);
-                          toast.error("Failed to enhance email. Please try again.");
-                        }
-                      }}
-                      isGeneratingMore={isGeneratingMore}
-                      remainingDonorsCount={totalRemainingDonors}
-                      generateMoreCount={GENERATE_MORE_COUNT}
-                      getStaffName={(staffId) => {
-                        if (!staffId || !staffData?.staff) return "Unassigned";
-                        const staff = staffData.staff.find((s) => s.id === staffId);
-                        return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
-                      }}
-                      getStaffDetails={(staffId) => {
-                        if (!staffId || !staffData?.staff) return null;
-                        return staffData.staff.find((s) => s.id === staffId) || null;
-                      }}
-                      primaryStaff={primaryStaff || null}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="text-center space-y-3">
-                      <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center">
+      {/* Main Content - Claude Artifacts Style Layout */}
+      <div className="flex-1 min-h-0 bg-background border rounded-lg overflow-hidden">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-2">
+          {/* Left Side - Chat & Generate */}
+          <div className="flex flex-col h-full border-r">
+            {/* Header */}
+            {/* Chat Messages & Input - All Scrollable */}
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-4 space-y-3">
+                {chatMessages.length === 0 ? (
+                  <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="text-center text-muted-foreground">
+                      <div className="w-12 h-12 mx-auto bg-muted rounded-full flex items-center justify-center mb-3">
                         <Mail className="h-6 w-6" />
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">No emails generated yet</p>
-                        <p className="text-xs">
-                          {templatePrompt
-                            ? "Generating emails from template..."
-                            : "Switch to the Chat & Generate tab to get started"}
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium">Start your email generation</p>
+                      <p className="text-xs">Write instructions below to generate personalized emails</p>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    {chatMessages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={cn("flex flex-col space-y-1", {
+                          "items-end": message.role === "user",
+                        })}
+                      >
+                        <div
+                          className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
+                            "bg-primary text-primary-foreground": message.role === "user",
+                            "bg-muted": message.role === "assistant",
+                          })}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        </div>
+                        {message.role === "assistant" &&
+                          suggestedMemories.length > 0 &&
+                          index === chatMessages.length - 1 && (
+                            <div className="w-full mt-3">
+                              <SuggestedMemories memories={suggestedMemories} />
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
+                  </>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+
+                {/* Input Area - Now scrollable */}
+                <div className="pt-4 border-t bg-background">
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <MentionsInput
+                        value={instruction}
+                        onChange={handleMentionChange}
+                        placeholder={
+                          isLoadingProjects
+                            ? "Loading projects... Type @ to mention projects once loaded"
+                            : projectMentions.length > 0
+                            ? `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
+                            : "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send."
+                        }
+                        className="mentions-input min-h-[80px]"
+                        onKeyDown={handleKeyDown}
+                      >
+                        <Mention
+                          trigger="@"
+                          data={projectMentions}
+                          markup="@[__display__](__id__)"
+                          displayTransform={(id, display) => `@${display}`}
+                          appendSpaceOnAdd={true}
+                        />
+                      </MentionsInput>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={() => setShowRegenerateDialog(true)}
+                        disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Regenerate
+                      </Button>
+                      <Button
+                        onClick={() => handleSubmitInstruction()}
+                        disabled={isGenerating || !instruction.trim()}
+                        variant="default"
+                        size="sm"
+                      >
+                        {isGenerating ? "Generating..." : "Generate Emails"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Right Side - Email Preview */}
+          <div className="flex flex-col h-full">
+            {/* Content Area - Independently Scrollable */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {isGenerating && (
+                <div className="flex items-center justify-center h-full text-muted-foreground p-3">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium">Generating personalized emails...</p>
+                      <p className="text-xs text-muted-foreground">This may take a few moments</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!isGenerating && allGeneratedEmails.length > 0 && (
+                <div className="h-full p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto">
+                  <EmailListViewer
+                    emails={allGeneratedEmails
+                      .map((email) => ({
+                        ...email,
+                        status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
+                        emailContent: email.emailContent,
+                        reasoning: email.reasoning,
+                      }))
+                      .sort((a, b) => {
+                        // Sort emails by donor name
+                        const donorA = donorsData?.find((d) => d.id === a.donorId);
+                        const donorB = donorsData?.find((d) => d.id === b.donorId);
+                        if (!donorA || !donorB) return 0;
+                        const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
+                        const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
+                        return nameA.localeCompare(nameB);
+                      })}
+                    donors={
+                      donorsData
+                        ?.filter((donor) => !!donor)
+                        .map((donor) => ({
+                          id: donor.id,
+                          firstName: donor.firstName,
+                          lastName: donor.lastName,
+                          email: donor.email,
+                          assignedToStaffId: donor.assignedToStaffId,
+                        })) || []
+                    }
+                    referenceContexts={referenceContexts}
+                    showSearch={true}
+                    showPagination={true}
+                    showTracking={false}
+                    showStaffAssignment={true}
+                    showSendButton={false}
+                    showEditButton={true}
+                    showDonorTooltips={true}
+                    emailsPerPage={EMAILS_PER_PAGE}
+                    maxHeight="calc(100vh - 380px)"
+                    emptyStateTitle="No emails generated yet"
+                    emptyStateDescription={
+                      templatePrompt
+                        ? "Generating emails from template..."
+                        : "Use the chat interface to generate emails"
+                    }
+                    onEmailStatusChange={handleEmailStatusChange}
+                    isUpdatingStatus={isUpdatingStatus}
+                    sessionId={sessionId}
+                    onPreviewEdit={async (donorId, newSubject, newContent) => {
+                      // Update the local state with edited email
+                      setAllGeneratedEmails((prev) =>
+                        prev.map((email) =>
+                          email.donorId === donorId
+                            ? { ...email, subject: newSubject, structuredContent: newContent }
+                            : email
+                        )
+                      );
+
+                      // If we have a sessionId and the email has been saved (has an id), update it in the backend
+                      const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
+                      if (sessionId && emailToUpdate && emailToUpdate.id) {
+                        try {
+                          await updateEmail.mutateAsync({
+                            emailId: emailToUpdate.id,
+                            subject: newSubject,
+                            structuredContent: newContent,
+                            referenceContexts: emailToUpdate.referenceContexts || {},
+                          });
+                          toast.success("Email updated successfully!");
+                        } catch (error) {
+                          console.error("Failed to update email in backend:", error);
+                          toast.error("Failed to save email changes. Changes are only saved locally.");
+                        }
+                      } else {
+                        toast.success("Email updated locally!");
+                      }
+                    }}
+                    onPreviewEnhance={async (donorId, enhanceInstruction) => {
+                      // Find the email to enhance
+                      const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
+                      if (!emailToEnhance || !organization) return;
+
+                      try {
+                        toast.info("Enhancing email with AI...");
+
+                        // Get donor data
+                        const donor = donorsData?.find((d) => d.id === donorId);
+                        if (!donor) return;
+
+                        // Use the generate emails API with the enhancement instruction
+                        const result = await generateEmails.mutateAsync({
+                          instruction: `${
+                            previousInstruction || instruction
+                          }\n\nAdditional enhancement: ${enhanceInstruction}`,
+                          donors: [
+                            {
+                              id: donor.id,
+                              firstName: donor.firstName,
+                              lastName: donor.lastName,
+                              email: donor.email,
+                            },
+                          ],
+                          organizationName: organization.name,
+                          organizationWritingInstructions: organization.writingInstructions ?? undefined,
+                          previousInstruction,
+                          currentDate: new Date().toLocaleDateString("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          }),
+                          chatHistory: chatMessages, // Use current chat history for enhancement context
+                          signature: currentSignature,
+                        });
+
+                        if (result && !("isAgenticFlow" in result)) {
+                          const emailResult = result as GenerateEmailsResponse;
+                          if (emailResult.emails.length > 0) {
+                            const enhancedEmail = emailResult.emails[0];
+
+                            // Update the email in state
+                            setAllGeneratedEmails((prev) =>
+                              prev.map((email) =>
+                                email.donorId === donorId
+                                  ? {
+                                      ...email,
+                                      subject: enhancedEmail.subject,
+                                      structuredContent: enhancedEmail.structuredContent,
+                                      emailContent: enhancedEmail.emailContent,
+                                      reasoning: enhancedEmail.reasoning,
+                                      referenceContexts: enhancedEmail.referenceContexts,
+                                    }
+                                  : email
+                              )
+                            );
+
+                            // If sessionId exists, save the enhanced email to backend
+                            if (sessionId && emailToEnhance.id) {
+                              try {
+                                await updateEmail.mutateAsync({
+                                  emailId: emailToEnhance.id,
+                                  subject: enhancedEmail.subject,
+                                  structuredContent: enhancedEmail.structuredContent || [],
+                                  referenceContexts: enhancedEmail.referenceContexts || {},
+                                });
+                              } catch (error) {
+                                console.error("Failed to save enhanced email to backend:", error);
+                              }
+                            }
+
+                            toast.success("Email enhanced successfully!");
+                          }
+                        }
+                      } catch (error) {
+                        console.error("Error enhancing email:", error);
+                        toast.error("Failed to enhance email. Please try again.");
+                      }
+                    }}
+                    isGeneratingMore={isGeneratingMore}
+                    remainingDonorsCount={totalRemainingDonors}
+                    generateMoreCount={GENERATE_MORE_COUNT}
+                    getStaffName={(staffId) => {
+                      if (!staffId || !staffData?.staff) return "Unassigned";
+                      const staff = staffData.staff.find((s) => s.id === staffId);
+                      return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
+                    }}
+                    getStaffDetails={(staffId) => {
+                      if (!staffId || !staffData?.staff) return null;
+                      return staffData.staff.find((s) => s.id === staffId) || null;
+                    }}
+                    primaryStaff={primaryStaff || null}
+                  />
+                </div>
+              )}
+              {!isGenerating && allGeneratedEmails.length === 0 && (
+                <div className="flex items-center justify-center h-full text-muted-foreground p-3">
+                  <div className="text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto bg-muted rounded-full flex items-center justify-center">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium">No emails generated yet</p>
+                      <p className="text-xs text-muted-foreground">
+                        {templatePrompt
+                          ? "Generating emails from template..."
+                          : "Use the chat interface on the left to generate emails"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Bulk Generation Confirmation Dialog */}
