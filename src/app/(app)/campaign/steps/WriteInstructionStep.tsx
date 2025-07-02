@@ -5,10 +5,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useProjects } from "@/app/hooks/use-projects";
 import { useStaff } from "@/app/hooks/use-staff";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -17,18 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye, ArrowLeft, ArrowRight } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@clerk/nextjs";
+import { ArrowLeft, ArrowRight, Mail, RefreshCw, Users } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mention, MentionsInput } from "react-mentions";
 import { toast } from "sonner";
-import { useAuth } from "@clerk/nextjs";
-import { EmailListViewer, BaseGeneratedEmail, BaseDonor } from "../components/EmailListViewer";
+import { EmailListViewer } from "../components/EmailListViewer";
 import { SuggestedMemories } from "../components/SuggestedMemories";
-import { SignatureEditor, SignaturePreview } from "@/components/signature";
 import "../styles.css";
 
 interface WriteInstructionStepProps {
@@ -118,6 +113,86 @@ interface AgenticFlowResponse {
 }
 
 type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse;
+
+// Add this new component before the main WriteInstructionStepComponent
+interface IsolatedInputProps {
+  initialValue: string;
+  placeholder: string;
+  projectMentions: Array<{ id: string; display: string }>;
+  onSubmit: (value: string) => void;
+  isGenerating: boolean;
+  onKeyDown?: (event: React.KeyboardEvent<any>) => void;
+}
+
+function IsolatedMentionsInput({
+  initialValue,
+  placeholder,
+  projectMentions,
+  onSubmit,
+  isGenerating,
+  onKeyDown,
+}: IsolatedInputProps) {
+  const [localValue, setLocalValue] = useState(initialValue);
+  const valueRef = useRef(initialValue);
+
+  // Update local value when initial value changes (from external sources)
+  useEffect(() => {
+    if (initialValue !== localValue) {
+      setLocalValue(initialValue);
+      valueRef.current = initialValue;
+    }
+  }, [initialValue]);
+
+  const handleChange = useCallback((event: any, newValue: string) => {
+    console.log(`[IsolatedInput] Typing - only input component re-renders`);
+    setLocalValue(newValue);
+    valueRef.current = newValue;
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (valueRef.current.trim()) {
+      onSubmit(valueRef.current);
+      setLocalValue(""); // Clear after submit
+      valueRef.current = "";
+    }
+  }, [onSubmit]);
+
+  const handleKeyDownInternal = useCallback(
+    (event: React.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        if (!isGenerating && valueRef.current.trim()) {
+          handleSubmit();
+        }
+      }
+      onKeyDown?.(event);
+    },
+    [handleSubmit, isGenerating, onKeyDown]
+  );
+
+  const mentionsInputStyle = useMemo(() => ({ fontSize: "13px" }), []);
+
+  return (
+    <div className="max-h-[120px] overflow-y-auto p-4 pb-2">
+      <MentionsInput
+        value={localValue}
+        onChange={handleChange}
+        placeholder={placeholder}
+        className="mentions-input min-h-[60px]"
+        onKeyDown={handleKeyDownInternal}
+        style={mentionsInputStyle}
+      >
+        <Mention
+          trigger="@"
+          data={projectMentions}
+          markup="@[__display__](__id__)"
+          displayTransform={(id, display) => `@${display}`}
+          appendSpaceOnAdd={true}
+        />
+      </MentionsInput>
+    </div>
+  );
+}
 
 function WriteInstructionStepComponent({
   instruction,
@@ -463,7 +538,7 @@ function WriteInstructionStepComponent({
 
   const handleSubmitInstruction = useCallback(
     async (instructionToSubmit?: string) => {
-      // Use ref to get current value without dependency on localInstruction state
+      // Get instruction from parameter (called by isolated input) or fallback to ref
       const finalInstruction = instructionToSubmit || localInstructionRef.current;
       if (!finalInstruction.trim() || !organization) return;
 
@@ -1077,31 +1152,12 @@ function WriteInstructionStepComponent({
   //   });
   // }, [referenceContexts]);
 
-  // Handle mentions input change - only update local state, no parent notification
-  const handleMentionChange = useCallback(
-    (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
-      console.log(`[handleMentionChange] Called at ${new Date().toISOString()}`, {
-        newValueLength: newValue?.length,
-        mentionsCount: mentions?.length,
-      });
-      // Only update local state - this prevents re-renders of parent components
-      setLocalInstruction(newValue);
-    },
-    [] // No dependencies - this callback is stable
-  );
+  // Input is now handled by IsolatedMentionsInput component
 
-  // Handle keydown for submitting with Cmd/Ctrl + Enter
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault(); // Prevent default form submission or newline
-        if (!isGenerating && localInstructionRef.current.trim()) {
-          handleSubmitInstruction();
-        }
-      }
-    },
-    [isGenerating, handleSubmitInstruction] // Removed localInstruction dependency
-  );
+  // Handle keydown - simplified since isolated input handles submission
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<any>) => {
+    // Isolated input handles Cmd/Ctrl+Enter, this is just for other key events if needed
+  }, []);
 
   // Handle email status change
   const handleEmailStatusChange = useCallback(
@@ -1181,9 +1237,6 @@ function WriteInstructionStepComponent({
   }, [emailStatuses]);
 
   // TODO: Add signature refetch functionality for edit mode later
-
-  // Memoize MentionsInput style to prevent re-renders
-  const mentionsInputStyle = useMemo(() => ({ fontSize: "13px" }), []);
 
   // Memoize placeholder to prevent re-renders from string concatenation
   const mentionsInputPlaceholder = useMemo(() => {
@@ -1442,24 +1495,14 @@ function WriteInstructionStepComponent({
             {/* Input Area - Fixed at bottom */}
             <div className="border-t bg-background flex-shrink-0">
               {/* Input Box - Scrollable */}
-              <div className="max-h-[120px] overflow-y-auto p-4 pb-2">
-                <MentionsInput
-                  value={localInstruction}
-                  onChange={handleMentionChange}
-                  placeholder={mentionsInputPlaceholder}
-                  className="mentions-input min-h-[60px]"
-                  onKeyDown={handleKeyDown}
-                  style={mentionsInputStyle}
-                >
-                  <Mention
-                    trigger="@"
-                    data={projectMentions}
-                    markup="@[__display__](__id__)"
-                    displayTransform={(id, display) => `@${display}`}
-                    appendSpaceOnAdd={true}
-                  />
-                </MentionsInput>
-              </div>
+              <IsolatedMentionsInput
+                initialValue={localInstruction}
+                placeholder={mentionsInputPlaceholder}
+                projectMentions={projectMentions}
+                onSubmit={handleSubmitInstruction}
+                isGenerating={isGenerating}
+                onKeyDown={handleKeyDown}
+              />
               {/* Buttons - Bottom line */}
               <div className="flex justify-end gap-2 px-4 py-2 border-t">
                 <Button

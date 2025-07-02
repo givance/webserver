@@ -1,17 +1,17 @@
 "use client";
 
-import { useDonors } from "@/app/hooks/use-donors";
 import { useCommunications } from "@/app/hooks/use-communications";
+import { useDonorStaffEmailValidation } from "@/app/hooks/use-donor-validation";
+import { useDonors } from "@/app/hooks/use-donors";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { EmailPiece } from "@/app/lib/utils/email-generator/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState, useEffect } from "react";
-import { EmailDisplay } from "../components/EmailDisplay";
+import { AlertCircle, AlertTriangle, ArrowLeft, Clock } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Clock, Send, AlertCircle, AlertTriangle, ArrowLeft } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
+import { EmailDisplay } from "../components/EmailDisplay";
 
 interface GeneratedEmail {
   donorId: number;

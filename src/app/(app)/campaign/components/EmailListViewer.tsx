@@ -1,35 +1,34 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import { trpc } from "@/app/lib/trpc/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
-  Search,
-  X,
+  AlertCircle,
+  Calendar,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Mail,
-  Eye,
-  Check,
   Clock,
-  RefreshCw,
-  Plus,
-  AlertCircle,
   DollarSign,
-  Calendar,
+  Eye,
   Hash,
   HelpCircle,
+  Mail,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useCallback, useMemo, useState } from "react";
 import { EmailDisplay } from "./EmailDisplay";
-import Link from "next/link";
-import { trpc } from "@/app/lib/trpc/client";
 
 // Base email interface that both components can extend
 export interface BaseGeneratedEmail {
