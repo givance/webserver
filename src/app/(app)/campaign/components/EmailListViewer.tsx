@@ -131,6 +131,10 @@ export interface EmailListViewerProps {
   isGeneratingMore?: boolean;
   remainingDonorsCount?: number;
   generateMoreCount?: number;
+  
+  // Control recipients list expansion
+  isRecipientsExpanded?: boolean;
+  onRecipientsExpandedChange?: (expanded: boolean) => void;
 }
 
 export const EmailListViewer = React.memo(function EmailListViewer({
@@ -169,6 +173,8 @@ export const EmailListViewer = React.memo(function EmailListViewer({
   isGeneratingMore = false,
   remainingDonorsCount = 0,
   generateMoreCount = 0,
+  isRecipientsExpanded,
+  onRecipientsExpandedChange,
 }: EmailListViewerProps) {
   // Debug logging for re-renders
   console.log(`[EmailListViewer] RENDER at ${new Date().toISOString()}`, {
@@ -182,7 +188,19 @@ export const EmailListViewer = React.memo(function EmailListViewer({
   const [donorDonations, setDonorDonations] = useState<
     Record<number, { donations: any[]; totalCount: number; totalAmount: number }>
   >({});
-  const [isRecipientsCollapsed, setIsRecipientsCollapsed] = useState(true); // Collapsed by default
+  // Use controlled state if provided, otherwise use internal state
+  const [internalRecipientsCollapsed, setInternalRecipientsCollapsed] = useState(true);
+  const isRecipientsCollapsed = isRecipientsExpanded !== undefined ? !isRecipientsExpanded : internalRecipientsCollapsed;
+  
+  const setIsRecipientsCollapsed = useCallback((collapsed: boolean) => {
+    if (isRecipientsExpanded !== undefined && onRecipientsExpandedChange) {
+      // Controlled mode - notify parent
+      onRecipientsExpandedChange(!collapsed);
+    } else {
+      // Uncontrolled mode - update internal state
+      setInternalRecipientsCollapsed(collapsed);
+    }
+  }, [isRecipientsExpanded, onRecipientsExpandedChange]);
 
   // Use refs to track state without triggering callback recreation
   const loadingDonationsRef = useRef<Record<number, boolean>>({});
