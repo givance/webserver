@@ -1,33 +1,34 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import { trpc } from "@/app/lib/trpc/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
-  Search,
-  X,
+  AlertCircle,
+  Calendar,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Mail,
-  Eye,
-  Check,
   Clock,
-  RefreshCw,
-  Plus,
-  AlertCircle,
   DollarSign,
-  Calendar,
+  Eye,
   Hash,
   HelpCircle,
+  Mail,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { EmailDisplay } from "./EmailDisplay";
-import Link from "next/link";
-import { trpc } from "@/app/lib/trpc/client";
 
 // Base email interface that both components can extend
 export interface BaseGeneratedEmail {
@@ -132,7 +133,7 @@ export interface EmailListViewerProps {
   generateMoreCount?: number;
 }
 
-export function EmailListViewer({
+export const EmailListViewer = React.memo(function EmailListViewer({
   emails,
   donors,
   referenceContexts,
@@ -169,12 +170,27 @@ export function EmailListViewer({
   remainingDonorsCount = 0,
   generateMoreCount = 0,
 }: EmailListViewerProps) {
+  // Debug logging for re-renders
+  console.log(`[EmailListViewer] RENDER at ${new Date().toISOString()}`, {
+    emailsCount: emails?.length,
+    donorsCount: donors?.length,
+    sessionId,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingDonations, setLoadingDonations] = useState<Record<number, boolean>>({});
   const [donorDonations, setDonorDonations] = useState<
     Record<number, { donations: any[]; totalCount: number; totalAmount: number }>
   >({});
+  const [isRecipientsCollapsed, setIsRecipientsCollapsed] = useState(true); // Collapsed by default
+
+  // Use refs to track state without triggering callback recreation
+  const loadingDonationsRef = useRef<Record<number, boolean>>({});
+  const donorDonationsRef = useRef<Record<number, { donations: any[]; totalCount: number; totalAmount: number }>>({});
+
+  // Keep refs in sync with state
+  loadingDonationsRef.current = loadingDonations;
+  donorDonationsRef.current = donorDonations;
 
   const utils = trpc.useUtils();
 
@@ -251,6 +267,11 @@ export function EmailListViewer({
     return `${donor.firstName} ${donor.lastName}`;
   };
 
+  // Get donor initials for collapsed view
+  const getDonorInitials = (donor: BaseDonor) => {
+    return `${donor.firstName.charAt(0)}${donor.lastName.charAt(0)}`.toUpperCase();
+  };
+
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -273,7 +294,8 @@ export function EmailListViewer({
 
   const loadDonorDonations = useCallback(
     async (donorId: number) => {
-      if (loadingDonations[donorId] || donorDonations[donorId]) return;
+      // Use refs to avoid dependency on state - prevents callback recreation
+      if (loadingDonationsRef.current[donorId] || donorDonationsRef.current[donorId]) return;
 
       setLoadingDonations((prev) => ({ ...prev, [donorId]: true }));
 
@@ -306,7 +328,7 @@ export function EmailListViewer({
         setLoadingDonations((prev) => ({ ...prev, [donorId]: false }));
       }
     },
-    [utils.donations.list, utils.donations.getDonorStats, loadingDonations, donorDonations]
+    [utils.donations.list, utils.donations.getDonorStats]
   );
 
   return (
@@ -383,17 +405,42 @@ export function EmailListViewer({
             className="h-full"
             key={`search-${searchTerm}-page-${currentPage}-${paginatedEmails.length}`}
           >
-            <div className="grid grid-cols-[320px_1fr] border rounded-lg overflow-hidden" style={{ height: maxHeight }}>
+            <div
+              className={cn(
+                "grid border rounded-lg overflow-hidden transition-all duration-300 h-full",
+                isRecipientsCollapsed ? "grid-cols-[80px_1fr]" : "grid-cols-[320px_1fr]"
+              )}
+            >
               <div className="border-r bg-background h-full overflow-y-auto">
                 <div className="flex flex-col min-h-full">
                   <div className="p-3 border-b bg-muted/30 flex-shrink-0">
-                    <h3 className="font-medium text-sm text-muted-foreground">
-                      Recipients ({paginatedEmails.length}
-                      {showPagination && safeFilteredEmails.length !== paginatedEmails.length
-                        ? ` of ${filteredEmails.length}`
-                        : ""}
-                      )
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      {isRecipientsCollapsed ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-medium text-muted-foreground">{paginatedEmails.length}</span>
+                        </div>
+                      ) : (
+                        <h3 className="font-medium text-sm text-muted-foreground">
+                          Recipients ({paginatedEmails.length}
+                          {showPagination && safeFilteredEmails.length !== paginatedEmails.length
+                            ? ` of ${filteredEmails.length}`
+                            : ""}
+                          )
+                        </h3>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsRecipientsCollapsed(!isRecipientsCollapsed)}
+                        className="h-6 w-6 p-0"
+                      >
+                        {isRecipientsCollapsed ? (
+                          <PanelLeftOpen className="h-3 w-3" />
+                        ) : (
+                          <PanelLeftClose className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   <TabsList className="flex flex-col w-full h-auto bg-transparent p-2 space-y-1 flex-grow">
                     {paginatedEmails.map((email) => {
@@ -416,23 +463,45 @@ export function EmailListViewer({
                           key={email.donorId}
                           value={email.donorId.toString()}
                           className={cn(
-                            "w-full p-3 rounded-md border border-transparent",
-                            "flex flex-col items-start justify-start gap-2",
-                            "text-left min-h-[72px] h-auto",
+                            "w-full rounded-md border border-transparent",
+                            "flex items-center justify-center gap-2",
                             "transition-all duration-200",
                             "hover:bg-muted/50 hover:border-border",
                             "data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20",
-                            "data-[state=active]:shadow-sm"
+                            "data-[state=active]:shadow-sm",
+                            "group relative",
+                            isRecipientsCollapsed
+                              ? "p-2 min-h-[48px] h-auto flex-col"
+                              : "p-3 min-h-[72px] h-auto flex-col items-start justify-start"
                           )}
                         >
-                          <div className="flex items-center justify-between w-full">
-                            {showDonorTooltips ? (
+                          {isRecipientsCollapsed ? (
+                            // Collapsed view - show initials and status
+                            <>
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="text-xs font-semibold text-primary">{getDonorInitials(donor)}</span>
+                              </div>
+                              <div className="flex flex-col items-center gap-1">
+                                {/* Approval status badge - only show green dot for approved */}
+                                {email.status === "APPROVED" && (
+                                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                )}
+                                {/* Email connection error indicator */}
+                                {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
+                                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                )}
+                                {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
+                                  <span className="text-xs text-muted-foreground">{trackingStatsData.uniqueOpens}</span>
+                                )}
+                              </div>
+
+                              {/* Tooltip with full information on hover */}
                               <Tooltip>
-                                <TooltipTrigger asChild onMouseEnter={() => loadDonorDonations(donor.id)}>
-                                  <span className="font-medium text-sm truncate flex-1 cursor-help hover:text-primary transition-colors flex items-center gap-1">
-                                    {formatDonorName(donor)}
-                                    <HelpCircle className="h-3 w-3 text-muted-foreground opacity-60" />
-                                  </span>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className="absolute inset-0 cursor-help"
+                                    onMouseEnter={() => loadDonorDonations(donor.id)}
+                                  />
                                 </TooltipTrigger>
                                 <TooltipContent
                                   side="right"
@@ -441,6 +510,64 @@ export function EmailListViewer({
                                 >
                                   <div className="p-4 space-y-3">
                                     <div className="font-semibold text-sm border-b pb-2">{formatDonorName(donor)}</div>
+
+                                    <div className="space-y-3 text-sm">
+                                      <div>
+                                        <span className="text-gray-600 dark:text-gray-400">Email:</span>
+                                        <br />
+                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                          {donor?.email || "No email"}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-600 dark:text-gray-400">Staff:</span>
+                                        <br />
+                                        {assignedStaffName && assignedStaffName !== "Unassigned" ? (
+                                          <div>
+                                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                                              {assignedStaffName}
+                                            </span>
+                                            {!hasConnectedEmail && (
+                                              <span className="text-red-500 text-xs ml-2">• No email connected</span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-500 text-xs">No staff assigned</span>
+                                        )}
+                                      </div>
+                                      {assignedStaffName &&
+                                        assignedStaffName !== "Unassigned" &&
+                                        staffDetails?.gmailToken?.email && (
+                                          <div>
+                                            <span className="text-gray-600 dark:text-gray-400">Staff Email:</span>
+                                            <br />
+                                            <span className="font-medium text-xs text-gray-900 dark:text-gray-100">
+                                              {staffDetails.gmailToken.email}
+                                            </span>
+                                          </div>
+                                        )}
+                                      <div>
+                                        <span className="text-gray-600 dark:text-gray-400">Status:</span>
+                                        <br />
+                                        {email.status === "APPROVED" ? (
+                                          <Badge
+                                            variant="default"
+                                            className="text-xs inline-flex items-center gap-1 bg-green-500 mt-1"
+                                          >
+                                            <Check className="h-3 w-3" />
+                                            Approved
+                                          </Badge>
+                                        ) : (
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-xs inline-flex items-center gap-1 mt-1"
+                                          >
+                                            <Clock className="h-3 w-3" />
+                                            Pending
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
 
                                     {loadingDonations[donor.id] ? (
                                       <div className="text-sm text-muted-foreground">Loading donations...</div>
@@ -502,62 +629,151 @@ export function EmailListViewer({
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
-                            ) : (
-                              <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
-                            )}
-                            <div className="flex items-center gap-1">
-                              {/* Email connection error icon */}
-                              {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
-                                <Badge
-                                  variant="destructive"
-                                  className="text-xs flex items-center gap-1 px-1.5 py-0 h-5"
-                                >
-                                  <AlertCircle className="h-3 w-3" />
-                                </Badge>
-                              )}
-                              {/* Approval status badge */}
-                              {email.status === "APPROVED" ? (
-                                <Badge variant="default" className="text-xs flex items-center gap-1 bg-green-500">
-                                  <Check className="h-3 w-3" />
-                                  Approved
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  Pending
-                                </Badge>
-                              )}
-                              {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
-                                <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
-                                  <Eye className="h-3 w-3" />
-                                  {trackingStatsData.uniqueOpens}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="w-full space-y-1">
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-muted-foreground">Donor email:</span>
-                              <span className="text-xs text-muted-foreground/80 truncate">{donor.email}</span>
-                            </div>
-                            {assignedStaffName && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground">Assigned staff:</span>
-                                <span className="text-xs text-muted-foreground font-medium">{assignedStaffName}</span>
-                                {!hasConnectedEmail && <span className="text-xs text-red-500">• No email</span>}
+                            </>
+                          ) : (
+                            // Expanded view - show full information as before
+                            <>
+                              <div className="flex items-center justify-between w-full">
+                                {showDonorTooltips ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild onMouseEnter={() => loadDonorDonations(donor.id)}>
+                                      <span className="font-medium text-sm truncate flex-1 cursor-help hover:text-primary transition-colors flex items-center gap-1">
+                                        {formatDonorName(donor)}
+                                        <HelpCircle className="h-3 w-3 text-muted-foreground opacity-60" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="right"
+                                      align="start"
+                                      className="max-w-sm p-0 bg-background border"
+                                    >
+                                      <div className="p-4 space-y-3">
+                                        <div className="font-semibold text-sm border-b pb-2">
+                                          {formatDonorName(donor)}
+                                        </div>
+
+                                        {loadingDonations[donor.id] ? (
+                                          <div className="text-sm text-muted-foreground">Loading donations...</div>
+                                        ) : donorDonations[donor.id] ? (
+                                          <>
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                              <div>
+                                                <div className="text-gray-600 dark:text-gray-400">Total Donations</div>
+                                                <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
+                                                  <Hash className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                                  {donorDonations[donor.id].totalCount || 0}
+                                                </div>
+                                              </div>
+                                              <div>
+                                                <div className="text-gray-600 dark:text-gray-400">Total Amount</div>
+                                                <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
+                                                  <DollarSign className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                                  {formatCurrency(donorDonations[donor.id].totalAmount || 0)}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {donorDonations[donor.id].donations.length > 0 && (
+                                              <div className="space-y-1">
+                                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                  Recent Donations
+                                                </div>
+                                                <div className="max-h-48 overflow-y-auto space-y-1">
+                                                  {donorDonations[donor.id].donations
+                                                    .slice(0, 20)
+                                                    .map((donation: any, idx: number) => (
+                                                      <div
+                                                        key={idx}
+                                                        className="flex items-center justify-between text-xs py-1 border-b last:border-0"
+                                                      >
+                                                        <div className="flex items-center gap-2">
+                                                          <Calendar className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                                          <span className="text-gray-900 dark:text-gray-100">
+                                                            {formatDate(donation.date)}
+                                                          </span>
+                                                          {donation.project && (
+                                                            <span className="text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
+                                                              • {donation.project.name}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                          {formatCurrency(donation.amount)}
+                                                        </span>
+                                                      </div>
+                                                    ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                                            No donations found
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="font-medium text-sm truncate flex-1">{formatDonorName(donor)}</span>
+                                )}
+                                <div className="flex items-center gap-1">
+                                  {/* Email connection error icon */}
+                                  {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-xs flex items-center gap-1 px-1.5 py-0 h-5"
+                                    >
+                                      <AlertCircle className="h-3 w-3" />
+                                    </Badge>
+                                  )}
+                                  {/* Approval status badge */}
+                                  {email.status === "APPROVED" ? (
+                                    <Badge variant="default" className="text-xs flex items-center gap-1 bg-green-500">
+                                      <Check className="h-3 w-3" />
+                                      Approved
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      Pending
+                                    </Badge>
+                                  )}
+                                  {trackingStatsData && trackingStatsData.uniqueOpens > 0 && (
+                                    <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
+                                      <Eye className="h-3 w-3" />
+                                      {trackingStatsData.uniqueOpens}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                            {assignedStaffName && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground">Assigned staff email:</span>
-                                <span className="text-xs text-muted-foreground/80 truncate">
-                                  {hasConnectedEmail && staffDetails?.gmailToken?.email
-                                    ? staffDetails.gmailToken.email
-                                    : "No email connected"}
-                                </span>
+                              <div className="w-full space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground">Donor email:</span>
+                                  <span className="text-xs text-muted-foreground/80 truncate">{donor.email}</span>
+                                </div>
+                                {assignedStaffName && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Assigned staff:</span>
+                                    <span className="text-xs text-muted-foreground font-medium">
+                                      {assignedStaffName}
+                                    </span>
+                                    {!hasConnectedEmail && <span className="text-xs text-red-500">• No email</span>}
+                                  </div>
+                                )}
+                                {assignedStaffName && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Assigned staff email:</span>
+                                    <span className="text-xs text-muted-foreground/80 truncate">
+                                      {hasConnectedEmail && staffDetails?.gmailToken?.email
+                                        ? staffDetails.gmailToken.email
+                                        : "No email connected"}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            </>
+                          )}
                         </TabsTrigger>
                       );
                     })}
@@ -565,42 +781,70 @@ export function EmailListViewer({
 
                   {/* Pagination moved to bottom of left panel */}
                   {showPagination && totalPages > 1 && (
-                    <div className="p-3 border-t bg-muted/30 flex-shrink-0">
-                      <div className="flex flex-col space-y-2">
-                        <p className="text-xs text-muted-foreground text-center">
-                          {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of{" "}
-                          {safeFilteredEmails.length}
-                        </p>
-                        <div className="flex items-center justify-center space-x-2">
+                    <div className="p-2 border-t bg-muted/30 flex-shrink-0">
+                      {isRecipientsCollapsed ? (
+                        // Collapsed pagination - more compact
+                        <div className="flex flex-col items-center space-y-1">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                             disabled={currentPage === 1}
-                            className="h-7 px-2"
+                            className="h-6 w-6 p-0"
                           >
                             <ChevronLeft className="h-3 w-3" />
                           </Button>
-                          <span className="text-xs text-muted-foreground">
-                            {currentPage} / {totalPages}
+                          <span className="text-xs text-muted-foreground text-center">
+                            {currentPage}/{totalPages}
                           </span>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                             disabled={currentPage === totalPages}
-                            className="h-7 px-2"
+                            className="h-6 w-6 p-0"
                           >
                             <ChevronRight className="h-3 w-3" />
                           </Button>
                         </div>
-                      </div>
+                      ) : (
+                        // Expanded pagination - full layout
+                        <div className="flex flex-col space-y-2">
+                          <p className="text-xs text-muted-foreground text-center">
+                            {startIndex + 1}-{Math.min(endIndex, safeFilteredEmails.length)} of{" "}
+                            {safeFilteredEmails.length}
+                          </p>
+                          <div className="flex items-center justify-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                              disabled={currentPage === 1}
+                              className="h-7 px-2"
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                              {currentPage} / {totalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                              disabled={currentPage === totalPages}
+                              className="h-7 px-2"
+                            >
+                              <ChevronRight className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex flex-col h-full" style={{ maxHeight: maxHeight }}>
+              <div className="flex flex-col h-full overflow-hidden">
                 {paginatedEmails.map((email) => {
                   const donor = getDonorData(email.donorId);
                   if (!donor) return null;
@@ -684,4 +928,4 @@ export function EmailListViewer({
       </div>
     </div>
   );
-}
+});

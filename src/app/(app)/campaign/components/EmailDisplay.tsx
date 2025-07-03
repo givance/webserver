@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Edit, Check, Clock, Sparkles, AlertCircle, Info, HelpCircle, DollarSign, Calendar, Hash } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { EmailEditModal } from "./EmailEditModal";
 import { EmailSendButton } from "./EmailSendButton";
 import { EmailTrackingStatus } from "./EmailTrackingStatus";
@@ -210,7 +210,7 @@ function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayP
   );
 }
 
-export function EmailDisplay({
+export const EmailDisplay = React.memo(function EmailDisplay({
   donorName,
   donorEmail,
   subject,
@@ -235,6 +235,12 @@ export function EmailDisplay({
   hasLinkedEmail = true,
   defaultStaffEmail,
 }: EmailDisplayProps) {
+  // Debug logging for re-renders
+  console.log(`[EmailDisplay] RENDER at ${new Date().toISOString()}`, {
+    donorId,
+    emailId,
+    subjectLength: subject?.length,
+  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
@@ -350,14 +356,14 @@ export function EmailDisplay({
     plainTextSignatureData && isNewFormat ? plainTextSignatureData.emailContent : emailContent;
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
+    <div className="space-y-3">
+      <Card className="p-3">
+        <CardHeader className="pb-2 px-3 pt-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
               <div className="space-y-1">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <span>To:</span>
+                <div className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                  <span className="font-medium">To:</span>
                   {donorId ? (
                     <TooltipProvider>
                       <Tooltip>
@@ -365,7 +371,7 @@ export function EmailDisplay({
                           <div className="flex items-center gap-1">
                             <Link
                               href={`/donors/${donorId}`}
-                              className="text-primary hover:underline font-medium"
+                              className="text-xs text-primary hover:underline font-medium"
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -440,12 +446,12 @@ export function EmailDisplay({
                   ) : (
                     <span className="font-medium">{donorName}</span>
                   )}
-                  <span className="font-normal text-muted-foreground">({donorEmail})</span>
-                </CardTitle>
+                  <span className="font-normal text-muted-foreground text-xs">({donorEmail})</span>
+                </div>
                 {staffName && (
-                  <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <span>Assigned to:</span>
-                    <span className="font-medium">{staffName}</span>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span className="font-medium">Assigned to:</span>
+                    <span>{staffName}</span>
                     {hasLinkedEmail && staffEmail ? (
                       <span className="text-xs">({staffEmail})</span>
                     ) : (
@@ -472,10 +478,12 @@ export function EmailDisplay({
                   </div>
                 )}
               </div>
-              <div className="text-sm font-medium mt-2">Subject: {isPreviewMode ? previewSubject : subject}</div>
+              <div className="text-xs font-medium mt-1.5">
+                <span className="text-muted-foreground">Subject:</span> {isPreviewMode ? previewSubject : subject}
+              </div>
             </div>
             {((emailId && !emailStatus?.isSent) || isPreviewMode) && showEditButton && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1.5 flex-shrink-0">
                 {((onStatusChange && emailId) || (isPreviewMode && onPreviewStatusChange && donorId)) &&
                   !emailStatus?.isSent && (
                     <Button
@@ -492,19 +500,19 @@ export function EmailDisplay({
                         }
                       }}
                       disabled={isUpdatingStatus}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-1.5 h-7 text-xs px-2"
                     >
                       {isUpdatingStatus ? (
                         "Updating..."
                       ) : approvalStatus === "APPROVED" ? (
                         <>
-                          <Clock className="h-4 w-4" />
-                          Mark Pending
+                          <Clock className="h-3 w-3" />
+                          Unapprove
                         </>
                       ) : (
                         <>
-                          <Check className="h-4 w-4" />
-                          Approve Email
+                          <Check className="h-3 w-3" />
+                          Approve
                         </>
                       )}
                     </Button>
@@ -534,28 +542,28 @@ export function EmailDisplay({
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditModalOpen(true)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5 h-7 text-xs px-2"
                 >
-                  <Edit className="h-4 w-4" />
+                  <Edit className="h-3 w-3" />
                   Edit
                 </Button>
               </div>
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 pb-3">
           <div className="space-y-2 text-sm font-sans">
             {isNewFormat ? (
               // New format: Show plain email content without references
               <div>
                 {/* Show reasoning for new format emails */}
                 {reasoning && (
-                  <div className="mt-2 p-2 bg-muted/30 rounded-md border">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Info className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-medium text-muted-foreground">AI Generation Strategy</span>
+                  <div className="mt-1.5 p-2 bg-muted/30 rounded-md border">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Info className="h-2.5 w-2.5 text-muted-foreground" />
+                      <span className="text-[10px] font-medium text-muted-foreground">AI Generation Strategy</span>
                     </div>
-                    <p className="text-xs text-muted-foreground font-light leading-relaxed">{reasoning}</p>
+                    <p className="text-[10px] text-muted-foreground font-light leading-relaxed">{reasoning}</p>
                   </div>
                 )}
 
@@ -701,4 +709,4 @@ export function EmailDisplay({
       ) : null}
     </div>
   );
-}
+});

@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Eye, MousePointer, MapPin, Clock } from "lucide-react";
 import { useEmailTrackingBySession } from "@/app/hooks/use-email-tracking";
 import { formatDistanceToNow } from "date-fns";
+import React from "react";
 
 interface EmailTrackingStatusProps {
   emailId: number;
@@ -10,13 +11,13 @@ interface EmailTrackingStatusProps {
   sessionId?: number;
 }
 
-export function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTrackingStatusProps) {
+export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTrackingStatusProps) {
   // Always use the session-based approach since that's the one that works
   const { data: trackingData, isLoading, error } = useEmailTrackingBySession(sessionId ?? 0, donorId);
 
-  // Debug logging
-  console.log("[EmailTrackingStatus] Props:", { emailId, donorId, sessionId });
-  console.log("[EmailTrackingStatus] Query state:", { trackingData, isLoading, error });
+  // Debug logging - commented out to reduce console noise
+  // console.log("[EmailTrackingStatus] Props:", { emailId, donorId, sessionId });
+  // console.log("[EmailTrackingStatus] Query state:", { trackingData, isLoading, error });
 
   if (isLoading) {
     return (
@@ -33,7 +34,7 @@ export function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTracki
 
   // Only show tracking status if the email has been sent (has tracking data)
   if (!trackingData || !sessionId || sessionId <= 0) {
-    console.log("[EmailTrackingStatus] No tracking data - email not sent yet");
+    // console.log("[EmailTrackingStatus] No tracking data - email not sent yet");
     return null; // Don't show anything if email hasn't been sent
   }
 
@@ -134,4 +135,4 @@ export function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTracki
       </CardContent>
     </Card>
   );
-}
+});

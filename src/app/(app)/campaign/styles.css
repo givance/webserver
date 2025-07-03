@@ -43,7 +43,6 @@
 .mentions-input__highlighter {
   padding: 12px !important;
   border: 1px solid transparent !important;
-  min-height: 120px !important;
   font-size: 14px !important;
   line-height: 1.5 !important;
 }
@@ -73,7 +72,6 @@
   border-radius: 6px !important;
   background-color: hsl(var(--background)) !important;
   color: hsl(var(--foreground)) !important;
-  min-height: 120px !important;
   font-size: 14px !important;
   line-height: 1.5 !important;
   resize: vertical !important;

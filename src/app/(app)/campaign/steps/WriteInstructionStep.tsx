@@ -5,10 +5,7 @@ import { useDonors } from "@/app/hooks/use-donors";
 import { useOrganization } from "@/app/hooks/use-organization";
 import { useProjects } from "@/app/hooks/use-projects";
 import { useStaff } from "@/app/hooks/use-staff";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -17,18 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Mail, Plus, RefreshCw, FileText, Edit2, Eye } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { ArrowLeft, ArrowRight, Mail, RefreshCw, Users } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mention, MentionsInput } from "react-mentions";
 import { toast } from "sonner";
-import { useAuth } from "@clerk/nextjs";
-import { EmailListViewer, BaseGeneratedEmail, BaseDonor } from "../components/EmailListViewer";
+import { EmailListViewer } from "../components/EmailListViewer";
 import { SuggestedMemories } from "../components/SuggestedMemories";
-import { SignatureEditor, SignaturePreview } from "@/components/signature";
 import "../styles.css";
 
 interface WriteInstructionStepProps {
@@ -55,6 +50,9 @@ interface WriteInstructionStepProps {
   // Edit mode props
   editMode?: boolean;
   sessionId?: number;
+  // Props for external button control
+  onCanLaunchChange?: (canLaunch: boolean) => void;
+  onLaunchHandlerChange?: (handler: (() => void) | null) => void;
 }
 
 // Configuration for preview donor count - can be changed later
@@ -116,7 +114,113 @@ interface AgenticFlowResponse {
 
 type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse;
 
-export function WriteInstructionStep({
+// Add this new component before the main WriteInstructionStepComponent
+interface IsolatedInputProps {
+  initialValue: string;
+  placeholder: string;
+  projectMentions: Array<{ id: string; display: string }>;
+  onSubmit: (value: string) => void;
+  onValueChange?: (value: string) => void; // Add callback for value changes
+  isGenerating: boolean;
+  onKeyDown?: (event: React.KeyboardEvent<any>) => void;
+}
+
+function IsolatedMentionsInput({
+  initialValue,
+  placeholder,
+  projectMentions,
+  onSubmit,
+  onValueChange,
+  isGenerating,
+  onKeyDown,
+}: IsolatedInputProps) {
+  const [localValue, setLocalValue] = useState(initialValue);
+  const valueRef = useRef(initialValue);
+  const [internalKey, setInternalKey] = useState(0);
+
+  // Track previous initialValue to detect changes
+  const prevInitialValueRef = useRef(initialValue);
+  
+  // Update local value when initial value changes (from external sources)
+  useEffect(() => {
+    if (prevInitialValueRef.current !== initialValue) {
+      console.log("[IsolatedInput] initialValue changed:", {
+        from: JSON.stringify(prevInitialValueRef.current),
+        to: JSON.stringify(initialValue),
+        localValue: JSON.stringify(localValue),
+      });
+      
+      // Always sync when initialValue changes
+      setLocalValue(initialValue);
+      valueRef.current = initialValue;
+      
+      // Force re-render of MentionsInput when clearing
+      if (initialValue === "") {
+        setInternalKey(prev => prev + 1);
+      }
+      
+      prevInitialValueRef.current = initialValue;
+    }
+  }, [initialValue]); // Only depend on initialValue
+
+  const handleChange = useCallback(
+    (event: any, newValue: string) => {
+      console.log(`[IsolatedInput] Typing - only input component re-renders`);
+      setLocalValue(newValue);
+      valueRef.current = newValue;
+      // Notify parent component of value change
+      onValueChange?.(newValue);
+    },
+    [onValueChange]
+  );
+
+  const handleSubmit = useCallback(() => {
+    if (valueRef.current.trim()) {
+      console.log("[IsolatedInput] handleSubmit - submitting without clearing");
+      onSubmit(valueRef.current);
+      // Don't clear here - let the parent handle clearing after successful generation
+    }
+  }, [onSubmit]);
+
+  const handleKeyDownInternal = useCallback(
+    (event: React.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        if (!isGenerating && valueRef.current.trim()) {
+          handleSubmit();
+        }
+      }
+      onKeyDown?.(event);
+    },
+    [handleSubmit, isGenerating, onKeyDown]
+  );
+
+  const mentionsInputStyle = useMemo(() => ({ fontSize: "13px" }), []);
+
+  return (
+    <div className="max-h-[120px] overflow-y-auto p-4 pb-2">
+      <MentionsInput
+        key={internalKey}
+        value={localValue}
+        onChange={handleChange}
+        placeholder={placeholder}
+        className="mentions-input"
+        onKeyDown={handleKeyDownInternal}
+        style={mentionsInputStyle}
+      >
+        <Mention
+          trigger="@"
+          data={projectMentions}
+          markup="@[__display__](__id__)"
+          displayTransform={(id, display) => `@${display}`}
+          appendSpaceOnAdd={true}
+        />
+      </MentionsInput>
+    </div>
+  );
+}
+
+function WriteInstructionStepComponent({
   instruction,
   onInstructionChange,
   onBack,
@@ -134,7 +238,47 @@ export function WriteInstructionStep({
   editMode = false,
   sessionId,
   initialRefinedInstruction,
+  onCanLaunchChange,
+  onLaunchHandlerChange,
 }: WriteInstructionStepProps) {
+  // Debug logging for re-renders
+  const renderCountRef = useRef(0);
+  renderCountRef.current++;
+  console.log(`[WriteInstructionStep] RENDER #${renderCountRef.current} at ${new Date().toISOString()}`, {
+    instructionLength: instruction?.length,
+    selectedDonorsCount: selectedDonors?.length,
+    sessionId,
+    editMode,
+  });
+
+  // LOCAL INPUT STATE - this prevents re-renders when typing
+  const [localInstruction, setLocalInstruction] = useState(instruction || "");
+  const [hasInputContent, setHasInputContent] = useState(!!instruction);
+
+  // Use ref to store current value for callbacks to avoid dependencies
+  const localInstructionRef = useRef(localInstruction);
+  localInstructionRef.current = localInstruction;
+
+  // Callback to keep ref in sync with isolated input
+  const handleInstructionValueChange = useCallback((value: string) => {
+    localInstructionRef.current = value;
+    // Only update the boolean state, not the full instruction
+    setHasInputContent(!!value.trim());
+  }, []);
+
+  // Sync local instruction with prop when prop changes from external sources
+  useEffect(() => {
+    console.log("[WriteInstructionStep] instruction prop changed:", {
+      instructionLength: instruction?.length || 0,
+      localInstructionLength: localInstruction?.length || 0,
+      willUpdate: instruction !== localInstruction,
+    });
+    if (instruction !== localInstruction) {
+      setLocalInstruction(instruction || "");
+      setHasInputContent(!!instruction?.trim());
+    }
+  }, [instruction]); // Only depend on instruction prop, not localInstruction to avoid loops
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] =
     useState<Array<{ role: "user" | "assistant"; content: string }>>(initialChatHistory);
@@ -151,7 +295,7 @@ export function WriteInstructionStep({
   const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
   const [allGeneratedEmails, setAllGeneratedEmails] = useState<GeneratedEmail[]>(initialGeneratedEmails);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
-  const [activeTab, setActiveTab] = useState("chat");
+
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
@@ -216,9 +360,10 @@ export function WriteInstructionStep({
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
 
-  // Batch fetch donor data for all selected donors
+  // Batch fetch donor data for all selected donors (memoized to prevent unnecessary calls)
   const { getDonorsQuery } = useDonors();
-  const { data: donorsData } = getDonorsQuery(selectedDonors);
+  const memoizedSelectedDonors = useMemo(() => selectedDonors, [selectedDonors]);
+  const { data: donorsData } = getDonorsQuery(memoizedSelectedDonors);
   const { data: organization } = getOrganization();
 
   // Fetch staff data for signature selection
@@ -270,60 +415,85 @@ export function WriteInstructionStep({
     }
   }, [selectedSignatureType, customSignature, selectedStaff]);
 
-  // Generate random subset of donors for preview on component mount (memoized to prevent recalculation)
-  // If we have saved preview donor IDs from database, use those. Otherwise, randomly select new ones.
-  const initialPreviewDonors = useMemo(() => {
-    if (selectedDonors.length > 0 && initialPreviewDonorIds.length === 0) {
-      // Random selection for new campaigns - will be saved to database
-      const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
-      return shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
-    }
-    return initialPreviewDonorIds; // Use saved preview donor IDs from database
-  }, [selectedDonors, initialPreviewDonorIds]);
-
+  // Generate random subset of donors for preview - ONLY ONCE on mount
+  // Use a ref to ensure we only generate the random set once
+  const hasGeneratedPreviewRef = useRef(false);
+  const stablePreviewDonorsRef = useRef<number[]>([]);
+  
   // Set preview donors only once when component mounts
   useEffect(() => {
-    if (previewDonorIds.length === 0 && initialPreviewDonors.length > 0) {
-      setPreviewDonorIds(initialPreviewDonors);
+    // If we already have preview donors (from DB or previous generation), use those
+    if (previewDonorIds.length > 0) {
+      return;
     }
-  }, [initialPreviewDonors, previewDonorIds.length]);
-
-  // Save preview donor IDs to database immediately when they're set (for persistence across page reloads)
-  useEffect(() => {
-    const savePreviewDonorIds = async () => {
-      if (previewDonorIds.length > 0 && sessionId && campaignName) {
-        try {
-          await saveDraft.mutateAsync({
-            sessionId,
-            campaignName,
-            selectedDonorIds: selectedDonors,
-            templateId,
-            instruction: instruction || "",
-            chatHistory: chatMessages,
-            previewDonorIds,
-          });
-          console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
-        } catch (error) {
-          console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
-        }
-      }
-    };
-
-    // Only save if these are newly set preview donor IDs (not loaded from database)
-    if (previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0) {
-      savePreviewDonorIds();
+    
+    // If we have initial preview donor IDs from the database, use those
+    if (initialPreviewDonorIds.length > 0) {
+      setPreviewDonorIds(initialPreviewDonorIds);
+      return;
     }
-  }, [
-    previewDonorIds,
-    sessionId,
-    campaignName,
-    selectedDonors,
-    templateId,
-    instruction,
-    chatMessages,
-    saveDraft,
-    initialPreviewDonorIds.length,
-  ]);
+    
+    // Only generate random selection once for new campaigns
+    if (!hasGeneratedPreviewRef.current && selectedDonors.length > 0) {
+      console.log("[WriteInstructionStep] Generating random preview donors - this should only happen ONCE");
+      const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
+      const preview = shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
+      stablePreviewDonorsRef.current = preview;
+      setPreviewDonorIds(preview);
+      hasGeneratedPreviewRef.current = true;
+    }
+  }, []); // Empty dependency array - only run once on mount
+
+  // DISABLED: Auto-save was causing performance issues
+  // This was saving on every keystroke because `instruction` was in the dependency array
+  // const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // useEffect(() => {
+  //   // Clear existing timeout
+  //   if (saveTimeoutRef.current) {
+  //     clearTimeout(saveTimeoutRef.current);
+  //   }
+
+  //   // Only save if these are newly set preview donor IDs (not loaded from database)
+  //   const shouldSave = previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0;
+
+  //   if (shouldSave && sessionId && campaignName) {
+  //     // Debounce the save operation
+  //     saveTimeoutRef.current = setTimeout(async () => {
+  //       try {
+  //         await saveDraft.mutateAsync({
+  //           sessionId,
+  //           campaignName,
+  //           selectedDonorIds: selectedDonors,
+  //           templateId,
+  //           instruction: instruction || "",
+  //           chatHistory: chatMessages,
+  //           previewDonorIds,
+  //         });
+  //         console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
+  //       } catch (error) {
+  //         console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
+  //       }
+  //     }, 1000);
+  //   }
+
+  //   // Cleanup function
+  //   return () => {
+  //     if (saveTimeoutRef.current) {
+  //       clearTimeout(saveTimeoutRef.current);
+  //     }
+  //   };
+  // }, [
+  //   previewDonorIds,
+  //   initialPreviewDonorIds.length,
+  //   sessionId,
+  //   campaignName,
+  //   selectedDonors,
+  //   templateId,
+  //   instruction,
+  //   chatMessages,
+  //   saveDraft,
+  // ]);
 
   // Function to save chat history - called after messages are sent/received
   const saveChatHistory = useCallback(
@@ -373,33 +543,39 @@ export function WriteInstructionStep({
   );
 
   // Memoize session data to avoid unnecessary recalculations
-  const sessionData = useMemo(
-    () => ({
+  const sessionData = useMemo(() => {
+    console.log(`[sessionData] Recalculating at ${new Date().toISOString()}`, {
+      chatMessagesCount: chatMessages.length,
+      previewDonorIdsCount: previewDonorIds.length,
+      allGeneratedEmailsCount: allGeneratedEmails.length,
+      referenceContextsCount: Object.keys(referenceContexts).length,
+    });
+    return {
       chatHistory: chatMessages,
       previewDonorIds,
       generatedEmails: allGeneratedEmails,
       referenceContexts,
-    }),
-    [chatMessages, previewDonorIds, allGeneratedEmails, referenceContexts]
-  );
+    };
+  }, [chatMessages, previewDonorIds, allGeneratedEmails, referenceContexts]);
 
-  // Automatically persist session data whenever it changes (with throttling)
-  useLayoutEffect(() => {
-    if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
-      const currentDataString = JSON.stringify({
-        chatHistory: sessionData.chatHistory,
-        previewDonorIds: sessionData.previewDonorIds,
-        generatedEmailsCount: sessionData.generatedEmails.length,
-        referenceContextsKeys: Object.keys(sessionData.referenceContexts),
-      });
+  // Temporarily disable auto-persistence to test if it's causing re-renders
+  // useEffect(() => {
+  //   if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
+  //     const currentDataString = JSON.stringify({
+  //       chatHistory: sessionData.chatHistory,
+  //       previewDonorIds: sessionData.previewDonorIds,
+  //       generatedEmailsCount: sessionData.generatedEmails.length,
+  //       referenceContextsKeys: Object.keys(sessionData.referenceContexts),
+  //     });
 
-      // Only persist if the data has actually changed
-      if (currentDataString !== lastPersistedData.current) {
-        lastPersistedData.current = currentDataString;
-        onSessionDataChange(sessionData);
-      }
-    }
-  }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
+  //     // Only persist if the data has actually changed
+  //     if (currentDataString !== lastPersistedData.current) {
+  //       console.log('[WriteInstructionStep] Persisting session data');
+  //       lastPersistedData.current = currentDataString;
+  //       onSessionDataChange(sessionData);
+  //     }
+  //   }
+  // }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -413,8 +589,18 @@ export function WriteInstructionStep({
 
   const handleSubmitInstruction = useCallback(
     async (instructionToSubmit?: string) => {
-      const finalInstruction = instructionToSubmit || instruction;
+      // Get instruction from parameter (called by isolated input) or fallback to ref
+      const finalInstruction = instructionToSubmit || localInstructionRef.current;
+      console.log("[WriteInstructionStep] handleSubmitInstruction called", {
+        instructionToSubmit: instructionToSubmit?.length,
+        localInstructionRefCurrent: localInstructionRef.current?.length,
+        finalInstruction: finalInstruction?.length,
+        organizationExists: !!organization,
+      });
       if (!finalInstruction.trim() || !organization) return;
+
+      // Notify parent of the instruction change only when submitting
+      onInstructionChange(finalInstruction);
 
       setIsGenerating(true);
       // Clear existing emails and contexts
@@ -427,11 +613,6 @@ export function WriteInstructionStep({
       const updatedChatMessages = [...chatMessages, { role: "user" as const, content: finalInstruction }];
 
       setChatMessages(updatedChatMessages);
-
-      // Clear the input box only if this is manual submission (not auto-generation)
-      if (!instructionToSubmit) {
-        onInstructionChange("");
-      }
 
       try {
         // Prepare donor data for the API call - use only preview donors
@@ -459,6 +640,7 @@ export function WriteInstructionStep({
         console.log("updatedChatMessages", updatedChatMessages);
 
         // Generate emails using the hook with signature - use updatedChatMessages to include the latest user message
+        console.log("[WriteInstructionStep] About to call generateEmails.mutateAsync");
         const result = await generateEmails.mutateAsync({
           instruction: finalInstruction,
           donors: donorData,
@@ -470,11 +652,15 @@ export function WriteInstructionStep({
           signature: currentSignature, // Pass the selected signature
         });
 
+        console.log("[WriteInstructionStep] generateEmails result:", result);
+
         if (result) {
           const typedResult = result as EmailGenerationResult;
+          console.log("[WriteInstructionStep] typedResult:", typedResult);
 
           // Check if this is an agentic flow response
           if ("isAgenticFlow" in typedResult && typedResult.isAgenticFlow) {
+            console.log("[WriteInstructionStep] Detected agentic flow response");
             // Handle agentic flow response
             const agenticResult = typedResult as AgenticFlowResponse;
 
@@ -492,9 +678,17 @@ export function WriteInstructionStep({
               // For now, just show the conversation
               console.log("Agentic flow needs user input:", agenticResult);
               return;
+            } else {
+              // Agentic flow is complete, clear the input box
+              console.log("[WriteInstructionStep] Clearing input after agentic flow completion");
+              setLocalInstruction(""); // Clear local state
+              localInstructionRef.current = ""; // Clear ref
+              setHasInputContent(false); // Clear input content flag
+              onInstructionChange(""); // Clear parent state
             }
           } else {
             // Handle traditional email generation response
+            console.log("[WriteInstructionStep] Handling traditional email generation response");
             const emailResult = typedResult as GenerateEmailsResponse;
             setAllGeneratedEmails(emailResult.emails);
             setGeneratedEmails(emailResult.emails);
@@ -560,16 +754,22 @@ export function WriteInstructionStep({
               return newMessages;
             });
 
-            // Auto-switch to preview tab after email generation
-            setTimeout(() => {
-              setActiveTab("preview");
-            }, 500);
+            // Clear the local input box after successful generation
+            console.log("[WriteInstructionStep] Clearing input after successful generation");
+            setLocalInstruction(""); // Clear local state
+            localInstructionRef.current = ""; // Clear ref
+            setHasInputContent(false); // Clear input content flag
+            onInstructionChange(""); // Clear parent state
+
+            // Auto-switch to preview tab after email generation (removed since no tabs)
+            // Preview is now always visible on the right side
           }
         } else {
+          console.log("[WriteInstructionStep] No result from generateEmails - throwing error");
           throw new Error("Failed to generate emails");
         }
       } catch (error) {
-        console.error("Error generating emails:", error);
+        console.error("[WriteInstructionStep] Error generating emails:", error);
         toast.error("Failed to generate emails. Please try again.");
         setChatMessages((prev) => {
           const newMessages = [
@@ -595,7 +795,7 @@ export function WriteInstructionStep({
       organization,
       generateEmails,
       onInstructionChange,
-      instruction,
+      // Removed localInstruction to prevent callback recreation on every keystroke
       previousInstruction,
       chatMessages,
       sessionId,
@@ -611,20 +811,22 @@ export function WriteInstructionStep({
       templatePrompt &&
       templatePrompt.trim() &&
       chatMessages.length === 0 && // Only pre-fill if no chat history
-      !hasAutoGeneratedFromTemplate &&
-      !instruction.trim() // Only pre-fill if input is empty
+      !hasAutoGeneratedFromTemplate
+      // Removed localInstruction check to prevent dependency on typing
     ) {
-      // Only set the instruction, don't auto-generate
+      // Set both local and parent instruction
+      setLocalInstruction(templatePrompt);
+      setHasInputContent(true); // Enable the Generate button
       onInstructionChange(templatePrompt);
       setHasAutoGeneratedFromTemplate(true); // Prevent re-setting on re-renders
     }
-  }, [templatePrompt, chatMessages.length, hasAutoGeneratedFromTemplate, onInstructionChange, instruction]);
+  }, [templatePrompt, chatMessages.length, hasAutoGeneratedFromTemplate, onInstructionChange]); // Removed localInstruction dependency
 
   // Handle generating more emails with the same prompt
   const handleGenerateMore = useCallback(async () => {
     if (isGeneratingMore || !organization) return;
 
-    const finalInstruction = previousInstruction || instruction;
+    const finalInstruction = previousInstruction || localInstructionRef.current; // Use ref to avoid dependency
     if (!finalInstruction.trim()) {
       toast.error("No instruction available to generate more emails");
       return;
@@ -785,7 +987,7 @@ export function WriteInstructionStep({
     isGeneratingMore,
     organization,
     previousInstruction,
-    instruction,
+    // Removed localInstruction to prevent callback recreation on every keystroke
     allGeneratedEmails,
     previewDonorIds, // Changed from selectedDonors to previewDonorIds
     selectedDonors, // Still need this for expanding the set
@@ -899,10 +1101,7 @@ export function WriteInstructionStep({
           setEmailStatuses({});
         }
 
-        // Auto-switch to preview tab
-        setTimeout(() => {
-          setActiveTab("preview");
-        }, 500);
+        // Preview is now always visible on the right side (no tab switching needed)
 
         toast.success(`Successfully started regeneration of emails! Refreshing...`);
       } else {
@@ -989,7 +1188,7 @@ export function WriteInstructionStep({
   };
 
   // Handle next button click - show confirmation dialog
-  const handleNextClick = () => {
+  const handleNextClick = useCallback(() => {
     if (generatedEmails.length === 0) {
       toast.error("Please generate emails first before proceeding");
       return;
@@ -1012,25 +1211,26 @@ export function WriteInstructionStep({
     }
 
     setShowBulkGenerationDialog(true);
-  };
+  }, [generatedEmails, chatMessages, onSessionDataChange, previewDonorIds, referenceContexts]);
 
-  // Handle mentions input change
-  const handleMentionChange = useCallback(
-    (event: any, newValue: string, newPlainTextValue: string, mentions: any[]) => {
-      onInstructionChange(newValue);
-    },
-    [onInstructionChange]
-  );
+  // Monitor onInstructionChange for stability - commented out after verification
+  // useEffect(() => {
+  //   console.log(`[WriteInstructionStep] onInstructionChange changed at ${new Date().toISOString()}`);
+  // }, [onInstructionChange]);
 
-  // Handle keydown for submitting with Cmd/Ctrl + Enter
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault(); // Prevent default form submission or newline
-      if (!isGenerating && instruction.trim()) {
-        handleSubmitInstruction();
-      }
-    }
-  };
+  // Monitor referenceContexts changes - commented out after verification
+  // useEffect(() => {
+  //   console.log(`[WriteInstructionStep] referenceContexts changed at ${new Date().toISOString()}`, {
+  //     keys: Object.keys(referenceContexts).length,
+  //   });
+  // }, [referenceContexts]);
+
+  // Input is now handled by IsolatedMentionsInput component
+
+  // Handle keydown - memoized to prevent recreation
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<any>) => {
+    // Isolated input handles Cmd/Ctrl+Enter, this is just for other key events if needed
+  }, []);
 
   // Handle email status change
   const handleEmailStatusChange = useCallback(
@@ -1078,349 +1278,407 @@ export function WriteInstructionStep({
     [sessionId, updateEmailStatus, allGeneratedEmails]
   );
 
-  // Check if we can generate more emails - use consistent logic with handleGenerateMore
-  const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
-  // First check remaining from current preview set, then remaining from selectedDonors
-  const remainingFromPreview = previewDonorIds.filter((id) => !alreadyGeneratedDonorIds.has(id));
-  const remainingFromSelected = selectedDonors.filter(
-    (id) => !alreadyGeneratedDonorIds.has(id) && !previewDonorIds.includes(id)
-  );
-  const totalRemainingDonors = remainingFromPreview.length + remainingFromSelected.length;
-  const canGenerateMore = totalRemainingDonors > 0;
+  // Check if we can generate more emails - use consistent logic with handleGenerateMore (memoized for performance)
+  const {
+    alreadyGeneratedDonorIds,
+    remainingFromPreview,
+    remainingFromSelected,
+    totalRemainingDonors,
+    canGenerateMore,
+  } = useMemo(() => {
+    const generatedIds = new Set(allGeneratedEmails.map((email) => email.donorId));
+    const remainingPreview = previewDonorIds.filter((id) => !generatedIds.has(id));
+    const remainingSelected = selectedDonors.filter((id) => !generatedIds.has(id) && !previewDonorIds.includes(id));
+    const totalRemaining = remainingPreview.length + remainingSelected.length;
 
-  // Count approved vs pending emails
-  const approvedCount = Object.values(emailStatuses).filter((status) => status === "APPROVED").length;
-  const pendingCount = Object.values(emailStatuses).filter((status) => status === "PENDING_APPROVAL").length;
+    return {
+      alreadyGeneratedDonorIds: generatedIds,
+      remainingFromPreview: remainingPreview,
+      remainingFromSelected: remainingSelected,
+      totalRemainingDonors: totalRemaining,
+      canGenerateMore: totalRemaining > 0,
+    };
+  }, [allGeneratedEmails, previewDonorIds, selectedDonors]);
+
+  // Count approved vs pending emails (memoized for performance)
+  const { approvedCount, pendingCount } = useMemo(() => {
+    const statuses = Object.values(emailStatuses);
+    return {
+      approvedCount: statuses.filter((status) => status === "APPROVED").length,
+      pendingCount: statuses.filter((status) => status === "PENDING_APPROVAL").length,
+    };
+  }, [emailStatuses]);
 
   // TODO: Add signature refetch functionality for edit mode later
 
+  // Memoize placeholder to prevent re-renders from string concatenation
+  const mentionsInputPlaceholder = useMemo(() => {
+    if (isLoadingProjects) {
+      return "Loading projects... Type @ to mention projects once loaded";
+    }
+    if (projectMentions.length > 0) {
+      return `Enter your instructions for email generation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`;
+    }
+    return "Enter your instructions for email generation... Press Cmd/Ctrl + Enter to send.";
+  }, [isLoadingProjects, projectMentions.length]);
+
+  // Memoize EmailListViewer callbacks to prevent recreating on every render
+  const handlePreviewEdit = useCallback(
+    async (donorId: number, newSubject: string, newContent: any) => {
+      // Update the local state with edited email
+      setAllGeneratedEmails((prev) =>
+        prev.map((email) =>
+          email.donorId === donorId ? { ...email, subject: newSubject, structuredContent: newContent } : email
+        )
+      );
+
+      // If we have a sessionId and the email has been saved (has an id), update it in the backend
+      const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
+      if (sessionId && emailToUpdate && emailToUpdate.id) {
+        try {
+          await updateEmail.mutateAsync({
+            emailId: emailToUpdate.id,
+            subject: newSubject,
+            structuredContent: newContent,
+            referenceContexts: emailToUpdate.referenceContexts || {},
+          });
+          toast.success("Email updated successfully!");
+        } catch (error) {
+          console.error("Failed to update email in backend:", error);
+          toast.error("Failed to save email changes. Changes are only saved locally.");
+        }
+      } else {
+        toast.success("Email updated locally!");
+      }
+    },
+    [allGeneratedEmails, sessionId, updateEmail]
+  );
+
+  const handlePreviewEnhance = useCallback(
+    async (donorId: number, enhanceInstruction: string) => {
+      // Find the email to enhance
+      const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
+      if (!emailToEnhance || !organization) return;
+
+      try {
+        toast.info("Enhancing email with AI...");
+
+        // Get donor data
+        const donor = donorsData?.find((d) => d.id === donorId);
+        if (!donor) return;
+
+        // Use the generate emails API with the enhancement instruction
+        const result = await generateEmails.mutateAsync({
+          instruction: `${
+            previousInstruction || localInstructionRef.current
+          }\n\nAdditional enhancement: ${enhanceInstruction}`,
+          donors: [
+            {
+              id: donor.id,
+              firstName: donor.firstName,
+              lastName: donor.lastName,
+              email: donor.email,
+            },
+          ],
+          organizationName: organization.name,
+          organizationWritingInstructions: organization.writingInstructions ?? undefined,
+          previousInstruction,
+          currentDate: new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          chatHistory: chatMessages,
+          signature: currentSignature,
+        });
+
+        if (result && !("isAgenticFlow" in result)) {
+          const emailResult = result as GenerateEmailsResponse;
+          if (emailResult.emails.length > 0) {
+            const enhancedEmail = emailResult.emails[0];
+
+            // Update the email in state
+            setAllGeneratedEmails((prev) =>
+              prev.map((email) =>
+                email.donorId === donorId
+                  ? {
+                      ...email,
+                      subject: enhancedEmail.subject,
+                      structuredContent: enhancedEmail.structuredContent,
+                      emailContent: enhancedEmail.emailContent,
+                      reasoning: enhancedEmail.reasoning,
+                      referenceContexts: enhancedEmail.referenceContexts,
+                    }
+                  : email
+              )
+            );
+
+            // If sessionId exists, save the enhanced email to backend
+            if (sessionId && emailToEnhance.id) {
+              try {
+                await updateEmail.mutateAsync({
+                  emailId: emailToEnhance.id,
+                  subject: enhancedEmail.subject,
+                  structuredContent: enhancedEmail.structuredContent || [],
+                  referenceContexts: enhancedEmail.referenceContexts || {},
+                });
+              } catch (error) {
+                console.error("Failed to save enhanced email to backend:", error);
+              }
+            }
+
+            toast.success("Email enhanced successfully!");
+          }
+        }
+      } catch (error) {
+        console.error("Error enhancing email:", error);
+        toast.error("Failed to enhance email. Please try again.");
+      }
+    },
+    [
+      allGeneratedEmails,
+      organization,
+      donorsData,
+      generateEmails,
+      previousInstruction,
+      // Removed localInstruction to prevent callback recreation on every keystroke
+      chatMessages,
+      currentSignature,
+      sessionId,
+      updateEmail,
+    ]
+  );
+
+  // Memoize EmailListViewer props to prevent re-renders - these should be very stable
+  const emailListViewerEmails = useMemo(() => {
+    console.log(`[emailListViewerEmails] Recalculating at ${new Date().toISOString()}`, {
+      emailsCount: allGeneratedEmails.length,
+      statusesCount: Object.keys(emailStatuses).length,
+    });
+    return allGeneratedEmails
+      .map((email) => ({
+        ...email,
+        status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
+        emailContent: email.emailContent,
+        reasoning: email.reasoning,
+      }))
+      .sort((a, b) => {
+        // Sort emails by donor name
+        const donorA = donorsData?.find((d) => d.id === a.donorId);
+        const donorB = donorsData?.find((d) => d.id === b.donorId);
+        if (!donorA || !donorB) return 0;
+        const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
+        const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+  }, [allGeneratedEmails, emailStatuses, donorsData]);
+
+  const emailListViewerDonors = useMemo(() => {
+    console.log(`[emailListViewerDonors] Recalculating at ${new Date().toISOString()}`, {
+      donorsCount: donorsData?.length || 0,
+    });
+    return (
+      donorsData
+        ?.filter((donor) => !!donor)
+        .map((donor) => ({
+          id: donor.id,
+          firstName: donor.firstName,
+          lastName: donor.lastName,
+          email: donor.email,
+          assignedToStaffId: donor.assignedToStaffId,
+        })) || []
+    );
+  }, [donorsData]);
+
   return (
-    <div className="flex flex-col h-full space-y-6">
-      {/* Main Content with Tabs */}
-      <div className="flex-1 min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Chat & Generate
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Email Preview ({allGeneratedEmails.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Chat Tab */}
-          <TabsContent value="chat" className="flex-1 min-h-0 mt-3">
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 h-full">
-              {/* Simplified Chat Interface */}
-              <Card className="h-full flex flex-col">
-                <CardContent className="flex-1 flex flex-col min-h-0 p-0">
-                  <div className="flex flex-col flex-1 min-h-0">
-                    {/* Chat Messages */}
-                    <ScrollArea className="flex-1 min-h-0">
-                      <div className="p-6 space-y-4">
-                        {chatMessages.length === 0 ? (
-                          <div className="text-center py-12 text-muted-foreground">
-                            <p>Start by writing instructions for email generation below.</p>
-                          </div>
-                        ) : (
-                          chatMessages.map((message, index) => (
-                            <div
-                              key={index}
-                              className={cn("flex flex-col space-y-2", {
-                                "items-end": message.role === "user",
-                              })}
-                            >
-                              <div
-                                className={cn("rounded-lg px-4 py-3 max-w-[80%]", {
-                                  "bg-primary text-primary-foreground": message.role === "user",
-                                  "bg-muted": message.role === "assistant",
-                                })}
-                              >
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                              </div>
-                              {message.role === "assistant" &&
-                                suggestedMemories.length > 0 &&
-                                index === chatMessages.length - 1 && (
-                                  <div className="w-full mt-4">
-                                    <SuggestedMemories memories={suggestedMemories} />
-                                  </div>
-                                )}
-                            </div>
-                          ))
-                        )}
-                        <div ref={chatEndRef} />
-                      </div>
-                    </ScrollArea>
-
-                    {/* Input Area */}
-                    <div className="p-6 border-t bg-background">
-                      <div className="space-y-4">
-                        <div className="relative">
-                          <MentionsInput
-                            value={instruction}
-                            onChange={handleMentionChange}
-                            placeholder={
-                              isLoadingProjects
-                                ? "Loading projects... Type @ to mention projects once loaded"
-                                : projectMentions.length > 0
-                                ? `Enter your instructions for email generation or continue the conversation... (Type @ to mention projects - ${projectMentions.length} available). Press Cmd/Ctrl + Enter to send.`
-                                : "Enter your instructions for email generation or continue the conversation... Press Cmd/Ctrl + Enter to send."
-                            }
-                            className="mentions-input min-h-[120px]"
-                            onKeyDown={handleKeyDown}
-                          >
-                            <Mention
-                              trigger="@"
-                              data={projectMentions}
-                              markup="@[__display__](__id__)"
-                              displayTransform={(id, display) => `@${display}`}
-                              appendSpaceOnAdd={true}
-                            />
-                          </MentionsInput>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            onClick={() => setShowRegenerateDialog(true)}
-                            disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
-                            variant="outline"
-                            className="flex items-center gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Regenerate
-                          </Button>
-                          <Button
-                            onClick={() => handleSubmitInstruction()}
-                            disabled={isGenerating || !instruction.trim()}
-                            variant="default"
-                          >
-                            {isGenerating ? "Generating..." : "Generate Emails"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-3">
-            <Card className="h-full flex flex-col">
-              <CardContent className="flex-1 min-h-0 p-0">
-                {isGenerating ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                      <div className="text-center">
-                        <p className="font-medium">Generating personalized emails...</p>
-                        <p className="text-sm">This may take a few moments</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : allGeneratedEmails.length > 0 ? (
-                  <div className="h-full p-6">
-                    <EmailListViewer
-                      emails={allGeneratedEmails
-                        .map((email) => ({
-                          ...email,
-                          status: emailStatuses[email.donorId] || "PENDING_APPROVAL",
-                          emailContent: email.emailContent,
-                          reasoning: email.reasoning,
-                        }))
-                        .sort((a, b) => {
-                          // Sort emails by donor name
-                          const donorA = donorsData?.find((d) => d.id === a.donorId);
-                          const donorB = donorsData?.find((d) => d.id === b.donorId);
-                          if (!donorA || !donorB) return 0;
-                          const nameA = `${donorA.firstName} ${donorA.lastName}`.toLowerCase();
-                          const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
-                          return nameA.localeCompare(nameB);
-                        })}
-                      donors={
-                        donorsData
-                          ?.filter((donor) => !!donor)
-                          .map((donor) => ({
-                            id: donor.id,
-                            firstName: donor.firstName,
-                            lastName: donor.lastName,
-                            email: donor.email,
-                            assignedToStaffId: donor.assignedToStaffId,
-                          })) || []
-                      }
-                      referenceContexts={referenceContexts}
-                      showSearch={true}
-                      showPagination={true}
-                      showTracking={false}
-                      showStaffAssignment={true}
-                      showSendButton={false}
-                      showEditButton={true}
-                      showDonorTooltips={true}
-                      emailsPerPage={EMAILS_PER_PAGE}
-                      maxHeight="calc(100vh - 280px)"
-                      emptyStateTitle="No emails generated yet"
-                      emptyStateDescription={
-                        templatePrompt
-                          ? "Generating emails from template..."
-                          : "Switch to the Chat & Generate tab to generate emails"
-                      }
-                      onEmailStatusChange={handleEmailStatusChange}
-                      isUpdatingStatus={isUpdatingStatus}
-                      sessionId={sessionId}
-                      onPreviewEdit={async (donorId, newSubject, newContent) => {
-                        // Update the local state with edited email
-                        setAllGeneratedEmails((prev) =>
-                          prev.map((email) =>
-                            email.donorId === donorId
-                              ? { ...email, subject: newSubject, structuredContent: newContent }
-                              : email
-                          )
-                        );
-
-                        // If we have a sessionId and the email has been saved (has an id), update it in the backend
-                        const emailToUpdate = allGeneratedEmails.find((e) => e.donorId === donorId);
-                        if (sessionId && emailToUpdate && emailToUpdate.id) {
-                          try {
-                            await updateEmail.mutateAsync({
-                              emailId: emailToUpdate.id,
-                              subject: newSubject,
-                              structuredContent: newContent,
-                              referenceContexts: emailToUpdate.referenceContexts || {},
-                            });
-                            toast.success("Email updated successfully!");
-                          } catch (error) {
-                            console.error("Failed to update email in backend:", error);
-                            toast.error("Failed to save email changes. Changes are only saved locally.");
-                          }
-                        } else {
-                          toast.success("Email updated locally!");
-                        }
-                      }}
-                      onPreviewEnhance={async (donorId, enhanceInstruction) => {
-                        // Find the email to enhance
-                        const emailToEnhance = allGeneratedEmails.find((e) => e.donorId === donorId);
-                        if (!emailToEnhance || !organization) return;
-
-                        try {
-                          toast.info("Enhancing email with AI...");
-
-                          // Get donor data
-                          const donor = donorsData?.find((d) => d.id === donorId);
-                          if (!donor) return;
-
-                          // Use the generate emails API with the enhancement instruction
-                          const result = await generateEmails.mutateAsync({
-                            instruction: `${
-                              previousInstruction || instruction
-                            }\n\nAdditional enhancement: ${enhanceInstruction}`,
-                            donors: [
-                              {
-                                id: donor.id,
-                                firstName: donor.firstName,
-                                lastName: donor.lastName,
-                                email: donor.email,
-                              },
-                            ],
-                            organizationName: organization.name,
-                            organizationWritingInstructions: organization.writingInstructions ?? undefined,
-                            previousInstruction,
-                            currentDate: new Date().toLocaleDateString("en-US", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            }),
-                            chatHistory: chatMessages, // Use current chat history for enhancement context
-                            signature: currentSignature,
-                          });
-
-                          if (result && !("isAgenticFlow" in result)) {
-                            const emailResult = result as GenerateEmailsResponse;
-                            if (emailResult.emails.length > 0) {
-                              const enhancedEmail = emailResult.emails[0];
-
-                              // Update the email in state
-                              setAllGeneratedEmails((prev) =>
-                                prev.map((email) =>
-                                  email.donorId === donorId
-                                    ? {
-                                        ...email,
-                                        subject: enhancedEmail.subject,
-                                        structuredContent: enhancedEmail.structuredContent,
-                                        referenceContexts: enhancedEmail.referenceContexts,
-                                      }
-                                    : email
-                                )
-                              );
-
-                              // Update reference contexts
-                              setReferenceContexts((prev) => ({
-                                ...prev,
-                                [donorId]: enhancedEmail.referenceContexts || {},
-                              }));
-
-                              toast.success("Email enhanced successfully!");
-                            }
-                          }
-                        } catch (error) {
-                          console.error("Error enhancing email:", error);
-                          toast.error("Failed to enhance email");
-                        }
-                      }}
-                      // Pass regenerate functionality to EmailListViewer
-                      showRegenerateButton={true}
-                      onRegenerate={() => setShowRegenerateDialog(true)}
-                      isRegenerating={isRegenerating}
-                      canGenerateMore={canGenerateMore}
-                      onGenerateMore={handleGenerateMore}
-                      isGeneratingMore={isGeneratingMore}
-                      remainingDonorsCount={totalRemainingDonors}
-                      generateMoreCount={GENERATE_MORE_COUNT}
-                      getStaffName={(staffId) => {
-                        if (!staffId || !staffData?.staff) return "Unassigned";
-                        const staff = staffData.staff.find((s) => s.id === staffId);
-                        return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
-                      }}
-                      getStaffDetails={(staffId) => {
-                        if (!staffId || !staffData?.staff) return null;
-                        return staffData.staff.find((s) => s.id === staffId) || null;
-                      }}
-                      primaryStaff={primaryStaff || null}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                        <Mail className="h-8 w-8" />
-                      </div>
-                      <div>
-                        <p className="font-medium">No emails generated yet</p>
-                        <p className="text-sm">
-                          {templatePrompt
-                            ? "Generating emails from template..."
-                            : "Switch to the Chat & Generate tab to get started"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <div className="flex flex-col h-full space-y-3">
+      {/* Compact Navigation Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+            <ArrowLeft className="w-3 h-3 mr-1" />
+            Back
+          </Button>
+          <h2 className="text-sm font-medium text-muted-foreground">{campaignName}</h2>
+        </div>
+        <Button
+          onClick={handleNextClick}
+          disabled={generatedEmails.length === 0 || isGenerating}
+          size="sm"
+          className="h-7 text-xs"
+        >
+          Launch Campaign
+          <ArrowRight className="w-3 h-3 ml-1" />
+        </Button>
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4 border-t">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={handleNextClick} disabled={generatedEmails.length === 0 || isGenerating}>
-          Launch Campaign
-        </Button>
+      {/* Main Content - Claude Artifacts Style Layout - Fixed Height */}
+      <div className="h-[600px] bg-background border rounded-lg overflow-hidden">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-2">
+          {/* Left Side - Chat & Generate */}
+          <div className="flex flex-col h-full border-r overflow-hidden">
+            {/* Chat Messages - Scrollable */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ScrollArea className="h-full w-full">
+                <div className="p-4 space-y-3">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex items-center justify-center min-h-[300px]">
+                      <div className="text-center text-muted-foreground">
+                        <div className="w-10 h-10 mx-auto bg-muted rounded-full flex items-center justify-center mb-2">
+                          <Mail className="h-5 w-5" />
+                        </div>
+                        <p className="text-xs font-medium">Start your email generation</p>
+                        <p className="text-[10px]">Write instructions below to generate personalized emails</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {chatMessages.map((message, index) => (
+                        <div
+                          key={index}
+                          className={cn("flex flex-col space-y-1", {
+                            "items-end": message.role === "user",
+                          })}
+                        >
+                          <div
+                            className={cn("rounded-lg px-3 py-2 max-w-[85%]", {
+                              "bg-primary text-primary-foreground": message.role === "user",
+                              "bg-muted": message.role === "assistant",
+                            })}
+                          >
+                            <p className="text-xs whitespace-pre-wrap">{message.content}</p>
+                          </div>
+                          {message.role === "assistant" &&
+                            suggestedMemories.length > 0 &&
+                            index === chatMessages.length - 1 && (
+                              <div className="w-full mt-3">
+                                <SuggestedMemories memories={suggestedMemories} />
+                              </div>
+                            )}
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Input Area - Fixed at bottom */}
+            <div className="border-t bg-background flex-shrink-0">
+              {/* Input Box - Scrollable */}
+              <IsolatedMentionsInput
+                initialValue={localInstruction}
+                placeholder={mentionsInputPlaceholder}
+                projectMentions={projectMentions}
+                onSubmit={handleSubmitInstruction}
+                onValueChange={handleInstructionValueChange}
+                isGenerating={isGenerating}
+                onKeyDown={handleKeyDown}
+              />
+              {/* Buttons - Bottom line */}
+              <div className="flex justify-end gap-2 px-4 py-2 border-t">
+                <Button
+                  onClick={() => setShowRegenerateDialog(true)}
+                  disabled={isRegenerating || isGenerating || allGeneratedEmails.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1 h-7 text-xs"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Regenerate
+                </Button>
+                <Button
+                  onClick={() => handleSubmitInstruction()}
+                  disabled={isGenerating || !hasInputContent}
+                  variant="default"
+                  size="sm"
+                  className="h-7 text-xs"
+                >
+                  {isGenerating ? "Generating..." : "Generate Emails"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Email Preview */}
+          <div className="flex flex-col h-full bg-muted/5 overflow-hidden">
+            {/* Content Area - Independently Scrollable */}
+            <div className="h-full overflow-hidden">
+              {isGenerating && (
+                <div className="flex items-center justify-center h-full text-muted-foreground p-3">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium">Generating personalized emails...</p>
+                      <p className="text-xs text-muted-foreground">This may take a few moments</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!isGenerating && allGeneratedEmails.length > 0 && (
+                <div className="h-full overflow-hidden p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
+                  <EmailListViewer
+                    emails={emailListViewerEmails}
+                    donors={emailListViewerDonors}
+                    referenceContexts={referenceContexts}
+                    showSearch={true}
+                    showPagination={true}
+                    showTracking={false}
+                    showStaffAssignment={true}
+                    showSendButton={false}
+                    showEditButton={true}
+                    showDonorTooltips={true}
+                    emailsPerPage={EMAILS_PER_PAGE}
+                    maxHeight="100%"
+                    emptyStateTitle="No emails generated yet"
+                    emptyStateDescription={
+                      templatePrompt
+                        ? "Generating emails from template..."
+                        : "Use the chat interface to generate emails"
+                    }
+                    onEmailStatusChange={handleEmailStatusChange}
+                    isUpdatingStatus={isUpdatingStatus}
+                    sessionId={sessionId}
+                    onPreviewEdit={handlePreviewEdit}
+                    onPreviewEnhance={handlePreviewEnhance}
+                    isGeneratingMore={isGeneratingMore}
+                    remainingDonorsCount={totalRemainingDonors}
+                    generateMoreCount={GENERATE_MORE_COUNT}
+                    getStaffName={(staffId) => {
+                      if (!staffId || !staffData?.staff) return "Unassigned";
+                      const staff = staffData.staff.find((s) => s.id === staffId);
+                      return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
+                    }}
+                    getStaffDetails={(staffId) => {
+                      if (!staffId || !staffData?.staff) return null;
+                      return staffData.staff.find((s) => s.id === staffId) || null;
+                    }}
+                    primaryStaff={primaryStaff || null}
+                  />
+                </div>
+              )}
+              {!isGenerating && allGeneratedEmails.length === 0 && (
+                <div className="flex items-center justify-center h-full text-muted-foreground p-3">
+                  <div className="text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto bg-muted rounded-full flex items-center justify-center">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium">No emails generated yet</p>
+                      <p className="text-xs text-muted-foreground">
+                        {templatePrompt
+                          ? "Generating emails from template..."
+                          : "Use the chat interface on the left to generate emails"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Bulk Generation Confirmation Dialog */}
@@ -1428,68 +1686,60 @@ export function WriteInstructionStep({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
+              <Mail className="h-4 w-4" />
               Confirm Campaign Launch
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               You&apos;re about to launch a campaign to generate personalized emails for all selected donors based on
               your current instruction.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Summary Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Users className="h-3 w-3" />
-                  Campaign Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium">Total Campaign</p>
-                    <p className="text-lg font-bold">{selectedDonors.length}</p>
-                    <p className="text-xs text-muted-foreground">donors</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-green-600">Already Reviewed</p>
-                    <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {approvedCount} approved, {pendingCount} pending
-                    </p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-blue-600">To Be Generated</p>
-                    <p className="text-lg font-bold text-blue-600">
-                      {selectedDonors.length - allGeneratedEmails.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">new emails</p>
+          <div className="space-y-3">
+            {/* Summary Card - more compact */}
+            <div className="p-3 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-3 w-3" />
+                <span className="text-sm font-medium">Campaign Summary</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Total Campaign</p>
+                  <p className="text-lg font-bold">{selectedDonors.length}</p>
+                  <p className="text-xs text-muted-foreground">donors</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-green-600">Already Reviewed</p>
+                  <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {approvedCount} approved, {pendingCount} pending
+                  </p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-blue-600">To Be Generated</p>
+                  <p className="text-lg font-bold text-blue-600">{selectedDonors.length - allGeneratedEmails.length}</p>
+                  <p className="text-xs text-muted-foreground">new emails</p>
+                </div>
+              </div>
+
+              {selectedSignatureType !== "none" && currentSignature && (
+                <div className="space-y-2 mt-3">
+                  <p className="text-xs font-medium">Selected Signature</p>
+                  <div className="bg-muted rounded p-2">
+                    <div
+                      className="prose prose-sm max-w-none text-xs"
+                      dangerouslySetInnerHTML={{
+                        __html:
+                          currentSignature.length > 150 ? currentSignature.substring(0, 150) + "..." : currentSignature,
+                      }}
+                    />
                   </div>
                 </div>
-
-                {selectedSignatureType !== "none" && currentSignature && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Selected Signature</p>
-                    <div className="bg-muted rounded-lg p-3">
-                      <div
-                        className="prose prose-sm max-w-none text-sm"
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            currentSignature.length > 200
-                              ? currentSignature.substring(0, 200) + "..."
-                              : currentSignature,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
+              <p className="text-xs text-blue-800">
                 {allGeneratedEmails.length > 0 ? (
                   <>
                     This will launch your campaign for all {selectedDonors.length} selected donors.{" "}
@@ -1520,34 +1770,35 @@ export function WriteInstructionStep({
               variant="outline"
               onClick={() => setShowBulkGenerationDialog(false)}
               disabled={isStartingBulkGeneration}
+              size="sm"
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration}>
+            <Button onClick={handleBulkGeneration} disabled={isStartingBulkGeneration} size="sm">
               {isStartingBulkGeneration ? "Launching..." : "Launch Campaign"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Regenerate Confirmation Dialog */}
+      {/* Regenerate Confirmation Dialog - more compact */}
       <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
               Regenerate Emails
             </DialogTitle>
-            <DialogDescription>Choose which emails you want to regenerate</DialogDescription>
+            <DialogDescription className="text-sm">Choose which emails you want to regenerate</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label>Regeneration Options</Label>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-sm">Regeneration Options</Label>
               <div className="space-y-2">
                 <div
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    "flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-colors",
                     regenerateOption === "all" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
                   )}
                   onClick={() => setRegenerateOption("all")}
@@ -1556,17 +1807,17 @@ export function WriteInstructionStep({
                     type="radio"
                     checked={regenerateOption === "all"}
                     onChange={() => setRegenerateOption("all")}
-                    className="mt-1"
+                    className="mt-0.5"
                   />
                   <div className="flex-1">
-                    <div className="font-medium">Regenerate ALL emails ({allGeneratedEmails.length} total)</div>
-                    <div className="text-sm text-muted-foreground">This will replace all existing emails</div>
+                    <div className="text-sm font-medium">Regenerate ALL emails ({allGeneratedEmails.length} total)</div>
+                    <div className="text-xs text-muted-foreground">This will replace all existing emails</div>
                   </div>
                 </div>
 
                 <div
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    "flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-colors",
                     regenerateOption === "unapproved"
                       ? "border-primary bg-primary/5"
                       : "border-border hover:bg-muted/50",
@@ -1579,11 +1830,11 @@ export function WriteInstructionStep({
                     checked={regenerateOption === "unapproved"}
                     onChange={() => setRegenerateOption("unapproved")}
                     disabled={pendingCount === 0}
-                    className="mt-1"
+                    className="mt-0.5"
                   />
                   <div className="flex-1">
-                    <div className="font-medium">Regenerate only unapproved emails ({pendingCount} emails)</div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm font-medium">Regenerate only unapproved emails ({pendingCount} emails)</div>
+                    <div className="text-xs text-muted-foreground">
                       Keep your {approvedCount} approved emails unchanged
                     </div>
                   </div>
@@ -1592,7 +1843,7 @@ export function WriteInstructionStep({
             </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
+              <p className="text-xs text-blue-800">
                 {regenerateOption === "all"
                   ? `This will regenerate all ${allGeneratedEmails.length} emails using the same instructions.`
                   : `This will regenerate ${pendingCount} unapproved emails. Your ${approvedCount} approved emails will remain unchanged.`}
@@ -1601,12 +1852,18 @@ export function WriteInstructionStep({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRegenerateDialog(false)} disabled={isRegenerating}>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+              disabled={isRegenerating}
+              size="sm"
+            >
               Cancel
             </Button>
             <Button
               onClick={() => handleRegenerateAllEmails(regenerateOption === "unapproved")}
-              disabled={isRegenerating || (regenerateOption === "unapproved" && pendingCount === 0)}
+              disabled={isRegenerating}
+              size="sm"
             >
               {isRegenerating ? "Regenerating..." : "Regenerate"}
             </Button>
@@ -1616,3 +1873,46 @@ export function WriteInstructionStep({
     </div>
   );
 }
+
+// Custom comparison function for React.memo - AGGRESSIVE ISOLATION MODE
+const arePropsEqual = (prevProps: WriteInstructionStepProps, nextProps: WriteInstructionStepProps): boolean => {
+  // In aggressive isolation mode, we ONLY re-render for these critical changes:
+
+  // 1. Different session (switching between campaigns)
+  if (prevProps.sessionId !== nextProps.sessionId) {
+    console.log("[WriteInstructionStep] Re-render: sessionId changed", prevProps.sessionId, "->", nextProps.sessionId);
+    return false;
+  }
+
+  // 2. Different edit mode (create vs edit)
+  if (prevProps.editMode !== nextProps.editMode) {
+    console.log("[WriteInstructionStep] Re-render: editMode changed", prevProps.editMode, "->", nextProps.editMode);
+    return false;
+  }
+
+  // 3. Different donor selection (only by reference, not by content)
+  if (prevProps.selectedDonors !== nextProps.selectedDonors) {
+    console.log("[WriteInstructionStep] Re-render: selectedDonors reference changed");
+    return false;
+  }
+
+  // 4. Initial data loading (only on first load)
+  if (prevProps.initialGeneratedEmails !== nextProps.initialGeneratedEmails) {
+    console.log("[WriteInstructionStep] Re-render: initialGeneratedEmails changed");
+    return false;
+  }
+
+  // BLOCKED: All other prop changes are ignored to prevent re-renders
+  // - campaignName changes (we manage our own state)
+  // - instruction changes (we manage local state)
+  // - templatePrompt changes (after initial load)
+  // - callback function reference changes
+  // - any other prop changes
+
+  // This creates a "render isolation bubble" where the component only re-renders
+  // for truly critical changes, not for every minor parent state update
+
+  return true; // Block ALL other re-renders
+};
+
+export const WriteInstructionStep = React.memo(WriteInstructionStepComponent, arePropsEqual);
