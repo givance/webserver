@@ -105,14 +105,14 @@ export function useLists() {
 
   const updateMutation = trpc.lists.update.useMutation({
     onSuccess: (data) => {
+      // Update the cache directly instead of invalidating and refetching
+      utils.lists.getById.setData({ id: data.id }, data);
+      utils.lists.getByIdWithMemberCount.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
+      utils.lists.getByIdWithMembers.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
+
+      // Invalidate list view to refresh it
       utils.lists.list.invalidate();
-      utils.lists.list.refetch();
-      utils.lists.getById.invalidate({ id: data.id });
-      utils.lists.getById.refetch({ id: data.id });
-      utils.lists.getByIdWithMemberCount.invalidate({ id: data.id });
-      utils.lists.getByIdWithMemberCount.refetch({ id: data.id });
-      utils.lists.getByIdWithMembers.invalidate({ id: data.id });
-      utils.lists.getByIdWithMembers.refetch({ id: data.id });
+
       toast.success(`Updated list "${data.name}" successfully!`);
     },
     onError: (error) => {

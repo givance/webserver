@@ -36,7 +36,7 @@ export default function EditListPage() {
     if (list) {
       setFormData({
         name: list.name,
-        description: list.description || "",
+        description: list.description ?? "",
         isActive: list.isActive,
       });
     }
@@ -60,11 +60,11 @@ export default function EditListPage() {
       await updateList({
         id: listId,
         name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
+        description: formData.description.trim(),
         isActive: formData.isActive,
       });
 
-      router.push(`/lists/${listId}`);
+      router.push("/lists");
     } catch (error) {
       console.error("Error updating list:", error);
       toast.error("Failed to update list. Please try again.");
