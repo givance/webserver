@@ -4,21 +4,20 @@ import { createAzure } from "@ai-sdk/azure";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { DonationWithDetails } from "../../data/donations";
+import { PersonResearchResult } from "../../services/person-research/types";
 import { formatDonorName } from "../donor-name-formatter";
-import { buildStructuredEmailPrompt } from "./prompt-builder-structured";
 import {
   DonorInfo,
   DonorStatistics,
   EmailGeneratorTool,
-  GeneratedEmail,
   EmailPiece,
   GenerateEmailOptions,
+  GeneratedEmail,
   Organization,
   RawCommunicationThread,
   TokenUsage,
   createEmptyTokenUsage,
 } from "./types";
-import { PersonResearchResult } from "../../services/person-research/types";
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -250,12 +249,7 @@ export class EmailGenerationService implements EmailGeneratorTool {
         logger.info(
           `[EmailGenerationService.generateDonorEmail] AI REQUEST ATTEMPT ${attempt}/${maxAttempts} for donor ${donor.id}`
         );
-        logger.info(
-          `[EmailGenerationService.generateDonorEmail] AI REQUEST PROMPT (first 500 chars): ${newFormatPrompt.substring(
-            0,
-            500
-          )}...`
-        );
+        logger.info(`[EmailGenerationService.generateDonorEmail] AI REQUEST PROMPT: ${newFormatPrompt}`);
 
         try {
           const result = await generateObject({
@@ -446,7 +440,11 @@ REQUIREMENTS:
 - DO NOT use reference markers, footnotes, or bracketed placeholders
 - Be specific and avoid general statements
 
-PRIORITY: User Notes about the donor take precedence over all other guidelines.`;
+Wher writing, if there are conflicts in the instructions, you should prioritize as below:
+* The user message later, after this system message.
+* The notes for each donor.
+* The personal writing instructions.
+* The organization writing instructions.`;
 
     // Build donor context
     let donorContext = "";
@@ -461,7 +459,7 @@ PRIORITY: User Notes about the donor take precedence over all other guidelines.`
     // Donor basic info
     donorContext += `DONOR: ${formatDonorName(donor)} (${donor.email})\n`;
     if (donor.notes) {
-      donorContext += `User Notes about this Donor: ${donor.notes}\n`;
+      donorContext += `User Notes about this Donor: ${JSON.stringify(donor.notes)}\n`;
     }
 
     // Donation contexts

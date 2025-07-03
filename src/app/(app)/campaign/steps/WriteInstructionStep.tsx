@@ -56,9 +56,9 @@ interface WriteInstructionStepProps {
 }
 
 // Configuration for preview donor count - can be changed later
-const PREVIEW_DONOR_COUNT = 50;
+const PREVIEW_DONOR_COUNT = 10;
 const EMAILS_PER_PAGE = 10;
-const GENERATE_MORE_COUNT = 50;
+const GENERATE_MORE_COUNT = 10;
 
 interface GeneratedEmail {
   id?: number; // ID from database after saving

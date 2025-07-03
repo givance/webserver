@@ -1,20 +1,20 @@
-import { TRPCError } from "@trpc/server";
-import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/app/lib/db";
-import { organizations, donors as donorsSchema, staff, generatedEmails } from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import {
   DonationWithDetails,
-  listDonations,
   getMultipleComprehensiveDonorStats,
   getMultipleComprehensiveDonorStatsExcludingExternal,
+  listDonations,
 } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
-import { getDismissedMemories, getUserMemories, getUserById } from "@/app/lib/data/users";
+import { getUserById, getUserMemories } from "@/app/lib/data/users";
+import { db } from "@/app/lib/db";
+import { donors as donorsSchema, generatedEmails, organizations, staff } from "@/app/lib/db/schema";
+import { logger } from "@/app/lib/logger";
 import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { processProjectMentions } from "@/app/lib/utils/email-generator/mention-processor";
-import { RawCommunicationThread, Organization, DonorStatistics } from "@/app/lib/utils/email-generator/types";
+import { DonorStatistics, Organization, RawCommunicationThread } from "@/app/lib/utils/email-generator/types";
+import { TRPCError } from "@trpc/server";
+import { and, eq, inArray } from "drizzle-orm";
 import { PersonResearchService } from "./person-research.service";
 import { PersonResearchResult } from "./person-research/types";
 

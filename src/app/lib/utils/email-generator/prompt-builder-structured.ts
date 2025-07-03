@@ -1,12 +1,8 @@
-import { DonorInfo, Organization, RawCommunicationThread, DonorStatistics } from "./types";
-import {
-  formatDonationHistoryWithIds,
-  formatCommunicationHistoryWithIds,
-  // formatWebsiteSummaryWithIds is disabled - website summary feature is hidden
-} from "./context-formatters";
 import { DonationWithDetails } from "../../data/donations";
-import { formatDonorName } from "../donor-name-formatter";
 import { PersonResearchResult } from "../../services/person-research/types";
+import { formatDonorName } from "../donor-name-formatter";
+import { formatCommunicationHistoryWithIds, formatDonationHistoryWithIds } from "./context-formatters";
+import { DonorInfo, DonorStatistics, Organization, RawCommunicationThread } from "./types";
 
 /**
  * Formats person research results with reference IDs for LLM context
@@ -79,36 +75,30 @@ export function buildStructuredSystemPrompt(
 
 CONTEXT:
 Organization: ${organizationName}
-${organization?.description ? `Organization Description: ${organization.description}\n` : ""}
+${organization?.description ? `[Organization-description]\n${organization.description}\n` : ""}
 ${dateContext}
 ${staffContext}
-${organizationWritingInstructions ? `Writing Guidelines: ${organizationWritingInstructions}` : ""}
-${personalWritingInstructions ? `Personal Writing Guidelines: ${personalWritingInstructions}` : ""}
+${organizationWritingInstructions ? `[Organization Writing Guidelines]\n${organizationWritingInstructions}` : ""}
+${personalWritingInstructions ? `[Personal Writing Guidelines]\n${personalWritingInstructions}` : ""}
 
-${personalMemories.length > 0 ? `Personal Memories:\n${personalMemories.join("\n")}\n` : ""}
-${organizationalMemories.length > 0 ? `Organization Memories:\n${organizationalMemories.join("\n")}\n` : ""}
+${personalMemories.length > 0 ? `[Personal Memories]\n${personalMemories.join("\n")}\n` : ""}
+${organizationalMemories.length > 0 ? `[Organization Memories]\n${organizationalMemories.join("\n")}\n` : ""}
 
 REQUIREMENTS:
 - Write a reengagement email for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
 - Subject line: Personal, emotional, under 50 characters
 - Tone: Warm, personal, confident
-- Length: 120-150 words
 - If needed, reference specific donation amounts and dates from the history when available
 - Use the current date context for time-sensitive references and seasonal messaging
 - DO NOT include any signature or closing in the email - this will be automatically added by the system
 - When talking about the donor's impact, you should use their past donation history to reference the impact they've had.
 
 IMPORTANT INSTRUCTIONS:
-- For the "piece" field: Write natural email text WITHOUT any reference IDs, numbers, or markers (like [donation-context], [comm-02-01], ¹, ², 1, 2, etc.)
-- For the "references" field: Include the context IDs that informed each piece (e.g., ["donation-context", "comm-01-02"])
-- For "addNewlineAfter": Use true for paragraph breaks, false for continuing sentences
 - DO NOT use "-", "--" or "—" in the email ever.
 - DO NOT include any closing, signature, or sign-off (like "Best regards", "Sincerely", etc.) - the system will automatically add the appropriate signature
-- DO NOT include footnote numbers, superscript numbers, or any reference markers in the email text
 - PRIORITY: If there are User Notes about the donor, those should take precedence over Organization Memories or Writing Guidelines if there's any conflict. User Notes contain specific instructions about this individual donor that should be followed. Personal Writing Guidelines should take precedence over Organization Writing Guidelines if there's any conflict.
 - Try to be as specific as possible, avoid general statements.
 - Do not mention small amount donations unless the user has specifically asked for it. Do not say "small" or "small amount" in the email.
-- DONATION CONTEXT: When referencing donations, use "donation-context" as the reference ID which contains ALL donation information. This allows you to mention multiple donations, specific amounts, dates, and projects from the donor's complete giving history.
 - DONATION LINKS: When including donation links, always use actual URLs the user give you rather than placeholder text like "[donation link]" or "click here". Never use bracketed placeholder text.
 
 If the requirements or the important instructions conflicts with the task below, follow the task instruction.
@@ -131,7 +121,6 @@ export function buildStructuredDonorContext(
 ): string {
   const { promptString: donationHistoryPrompt } = formatDonationHistoryWithIds(donationHistoryInput);
   const { promptString: communicationHistoryPrompt } = formatCommunicationHistoryWithIds(communicationHistoryInput);
-  const { promptString: personResearchPrompt } = formatPersonResearchWithIds(personResearch);
 
   // Format donor statistics if available
   let statisticsPrompt = "";
@@ -141,7 +130,7 @@ export function buildStructuredDonorContext(
       currency: "USD",
     });
 
-    statisticsPrompt = `\nDonor Statistics:
+    statisticsPrompt = `\n[Donor Statistics]
 - Total Donations: ${donorStatistics.totalDonations}
 - Total Amount Donated: ${totalAmount}`;
 
@@ -279,8 +268,6 @@ export function buildStructuredEmailPrompt(
     personResearch,
     originalInstruction
   );
-
-  console.log(donorContext);
 
   return {
     systemPrompt,
