@@ -94,6 +94,8 @@ export default function EditCampaignPage() {
           templateId: sessionData.session.templateId ?? undefined,
           // Include any existing generated emails for reference
           existingGeneratedEmails: sessionData.emails || [],
+          // Include the previewDonorIds from the session (THIS WAS MISSING!)
+          previewDonorIds: (sessionData.session.previewDonorIds as number[]) || [],
         }}
       />
     </div>

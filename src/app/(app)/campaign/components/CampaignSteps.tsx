@@ -27,6 +27,7 @@ interface CampaignStepsProps {
     instruction: string;
     templateId?: number;
     existingGeneratedEmails?: any[];
+    previewDonorIds?: number[]; // Add the missing previewDonorIds field
   };
 }
 
@@ -90,7 +91,9 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<Record<number, Record<string, string>>>(
     {}
   );
-  const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>([]);
+  const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>(
+    existingCampaignData?.previewDonorIds || []
+  );
   const router = useRouter();
 
   // Template hooks

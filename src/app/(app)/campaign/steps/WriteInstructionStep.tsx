@@ -955,20 +955,20 @@ function WriteInstructionStepComponent({
     setShowRegenerateDialog(false);
 
     try {
-      // Determine which donors to regenerate - ONLY use donors from currently generated emails
+      // Determine which donors to regenerate - use the same previewDonorIds for consistency
       let donorsToRegenerate: number[] = [];
       let preservedEmails: GeneratedEmail[] = [];
       const preservedStatuses = { ...emailStatuses };
       const preservedContexts = { ...referenceContexts };
 
       if (onlyUnapproved) {
-        // Only regenerate emails for donors with pending approval status from existing generated emails
-        donorsToRegenerate = allGeneratedEmails
-          .filter((email) => emailStatuses[email.donorId] !== "APPROVED")
-          .map((email) => email.donorId);
+        // Only regenerate emails for preview donors with pending approval status
+        donorsToRegenerate = previewDonorIds.filter((donorId) => emailStatuses[donorId] !== "APPROVED");
 
-        // Preserve approved emails
-        preservedEmails = allGeneratedEmails.filter((email) => emailStatuses[email.donorId] === "APPROVED");
+        // Preserve approved emails from the preview donor set
+        preservedEmails = allGeneratedEmails.filter(
+          (email) => previewDonorIds.includes(email.donorId) && emailStatuses[email.donorId] === "APPROVED"
+        );
 
         // Don't clear contexts for approved emails
         const newContexts: Record<number, Record<string, string>> = {};
@@ -981,8 +981,8 @@ function WriteInstructionStepComponent({
           `Regenerating ${donorsToRegenerate.length} unapproved emails, keeping ${preservedEmails.length} approved emails`
         );
       } else {
-        // For full regeneration, use ALL donors from currently generated emails
-        donorsToRegenerate = allGeneratedEmails.map((email) => email.donorId);
+        // For full regeneration, use ALL preview donors (same as original generation)
+        donorsToRegenerate = previewDonorIds;
 
         // Clear everything for full regeneration
         setGeneratedEmails([]);
@@ -1013,38 +1013,93 @@ function WriteInstructionStepComponent({
         day: "numeric",
       });
 
-      // Use the regenerateAllEmails API which handles backend generation and saving
-      if (!sessionId) {
-        throw new Error("No session ID available for regeneration");
+      // Use the regular generateEmails API for immediate preview regeneration
+      const finalInstruction = previousInstruction || localInstructionRef.current;
+      if (!finalInstruction) {
+        throw new Error("No instruction available for regeneration");
       }
 
-      const result = await regenerateAllEmails.mutateAsync({
-        sessionId,
-        instruction: "", // Use existing instruction from session
+      const result = await generateEmails.mutateAsync({
+        instruction: finalInstruction,
+        donors: donorData,
+        organizationName: organization.name,
+        organizationWritingInstructions: organization.writingInstructions ?? undefined,
+        previousInstruction,
+        currentDate,
         chatHistory: chatMessages,
+        signature: currentSignature,
       });
 
-      if (result?.success) {
-        // Clear local state - data will be refetched automatically via TRPC invalidation
+      if (result && !("isAgenticFlow" in result)) {
+        const emailResult = result as GenerateEmailsResponse;
+
         if (onlyUnapproved) {
-          // Keep approved emails in local state until refetch completes
-          setAllGeneratedEmails(preservedEmails);
-          setGeneratedEmails(preservedEmails);
-          setEmailStatuses(preservedStatuses);
-          setReferenceContexts(preservedContexts);
+          // Merge new emails with preserved approved emails
+          const newEmails = [...preservedEmails, ...emailResult.emails];
+          setAllGeneratedEmails(newEmails);
+          setGeneratedEmails(newEmails);
+
+          // Update reference contexts and statuses
+          const newReferenceContexts = { ...preservedContexts };
+          const newStatuses = { ...preservedStatuses };
+          emailResult.emails.forEach((email) => {
+            newReferenceContexts[email.donorId] = email.referenceContexts || {};
+            newStatuses[email.donorId] = "PENDING_APPROVAL";
+          });
+          setReferenceContexts(newReferenceContexts);
+          setEmailStatuses(newStatuses);
+
+          toast.success(`Regenerated ${emailResult.emails.length} unapproved emails successfully!`);
         } else {
-          // Clear everything for full regeneration
-          setAllGeneratedEmails([]);
-          setGeneratedEmails([]);
-          setReferenceContexts({});
-          setEmailStatuses({});
+          // Replace all emails for full regeneration
+          setAllGeneratedEmails(emailResult.emails);
+          setGeneratedEmails(emailResult.emails);
+          setPreviousInstruction(emailResult.refinedInstruction);
+
+          // Initialize all emails as pending approval
+          const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+          emailResult.emails.forEach((email) => {
+            newStatuses[email.donorId] = "PENDING_APPROVAL";
+          });
+          setEmailStatuses(newStatuses);
+
+          setReferenceContexts(
+            emailResult.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
+              acc[email.donorId] = email.referenceContexts || {};
+              return acc;
+            }, {})
+          );
+
+          toast.success(`Regenerated all ${emailResult.emails.length} emails successfully!`);
         }
 
-        // Preview is now always visible on the right side (no tab switching needed)
+        // Save regenerated emails to session if available
+        if (sessionId) {
+          const savePromises = emailResult.emails.map(async (email) => {
+            try {
+              await saveGeneratedEmail.mutateAsync({
+                sessionId,
+                donorId: email.donorId,
+                subject: email.subject,
+                structuredContent: email.structuredContent,
+                referenceContexts: email.referenceContexts,
+                emailContent: email.emailContent,
+                reasoning: email.reasoning,
+                response: email.response,
+                isPreview: true,
+              });
+              return email;
+            } catch (error) {
+              console.error(`Failed to save regenerated email for donor ${email.donorId}:`, error);
+              return email;
+            }
+          });
 
-        toast.success(`Successfully started regeneration of emails! Refreshing...`);
+          // Save all emails in parallel
+          Promise.all(savePromises);
+        }
       } else {
-        throw new Error("Failed to start regeneration");
+        throw new Error("Failed to regenerate emails");
       }
     } catch (error) {
       console.error("Error regenerating emails:", error);
