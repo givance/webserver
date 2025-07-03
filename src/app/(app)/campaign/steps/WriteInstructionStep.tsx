@@ -161,6 +161,7 @@ function IsolatedMentionsInput({
 
       prevInitialValueRef.current = initialValue;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValue]); // Only depend on initialValue
 
   const handleChange = useCallback(
@@ -277,6 +278,7 @@ function WriteInstructionStepComponent({
       setLocalInstruction(instruction || "");
       setHasInputContent(!!instruction?.trim());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instruction]); // Only depend on instruction prop, not localInstruction to avoid loops
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -451,6 +453,7 @@ function WriteInstructionStepComponent({
       setPreviewDonorIds(preview);
       hasGeneratedPreviewRef.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run once on mount
 
   // Function to save chat history - called after messages are sent/received
