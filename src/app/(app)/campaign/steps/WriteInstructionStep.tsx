@@ -138,28 +138,30 @@ function IsolatedMentionsInput({
   const valueRef = useRef(initialValue);
   const [internalKey, setInternalKey] = useState(0);
 
+  // Track previous initialValue to detect changes
+  const prevInitialValueRef = useRef(initialValue);
+  
   // Update local value when initial value changes (from external sources)
   useEffect(() => {
-    console.log("[IsolatedInput] initialValue changed:", {
-      initialValue: JSON.stringify(initialValue),
-      localValue: JSON.stringify(localValue),
-      initialValueLength: initialValue?.length || 0,
-      localValueLength: localValue?.length || 0,
-      willUpdate: initialValue !== localValue,
-    });
-    // Force update when cleared from parent
-    if (initialValue === "" && localValue !== "") {
-      console.log("[IsolatedInput] Detected clear from parent, forcing update");
-      setLocalValue("");
-      valueRef.current = "";
-      setInternalKey(prev => prev + 1); // Force re-render of MentionsInput
-    } else if (initialValue !== localValue) {
-      // Normal sync for other changes
-      console.log("[IsolatedInput] Syncing to initialValue:", JSON.stringify(initialValue));
+    if (prevInitialValueRef.current !== initialValue) {
+      console.log("[IsolatedInput] initialValue changed:", {
+        from: JSON.stringify(prevInitialValueRef.current),
+        to: JSON.stringify(initialValue),
+        localValue: JSON.stringify(localValue),
+      });
+      
+      // Always sync when initialValue changes
       setLocalValue(initialValue);
       valueRef.current = initialValue;
+      
+      // Force re-render of MentionsInput when clearing
+      if (initialValue === "") {
+        setInternalKey(prev => prev + 1);
+      }
+      
+      prevInitialValueRef.current = initialValue;
     }
-  }, [initialValue]); // Don't include localValue to avoid circular dependencies
+  }, [initialValue]); // Only depend on initialValue
 
   const handleChange = useCallback(
     (event: any, newValue: string) => {
