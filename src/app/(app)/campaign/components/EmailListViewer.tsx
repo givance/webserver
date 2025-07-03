@@ -482,11 +482,9 @@ export const EmailListViewer = React.memo(function EmailListViewer({
                                 <span className="text-xs font-semibold text-primary">{getDonorInitials(donor)}</span>
                               </div>
                               <div className="flex flex-col items-center gap-1">
-                                {/* Approval status badge */}
-                                {email.status === "APPROVED" ? (
+                                {/* Approval status badge - only show green dot for approved */}
+                                {email.status === "APPROVED" && (
                                   <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                ) : (
-                                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                                 )}
                                 {/* Email connection error indicator */}
                                 {showStaffAssignment && assignedStaffName && !hasConnectedEmail && (
