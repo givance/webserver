@@ -140,7 +140,7 @@ function IsolatedMentionsInput({
 
   // Track previous initialValue to detect changes
   const prevInitialValueRef = useRef(initialValue);
-  
+
   // Update local value when initial value changes (from external sources)
   useEffect(() => {
     if (prevInitialValueRef.current !== initialValue) {
@@ -149,16 +149,16 @@ function IsolatedMentionsInput({
         to: JSON.stringify(initialValue),
         localValue: JSON.stringify(localValue),
       });
-      
+
       // Always sync when initialValue changes
       setLocalValue(initialValue);
       valueRef.current = initialValue;
-      
+
       // Force re-render of MentionsInput when clearing
       if (initialValue === "") {
-        setInternalKey(prev => prev + 1);
+        setInternalKey((prev) => prev + 1);
       }
-      
+
       prevInitialValueRef.current = initialValue;
     }
   }, [initialValue]); // Only depend on initialValue
@@ -299,6 +299,15 @@ function WriteInstructionStepComponent({
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+
+  // Update chat messages when initialChatHistory prop changes (important for edit mode)
+  useEffect(() => {
+    if (initialChatHistory.length > 0 && chatMessages.length === 0) {
+      console.log("[WriteInstructionStep] Loading chat history from props:", initialChatHistory.length, "messages");
+      setChatMessages(initialChatHistory);
+    }
+  }, [initialChatHistory, chatMessages.length]);
+
   // Update emails when initialGeneratedEmails prop changes (important for edit mode)
   useEffect(() => {
     if (editMode && initialGeneratedEmails.length > 0) {
@@ -419,20 +428,20 @@ function WriteInstructionStepComponent({
   // Use a ref to ensure we only generate the random set once
   const hasGeneratedPreviewRef = useRef(false);
   const stablePreviewDonorsRef = useRef<number[]>([]);
-  
+
   // Set preview donors only once when component mounts
   useEffect(() => {
     // If we already have preview donors (from DB or previous generation), use those
     if (previewDonorIds.length > 0) {
       return;
     }
-    
+
     // If we have initial preview donor IDs from the database, use those
     if (initialPreviewDonorIds.length > 0) {
       setPreviewDonorIds(initialPreviewDonorIds);
       return;
     }
-    
+
     // Only generate random selection once for new campaigns
     if (!hasGeneratedPreviewRef.current && selectedDonors.length > 0) {
       console.log("[WriteInstructionStep] Generating random preview donors - this should only happen ONCE");
@@ -443,57 +452,6 @@ function WriteInstructionStepComponent({
       hasGeneratedPreviewRef.current = true;
     }
   }, []); // Empty dependency array - only run once on mount
-
-  // DISABLED: Auto-save was causing performance issues
-  // This was saving on every keystroke because `instruction` was in the dependency array
-  // const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // useEffect(() => {
-  //   // Clear existing timeout
-  //   if (saveTimeoutRef.current) {
-  //     clearTimeout(saveTimeoutRef.current);
-  //   }
-
-  //   // Only save if these are newly set preview donor IDs (not loaded from database)
-  //   const shouldSave = previewDonorIds.length > 0 && initialPreviewDonorIds.length === 0;
-
-  //   if (shouldSave && sessionId && campaignName) {
-  //     // Debounce the save operation
-  //     saveTimeoutRef.current = setTimeout(async () => {
-  //       try {
-  //         await saveDraft.mutateAsync({
-  //           sessionId,
-  //           campaignName,
-  //           selectedDonorIds: selectedDonors,
-  //           templateId,
-  //           instruction: instruction || "",
-  //           chatHistory: chatMessages,
-  //           previewDonorIds,
-  //         });
-  //         console.log("[WriteInstructionStep] Saved preview donor IDs to database:", previewDonorIds);
-  //       } catch (error) {
-  //         console.error("[WriteInstructionStep] Failed to save preview donor IDs:", error);
-  //       }
-  //     }, 1000);
-  //   }
-
-  //   // Cleanup function
-  //   return () => {
-  //     if (saveTimeoutRef.current) {
-  //       clearTimeout(saveTimeoutRef.current);
-  //     }
-  //   };
-  // }, [
-  //   previewDonorIds,
-  //   initialPreviewDonorIds.length,
-  //   sessionId,
-  //   campaignName,
-  //   selectedDonors,
-  //   templateId,
-  //   instruction,
-  //   chatMessages,
-  //   saveDraft,
-  // ]);
 
   // Function to save chat history - called after messages are sent/received
   const saveChatHistory = useCallback(
@@ -557,25 +515,6 @@ function WriteInstructionStepComponent({
       referenceContexts,
     };
   }, [chatMessages, previewDonorIds, allGeneratedEmails, referenceContexts]);
-
-  // Temporarily disable auto-persistence to test if it's causing re-renders
-  // useEffect(() => {
-  //   if (onSessionDataChange && (chatMessages.length > 0 || allGeneratedEmails.length > 0)) {
-  //     const currentDataString = JSON.stringify({
-  //       chatHistory: sessionData.chatHistory,
-  //       previewDonorIds: sessionData.previewDonorIds,
-  //       generatedEmailsCount: sessionData.generatedEmails.length,
-  //       referenceContextsKeys: Object.keys(sessionData.referenceContexts),
-  //     });
-
-  //     // Only persist if the data has actually changed
-  //     if (currentDataString !== lastPersistedData.current) {
-  //       console.log('[WriteInstructionStep] Persisting session data');
-  //       lastPersistedData.current = currentDataString;
-  //       onSessionDataChange(sessionData);
-  //     }
-  //   }
-  // }, [sessionData, onSessionDataChange, chatMessages.length, allGeneratedEmails.length]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
