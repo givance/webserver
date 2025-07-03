@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, ArrowRight, Mail, RefreshCw, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail, RefreshCw, Users, MessageSquare, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mention, MentionsInput } from "react-mentions";
 import { toast } from "sonner";
@@ -56,9 +56,9 @@ interface WriteInstructionStepProps {
 }
 
 // Configuration for preview donor count - can be changed later
-const PREVIEW_DONOR_COUNT = 10;
+const PREVIEW_DONOR_COUNT = 50;
 const EMAILS_PER_PAGE = 10;
-const GENERATE_MORE_COUNT = 10;
+const GENERATE_MORE_COUNT = 50;
 
 interface GeneratedEmail {
   id?: number; // ID from database after saving
@@ -301,6 +301,8 @@ function WriteInstructionStepComponent({
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [isEmailListExpanded, setIsEmailListExpanded] = useState(false); // Control email list expansion
 
   // Update chat messages when initialChatHistory prop changes (important for edit mode)
   useEffect(() => {
@@ -703,8 +705,10 @@ function WriteInstructionStepComponent({
             setHasInputContent(false); // Clear input content flag
             onInstructionChange(""); // Clear parent state
 
-            // Auto-switch to preview tab after email generation (removed since no tabs)
-            // Preview is now always visible on the right side
+            // Auto-collapse chat to show more email space after generation
+            setIsChatCollapsed(true);
+            // Also expand email list when chat is collapsed
+            setIsEmailListExpanded(true);
           }
         } else {
           console.log("[WriteInstructionStep] No result from generateEmails - throwing error");
@@ -1492,12 +1496,38 @@ function WriteInstructionStepComponent({
     <div className="flex flex-col h-full space-y-3">
       {/* Compact Navigation Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
             <ArrowLeft className="w-3 h-3 mr-1" />
             Back
           </Button>
-          <h2 className="text-sm font-medium text-muted-foreground">{campaignName}</h2>
+          {/* Chat Toggle Button - Always in same position */}
+          {allGeneratedEmails.length > 0 && (
+            <Button
+              onClick={() => {
+                const newChatCollapsed = !isChatCollapsed;
+                setIsChatCollapsed(newChatCollapsed);
+                // When chat is hidden (collapsed), expand email list
+                // When chat is shown (not collapsed), collapse email list
+                setIsEmailListExpanded(newChatCollapsed);
+              }}
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+            >
+              {isChatCollapsed ? (
+                <>
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  Show Chat
+                </>
+              ) : (
+                <>
+                  <X className="h-3 w-3 mr-1" />
+                  Hide Chat
+                </>
+              )}
+            </Button>
+          )}
         </div>
         <Button
           onClick={handleNextClick}
@@ -1512,15 +1542,21 @@ function WriteInstructionStepComponent({
 
       {/* Main Content - Claude Artifacts Style Layout - Fixed Height */}
       <div className="h-[600px] bg-background border rounded-lg overflow-hidden">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-2">
+        <div className="h-full flex">
           {/* Left Side - Chat & Generate */}
-          <div className="flex flex-col h-full border-r overflow-hidden">
+          <div className={cn(
+            "flex flex-col h-full border-r overflow-hidden transition-all duration-300 ease-in-out",
+            isChatCollapsed ? "w-0 opacity-0" : "w-full lg:w-1/2"
+          )}>
             {/* Chat Messages - Scrollable */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <ScrollArea className="h-full w-full">
                 <div className="p-4 space-y-3">
                   {chatMessages.length === 0 ? (
-                    <div className="flex items-center justify-center min-h-[300px]">
+                    <div className={cn(
+                      "flex items-center justify-center min-h-[300px] transition-opacity duration-300",
+                      isChatCollapsed && "opacity-0"
+                    )}>
                       <div className="text-center text-muted-foreground">
                         <div className="w-10 h-10 mx-auto bg-muted rounded-full flex items-center justify-center mb-2">
                           <Mail className="h-5 w-5" />
@@ -1563,7 +1599,10 @@ function WriteInstructionStepComponent({
             </div>
 
             {/* Input Area - Fixed at bottom */}
-            <div className="border-t bg-background flex-shrink-0">
+            <div className={cn(
+              "border-t bg-background flex-shrink-0 transition-all duration-300 ease-in-out",
+              isChatCollapsed && "opacity-0 pointer-events-none"
+            )}>
               {/* Input Box - Scrollable */}
               <IsolatedMentionsInput
                 initialValue={localInstruction}
@@ -1600,7 +1639,10 @@ function WriteInstructionStepComponent({
           </div>
 
           {/* Right Side - Email Preview */}
-          <div className="flex flex-col h-full bg-muted/5 overflow-hidden">
+          <div className={cn(
+            "flex flex-col h-full bg-muted/5 overflow-hidden relative transition-all duration-300 ease-in-out",
+            isChatCollapsed ? "flex-1" : "flex-1 lg:w-1/2"
+          )}>
             {/* Content Area - Independently Scrollable */}
             <div className="h-full overflow-hidden">
               {isGenerating && (
@@ -1643,6 +1685,8 @@ function WriteInstructionStepComponent({
                     isGeneratingMore={isGeneratingMore}
                     remainingDonorsCount={totalRemainingDonors}
                     generateMoreCount={GENERATE_MORE_COUNT}
+                    isRecipientsExpanded={isEmailListExpanded}
+                    onRecipientsExpandedChange={setIsEmailListExpanded}
                     getStaffName={(staffId) => {
                       if (!staffId || !staffData?.staff) return "Unassigned";
                       const staff = staffData.staff.find((s) => s.id === staffId);
