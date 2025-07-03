@@ -7,6 +7,14 @@ import { runs } from "@trigger.dev/sdk/v3";
 
 // Mock dependencies
 jest.mock("@/app/lib/db");
+jest.mock("@/app/lib/logger", () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
 jest.mock("@trigger.dev/sdk/v3", () => ({
   runs: {
     cancel: jest.fn().mockResolvedValue(undefined),
@@ -24,6 +32,11 @@ describe("EmailSchedulingService", () => {
   beforeEach(() => {
     service = new EmailSchedulingService();
     jest.clearAllMocks();
+    
+    // Reset mock implementation counters
+    jest.mocked(db.select).mockReset();
+    jest.mocked(db.insert).mockReset();
+    jest.mocked(db.update).mockReset();
   });
 
   afterEach(() => {
@@ -137,15 +150,30 @@ describe("EmailSchedulingService", () => {
 
   describe("scheduleEmailCampaign", () => {
     it("should schedule emails with proper delays", async () => {
+      // Mock current date to be a Monday at 10 AM
+      const mockDate = new Date('2024-01-08T15:00:00Z'); // Monday, 10 AM EST
+      jest.useFakeTimers();
+      jest.setSystemTime(mockDate);
+      
       const mockConfig = {
         organizationId: "org-123",
         dailyLimit: 150,
         minGapMinutes: 1,
         maxGapMinutes: 3,
         timezone: "America/New_York",
+        allowedDays: [1, 2, 3, 4, 5], // Monday through Friday
+        allowedStartTime: "09:00",
+        allowedEndTime: "17:00",
+        allowedTimezone: "America/New_York",
       };
 
-      const mockEmails = [
+      const mockAllEmails = [
+        { id: 1, status: "generated", isSent: false, sendStatus: "pending" },
+        { id: 2, status: "generated", isSent: false, sendStatus: "pending" },
+        { id: 3, status: "generated", isSent: false, sendStatus: "pending" },
+      ];
+
+      const mockEmailsToSchedule = [
         { id: 1, donorId: 1, sessionId: 1, sendStatus: "pending" },
         { id: 2, donorId: 2, sessionId: 1, sendStatus: "pending" },
         { id: 3, donorId: 3, sessionId: 1, sendStatus: "pending" },
@@ -157,15 +185,51 @@ describe("EmailSchedulingService", () => {
       // Mock getEmailsSentToday
       jest.spyOn(service, "getEmailsSentToday").mockResolvedValue(0);
 
-      // Mock email selection
-      jest.mocked(db.select).mockReturnValue({
-        from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue(mockEmails),
-        }),
-      } as any);
+      // Mock the three different select queries
+      let selectCallCount = 0;
+      jest.mocked(db.select).mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          // First call: get all emails for logging
+          return {
+            from: jest.fn().mockReturnValue({
+              where: jest.fn().mockResolvedValue(mockAllEmails),
+            }),
+          } as any;
+        } else if (selectCallCount === 2) {
+          // Second call: get emails to schedule
+          return {
+            from: jest.fn().mockReturnValue({
+              where: jest.fn().mockResolvedValue(mockEmailsToSchedule),
+            }),
+          } as any;
+        } else {
+          // Third call: validate donors have staff with Gmail
+          const mockDonorValidation = mockEmailsToSchedule.map((email) => ({
+            donorId: email.donorId,
+            donorFirstName: "Test",
+            donorLastName: "Donor",
+            donorEmail: "donor@test.com",
+            assignedToStaffId: 1,
+            staffFirstName: "Staff",
+            staffLastName: "Member",
+            staffEmail: "staff@test.com",
+            hasGmailToken: true,
+          }));
+          return {
+            from: jest.fn().mockReturnValue({
+              leftJoin: jest.fn().mockReturnValue({
+                leftJoin: jest.fn().mockReturnValue({
+                  where: jest.fn().mockResolvedValue(mockDonorValidation),
+                }),
+              }),
+            }),
+          } as any;
+        }
+      });
 
       // Mock insert for email send jobs
-      const mockJobRecords = mockEmails.map((email, idx) => ({
+      const mockJobRecords = mockEmailsToSchedule.map((email, idx) => ({
         id: idx + 1,
         emailId: email.id,
         sessionId: 1,
@@ -193,18 +257,35 @@ describe("EmailSchedulingService", () => {
       expect(result.scheduledForToday).toBe(3);
       expect(result.scheduledForLater).toBe(0);
       expect(result.estimatedCompletionTime).toBeDefined();
+      
+      jest.useRealTimers();
     });
 
     it("should handle daily limit by scheduling emails for next day", async () => {
+      // Mock current date to be a Monday at 10 AM
+      const mockDate = new Date('2024-01-08T15:00:00Z'); // Monday, 10 AM EST
+      jest.useFakeTimers();
+      jest.setSystemTime(mockDate);
+      
       const mockConfig = {
         organizationId: "org-123",
         dailyLimit: 2,
         minGapMinutes: 1,
         maxGapMinutes: 3,
         timezone: "America/New_York",
+        allowedDays: [1, 2, 3, 4, 5], // Monday through Friday
+        allowedStartTime: "09:00",
+        allowedEndTime: "17:00",
+        allowedTimezone: "America/New_York",
       };
 
-      const mockEmails = [
+      const mockAllEmails = [
+        { id: 1, status: "generated", isSent: false, sendStatus: "pending" },
+        { id: 2, status: "generated", isSent: false, sendStatus: "pending" },
+        { id: 3, status: "generated", isSent: false, sendStatus: "pending" },
+      ];
+
+      const mockEmailsToSchedule = [
         { id: 1, donorId: 1, sessionId: 1, sendStatus: "pending" },
         { id: 2, donorId: 2, sessionId: 1, sendStatus: "pending" },
         { id: 3, donorId: 3, sessionId: 1, sendStatus: "pending" },
@@ -213,13 +294,50 @@ describe("EmailSchedulingService", () => {
       jest.spyOn(service, "getOrCreateScheduleConfig").mockResolvedValue(mockConfig as any);
       jest.spyOn(service, "getEmailsSentToday").mockResolvedValue(0);
 
-      jest.mocked(db.select).mockReturnValue({
-        from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue(mockEmails),
-        }),
-      } as any);
+      // Mock the three different select queries
+      let selectCallCount = 0;
+      jest.mocked(db.select).mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          // First call: get all emails for logging
+          return {
+            from: jest.fn().mockReturnValue({
+              where: jest.fn().mockResolvedValue(mockAllEmails),
+            }),
+          } as any;
+        } else if (selectCallCount === 2) {
+          // Second call: get emails to schedule
+          return {
+            from: jest.fn().mockReturnValue({
+              where: jest.fn().mockResolvedValue(mockEmailsToSchedule),
+            }),
+          } as any;
+        } else {
+          // Third call: validate donors have staff with Gmail
+          const mockDonorValidation = mockEmailsToSchedule.map((email) => ({
+            donorId: email.donorId,
+            donorFirstName: "Test",
+            donorLastName: "Donor",
+            donorEmail: "donor@test.com",
+            assignedToStaffId: 1,
+            staffFirstName: "Staff",
+            staffLastName: "Member",
+            staffEmail: "staff@test.com",
+            hasGmailToken: true,
+          }));
+          return {
+            from: jest.fn().mockReturnValue({
+              leftJoin: jest.fn().mockReturnValue({
+                leftJoin: jest.fn().mockReturnValue({
+                  where: jest.fn().mockResolvedValue(mockDonorValidation),
+                }),
+              }),
+            }),
+          } as any;
+        }
+      });
 
-      const mockJobRecords = mockEmails.map((email, idx) => ({
+      const mockJobRecords = mockEmailsToSchedule.map((email, idx) => ({
         id: idx + 1,
         emailId: email.id,
         sessionId: 1,
@@ -245,16 +363,23 @@ describe("EmailSchedulingService", () => {
       expect(result.scheduled).toBe(3);
       expect(result.scheduledForToday).toBe(2); // Only 2 can be sent today due to limit
       expect(result.scheduledForLater).toBe(1); // 1 scheduled for tomorrow
+      
+      jest.useRealTimers();
     });
 
     it("should throw error if no approved emails to schedule", async () => {
       jest.spyOn(service, "getOrCreateScheduleConfig").mockResolvedValue({} as any);
 
-      jest.mocked(db.select).mockReturnValue({
-        from: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue([]),
-        }),
-      } as any);
+      // Mock both select queries to return empty arrays
+      let selectCallCount = 0;
+      jest.mocked(db.select).mockImplementation(() => {
+        selectCallCount++;
+        return {
+          from: jest.fn().mockReturnValue({
+            where: jest.fn().mockResolvedValue([]),
+          }),
+        } as any;
+      });
 
       await expect(service.scheduleEmailCampaign(1, "org-123", "user-123")).rejects.toThrow(
         "No emails are ready to be scheduled. No emails found for this campaign."

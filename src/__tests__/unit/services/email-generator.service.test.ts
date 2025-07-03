@@ -70,18 +70,9 @@ describe("EmailGenerationService", () => {
 
     const mockGeneratedEmail = {
       subject: "Thank you for your support",
-      content: [
-        {
-          piece: "Dear John,",
-          references: ["salutation"],
-          addNewlineAfter: true,
-        },
-        {
-          piece: "Thank you for your continued support of our mission.",
-          references: ["gratitude"],
-          addNewlineAfter: true,
-        },
-      ],
+      reasoning: "I crafted this email to express gratitude while highlighting the donor's impact on our education programs.",
+      emailContent: "Dear John,\n\nThank you for your continued support of our mission.",
+      response: "Created a warm thank-you email for John Doe, emphasizing his contributions to education initiatives.",
     };
 
     it("should generate personalized emails for donors", async () => {
@@ -97,8 +88,9 @@ describe("EmailGenerationService", () => {
         "Test Foundation", // organizationName
         mockOrganization, // organization
         "Be warm and personal", // organizationWritingInstructions
-        {}, // communicationHistories
-        {}, // donationHistories
+        undefined, // personalWritingInstructions
+        { 1: [] }, // communicationHistories
+        { 1: [] }, // donationHistories
         {
           // donorStatistics
           1: {
@@ -116,19 +108,30 @@ describe("EmailGenerationService", () => {
           },
         },
         {}, // personResearchResults
-        [mockUserMemory], // personalMemories
-        [mockOrganizationMemory], // organizationalMemories
-        "2024-01-15", // currentDate
-        "Best regards,\nThe Test Foundation Team" // emailSignature
+        [mockUserMemory], // userMemories
+        [mockOrganizationMemory], // organizationMemories
+        "2024-01-15" // currentDate
       );
 
       expect(mockGenerateObject).toHaveBeenCalledTimes(1);
+      
+      // Verify the parameters passed to generateObject
+      const callArgs = mockGenerateObject.mock.calls[0][0];
+      expect(callArgs).toMatchObject({
+        model: "azure-model",
+        schema: expect.any(Object),
+        prompt: expect.any(String),
+        temperature: 0.7,
+      });
+      
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         donorId: 1,
         subject: "Thank you for your support",
-        structuredContent: mockGeneratedEmail.content,
-        referenceContexts: expect.any(Object),
+        emailContent: "Dear John,\n\nThank you for your continued support of our mission.",
+        reasoning: expect.any(String),
+        response: expect.any(String),
+        tokenUsage: expect.any(Object),
       });
     });
 
@@ -142,7 +145,12 @@ describe("EmailGenerationService", () => {
           usage: { promptTokens: 500, completionTokens: 200, totalTokens: 700 },
         })
         .mockResolvedValueOnce({
-          object: { ...mockGeneratedEmail, subject: "Thank you Jane" },
+          object: { 
+            subject: "Thank you Jane",
+            reasoning: "Personalized email for Jane focusing on her specific contributions.",
+            emailContent: "Dear Jane,\n\nThank you for your continued support of our mission.",
+            response: "Created a personalized thank-you email for Jane."
+          },
           finishReason: "stop",
           usage: { promptTokens: 500, completionTokens: 200, totalTokens: 700 },
         });
@@ -153,9 +161,25 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
-        {},
-        {},
-        {},
+        undefined, // personalWritingInstructions
+        { 1: [], 2: [] },
+        { 1: [], 2: [] },
+        {
+          1: {
+            totalAmount: 0,
+            totalDonations: 0,
+            firstDonation: null,
+            lastDonation: null,
+            donationsByProject: [],
+          },
+          2: {
+            totalAmount: 0,
+            totalDonations: 0,
+            firstDonation: null,
+            lastDonation: null,
+            donationsByProject: [],
+          },
+        },
         {},
         [mockUserMemory],
         [mockOrganizationMemory]
@@ -178,6 +202,7 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
+        undefined, // personalWritingInstructions
         {
           // communicationHistories
           1: [
@@ -248,10 +273,9 @@ describe("EmailGenerationService", () => {
       );
 
       const callArgs = mockGenerateObject.mock.calls[0][0];
-      expect(callArgs.messages).toBeDefined();
-      const userMessage = callArgs.messages.find((m: any) => m.role === "user");
-      expect(userMessage.content).toContain("$100,000.00"); // Total donated (matches the totalAmount above)
-      expect(userMessage.content).toContain("Major philanthropist"); // Research
+      expect(callArgs.prompt).toBeDefined();
+      expect(callArgs.prompt).toContain("$1,000.00"); // Total donated (matches the totalAmount above)
+      expect(callArgs.prompt).toContain("Major philanthropist"); // Research
     });
 
     it("should handle AI generation errors gracefully", async () => {
@@ -264,9 +288,18 @@ describe("EmailGenerationService", () => {
           "Test Foundation",
           mockOrganization,
           "Be warm and personal",
-          {},
-          {},
-          {},
+          undefined, // personalWritingInstructions
+          { 1: [] }, // communicationHistories
+          { 1: [] }, // donationHistories
+          {
+            1: {
+              totalAmount: 0,
+              totalDonations: 0,
+              firstDonation: null,
+              lastDonation: null,
+              donationsByProject: [],
+            },
+          },
           {},
           [],
           []
@@ -279,13 +312,6 @@ describe("EmailGenerationService", () => {
     it("should include person research in generated emails", async () => {
       const emailWithResearch = {
         ...mockGeneratedEmail,
-        content: [
-          {
-            piece: "Thank you for your support",
-            references: ["research-answer"],
-            addNewlineAfter: true,
-          },
-        ],
       };
 
       mockGenerateObject.mockResolvedValue({
@@ -300,9 +326,18 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
-        {},
-        {},
-        {},
+        undefined, // personalWritingInstructions
+        { 1: [] },
+        { 1: [] },
+        {
+          1: {
+            totalAmount: 0,
+            totalDonations: 0,
+            firstDonation: null,
+            lastDonation: null,
+            donationsByProject: [],
+          },
+        },
         {
           // personResearchResults
           1: {
@@ -320,9 +355,13 @@ describe("EmailGenerationService", () => {
         []
       );
 
-      expect(result[0].referenceContexts["research-answer"]).toBe(
-        "Person research: Major philanthropist interested in education"
-      );
+      expect(result[0]).toMatchObject({
+        donorId: 1,
+        subject: "Thank you for your support",
+        emailContent: expect.any(String),
+        reasoning: expect.any(String),
+        response: expect.any(String),
+      });
     });
 
     it("should handle empty donor list", async () => {
@@ -332,6 +371,7 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
+        undefined, // personalWritingInstructions
         {},
         {},
         {},
@@ -357,17 +397,25 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
-        {},
-        {},
-        {},
+        undefined, // personalWritingInstructions
+        { 1: [] },
+        { 1: [] },
+        {
+          1: {
+            totalAmount: 0,
+            totalDonations: 0,
+            firstDonation: null,
+            lastDonation: null,
+            donationsByProject: [],
+          },
+        },
         {},
         [],
         []
       );
 
       const callArgs = mockGenerateObject.mock.calls[0][0];
-      const userMessage = callArgs.messages.find((m: any) => m.role === "user");
-      expect(userMessage.content).toContain("Year-end appeal template");
+      expect(callArgs.prompt).toContain("Year-end appeal template");
     });
 
     it("should handle couple donors appropriately", async () => {
@@ -383,15 +431,10 @@ describe("EmailGenerationService", () => {
 
       mockGenerateObject.mockResolvedValue({
         object: {
-          ...mockGeneratedEmail,
-          content: [
-            {
-              piece: "Dear John and Jane,",
-              references: ["couple_salutation"],
-              addNewlineAfter: true,
-            },
-            ...mockGeneratedEmail.content.slice(1),
-          ],
+          subject: "Thank you for your support",
+          reasoning: "Crafted a personalized message for the couple John and Jane Doe.",
+          emailContent: "Dear John and Jane,\n\nThank you for your continued support of our mission.",
+          response: "Created a couple-focused thank-you email addressing both John and Jane.",
         },
         finishReason: "stop",
         usage: { promptTokens: 500, completionTokens: 200, totalTokens: 700 },
@@ -403,19 +446,27 @@ describe("EmailGenerationService", () => {
         "Test Foundation",
         mockOrganization,
         "Be warm and personal",
-        {},
-        {},
-        {},
+        undefined, // personalWritingInstructions
+        { 1: [] },
+        { 1: [] },
+        {
+          1: {
+            totalAmount: 0,
+            totalDonations: 0,
+            firstDonation: null,
+            lastDonation: null,
+            donationsByProject: [],
+          },
+        },
         {},
         [],
         []
       );
 
       const callArgs = mockGenerateObject.mock.calls[0][0];
-      const userMessage = callArgs.messages.find((m: any) => m.role === "user");
-      expect(userMessage.content).toContain("John");
-      expect(userMessage.content).toContain("Jane");
-      expect(userMessage.content).toContain("couple");
+      expect(callArgs.prompt).toContain("John");
+      expect(callArgs.prompt).toContain("Jane");
+      expect(callArgs.prompt).toContain("couple");
     });
   });
 });

@@ -1,7 +1,6 @@
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import {
   DonationWithDetails,
-  getMultipleComprehensiveDonorStats,
   getMultipleComprehensiveDonorStatsExcludingExternal,
   listDonations,
 } from "@/app/lib/data/donations";
@@ -414,7 +413,7 @@ export class EmailGenerationService {
         orderDirection: "desc",
         includeProject: true,
       }),
-      getMultipleComprehensiveDonorStats([emailData.donorId], organizationId),
+      getMultipleComprehensiveDonorStatsExcludingExternal([emailData.donorId], organizationId),
     ]);
 
     // Get person research if available

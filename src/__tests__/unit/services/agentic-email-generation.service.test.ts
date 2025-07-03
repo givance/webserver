@@ -23,7 +23,9 @@ jest.mock("@/app/lib/data/users");
 jest.mock("@/app/lib/data/communications");
 jest.mock("@/app/lib/data/donations");
 jest.mock("@/app/lib/services/person-research.service");
-jest.mock("fs/promises");
+jest.mock("fs/promises", () => ({
+  readFile: jest.fn(),
+}));
 jest.mock("drizzle-orm", () => ({
   eq: jest.fn((a, b) => ({ type: "eq", a, b })),
   and: jest.fn((...conditions) => ({ type: "and", conditions })),
@@ -108,7 +110,8 @@ describe("AgenticEmailGenerationService", () => {
 
     beforeEach(() => {
       // Mock file system for best practices
-      (fs.readFile as jest.Mock).mockResolvedValue(
+      const fsPromises = require("fs/promises");
+      fsPromises.readFile.mockResolvedValue(
         "Best practices content that is much longer than 100 characters to satisfy the test requirement. This mock content contains detailed best practices for email generation including personalization strategies, tone guidelines, formatting standards, and other important recommendations that would typically be found in a comprehensive best practices document."
       );
 

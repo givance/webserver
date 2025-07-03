@@ -1,4 +1,4 @@
-import { WhatsAppHistoryService, type SaveMessageParams, type WhatsAppMessage } from '@/app/lib/services/whatsapp-history.service';
+import { WhatsAppHistoryService, type SaveMessageParams, type WhatsAppMessage } from '@/app/lib/services/whatsapp/whatsapp-history.service';
 import { db } from '@/app/lib/db';
 import { logger } from '@/app/lib/logger';
 
