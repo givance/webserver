@@ -415,23 +415,34 @@ function WriteInstructionStepComponent({
     }
   }, [selectedSignatureType, customSignature, selectedStaff]);
 
-  // Generate random subset of donors for preview on component mount (memoized to prevent recalculation)
-  // If we have saved preview donor IDs from database, use those. Otherwise, randomly select new ones.
-  const initialPreviewDonors = useMemo(() => {
-    if (selectedDonors.length > 0 && initialPreviewDonorIds.length === 0) {
-      // Random selection for new campaigns - will be saved to database
-      const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
-      return shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
-    }
-    return initialPreviewDonorIds; // Use saved preview donor IDs from database
-  }, [selectedDonors, initialPreviewDonorIds]);
-
+  // Generate random subset of donors for preview - ONLY ONCE on mount
+  // Use a ref to ensure we only generate the random set once
+  const hasGeneratedPreviewRef = useRef(false);
+  const stablePreviewDonorsRef = useRef<number[]>([]);
+  
   // Set preview donors only once when component mounts
   useEffect(() => {
-    if (previewDonorIds.length === 0 && initialPreviewDonors.length > 0) {
-      setPreviewDonorIds(initialPreviewDonors);
+    // If we already have preview donors (from DB or previous generation), use those
+    if (previewDonorIds.length > 0) {
+      return;
     }
-  }, [initialPreviewDonors, previewDonorIds.length]);
+    
+    // If we have initial preview donor IDs from the database, use those
+    if (initialPreviewDonorIds.length > 0) {
+      setPreviewDonorIds(initialPreviewDonorIds);
+      return;
+    }
+    
+    // Only generate random selection once for new campaigns
+    if (!hasGeneratedPreviewRef.current && selectedDonors.length > 0) {
+      console.log("[WriteInstructionStep] Generating random preview donors - this should only happen ONCE");
+      const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
+      const preview = shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
+      stablePreviewDonorsRef.current = preview;
+      setPreviewDonorIds(preview);
+      hasGeneratedPreviewRef.current = true;
+    }
+  }, []); // Empty dependency array - only run once on mount
 
   // DISABLED: Auto-save was causing performance issues
   // This was saving on every keystroke because `instruction` was in the dependency array
