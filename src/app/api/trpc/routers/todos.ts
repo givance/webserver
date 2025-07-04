@@ -1,167 +1,338 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/app/api/trpc/trpc";
 import { TodoService, type UpdateTodoInput } from "@/app/lib/services/todo-service";
-import { logger } from "@/app/lib/logger";
+import { 
+  createTRPCError,
+  handleAsync,
+  validateOrganizationAccess,
+  ERROR_MESSAGES
+} from "@/app/lib/utils/trpc-errors";
+import {
+  idSchema,
+  todoSchemas,
+  batchResultSchema
+} from "@/app/lib/validation/schemas";
 
+// Service instance
 const todoService = new TodoService();
 
-// Helper to preprocess date strings into Date objects or keep them as undefined/null
+// Helper to preprocess date strings into Date objects
 const preprocessDate = (arg: unknown) => {
   if (typeof arg === "string" || arg instanceof Date) return new Date(arg);
   if (arg === null || arg === undefined) return arg;
-  return undefined; // Or throw an error if unexpected type
+  return undefined;
 };
 
+// Schema definitions
+const todoResponseSchema = z.object({
+  id: idSchema,
+  title: z.string(),
+  description: z.string().nullable(),
+  type: z.string(),
+  priority: z.string().nullable(),
+  status: z.string(),
+  dueDate: z.date().nullable(),
+  scheduledDate: z.date().nullable(),
+  completedDate: z.date().nullable(),
+  donorId: idSchema.nullable(),
+  staffId: idSchema.nullable(),
+  organizationId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+const createTodoInputSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string(),
+  type: z.string().min(1),
+  priority: z.string().optional(),
+  dueDate: z.preprocess(preprocessDate, z.date().optional()),
+  scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
+  donorId: idSchema.optional(),
+  staffId: idSchema.optional(),
+});
+
+const updateTodoInputSchema = z.object({
+  id: idSchema,
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  type: z.string().min(1).optional(),
+  priority: z.string().optional(),
+  status: z.string().optional(),
+  dueDate: z.preprocess(preprocessDate, z.date().optional()),
+  scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
+  completedDate: z.preprocess(preprocessDate, z.date().optional().nullable()),
+  staffId: idSchema.optional(),
+});
+
+const bulkUpdateInputSchema = z.object({
+  ids: z.array(idSchema).min(1).max(100),
+  data: updateTodoInputSchema.omit({ id: true }),
+});
+
+const listTodosInputSchema = z.object({
+  type: z.string().optional(),
+  status: z.string().optional(),
+  donorId: idSchema.optional(),
+  staffId: idSchema.optional(),
+});
+
+const groupedTodosResponseSchema = z.record(
+  z.string(),
+  z.array(todoResponseSchema)
+);
+
 export const todoRouter = router({
+  /**
+   * Create a new todo
+   * 
+   * @param title - Todo title (required)
+   * @param description - Detailed description
+   * @param type - Todo type/category
+   * @param priority - Priority level (low/medium/high)
+   * @param dueDate - Due date for the todo
+   * @param scheduledDate - Scheduled date for the todo
+   * @param donorId - Associated donor ID
+   * @param staffId - Assigned staff member ID
+   * 
+   * @returns The created todo
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
+   */
   create: protectedProcedure
-    .input(
-      z.object({
-        title: z.string(),
-        description: z.string(),
-        type: z.string(),
-        priority: z.string().optional(),
-        dueDate: z.preprocess(preprocessDate, z.date().optional()),
-        scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
-        donorId: z.number().optional(),
-        staffId: z.number().optional(),
-      })
-    )
+    .input(createTodoInputSchema)
+    .output(todoResponseSchema)
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx.auth;
+      
       if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+          logLevel: "warn",
+        });
       }
 
-      logger.info(`Creating new todo "${input.title}" for organization ${user.organizationId}`);
-      return await todoService.createTodo({
-        ...input,
-        organizationId: user.organizationId,
-      });
+      return await handleAsync(
+        async () => todoService.createTodo({
+          ...input,
+          organizationId: user.organizationId,
+        }),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("create todo"),
+          logMetadata: { userId: user.id, title: input.title }
+        }
+      );
     }),
 
+  /**
+   * Update an existing todo
+   * 
+   * @param id - Todo ID to update
+   * @param data - Fields to update
+   * 
+   * @returns The updated todo
+   * 
+   * @throws {TRPCError} NOT_FOUND if todo doesn't exist
+   * @throws {TRPCError} FORBIDDEN if user doesn't have access
+   */
   update: protectedProcedure
-    .input(
-      z.object({
-        id: z.number(),
-        title: z.string().optional(),
-        description: z.string().optional(),
-        type: z.string().optional(),
-        priority: z.string().optional(),
-        status: z.string().optional(),
-        dueDate: z.preprocess(preprocessDate, z.date().optional()),
-        scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
-        completedDate: z.preprocess(preprocessDate, z.date().optional().nullable()),
-        staffId: z.number().optional(),
-      })
-    )
+    .input(updateTodoInputSchema)
+    .output(todoResponseSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
-      logger.info(`Updating todo ${id}`);
-      return await todoService.updateTodo(id, updateData);
+      
+      return await handleAsync(
+        async () => todoService.updateTodo(id, updateData),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update todo"),
+          logMetadata: { todoId: id, userId: ctx.auth.user?.id }
+        }
+      );
     }),
 
+  /**
+   * Bulk update multiple todos
+   * 
+   * @param ids - Array of todo IDs to update
+   * @param data - Fields to update for all todos
+   * 
+   * @returns Count of successfully updated todos
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   * @throws {TRPCError} BAD_REQUEST if no IDs provided
+   */
   updateMany: protectedProcedure
-    .input(
-      z.object({
-        ids: z.array(z.number()),
-        data: z.object({
-          title: z.string().optional(),
-          description: z.string().optional(),
-          type: z.string().optional(),
-          priority: z.string().optional(),
-          status: z.string().optional(),
-          dueDate: z.preprocess(preprocessDate, z.date().optional()),
-          scheduledDate: z.preprocess(preprocessDate, z.date().optional()),
-          completedDate: z.preprocess(preprocessDate, z.date().optional().nullable()),
-          staffId: z.number().optional().nullable(),
-        }),
-      })
-    )
+    .input(bulkUpdateInputSchema)
+    .output(z.object({ count: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const { ids, data } = input;
       const { user } = ctx.auth;
+      
       if (!user?.organizationId) {
-        throw new Error("User must belong to an organization to update todos.");
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+          logLevel: "warn",
+        });
       }
 
-      logger.info(
-        `Bulk updating ${ids.length} todos for organization ${user.organizationId} with data: ${JSON.stringify(data)}`
+      const results = await handleAsync(
+        async () => {
+          const serviceUpdateData: UpdateTodoInput = { ...data };
+          const updatePromises = ids.map((id) => 
+            todoService.updateTodo(id, serviceUpdateData)
+          );
+          return await Promise.all(updatePromises);
+        },
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk update todos"),
+          logMetadata: { 
+            userId: user.id, 
+            count: ids.length,
+            organizationId: user.organizationId 
+          }
+        }
       );
 
-      const serviceUpdateData: UpdateTodoInput = { ...data };
-
-      const updatePromises = ids.map((id) => todoService.updateTodo(id, serviceUpdateData));
-      const results = await Promise.all(updatePromises);
-
-      logger.info(`Successfully bulk updated ${results.filter((r) => r).length} todos.`);
       return { count: results.filter((r) => r).length };
     }),
 
+  /**
+   * Delete a todo
+   * 
+   * @param id - Todo ID to delete
+   * 
+   * @throws {TRPCError} NOT_FOUND if todo doesn't exist
+   * @throws {TRPCError} FORBIDDEN if user doesn't have access
+   */
   delete: protectedProcedure
-    .input(
-      z.object({
-        id: z.number(),
-      })
-    )
+    .input(z.object({ id: idSchema }))
+    .output(z.void())
     .mutation(async ({ ctx, input }) => {
-      logger.info(`Deleting todo ${input.id}`);
-      return await todoService.deleteTodo(input.id);
+      await handleAsync(
+        async () => todoService.deleteTodo(input.id),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("delete todo"),
+          logMetadata: { todoId: input.id, userId: ctx.auth.user?.id }
+        }
+      );
     }),
 
+  /**
+   * Get todos for the current organization
+   * 
+   * @param type - Filter by todo type
+   * @param status - Filter by status
+   * @param donorId - Filter by donor
+   * @param staffId - Filter by assigned staff
+   * 
+   * @returns List of todos matching the filters
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   */
   getByOrganization: protectedProcedure
-    .input(
-      z.object({
-        type: z.string().optional(),
-        status: z.string().optional(),
-        donorId: z.number().optional(),
-        staffId: z.number().optional(),
-      })
-    )
+    .input(listTodosInputSchema)
+    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
+      
       if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+          logLevel: "warn",
+        });
       }
 
-      logger.info(`Fetching todos for organization ${user.organizationId}`);
-      return await todoService.getTodosByOrganization(user.organizationId, input);
+      return await handleAsync(
+        async () => todoService.getTodosByOrganization(user.organizationId, input),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch todos"),
+          logMetadata: { organizationId: user.organizationId, filters: input }
+        }
+      );
     }),
 
+  /**
+   * Get todos grouped by type
+   * 
+   * @param statusesToExclude - Array of statuses to exclude from results
+   * 
+   * @returns Object with todo types as keys and arrays of todos as values
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   */
   getGroupedByType: protectedProcedure
-    .input(
-      z.object({
-        statusesToExclude: z.array(z.string()).optional(),
-      })
-    )
+    .input(z.object({
+      statusesToExclude: z.array(z.string()).optional(),
+    }))
+    .output(groupedTodosResponseSchema)
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
+      
       if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+          logLevel: "warn",
+        });
       }
 
-      logger.info(`Fetching grouped todos for organization ${user.organizationId}`);
-      return await todoService.getTodosGroupedByType(user.organizationId, input.statusesToExclude);
+      return await handleAsync(
+        async () => todoService.getTodosGroupedByType(
+          user.organizationId, 
+          input.statusesToExclude
+        ),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch grouped todos"),
+          logMetadata: { organizationId: user.organizationId }
+        }
+      );
     }),
 
+  /**
+   * Get todos for a specific donor
+   * 
+   * @param donorId - Donor ID to fetch todos for
+   * 
+   * @returns List of todos for the donor
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
+   */
   getByDonor: protectedProcedure
-    .input(
-      z.object({
-        donorId: z.number(),
-      })
-    )
+    .input(z.object({ donorId: idSchema }))
+    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      logger.info(`Fetching todos for donor ${input.donorId}`);
-      return await todoService.getTodosByDonor(input.donorId);
+      return await handleAsync(
+        async () => todoService.getTodosByDonor(input.donorId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor todos"),
+          logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id }
+        }
+      );
     }),
 
+  /**
+   * Get todos for a specific staff member
+   * 
+   * @param staffId - Staff ID to fetch todos for
+   * 
+   * @returns List of todos assigned to the staff member
+   * 
+   * @throws {TRPCError} NOT_FOUND if staff member doesn't exist
+   */
   getByStaff: protectedProcedure
-    .input(
-      z.object({
-        staffId: z.number(),
-      })
-    )
+    .input(z.object({ staffId: idSchema }))
+    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      logger.info(`Fetching todos for staff ${input.staffId}`);
-      return await todoService.getTodosByStaff(input.staffId);
+      return await handleAsync(
+        async () => todoService.getTodosByStaff(input.staffId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff todos"),
+          logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id }
+        }
+      );
     }),
 });
