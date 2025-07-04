@@ -547,7 +547,7 @@ export class GmailService {
       labelIds: message.labelIds || [],
       snippet: message.snippet || "",
       sizeEstimate: message.sizeEstimate || 0,
-      internalDate: message.internalDate,
+      internalDate: message.internalDate || undefined,
       from: getHeader("from") || undefined,
       to: getHeader("to") || undefined,
       subject: getHeader("subject") || undefined,

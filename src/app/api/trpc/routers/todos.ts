@@ -16,6 +16,16 @@ import {
 // Service instance
 const todoService = new TodoService();
 
+// Helper to convert Todo dates to ISO strings
+const serializeTodo = (todo: any) => ({
+  ...todo,
+  dueDate: todo.dueDate?.toISOString() || null,
+  scheduledDate: todo.scheduledDate?.toISOString() || null,
+  completedDate: todo.completedDate?.toISOString() || null,
+  createdAt: todo.createdAt.toISOString(),
+  updatedAt: todo.updatedAt.toISOString(),
+});
+
 // Helper to preprocess date strings into Date objects
 const preprocessDate = (arg: unknown) => {
   if (typeof arg === "string" || arg instanceof Date) return new Date(arg);
@@ -31,14 +41,14 @@ const todoResponseSchema = z.object({
   type: z.string(),
   priority: z.string().nullable(),
   status: z.string(),
-  dueDate: z.date().nullable(),
-  scheduledDate: z.date().nullable(),
-  completedDate: z.date().nullable(),
+  dueDate: z.string().nullable(), // Database returns ISO string
+  scheduledDate: z.string().nullable(), // Database returns ISO string
+  completedDate: z.string().nullable(), // Database returns ISO string
   donorId: idSchema.nullable(),
   staffId: idSchema.nullable(),
   organizationId: z.string(),
-  createdAt: z.union([z.date(), z.string()]), // Can be date or string from DB
-  updatedAt: z.union([z.date(), z.string()]), // Can be date or string from DB
+  createdAt: z.string(), // Database returns ISO string
+  updatedAt: z.string(), // Database returns ISO string
 });
 
 const createTodoInputSchema = z.object({
@@ -79,6 +89,7 @@ const listTodosInputSchema = z.object({
 
 // Special schema for grouped todos that may include donor info
 const todoWithDonorSchema = todoResponseSchema.extend({
+  donorName: z.string().nullable(), // Match the TodoWithDonor interface
   donor: z.object({
     id: idSchema,
     firstName: z.string(),
@@ -135,7 +146,8 @@ export const todoRouter = router({
         }
       );
       
-      return result[0]; // Service returns array, we need single item
+      const todo = result[0]; // Service returns array, we need single item
+      return serializeTodo(todo);
     }),
 
   /**
@@ -163,7 +175,8 @@ export const todoRouter = router({
         }
       );
       
-      return result[0]; // Service returns array, we need single item
+      const todo = result[0]; // Service returns array, we need single item
+      return serializeTodo(todo);
     }),
 
   /**
@@ -260,13 +273,15 @@ export const todoRouter = router({
         });
       }
 
-      return await handleAsync(
+      const todos = await handleAsync(
         async () => todoService.getTodosByOrganization(user.organizationId, input),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch todos"),
           logMetadata: { organizationId: user.organizationId, filters: input }
         }
       );
+      
+      return todos.map(serializeTodo);
     }),
 
   /**
@@ -294,7 +309,7 @@ export const todoRouter = router({
         });
       }
 
-      return await handleAsync(
+      const grouped = await handleAsync(
         async () => todoService.getTodosGroupedByType(
           user.organizationId, 
           input.statusesToExclude
@@ -304,6 +319,13 @@ export const todoRouter = router({
           logMetadata: { organizationId: user.organizationId }
         }
       );
+      
+      // Convert all todos in the grouped result
+      const serializedGrouped: Record<string, any[]> = {};
+      for (const [key, todos] of Object.entries(grouped)) {
+        serializedGrouped[key] = todos.map(serializeTodo);
+      }
+      return serializedGrouped;
     }),
 
   /**
@@ -319,13 +341,15 @@ export const todoRouter = router({
     .input(z.object({ donorId: idSchema }))
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      return await handleAsync(
+      const todos = await handleAsync(
         async () => todoService.getTodosByDonor(input.donorId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor todos"),
           logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id }
         }
       );
+      
+      return todos.map(serializeTodo);
     }),
 
   /**
@@ -341,12 +365,14 @@ export const todoRouter = router({
     .input(z.object({ staffId: idSchema }))
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      return await handleAsync(
+      const todos = await handleAsync(
         async () => todoService.getTodosByStaff(input.staffId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff todos"),
           logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id }
         }
       );
+      
+      return todos.map(serializeTodo);
     }),
 });
