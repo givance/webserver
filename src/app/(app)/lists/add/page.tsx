@@ -16,7 +16,7 @@ import { ArrowLeft, Users, Search, Upload, CheckCircle, AlertTriangle, Info } fr
 import Link from "next/link";
 import { useLists } from "@/app/hooks/use-lists";
 import { useDonors } from "@/app/hooks/use-donors";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useStaff } from "@/app/hooks/use-staff";
 import { trpc } from "@/app/lib/trpc/client";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
@@ -45,7 +45,8 @@ export default function AddListPage() {
     isUploadingFiles,
   } = useLists();
   const { listDonors, bulkUpdateDonorStaff } = useDonors();
-  const { staffMembers, isLoading: isLoadingStaff } = useStaffMembers();
+  const { getStaffMembers } = useStaff();
+  const { staffMembers, isLoading: isLoadingStaff } = getStaffMembers();
   const utils = trpc.useUtils();
 
   const [formData, setFormData] = useState({

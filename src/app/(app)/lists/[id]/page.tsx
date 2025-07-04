@@ -38,7 +38,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useStaff } from "@/app/hooks/use-staff";
 import { toast } from "sonner";
 
 // Type for list member display
@@ -237,7 +237,8 @@ export default function ListDetailPage() {
   const [selectedBulkStaffId, setSelectedBulkStaffId] = useState<string>("");
 
   const { getDonorListWithMembersQuery, bulkUpdateMembersStaff, isBulkUpdatingStaff } = useLists();
-  const { staffMembers } = useStaffMembers();
+  const { getStaffMembers } = useStaff();
+  const { staffMembers } = getStaffMembers();
   const { data: list, isLoading, error } = getDonorListWithMembersQuery(listId);
 
   // Transform list members for display

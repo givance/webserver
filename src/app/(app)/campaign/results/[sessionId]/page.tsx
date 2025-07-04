@@ -30,7 +30,6 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
 import { useSessionTracking } from "@/app/hooks/use-email-tracking";
 import { Badge } from "@/components/ui/badge";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
 import { useStaff } from "@/app/hooks/use-staff";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
@@ -111,7 +110,8 @@ export default function EmailGenerationResultsPage() {
   const { donorStats } = useSessionTracking(sessionId);
 
   // Get staff members
-  const { staffMembers } = useStaffMembers();
+  const { getStaffMembers } = useStaff();
+  const { staffMembers } = getStaffMembers();
 
   // Get staff list with email info
   const { listStaff, getPrimaryStaff } = useStaff();

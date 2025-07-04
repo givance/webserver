@@ -3,7 +3,7 @@
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonations } from "@/app/hooks/use-donations";
 import { useDonors } from "@/app/hooks/use-donors";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useStaff } from "@/app/hooks/use-staff";
 import { useDonorJourneyStages } from "@/app/hooks/use-donor-journey-stages";
 import { usePagination, PAGE_SIZE_OPTIONS } from "@/app/hooks/use-pagination";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
@@ -76,7 +76,8 @@ export default function DonorProfilePage() {
   const { data: donor, isLoading: isDonorLoading, error: donorError } = donorQuery;
 
   // Fetch staff members for assignment dropdown
-  const { staffMembers = [] } = useStaffMembers();
+  const { getStaffMembers } = useStaff();
+  const { staffMembers = [] } = getStaffMembers();
 
   // Fetch donor journey stages
   const { donorJourneyStagesQuery } = useDonorJourneyStages();
@@ -86,7 +87,7 @@ export default function DonorProfilePage() {
   const { data: donorStats } = getDonorStats(donorId);
 
   // Fetch donor donations with proper pagination
-  const { list: listDonations } = useDonations();
+  const { listDonations } = useDonations();
   const { data: donationsResponse, isLoading: isDonationsLoading } = listDonations({
     donorId,
     includeDonor: false,

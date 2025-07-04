@@ -6,7 +6,7 @@ import { PageSizeSelector } from "@/app/components/PageSizeSelector";
 import { useDonors } from "@/app/hooks/use-donors";
 import { usePagination } from "@/app/hooks/use-pagination";
 import { useSearch } from "@/app/hooks/use-search";
-import { useStaffMembers } from "@/app/hooks/use-staff-members";
+import { useStaff } from "@/app/hooks/use-staff";
 import { useLists } from "@/app/hooks/use-lists";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,8 @@ export default function DonorListPage() {
 
   const { listDonors, getMultipleDonorStats, updateDonorStaff, getAllDonorIds, bulkUpdateDonorStaff, isBulkUpdatingStaff } =
     useDonors();
-  const { staffMembers } = useStaffMembers();
+  const { getStaffMembers } = useStaff();
+  const { staffMembers } = getStaffMembers();
   const { listDonorLists, createList, addDonorsToList, isCreating, isAddingDonors } = useLists();
 
   // Get lists for the filter dropdown
