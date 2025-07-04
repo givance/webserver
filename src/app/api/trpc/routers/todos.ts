@@ -77,9 +77,19 @@ const listTodosInputSchema = z.object({
   staffId: idSchema.optional(),
 });
 
+// Special schema for grouped todos that may include donor info
+const todoWithDonorSchema = todoResponseSchema.extend({
+  donor: z.object({
+    id: idSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+    email: z.string(),
+  }).optional(),
+});
+
 const groupedTodosResponseSchema = z.record(
   z.string(),
-  z.array(todoResponseSchema)
+  z.array(todoWithDonorSchema)
 );
 
 export const todoRouter = router({

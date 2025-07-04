@@ -84,10 +84,10 @@ export const gmailRouter = router({
    * @deprecated Use getAuthUrl instead
    */
   getGmailAuthUrl: protectedProcedure
-    .output(z.object({ url: z.string() }))
+    .output(z.object({ url: z.string(), authUrl: z.string() }))
     .mutation(async ({ ctx }) => {
       const url = gmailService.getAuthUrl(ctx.auth.user?.id);
-      return { url };
+      return { url, authUrl: url }; // Return both for backwards compatibility
     }),
 
   /**

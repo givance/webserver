@@ -21,7 +21,7 @@ import {
 } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
-import { wrapDatabaseOperation } from "@/app/lib/utils/wrap-db-call";
+import { wrapDatabaseOperation } from "@/app/lib/utils/error-handler";
 import { and, eq, inArray } from "drizzle-orm";
 import { google } from "googleapis";
 import type { gmail_v1 } from "googleapis";
@@ -322,7 +322,7 @@ export class GmailService {
         structuredContent,
         trackingId
       );
-      finalBody = processedContent.html;
+      finalBody = processedContent.htmlContent;
       finalSubject = subject; // Subject tracking is handled separately
     }
 
@@ -336,7 +336,10 @@ export class GmailService {
       htmlContent,
       textContent,
       staffMember
-        ? formatSenderField(staffMember.firstName, staffMember.lastName, staffMember.email)
+        ? formatSenderField({ 
+            name: `${staffMember.firstName} ${staffMember.lastName}`,
+            email: staffMember.email 
+          })
         : undefined
     );
 
@@ -545,11 +548,11 @@ export class GmailService {
       snippet: message.snippet || "",
       sizeEstimate: message.sizeEstimate || 0,
       internalDate: message.internalDate,
-      from: getHeader("from"),
-      to: getHeader("to"),
-      subject: getHeader("subject"),
-      date: getHeader("date"),
-      body,
+      from: getHeader("from") || undefined,
+      to: getHeader("to") || undefined,
+      subject: getHeader("subject") || undefined,
+      date: getHeader("date") || undefined,
+      body: body || undefined,
     };
   }
 }

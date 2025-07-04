@@ -29,6 +29,7 @@ const projectResponseSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  notes: z.string().nullable(), // Add notes field
   active: z.boolean(),
   goal: z.number().nullable(),
   tags: z.array(z.string()).nullable(),
