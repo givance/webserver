@@ -13,6 +13,11 @@ global.console = {
   error: jest.fn(),
 };
 
+// Mock React to fix hook issues
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 // Test setup
 describe("Test setup", () => {
   it("should configure test environment", () => {

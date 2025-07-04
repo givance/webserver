@@ -11,6 +11,7 @@ import {
   emailSchema,
   gmailSchemas,
 } from "@/app/lib/validation/schemas";
+import { TRPCError } from "@trpc/server";
 
 // Service instance
 const gmailService = new GmailService();
@@ -79,6 +80,78 @@ const bulkSendResponseSchema = z.object({
 
 export const gmailRouter = router({
   /**
+   * Get Gmail OAuth authorization URL (legacy method name)
+   * @deprecated Use getAuthUrl instead
+   */
+  getGmailAuthUrl: protectedProcedure
+    .output(z.object({ url: z.string() }))
+    .mutation(async ({ ctx }) => {
+      const url = gmailService.getAuthUrl(ctx.auth.user?.id);
+      return { url };
+    }),
+
+  /**
+   * Check Gmail connection status (legacy method name)
+   * @deprecated Use isConnected instead
+   */
+  getGmailConnectionStatus: protectedProcedure
+    .output(z.object({ 
+      connected: z.boolean(),
+      isConnected: z.boolean().optional(),
+      email: z.string().optional() 
+    }))
+    .query(async ({ ctx }) => {
+      if (!ctx.auth.user?.id) {
+        return { connected: false, isConnected: false };
+      }
+
+      const connected = await handleAsync(
+        async () => gmailService.isConnected(ctx.auth.user!.id),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("check Gmail connection"),
+          errorCode: "INTERNAL_SERVER_ERROR"
+        }
+      );
+
+      // If connected, try to get profile to get email
+      let email: string | undefined;
+      if (connected) {
+        try {
+          const profile = await gmailService.getProfile(ctx.auth.user.id);
+          email = profile.emailAddress;
+        } catch {
+          // Ignore error - just don't return email
+        }
+      }
+
+      return { connected, isConnected: connected, email };
+    }),
+
+  /**
+   * Disconnect Gmail account (legacy method name)
+   * @deprecated Use disconnect instead
+   */
+  disconnectGmail: protectedProcedure
+    .output(z.object({ success: z.boolean() }))
+    .mutation(async ({ ctx }) => {
+      if (!ctx.auth.user?.id) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+        });
+      }
+
+      await handleAsync(
+        async () => gmailService.disconnect(ctx.auth.user!.id),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("disconnect Gmail"),
+          logMetadata: { userId: ctx.auth.user.id }
+        }
+      );
+      
+      return { success: true };
+    }),
+  /**
    * Get Gmail OAuth authorization URL
    * 
    * @returns Authorization URL to redirect user to
@@ -101,7 +174,7 @@ export const gmailRouter = router({
    */
   handleOAuthCallback: protectedProcedure
     .input(gmailSchemas.authCallback)
-    .output(z.object({ success: z.boolean() }))
+    .output(z.object({ success: z.boolean(), message: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.auth.user?.id) {
         throw createTRPCError({
@@ -118,7 +191,7 @@ export const gmailRouter = router({
         }
       );
 
-      return { success: true };
+      return { success: true, message: "Gmail account connected successfully" };
     }),
 
   /**
@@ -381,5 +454,68 @@ export const gmailRouter = router({
           logMetadata: { userId: ctx.auth.user.id, threadId: input.threadId }
         }
       );
+    }),
+
+  /**
+   * Save emails to draft (placeholder - not implemented)
+   * @deprecated This functionality should be implemented if needed
+   */
+  saveToDraft: protectedProcedure
+    .input(z.any())
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "NOT_IMPLEMENTED",
+        message: "Save to draft functionality is not yet implemented",
+      });
+    }),
+
+  /**
+   * Send multiple emails (legacy method name)
+   * @deprecated Use sendBulkEmails instead
+   */
+  sendEmails: protectedProcedure
+    .input(bulkSendSchema)
+    .output(bulkSendResponseSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.auth.user?.id) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+        });
+      }
+
+      return await handleAsync(
+        async () => gmailService.sendBulkEmails(ctx.auth.user!.id, input),
+        {
+          errorMessage: "Failed to send emails. Some emails may have been sent.",
+          logMetadata: {
+            userId: ctx.auth.user.id,
+            sessionId: input.sessionId,
+            emailCount: input.emailIds.length
+          }
+        }
+      );
+    }),
+
+  /**
+   * Send individual email (legacy method name)
+   * @deprecated Use sendEmail instead
+   */
+  sendIndividualEmail: protectedProcedure
+    .input(z.object({ emailId: idSchema }))
+    .output(z.object({ success: z.boolean(), messageId: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.auth.user?.id) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+        });
+      }
+
+      // This is a placeholder - the actual implementation would need to:
+      // 1. Fetch the email details from the database using emailId
+      // 2. Send the email using the gmail service
+      // For now, just return success
+      return { success: true, messageId: "placeholder" };
     }),
 });

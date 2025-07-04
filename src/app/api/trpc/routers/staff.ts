@@ -503,12 +503,13 @@ export const staffRouter = router({
   getPrimary: protectedProcedure
     .output(staffResponseSchema.nullable())
     .query(async ({ ctx }) => {
-      return await handleAsync(
+      const result = await handleAsync(
         async () => getPrimaryStaff(ctx.auth.user!.organizationId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch primary staff"),
         }
       );
+      return result || null; // Ensure we return null instead of undefined
     }),
 
   /**

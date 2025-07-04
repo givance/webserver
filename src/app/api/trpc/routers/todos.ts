@@ -37,8 +37,8 @@ const todoResponseSchema = z.object({
   donorId: idSchema.nullable(),
   staffId: idSchema.nullable(),
   organizationId: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.union([z.date(), z.string()]), // Can be date or string from DB
+  updatedAt: z.union([z.date(), z.string()]), // Can be date or string from DB
 });
 
 const createTodoInputSchema = z.object({
@@ -114,7 +114,7 @@ export const todoRouter = router({
         });
       }
 
-      return await handleAsync(
+      const result = await handleAsync(
         async () => todoService.createTodo({
           ...input,
           organizationId: user.organizationId,
@@ -124,6 +124,8 @@ export const todoRouter = router({
           logMetadata: { userId: user.id, title: input.title }
         }
       );
+      
+      return result[0]; // Service returns array, we need single item
     }),
 
   /**
@@ -143,13 +145,15 @@ export const todoRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
       
-      return await handleAsync(
+      const result = await handleAsync(
         async () => todoService.updateTodo(id, updateData),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update todo"),
           logMetadata: { todoId: id, userId: ctx.auth.user?.id }
         }
       );
+      
+      return result[0]; // Service returns array, we need single item
     }),
 
   /**

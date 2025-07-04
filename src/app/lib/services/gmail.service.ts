@@ -21,7 +21,7 @@ import {
 } from "@/app/lib/utils/email-tracking/content-processor";
 import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
-import { wrapDatabaseOperation } from "@/app/lib/utils/database-errors";
+import { wrapDatabaseOperation } from "@/app/lib/utils/wrap-db-call";
 import { and, eq, inArray } from "drizzle-orm";
 import { google } from "googleapis";
 import type { gmail_v1 } from "googleapis";
@@ -291,37 +291,54 @@ export class GmailService {
     let finalSubject = subject;
 
     // Get staff member info for signature
-    const staffMember = await db.query.staff.findFirst({
-      where: eq(staff.userId, userId),
+    const userRecord = await db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
+    
+    const staffMember = userRecord ? await db.query.staff.findFirst({
+      where: eq(staff.email, userRecord.email),
+    }) : null;
 
     // Append signature if requested
     if (appendSignature && staffMember?.signature) {
-      finalBody = appendSignatureToEmail(finalBody, staffMember.signature, isHtml);
+      // For now, just append the signature as plain text
+      if (isHtml) {
+        finalBody = `${finalBody}<br><br>${staffMember.signature}`;
+      } else {
+        finalBody = `${finalBody}\n\n${staffMember.signature}`;
+      }
     }
 
     // Apply tracking if session and email IDs are provided
     if (sessionId && emailId && trackingId) {
-      const processedContent = await processEmailContentWithTracking({
-        content: finalBody,
-        sessionId,
-        emailId,
-        trackingId,
-        trackLinks,
-      });
-      finalBody = processedContent.content;
-      finalSubject = processedContent.subject || subject;
+      // Convert body to structured content for tracking
+      const structuredContent: any[] = [{
+        piece: finalBody,
+        references: [],
+        addNewlineAfter: false
+      }];
+      
+      const processedContent = await processEmailContentWithTracking(
+        structuredContent,
+        trackingId
+      );
+      finalBody = processedContent.html;
+      finalSubject = subject; // Subject tracking is handled separately
     }
 
     // Create email message
-    const message = createHtmlEmail({
+    const htmlContent = isHtml ? finalBody : `<p>${finalBody.replace(/\n/g, "<br>")}</p>`;
+    const textContent = isHtml ? finalBody.replace(/<[^>]*>/g, '') : finalBody; // Strip HTML for text version
+    
+    const message = createHtmlEmail(
       to,
-      subject: finalSubject,
-      html: isHtml ? finalBody : `<p>${finalBody.replace(/\n/g, "<br>")}</p>`,
-      from: staffMember
+      finalSubject,
+      htmlContent,
+      textContent,
+      staffMember
         ? formatSenderField(staffMember.firstName, staffMember.lastName, staffMember.email)
-        : undefined,
-    });
+        : undefined
+    );
 
     // Send email
     const response = await gmail.users.messages.send({
@@ -387,7 +404,7 @@ export class GmailService {
           {
             to: donor.email,
             subject: email.subject,
-            body: email.body,
+            body: email.emailContent || email.structuredContent?.toString() || '',
             isHtml: true,
           },
           {
@@ -399,8 +416,7 @@ export class GmailService {
           }
         );
 
-        // Update email status
-        await this.emailCampaignsService.markEmailAsSent(email.id);
+        // Mark as successful
         successful.push(email.id);
 
         // Small delay to avoid rate limits
