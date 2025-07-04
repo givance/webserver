@@ -10,7 +10,7 @@ export const stringIdSchema = z.string().min(1);
 export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().email();
 export const urlSchema = z.string().url();
-export const phoneSchema = z.string().regex(/^\+?[\d\s\-\(\)]+$/, "Invalid phone number format");
+export const phoneSchema = z.string();
 export const dateSchema = z.date();
 export const dateStringSchema = z.string().datetime();
 
@@ -18,7 +18,7 @@ export const dateStringSchema = z.string().datetime();
 export const nameSchema = z.string().min(1).max(255);
 export const descriptionSchema = z.string();
 export const notesSchema = z.string();
-export const addressSchema = z.string().min(1).max(500);
+export const addressSchema = z.string().max(500);
 export const currencySchema = z.string().length(3).default("USD");
 export const amountSchema = z.number().int().positive();
 export const percentageSchema = z.number().min(0).max(100);

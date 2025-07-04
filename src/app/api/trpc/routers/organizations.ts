@@ -62,7 +62,7 @@ const organizationResponseSchema = z.object({
   writingInstructions: z.string().nullable(),
   memory: z.array(z.string()),
   donorJourney: donorJourneySchema.nullable(),
-  donorJourneyTextDescription: z.string().nullable(),
+  donorJourneyText: z.string().nullable(),
   createdAt: z.string(), // ISO string
   updatedAt: z.string(), // ISO string
 });
