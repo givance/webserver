@@ -1,4 +1,4 @@
-import { WhatsAppStaffLoggingService, type LogActivityParams, type WhatsAppActivityType } from '@/app/lib/services/whatsapp-staff-logging.service';
+import { WhatsAppStaffLoggingService, type LogActivityParams, type WhatsAppActivityType } from '@/app/lib/services/whatsapp/whatsapp-staff-logging.service';
 import { db } from '@/app/lib/db';
 import { logger } from '@/app/lib/logger';
 
@@ -132,14 +132,14 @@ describe('WhatsAppStaffLoggingService', () => {
       );
     });
 
-    it('should truncate long messages in summary', async () => {
+    it('should store long messages without truncation', async () => {
       const longMessage = 'a'.repeat(150);
       
       await service.logMessageReceived(10, 'org123', '+1234567890', longMessage);
 
       expect(mockValues).toHaveBeenCalledWith(
         expect.objectContaining({
-          summary: `Received text message: "${'a'.repeat(100)}..."`,
+          summary: `Received text message: "${longMessage}"`,
           data: expect.objectContaining({
             messageContent: longMessage,
           }),
@@ -250,7 +250,7 @@ describe('WhatsAppStaffLoggingService', () => {
       );
     });
 
-    it('should truncate long prompts', async () => {
+    it('should store long prompts without truncation', async () => {
       const longPrompt = 'a'.repeat(600);
       const tokensUsed = { promptTokens: 100, completionTokens: 50, totalTokens: 150 };
 
@@ -266,7 +266,7 @@ describe('WhatsAppStaffLoggingService', () => {
       expect(mockValues).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            prompt: 'a'.repeat(500),
+            prompt: longPrompt,
           }),
           metadata: expect.objectContaining({
             promptLength: 600,

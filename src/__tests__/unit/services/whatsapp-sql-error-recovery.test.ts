@@ -1,4 +1,4 @@
-import { WhatsAppSQLEngineService, SQLExecutionResult } from "@/app/lib/services/whatsapp-sql-engine.service";
+import { WhatsAppSQLEngineService, SQLExecutionResult } from "@/app/lib/services/whatsapp/whatsapp-sql-engine.service";
 
 // Mock the database and logger
 jest.mock("@/app/lib/db", () => ({

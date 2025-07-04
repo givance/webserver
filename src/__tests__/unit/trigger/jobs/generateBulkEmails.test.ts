@@ -1,6 +1,7 @@
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { db } from "@/app/lib/db";
 import { EmailGenerationService } from "@/app/lib/utils/email-generator/service";
+import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
@@ -14,6 +15,7 @@ jest.mock("@/app/lib/services/person-research.service");
 // Mock dependencies
 jest.mock("@/app/lib/db");
 jest.mock("@/app/lib/utils/email-generator/service");
+jest.mock("@/app/lib/utils/email-generator");
 jest.mock("@/app/lib/data/communications");
 jest.mock("@/app/lib/data/donations");
 jest.mock("@/app/lib/data/organizations");
@@ -49,6 +51,12 @@ const mockGenerateEmails = jest.fn();
   generateEmails: mockGenerateEmails,
 }));
 
+// Mock generateSmartDonorEmails
+const mockGenerateSmartDonorEmails = jest.fn();
+
+// Ensure the module is properly mocked after import
+jest.mocked(generateSmartDonorEmails).mockImplementation(mockGenerateSmartDonorEmails);
+
 // Test data
 const mockOrganization = {
   id: "org123",
@@ -69,9 +77,9 @@ const mockDonors = [
     id: 2,
     firstName: "Jane",
     lastName: "Smith",
-    assignedStaff: { id: 10, firstName: "Sarah", signature: "Sarah Jones" },
+    assignedStaff: { id: 10, firstName: "Sarah", lastName: "Jones", signature: "Sarah Jones" },
   },
-  { id: 3, firstName: "Bob", lastName: "Johnson", assignedStaff: { id: 11, firstName: "Mike", signature: null } },
+  { id: 3, firstName: "Bob", lastName: "Johnson", assignedStaff: { id: 11, firstName: "Mike", lastName: "Smith", signature: null } },
 ];
 
 // Setup mock chain
@@ -180,7 +188,7 @@ describe("generateBulkEmailsTask", () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       staff: {
-        findFirst: jest.fn().mockResolvedValue({ id: 100, firstName: "Primary", signature: "Primary Staff" }),
+        findFirst: jest.fn().mockResolvedValue({ id: 100, firstName: "Primary", lastName: "Staff", signature: "Primary Staff" }),
       },
     };
 
@@ -188,6 +196,9 @@ describe("generateBulkEmailsTask", () => {
     (PersonResearchService as jest.Mock).mockImplementation(() => ({
       getPersonResearch: jest.fn().mockResolvedValue(null),
     }));
+
+    // Reset generateSmartDonorEmails mock
+    mockGenerateSmartDonorEmails.mockClear();
 
     // Setup default mocks for data functions
     (getDonorCommunicationHistory as jest.Mock).mockResolvedValue([]);
@@ -203,26 +214,73 @@ describe("generateBulkEmailsTask", () => {
       // Setup database mocks
       setupDatabaseMocks();
 
-      mockGenerateEmails.mockResolvedValue([
-        {
-          donorId: 1,
-          subject: "Thank you John",
-          structuredContent: [{ piece: "Dear John,", references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-        {
-          donorId: 2,
-          subject: "Thank you Jane",
-          structuredContent: [{ piece: "Dear Jane,", references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-        {
-          donorId: 3,
-          subject: "Thank you Bob",
-          structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
-          referenceContexts: {},
-        },
-      ]);
+      mockGenerateSmartDonorEmails
+        .mockResolvedValueOnce({
+          refinedInstruction: "Write personalized thank you emails",
+          reasoning: "AI reasoning",
+          emails: [
+            {
+              donorId: 1,
+              subject: "Thank you John",
+              structuredContent: [{ piece: "Dear John,", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+            total: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          },
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "Write personalized thank you emails",
+          reasoning: "AI reasoning",
+          emails: [
+            {
+              donorId: 2,
+              subject: "Thank you Jane",
+              structuredContent: [{ piece: "Dear Jane,", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 120,
+                completionTokens: 60,
+                totalTokens: 180,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
+            total: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
+          },
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "Write personalized thank you emails",
+          reasoning: "AI reasoning",
+          emails: [
+            {
+              donorId: 3,
+              subject: "Thank you Bob",
+              structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 110,
+                completionTokens: 55,
+                totalTokens: 165,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
+            total: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
+          },
+        });
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
@@ -238,16 +296,15 @@ describe("generateBulkEmailsTask", () => {
       expect(mockSet).toHaveBeenNthCalledWith(2, {
         status: "COMPLETED",
         completedDonors: 3,
-        refinedInstruction: "Write personalized thank you emails",
         completedAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
 
       // Verify email generation was called 3 times (once per donor)
-      expect(mockGenerateEmails).toHaveBeenCalledTimes(3);
+      expect(mockGenerateSmartDonorEmails).toHaveBeenCalledTimes(3);
 
       // Verify each call had the correct structure (checking just the first call)
-      expect(mockGenerateEmails).toHaveBeenNthCalledWith(
+      expect(mockGenerateSmartDonorEmails).toHaveBeenNthCalledWith(
         1,
         expect.arrayContaining([
           expect.objectContaining({
@@ -256,13 +313,14 @@ describe("generateBulkEmailsTask", () => {
             lastName: "Doe",
           }),
         ]),
-        "Write personalized thank you emails",
+        "", // empty instruction - chat history is used
         "Test Foundation",
         expect.objectContaining({
           id: "org123",
           name: "Test Foundation",
         }),
         undefined, // organizationWritingInstructions
+        undefined, // staffWritingInstructions
         expect.any(Object), // communicationHistories
         expect.any(Object), // donationHistories
         {}, // donorStatistics
@@ -270,7 +328,9 @@ describe("generateBulkEmailsTask", () => {
         [], // personalMemories
         [], // organizationalMemories
         undefined, // currentDate
-        "John Smith\nFundraising Director" // emailSignature
+        undefined, // previousInstruction
+        expect.any(Array), // chatHistory
+        expect.any(String) // staffName
       );
 
       // Verify emails were saved
@@ -292,31 +352,73 @@ describe("generateBulkEmailsTask", () => {
       // Setup database mocks
       setupDatabaseMocks();
 
-      mockGenerateEmails
-        .mockResolvedValueOnce([
-          {
-            donorId: 1,
-            subject: "Test",
-            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
-            referenceContexts: {},
+      mockGenerateSmartDonorEmails
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 1,
+              subject: "Test",
+              structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+            total: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            donorId: 2,
-            subject: "Test",
-            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
-            referenceContexts: {},
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 2,
+              subject: "Test",
+              structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 120,
+                completionTokens: 60,
+                totalTokens: 180,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
+            total: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            donorId: 3,
-            subject: "Test",
-            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
-            referenceContexts: {},
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 3,
+              subject: "Test",
+              structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 110,
+                completionTokens: 55,
+                totalTokens: 165,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
+            total: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
           },
-        ]);
+        });
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
@@ -403,15 +505,29 @@ describe("generateBulkEmailsTask", () => {
       setupDatabaseMocks();
 
       // Mock errors for some donors
-      mockGenerateEmails
-        .mockResolvedValueOnce([
-          {
-            donorId: 1,
-            subject: "Test",
-            structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
-            referenceContexts: {},
+      mockGenerateSmartDonorEmails
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 1,
+              subject: "Test",
+              structuredContent: [{ piece: "Content", references: [], addNewlineAfter: true }],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+            total: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
           },
-        ])
+        })
         .mockRejectedValueOnce(new Error("AI generation failed"))
         .mockRejectedValueOnce(new Error("Token limit exceeded"));
 
@@ -436,40 +552,46 @@ describe("generateBulkEmailsTask", () => {
         existingEmails: [{ donorId: 1 }, { donorId: 2 }],
       });
 
-      mockGenerateEmails.mockResolvedValue([
-        {
-          donorId: 3,
-          subject: "Thank you Bob",
-          structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
-          referenceContexts: {},
+      mockGenerateSmartDonorEmails.mockResolvedValue({
+        refinedInstruction: "",
+        reasoning: "",
+        emails: [
+          {
+            donorId: 3,
+            subject: "Thank you Bob",
+            structuredContent: [{ piece: "Dear Bob,", references: [], addNewlineAfter: true }],
+            referenceContexts: {},
+            tokenUsage: {
+              promptTokens: 110,
+              completionTokens: 55,
+              totalTokens: 165,
+            },
+          },
+        ],
+        tokenUsage: {
+          instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          emailGeneration: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
+          total: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
         },
-      ]);
+      });
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
       const result = await runFunction(mockPayload, mockContext);
 
       // Should only generate email for donor 3
-      expect(mockGenerateEmails).toHaveBeenCalledWith(
+      expect(mockGenerateSmartDonorEmails).toHaveBeenCalledTimes(1);
+      
+      // Check that the call was for donor 3
+      const call = mockGenerateSmartDonorEmails.mock.calls[0];
+      expect(call[0]).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             id: 3,
             firstName: "Bob",
             lastName: "Johnson",
           }),
-        ]),
-        expect.any(String),
-        expect.any(String),
-        expect.any(Object),
-        undefined,
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Array),
-        expect.any(Array),
-        undefined,
-        expect.any(String)
+        ])
       );
 
       // Should only insert one email
@@ -486,13 +608,12 @@ describe("generateBulkEmailsTask", () => {
       const result = await runFunction(mockPayload, mockContext);
 
       // Should not call email generation
-      expect(mockGenerateEmails).not.toHaveBeenCalled();
+      expect(mockGenerateSmartDonorEmails).not.toHaveBeenCalled();
 
       // Should update status to COMPLETED
       expect(mockSet).toHaveBeenLastCalledWith({
         status: "COMPLETED",
         completedDonors: 3,
-        refinedInstruction: "Write personalized thank you emails",
         completedAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
@@ -518,31 +639,73 @@ describe("generateBulkEmailsTask", () => {
       (getMultipleComprehensiveDonorStats as jest.Mock).mockResolvedValue(mockStats);
 
       // Mock individual email generation for each donor
-      mockGenerateEmails
-        .mockResolvedValueOnce([
-          {
-            donorId: 1,
-            subject: "Test John",
-            structuredContent: [],
-            referenceContexts: {},
+      mockGenerateSmartDonorEmails
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 1,
+              subject: "Test John",
+              structuredContent: [],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+            total: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            donorId: 2,
-            subject: "Test Jane",
-            structuredContent: [],
-            referenceContexts: {},
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 2,
+              subject: "Test Jane",
+              structuredContent: [],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 120,
+                completionTokens: 60,
+                totalTokens: 180,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
+            total: { promptTokens: 120, completionTokens: 60, totalTokens: 180 },
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            donorId: 3,
-            subject: "Test Bob",
-            structuredContent: [],
-            referenceContexts: {},
+        })
+        .mockResolvedValueOnce({
+          refinedInstruction: "",
+          reasoning: "",
+          emails: [
+            {
+              donorId: 3,
+              subject: "Test Bob",
+              structuredContent: [],
+              referenceContexts: {},
+              tokenUsage: {
+                promptTokens: 110,
+                completionTokens: 55,
+                totalTokens: 165,
+              },
+            },
+          ],
+          tokenUsage: {
+            instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            emailGeneration: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
+            total: { promptTokens: 110, completionTokens: 55, totalTokens: 165 },
           },
-        ]);
+        });
 
       // Access the run function from the task configuration
       const runFunction = (generateBulkEmailsTask as any).run;
@@ -555,22 +718,16 @@ describe("generateBulkEmailsTask", () => {
       expect(listDonations).toHaveBeenCalled();
       expect(getMultipleComprehensiveDonorStats).toHaveBeenCalled();
 
-      // Verify email generation received the data
-      expect(mockGenerateEmails).toHaveBeenCalledWith(
-        expect.any(Array), // donors
-        expect.any(String), // refinedInstruction
-        expect.any(String), // organizationName
-        expect.any(Object), // organization
-        undefined, // organizationWritingInstructions
-        expect.any(Object), // communicationHistories
-        expect.any(Object), // donationHistories
-        mockStats, // donorStatistics
-        expect.any(Object), // personResearchResults
-        expect.any(Array), // personalMemories
-        expect.any(Array), // organizationalMemories
-        undefined, // currentDate
-        expect.any(String) // emailSignature
-      );
+      // Verify email generation received the data - called once per donor
+      expect(mockGenerateSmartDonorEmails).toHaveBeenCalledTimes(3);
+      
+      // Check that all calls have the expected structure
+      const calls = mockGenerateSmartDonorEmails.mock.calls;
+      calls.forEach((call, index) => {
+        expect(call[1]).toBe(""); // empty instruction
+        expect(call[2]).toBe("Test Foundation"); // organizationName
+        expect(call[8]).toEqual(mockStats); // donorStatistics
+      });
     });
   });
 });

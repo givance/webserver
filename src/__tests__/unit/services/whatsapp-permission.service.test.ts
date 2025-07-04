@@ -1,4 +1,4 @@
-import { WhatsAppPermissionService } from '@/app/lib/services/whatsapp-permission.service';
+import { WhatsAppPermissionService } from '@/app/lib/services/whatsapp/whatsapp-permission.service';
 import { db } from '@/app/lib/db';
 import { logger } from '@/app/lib/logger';
 

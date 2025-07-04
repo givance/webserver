@@ -480,6 +480,21 @@ Wher writing, if there are conflicts in the instructions, you should prioritize 
       });
     }
 
+    // Person research if available
+    if (personResearch) {
+      donorContext += "\nDONOR RESEARCH:\n";
+      donorContext += `${personResearch.answer}\n`;
+      if (personResearch.personIdentity) {
+        const identity = personResearch.personIdentity;
+        if (identity.profession) {
+          donorContext += `Profession: ${identity.profession}\n`;
+        }
+        if (identity.location) {
+          donorContext += `Location: ${identity.location}\n`;
+        }
+      }
+    }
+
     return `${systemPrompt}\n\n${donorContext}`;
   }
 }

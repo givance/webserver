@@ -98,7 +98,7 @@ describe("EmailGenerationService", () => {
     organizationId: "org123",
   };
 
-  const mockGeneratedEmails = {
+  const mockGeneratedEmailsForDonor1 = {
     emails: [
       {
         donorId: 1,
@@ -120,6 +120,16 @@ describe("EmailGenerationService", () => {
           gratitude: "Expressing thanks",
         },
       },
+    ],
+    tokenUsage: {
+      instructionRefinement: { promptTokens: 50, completionTokens: 25, totalTokens: 75 },
+      emailGeneration: { promptTokens: 250, completionTokens: 150, totalTokens: 400 },
+      total: { promptTokens: 300, completionTokens: 175, totalTokens: 475 },
+    },
+  };
+
+  const mockGeneratedEmailsForDonor2 = {
+    emails: [
       {
         donorId: 2,
         subject: "Your impact matters",
@@ -142,9 +152,9 @@ describe("EmailGenerationService", () => {
       },
     ],
     tokenUsage: {
-      instructionRefinement: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
-      emailGeneration: { promptTokens: 500, completionTokens: 300, totalTokens: 800 },
-      total: { promptTokens: 600, completionTokens: 350, totalTokens: 950 },
+      instructionRefinement: { promptTokens: 50, completionTokens: 25, totalTokens: 75 },
+      emailGeneration: { promptTokens: 250, completionTokens: 150, totalTokens: 400 },
+      total: { promptTokens: 300, completionTokens: 175, totalTokens: 475 },
     },
   };
 
@@ -162,7 +172,17 @@ describe("EmailGenerationService", () => {
 
     // Default mocks
     (processProjectMentions as jest.Mock).mockImplementation(async (text) => text);
-    (generateSmartDonorEmails as jest.Mock).mockResolvedValue(mockGeneratedEmails);
+    // Mock generateSmartDonorEmails to return appropriate email based on donor
+    (generateSmartDonorEmails as jest.Mock).mockImplementation(async (donors) => {
+      // Since the service now calls with single donors, check the first donor
+      const donor = donors[0];
+      if (donor.id === 1) {
+        return mockGeneratedEmailsForDonor1;
+      } else if (donor.id === 2) {
+        return mockGeneratedEmailsForDonor2;
+      }
+      throw new Error(`Unexpected donor ID: ${donor.id}`);
+    });
   });
 
   describe("generateSmartEmails", () => {
@@ -203,7 +223,7 @@ describe("EmailGenerationService", () => {
       (donationData.listDonations as jest.Mock).mockResolvedValue({
         donations: [{ amount: 1000, date: new Date("2023-01-01") }],
       });
-      (donationData.getMultipleComprehensiveDonorStats as jest.Mock).mockResolvedValue({
+      (donationData.getMultipleComprehensiveDonorStatsExcludingExternal as jest.Mock).mockResolvedValue({
         1: {
           totalAmount: 5000,
           totalDonations: 5,
@@ -230,7 +250,8 @@ describe("EmailGenerationService", () => {
       const result = await service.generateSmartEmails(input, "org123", "user123");
 
       expect(result.emails).toHaveLength(2);
-      expect(result.tokenUsage.total.totalTokens).toBe(950);
+      // Token usage should be the sum of both individual calls
+      expect(result.tokenUsage.total.totalTokens).toBe(950); // 475 + 475
 
       // Verify organization fetch
       expect(db.select).toHaveBeenCalled();
@@ -244,10 +265,13 @@ describe("EmailGenerationService", () => {
       // Verify all data fetches
       expect(commData.getDonorCommunicationHistory).toHaveBeenCalledTimes(2);
       expect(donationData.listDonations).toHaveBeenCalledTimes(2);
-      expect(donationData.getMultipleComprehensiveDonorStats).toHaveBeenCalledWith([1, 2], "org123");
+      expect(donationData.getMultipleComprehensiveDonorStatsExcludingExternal).toHaveBeenCalledWith([1, 2], "org123");
       expect(mockPersonResearchService.getPersonResearch).toHaveBeenCalledTimes(2);
 
-      // Verify email generation call
+      // Verify email generation calls - should be called twice (once per donor)
+      expect(generateSmartDonorEmails).toHaveBeenCalledTimes(2);
+      
+      // Verify first call (for donor 1)
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
@@ -262,78 +286,133 @@ describe("EmailGenerationService", () => {
           id: "org123",
           rawWebsiteSummary: "We help communities",
         }),
-        "Be warm",
-        expect.any(Object), // communication histories
-        expect.any(Object), // donation histories
-        expect.any(Object), // donor statistics
-        expect.any(Object), // person research
+        "Be warm and personal",        // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
         ["User memory 1"],
         ["Org memory 1"],
-        expect.any(String), // current date
-        "Best regards,\nTest User", // user signature
-        undefined, // previous instruction
-        undefined // chat history
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        expect.any(String)              // staffName
       );
     });
 
-    it("should add appropriate signatures to emails", async () => {
+    it("should generate emails without signatures (signatures added at runtime)", async () => {
       const result = await service.generateSmartEmails(input, "org123", "user123");
 
-      // First email should use assigned staff's custom signature
-      expect(result.emails[0].structuredContent).toContainEqual({
-        piece: "Best regards,\nSarah Johnson",
-        references: ["signature"],
-        addNewlineAfter: false,
-      });
+      // Emails should not contain signatures as they are added at runtime
+      expect(result.emails[0].structuredContent).not.toContainEqual(
+        expect.objectContaining({
+          references: expect.arrayContaining(["signature"]),
+        })
+      );
 
-      // Second email should use primary staff's custom signature (no assigned staff)
-      expect(result.emails[1].structuredContent).toContainEqual({
-        piece: "Sincerely,\nPrimary Staff",
-        references: ["signature"],
-        addNewlineAfter: false,
-      });
+      expect(result.emails[1].structuredContent).not.toContainEqual(
+        expect.objectContaining({
+          references: expect.arrayContaining(["signature"]),
+        })
+      );
 
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Using custom signature from assigned staff"));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Using custom signature from primary staff"));
+      // The service should still determine appropriate staff names
+      expect(generateSmartDonorEmails).toHaveBeenCalledWith(
+        expect.any(Array),              // donors
+        expect.any(String),             // userInstruction
+        expect.any(String),             // organizationName
+        expect.any(Object),             // organization
+        expect.any(String),             // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        expect.any(String)              // staffName
+      );
     });
 
-    it("should use default signatures when custom signatures are not available", async () => {
+    it("should pass appropriate staff names even without custom signatures", async () => {
       // Remove custom signatures
       mockFullDonors[0].assignedStaff!.signature = "";
       mockPrimaryStaff.signature = "";
 
       const result = await service.generateSmartEmails(input, "org123", "user123");
 
-      // First email should use default format for assigned staff
-      expect(result.emails[0].structuredContent).toContainEqual({
-        piece: "Best,\nSarah",
-        references: ["signature"],
-        addNewlineAfter: false,
-      });
+      // Verify staff names are still passed correctly
+      expect(generateSmartDonorEmails).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Array),              // donors
+        expect.any(String),             // userInstruction
+        expect.any(String),             // organizationName
+        expect.any(Object),             // organization
+        expect.any(String),             // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        expect.any(String)              // staffName
+      );
 
-      // Second email should use default format for primary staff
-      expect(result.emails[1].structuredContent).toContainEqual({
-        piece: "Best,\nPrimary",
-        references: ["signature"],
-        addNewlineAfter: false,
-      });
+      expect(generateSmartDonorEmails).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Array),              // donors
+        expect.any(String),             // userInstruction
+        expect.any(String),             // organizationName
+        expect.any(Object),             // organization
+        expect.any(String),             // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        "Primary Staff"                 // staffName
+      );
     });
 
-    it("should fall back to user signature when no staff available", async () => {
+    it("should pass undefined staff name when no staff available", async () => {
       // Remove all staff
       mockFullDonors[0].assignedStaff = null;
       (db.query.staff.findFirst as jest.Mock).mockResolvedValue(null);
 
       const result = await service.generateSmartEmails(input, "org123", "user123");
 
-      // Both emails should use user signature
-      result.emails.forEach((email) => {
-        expect(email.structuredContent).toContainEqual({
-          piece: "Best regards,\nTest User",
-          references: ["signature"],
-          addNewlineAfter: false,
-        });
-      });
+      // Both calls should have undefined staff name
+      expect(generateSmartDonorEmails).toHaveBeenCalledWith(
+        expect.any(Array),              // donors
+        expect.any(String),             // userInstruction
+        expect.any(String),             // organizationName
+        expect.any(Object),             // organization
+        expect.any(String),             // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        undefined                       // No staff name
+      );
     });
 
     it("should process project mentions in instruction", async () => {
@@ -342,6 +421,9 @@ describe("EmailGenerationService", () => {
       await service.generateSmartEmails(input, "org123", "user123");
 
       expect(processProjectMentions).toHaveBeenCalledWith("Write a thank you email", "org123");
+      expect(generateSmartDonorEmails).toHaveBeenCalledTimes(2);
+      
+      // Verify that both calls used the processed instruction
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
@@ -356,17 +438,18 @@ describe("EmailGenerationService", () => {
           id: "org123",
           rawWebsiteSummary: "We help communities",
         }),
-        "Be warm",
-        expect.any(Object), // communication histories
-        expect.any(Object), // donation histories
-        expect.any(Object), // donor statistics
-        expect.any(Object), // person research
+        "Be warm and personal",        // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
         ["User memory 1"],
         ["Org memory 1"],
-        expect.any(String), // current date
-        "Best regards,\nTest User", // user signature
-        undefined, // previous instruction
-        undefined // chat history
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        expect.any(String)              // staffName
       );
     });
 
@@ -422,21 +505,22 @@ describe("EmailGenerationService", () => {
       await service.generateSmartEmails(inputWithHistory, "org123", "user123");
 
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.any(String),
-        expect.any(String),
-        expect.any(Object),
-        expect.any(String),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Array),
-        expect.any(Array),
-        expect.any(String),
-        expect.any(String),
+        expect.any(Array),              // donors
+        expect.any(String),             // userInstruction
+        expect.any(String),             // organizationName
+        expect.any(Object),             // organization
+        expect.any(String),             // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
         "Previous instruction",
-        inputWithHistory.chatHistory
+        inputWithHistory.chatHistory,
+        expect.any(String)              // staffName
       );
     });
 
@@ -453,6 +537,9 @@ describe("EmailGenerationService", () => {
 
       const result = await service.generateSmartEmails(input, "org123", "user123");
 
+      expect(generateSmartDonorEmails).toHaveBeenCalledTimes(2);
+      
+      // Verify the first call includes couple information
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
@@ -468,17 +555,18 @@ describe("EmailGenerationService", () => {
           id: "org123",
           rawWebsiteSummary: "We help communities",
         }),
-        "Be warm",
-        expect.any(Object), // communication histories
-        expect.any(Object), // donation histories
-        expect.any(Object), // donor statistics
-        expect.any(Object), // person research
+        "Be warm and personal",        // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
         ["User memory 1"],
         ["Org memory 1"],
-        expect.any(String), // current date
-        "Best regards,\nTest User", // user signature
-        undefined, // previous instruction
-        undefined // chat history
+        expect.any(String),             // currentDate
+        undefined,                      // previousInstruction
+        undefined,                      // chatHistory
+        expect.any(String)              // staffName
       );
     });
   });
@@ -575,7 +663,7 @@ describe("EmailGenerationService", () => {
       // Mock data functions
       (commData.getDonorCommunicationHistory as jest.Mock).mockResolvedValue([]);
       (donationData.listDonations as jest.Mock).mockResolvedValue({ donations: [] });
-      (donationData.getMultipleComprehensiveDonorStats as jest.Mock).mockResolvedValue({
+      (donationData.getMultipleComprehensiveDonorStatsExcludingExternal as jest.Mock).mockResolvedValue({
         1: { totalAmount: 1000, totalDonations: 1 },
       });
       (orgData.getOrganizationMemories as jest.Mock).mockResolvedValue([]);
@@ -679,16 +767,18 @@ describe("EmailGenerationService", () => {
           id: "org123",
           name: "Test Foundation",
         }),
-        "Be warm",
-        expect.any(Object), // communication histories
-        expect.any(Object), // donation histories
-        expect.any(Object), // donor statistics
-        expect.any(Object), // person research
-        expect.any(Array), // user memories
-        expect.any(Array), // organization memories
-        expect.any(String), // current date
-        undefined, // signature
-        "Original instruction" // previous instruction
+        "Be warm and personal",        // organizationWritingInstructions
+        undefined,                      // staffWritingInstructions
+        expect.any(Object),             // communicationHistories
+        expect.any(Object),             // donationHistories
+        expect.any(Object),             // donorStatistics
+        expect.any(Object),             // personResearchResults
+        expect.any(Array),              // userMemories
+        expect.any(Array),              // organizationMemories
+        expect.any(String),             // currentDate
+        "Original instruction",         // previousInstruction
+        undefined                       // chatHistory
+        // No staffName parameter in enhancement
       );
     });
   });
