@@ -30,7 +30,7 @@ function DonationsContent() {
   const donorId = searchParams.get("donorId") ? Number(searchParams.get("donorId")) : undefined;
   const projectId = searchParams.get("projectId") ? Number(searchParams.get("projectId")) : undefined;
 
-  const { list: listDonations } = useDonations();
+  const { listDonations } = useDonations();
 
   // Fetch donations based on current page, page size, and filters
   const {

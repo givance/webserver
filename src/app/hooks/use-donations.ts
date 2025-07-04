@@ -4,6 +4,16 @@ import { trpc } from "@/app/lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
 import type { DonationWithDetails } from "@/app/lib/data/donations";
+import { toast } from "sonner";
+import { 
+  STANDARD_QUERY_OPTIONS,
+  createConditionalQueryOptions,
+  wrapMutationAsync,
+  wrapMutationAsyncBoolean,
+  createErrorHandler,
+  createCacheInvalidators,
+  createCrossResourceInvalidators
+} from "./utils";
 
 type DonationOutput = inferProcedureOutput<AppRouter["donations"]["getById"]>;
 type ListDonationsInput = inferProcedureInput<AppRouter["donations"]["list"]>;
@@ -34,28 +44,59 @@ interface ListDonationsResponse {
  */
 export function useDonations() {
   const utils = trpc.useUtils();
+  const cacheInvalidators = createCacheInvalidators(utils);
+  const crossResourceInvalidators = createCrossResourceInvalidators(utils);
 
-  // Query hooks
-  const getDonationById = trpc.donations.getById.useQuery;
-  const list = trpc.donations.list.useQuery;
+  // Query hooks with consistent options
+  const listDonations = (params: ListDonationsInput = {}) => {
+    return trpc.donations.list.useQuery(params, STANDARD_QUERY_OPTIONS);
+  };
 
-  // Mutation hooks
+  const getDonationById = (id: number) => {
+    return trpc.donations.getById.useQuery(
+      { id },
+      createConditionalQueryOptions(!!id)
+    );
+  };
+
+  const getDonorStats = (donorId: number) => {
+    return trpc.donations.getDonorStats.useQuery(
+      { donorId },
+      createConditionalQueryOptions(!!donorId)
+    );
+  };
+
+  // Mutation hooks with consistent error handling and invalidation
   const createMutation = trpc.donations.create.useMutation({
-    onSuccess: () => {
-      utils.donations.list.invalidate();
+    onSuccess: (data) => {
+      cacheInvalidators.invalidateResource("donations");
+      if (data.donorId) {
+        crossResourceInvalidators.invalidateDonorRelated(data.donorId);
+      }
+      toast.success("Donation created successfully");
     },
+    onError: createErrorHandler("create donation"),
   });
 
   const updateMutation = trpc.donations.update.useMutation({
-    onSuccess: () => {
-      utils.donations.list.invalidate();
+    onSuccess: (data) => {
+      cacheInvalidators.invalidateResource("donations");
+      if (data.donorId) {
+        crossResourceInvalidators.invalidateDonorRelated(data.donorId);
+      }
+      toast.success("Donation updated successfully");
     },
+    onError: createErrorHandler("update donation"),
   });
 
   const deleteMutation = trpc.donations.delete.useMutation({
-    onSuccess: () => {
-      utils.donations.list.invalidate();
+    onSuccess: (_, variables) => {
+      cacheInvalidators.invalidateResource("donations");
+      // We need to also invalidate donor stats since a donation was deleted
+      utils.donations.getDonorStats.invalidate();
+      toast.success("Donation deleted successfully");
     },
+    onError: createErrorHandler("delete donation"),
   });
 
   /**
@@ -64,12 +105,11 @@ export function useDonations() {
    * @returns The created donation or null if creation failed
    */
   const createDonation = async (input: CreateDonationInput) => {
-    try {
-      return await createMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to create donation:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      createMutation.mutateAsync,
+      input,
+      "create donation"
+    );
   };
 
   /**
@@ -78,12 +118,11 @@ export function useDonations() {
    * @returns The updated donation or null if update failed
    */
   const updateDonation = async (input: UpdateDonationInput) => {
-    try {
-      return await updateMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to update donation:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      updateMutation.mutateAsync,
+      input,
+      "update donation"
+    );
   };
 
   /**
@@ -92,19 +131,18 @@ export function useDonations() {
    * @returns true if deletion was successful, false otherwise
    */
   const deleteDonation = async (id: number) => {
-    try {
-      await deleteMutation.mutateAsync({ id });
-      return true;
-    } catch (error) {
-      console.error("Failed to delete donation:", error);
-      return false;
-    }
+    return wrapMutationAsyncBoolean(
+      deleteMutation.mutateAsync,
+      { id },
+      "delete donation"
+    );
   };
 
   return {
     // Query functions
+    listDonations,
     getDonationById,
-    list,
+    getDonorStats,
 
     // Mutation functions
     createDonation,
@@ -119,5 +157,13 @@ export function useDonations() {
     // Mutation results
     createResult: createMutation.data,
     updateResult: updateMutation.data,
+    deleteResult: deleteMutation.data,
+
+    // Direct access to mutations if needed
+    mutations: {
+      createMutation,
+      updateMutation,
+      deleteMutation,
+    },
   };
 }

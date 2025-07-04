@@ -1,8 +1,20 @@
 "use client";
 
+import { useMemo } from "react";
 import { trpc } from "../lib/trpc/client";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
 import type { AppRouter } from "@/app/api/trpc/routers/_app";
+import { toast } from "sonner";
+import { 
+  STANDARD_QUERY_OPTIONS,
+  createConditionalQueryOptions,
+  wrapMutationAsync,
+  wrapMutationAsyncBoolean,
+  createErrorHandler,
+  createCacheInvalidators,
+  createCrossResourceInvalidators
+} from "./utils";
+import { useOrganization } from "@/app/hooks/use-organization";
 
 type StaffOutput = inferProcedureOutput<AppRouter["staff"]["getById"]>;
 type ListStaffInput = inferProcedureInput<AppRouter["staff"]["list"]>;
@@ -11,77 +23,161 @@ type UpdateStaffInput = inferProcedureInput<AppRouter["staff"]["update"]>;
 type CreateEmailExampleInput = inferProcedureInput<AppRouter["staff"]["createEmailExample"]>;
 type UpdateEmailExampleInput = inferProcedureInput<AppRouter["staff"]["updateEmailExample"]>;
 
+// Simplified staff member interface for dropdown/selection use cases
+export interface StaffMember {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+}
+
 /**
  * Hook for managing staff members through the tRPC API
  * Provides methods for creating, reading, updating, and deleting staff members
  */
 export function useStaff() {
   const utils = trpc.useUtils();
+  const cacheInvalidators = createCacheInvalidators(utils);
+  const crossResourceInvalidators = createCrossResourceInvalidators(utils);
+  const { getOrganization } = useOrganization();
+  const { data: organizationData } = getOrganization();
 
-  // Query hooks
-  const listStaff = trpc.staff.list.useQuery;
-  const getStaffById = trpc.staff.getById.useQuery;
-  const getAssignedDonors = trpc.staff.getAssignedDonors.useQuery;
-  const getPrimaryStaff = trpc.staff.getPrimary.useQuery;
-  const listEmailExamples = trpc.staff.listEmailExamples.useQuery;
-  const getEmailExample = trpc.staff.getEmailExample.useQuery;
+  // Query hooks with consistent options
+  const listStaff = (params: ListStaffInput = {}) => {
+    return trpc.staff.list.useQuery(params, STANDARD_QUERY_OPTIONS);
+  };
 
-  // Mutation hooks
+  const getStaffById = (id: number) => {
+    return trpc.staff.getById.useQuery(
+      { id },
+      createConditionalQueryOptions(!!id)
+    );
+  };
+
+  const getAssignedDonors = (staffId: number) => {
+    return trpc.staff.getAssignedDonors.useQuery(
+      { id: staffId },
+      createConditionalQueryOptions(!!staffId)
+    );
+  };
+
+  const getPrimaryStaff = () => {
+    return trpc.staff.getPrimary.useQuery(undefined, STANDARD_QUERY_OPTIONS);
+  };
+
+  const listEmailExamples = (staffId: number) => {
+    return trpc.staff.listEmailExamples.useQuery(
+      { id: staffId },
+      createConditionalQueryOptions(!!staffId)
+    );
+  };
+
+  const getEmailExample = (id: number) => {
+    return trpc.staff.getEmailExample.useQuery(
+      { id },
+      createConditionalQueryOptions(!!id)
+    );
+  };
+
+  // Simplified staff members query for dropdowns
+  const staffMembersQuery = trpc.staff.list.useQuery(
+    {},
+    createConditionalQueryOptions(!!organizationData?.id)
+  );
+
+  const staffMembers = useMemo(
+    () =>
+      staffMembersQuery.data?.staff?.map((s) => ({
+        id: s.id.toString(),
+        name: `${s.firstName} ${s.lastName}`,
+        firstName: s.firstName,
+        lastName: s.lastName,
+      })) || [],
+    [staffMembersQuery.data?.staff]
+  );
+
+  const getStaffMembers = () => {
+    return {
+      staffMembers,
+      isLoading: staffMembersQuery.isLoading,
+      error: staffMembersQuery.error as Error | null,
+    };
+  };
+
+  // Mutation hooks with consistent error handling and invalidation
   const createMutation = trpc.staff.create.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
+    onSuccess: (data) => {
+      crossResourceInvalidators.invalidateStaffRelated();
+      toast.success(`Staff member ${data.firstName} ${data.lastName} created successfully`);
     },
+    onError: createErrorHandler("create staff member"),
   });
 
   const updateMutation = trpc.staff.update.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
+    onSuccess: (data) => {
+      crossResourceInvalidators.invalidateStaffRelated(data.id);
+      toast.success(`Staff member ${data.firstName} ${data.lastName} updated successfully`);
     },
+    onError: createErrorHandler("update staff member"),
   });
 
   const deleteMutation = trpc.staff.delete.useMutation({
     onSuccess: () => {
-      utils.staff.list.invalidate();
+      crossResourceInvalidators.invalidateStaffRelated();
+      // Also invalidate donors since staff assignments may have changed
+      utils.donors.list.invalidate();
+      toast.success("Staff member deleted successfully");
     },
+    onError: createErrorHandler("delete staff member"),
   });
 
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
       utils.staff.list.invalidate();
+      toast.success("Gmail account disconnected successfully");
     },
+    onError: createErrorHandler("disconnect Gmail account"),
   });
 
   const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
-      utils.staff.getPrimary.invalidate();
+    onSuccess: (data) => {
+      crossResourceInvalidators.invalidateStaffRelated();
+      toast.success(`${data.firstName} ${data.lastName} set as primary staff member`);
     },
+    onError: createErrorHandler("set primary staff member"),
   });
 
   const unsetPrimaryMutation = trpc.staff.unsetPrimary.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
-      utils.staff.getPrimary.invalidate();
+    onSuccess: (data) => {
+      crossResourceInvalidators.invalidateStaffRelated();
+      toast.success(`${data.firstName} ${data.lastName} is no longer primary staff member`);
     },
+    onError: createErrorHandler("unset primary staff member"),
   });
 
   // Email example mutations
   const createEmailExampleMutation = trpc.staff.createEmailExample.useMutation({
     onSuccess: (_, variables) => {
       utils.staff.listEmailExamples.invalidate({ id: variables.staffId });
+      toast.success("Email example created successfully");
     },
+    onError: createErrorHandler("create email example"),
   });
 
   const updateEmailExampleMutation = trpc.staff.updateEmailExample.useMutation({
     onSuccess: () => {
       utils.staff.listEmailExamples.invalidate();
+      toast.success("Email example updated successfully");
     },
+    onError: createErrorHandler("update email example"),
   });
 
   const deleteEmailExampleMutation = trpc.staff.deleteEmailExample.useMutation({
     onSuccess: () => {
       utils.staff.listEmailExamples.invalidate();
+      toast.success("Email example deleted successfully");
     },
+    onError: createErrorHandler("delete email example"),
   });
 
   /**
@@ -90,12 +186,11 @@ export function useStaff() {
    * @returns The created staff member or null if creation failed
    */
   const createStaff = async (input: CreateStaffInput) => {
-    try {
-      return await createMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to create staff member:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      createMutation.mutateAsync,
+      input,
+      "create staff member"
+    );
   };
 
   /**
@@ -104,12 +199,11 @@ export function useStaff() {
    * @returns The updated staff member or null if update failed
    */
   const updateStaff = async (input: UpdateStaffInput) => {
-    try {
-      return await updateMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to update staff member:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      updateMutation.mutateAsync,
+      input,
+      "update staff member"
+    );
   };
 
   /**
@@ -118,13 +212,11 @@ export function useStaff() {
    * @returns true if deletion was successful, false otherwise
    */
   const deleteStaff = async (id: number) => {
-    try {
-      await deleteMutation.mutateAsync({ id });
-      return true;
-    } catch (error) {
-      console.error("Failed to delete staff member:", error);
-      return false;
-    }
+    return wrapMutationAsyncBoolean(
+      deleteMutation.mutateAsync,
+      { id },
+      "delete staff member"
+    );
   };
 
   /**
@@ -133,13 +225,11 @@ export function useStaff() {
    * @returns true if disconnect was successful, false otherwise
    */
   const disconnectStaffGmail = async (staffId: number) => {
-    try {
-      await disconnectStaffGmailMutation.mutateAsync({ staffId });
-      return true;
-    } catch (error) {
-      console.error("Failed to disconnect staff Gmail:", error);
-      return false;
-    }
+    return wrapMutationAsyncBoolean(
+      disconnectStaffGmailMutation.mutateAsync,
+      { staffId },
+      "disconnect staff Gmail"
+    );
   };
 
   /**
@@ -148,12 +238,11 @@ export function useStaff() {
    * @returns The updated staff member or null if update failed
    */
   const setPrimary = async (id: number) => {
-    try {
-      return await setPrimaryMutation.mutateAsync({ id });
-    } catch (error) {
-      console.error("Failed to set primary staff:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      setPrimaryMutation.mutateAsync,
+      { id },
+      "set primary staff"
+    );
   };
 
   /**
@@ -162,12 +251,11 @@ export function useStaff() {
    * @returns The updated staff member or null if update failed
    */
   const unsetPrimary = async (id: number) => {
-    try {
-      return await unsetPrimaryMutation.mutateAsync({ id });
-    } catch (error) {
-      console.error("Failed to unset primary staff:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      unsetPrimaryMutation.mutateAsync,
+      { id },
+      "unset primary staff"
+    );
   };
 
   /**
@@ -176,12 +264,11 @@ export function useStaff() {
    * @returns The created email example or null if creation failed
    */
   const createEmailExample = async (input: CreateEmailExampleInput) => {
-    try {
-      return await createEmailExampleMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to create email example:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      createEmailExampleMutation.mutateAsync,
+      input,
+      "create email example"
+    );
   };
 
   /**
@@ -190,12 +277,11 @@ export function useStaff() {
    * @returns The updated email example or null if update failed
    */
   const updateEmailExample = async (input: UpdateEmailExampleInput) => {
-    try {
-      return await updateEmailExampleMutation.mutateAsync(input);
-    } catch (error) {
-      console.error("Failed to update email example:", error);
-      return null;
-    }
+    return wrapMutationAsync(
+      updateEmailExampleMutation.mutateAsync,
+      input,
+      "update email example"
+    );
   };
 
   /**
@@ -204,13 +290,11 @@ export function useStaff() {
    * @returns true if deletion was successful, false otherwise
    */
   const deleteEmailExample = async (id: number) => {
-    try {
-      await deleteEmailExampleMutation.mutateAsync({ id });
-      return true;
-    } catch (error) {
-      console.error("Failed to delete email example:", error);
-      return false;
-    }
+    return wrapMutationAsyncBoolean(
+      deleteEmailExampleMutation.mutateAsync,
+      { id },
+      "delete email example"
+    );
   };
 
   return {
@@ -221,6 +305,7 @@ export function useStaff() {
     getPrimaryStaff,
     listEmailExamples,
     getEmailExample,
+    getStaffMembers, // Simplified query for dropdowns
 
     // Mutation functions
     createStaff,
@@ -247,5 +332,19 @@ export function useStaff() {
     // Mutation results
     createResult: createMutation.data,
     updateResult: updateMutation.data,
+    deleteResult: deleteMutation.data,
+
+    // Direct access to mutations if needed
+    mutations: {
+      createMutation,
+      updateMutation,
+      deleteMutation,
+      disconnectStaffGmailMutation,
+      setPrimaryMutation,
+      unsetPrimaryMutation,
+      createEmailExampleMutation,
+      updateEmailExampleMutation,
+      deleteEmailExampleMutation,
+    },
   };
 }

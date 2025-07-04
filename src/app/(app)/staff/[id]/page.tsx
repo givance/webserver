@@ -159,21 +159,21 @@ export default function StaffDetailPage() {
     isLoading: isStaffLoading,
     error: staffError,
     refetch: refetchStaff,
-  } = getStaffById({ id: staffId }, { enabled: !!staffId });
+  } = getStaffById(staffId);
 
   // Fetch assigned donors
   const {
     data: donorsResponse,
     isLoading: isDonorsLoading,
     error: donorsError,
-  } = getAssignedDonors({ id: staffId }, { enabled: !!staffId });
+  } = getAssignedDonors(staffId);
 
   // Fetch email examples
   const {
     data: emailExamplesData,
     isLoading: isEmailExamplesLoading,
     refetch: refetchEmailExamples,
-  } = listEmailExamples({ id: staffId }, { enabled: !!staffId });
+  } = listEmailExamples(staffId);
 
   // Fetch WhatsApp data
   const { data: phoneNumbersData, isLoading: isPhoneNumbersLoading } = getStaffPhoneNumbers(staffId);
