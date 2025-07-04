@@ -2,6 +2,14 @@ import "@testing-library/jest-dom";
 import { loadEnvConfig } from "@next/env";
 import "./mocks/env.mock";
 
+// React 19 testing compatibility
+import React from 'react';
+
+// Configure React testing environment for React 19
+if (typeof global.React === 'undefined') {
+  global.React = React;
+}
+
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
 
