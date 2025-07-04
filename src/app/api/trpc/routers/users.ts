@@ -1,357 +1,470 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
-import { getUserById, updateUserMemory, addDismissedMemory, updateUserEmailSignature } from "@/app/lib/data/users";
-import { logger } from "@/app/lib/logger";
+import { 
+  getUserById, 
+  updateUserMemory, 
+  addDismissedMemory, 
+  updateUserEmailSignature 
+} from "@/app/lib/data/users";
 import { db } from "@/app/lib/db";
 import { signatureImages } from "@/app/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { env } from "@/app/lib/env";
+import { 
+  createTRPCError,
+  handleAsync,
+  notFoundError,
+  ERROR_MESSAGES
+} from "@/app/lib/utils/trpc-errors";
+import {
+  idSchema,
+} from "@/app/lib/validation/schemas";
+
+// ============================================================================
+// Schema Definitions
+// ============================================================================
+
+/**
+ * User response schema
+ */
+const userResponseSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  name: z.string().nullable(),
+  memory: z.array(z.string()),
+  dismissedMemories: z.array(z.string()),
+  emailSignature: z.string().nullable(),
+  organizationId: z.string().nullable(),
+  createdAt: z.string(), // ISO string
+  updatedAt: z.string(), // ISO string
+});
+
+/**
+ * Signature image schema
+ */
+const signatureImageSchema = z.object({
+  id: idSchema,
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number().int().positive(),
+  dataUrl: z.string().url(),
+  createdAt: z.date(),
+});
+
+/**
+ * Signature image response schema (with ISO dates)
+ */
+const signatureImageResponseSchema = signatureImageSchema.extend({
+  createdAt: z.string(), // ISO string
+});
+
+// Input schemas
+const updateMemorySchema = z.object({
+  memory: z.array(z.string().max(1000)).max(100),
+});
+
+const dismissMemorySchema = z.object({
+  memory: z.string().max(1000),
+});
+
+const updateSignatureSchema = z.object({
+  signature: z.string().max(10000),
+});
+
+const uploadSignatureImageSchema = z.object({
+  filename: z.string().min(1).max(255),
+  mimeType: z.string().min(1),
+  base64Data: z.string().min(1),
+  size: z.number().int().positive().max(5 * 1024 * 1024), // 5MB max
+});
+
+const imageIdSchema = z.object({
+  imageId: idSchema,
+});
+
+// Constants
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Serialize user dates to ISO strings
+ */
+const serializeUser = (user: any): z.infer<typeof userResponseSchema> => ({
+  ...user,
+  createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+  updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt,
+});
+
+/**
+ * Serialize signature image dates to ISO strings
+ */
+const serializeSignatureImage = (image: any): z.infer<typeof signatureImageResponseSchema> => ({
+  ...image,
+  createdAt: image.createdAt instanceof Date ? image.createdAt.toISOString() : image.createdAt,
+});
+
+/**
+ * Get hosted URL for signature image
+ */
+const getHostedImageUrl = (imageId: number): string => {
+  const baseUrl = env.BASE_URL || "https://app.givance.ai";
+  return `${baseUrl}/api/signature-image/${imageId}`;
+};
+
+// ============================================================================
+// Router Definition
+// ============================================================================
 
 export const usersRouter = router({
   /**
-   * Get the current user's details including memory
+   * Get the current user's details
+   * 
+   * @returns User data including memory and email signature
+   * 
+   * @throws {TRPCError} NOT_FOUND if user doesn't exist
    */
-  getCurrent: protectedProcedure.query(async ({ ctx }) => {
-    const user = await getUserById(ctx.auth.user.id);
-    if (!user) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "User not found",
-      });
-    }
-    return user;
-  }),
+  getCurrent: protectedProcedure
+    .output(userResponseSchema)
+    .query(async ({ ctx }) => {
+      const user = await handleAsync(
+        async () => getUserById(ctx.auth.user.id),
+        {
+          errorMessage: ERROR_MESSAGES.NOT_FOUND("User"),
+          errorCode: "NOT_FOUND"
+        }
+      );
+
+      if (!user) {
+        throw notFoundError("User");
+      }
+
+      return serializeUser(user);
+    }),
 
   /**
    * Update the user's memory array
+   * 
+   * @param memory - Array of memory strings to store
+   * 
+   * @returns Updated user data
+   * 
+   * @throws {TRPCError} NOT_FOUND if user doesn't exist
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
   updateMemory: protectedProcedure
-    .input(
-      z.object({
-        memory: z.array(z.string()),
-      })
-    )
+    .input(updateMemorySchema)
+    .output(userResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const updated = await updateUserMemory(userId, input.memory);
-        if (!updated) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "User not found",
-          });
+      const updated = await handleAsync(
+        async () => updateUserMemory(ctx.auth.user.id, input.memory),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update user memory"),
+          logMetadata: { 
+            userId: ctx.auth.user.id,
+            memoryCount: input.memory.length 
+          }
         }
-        return updated;
-      } catch (error) {
-        logger.error(`Failed to update user memory: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update user memory",
-          cause: error,
-        });
+      );
+
+      if (!updated) {
+        throw notFoundError("User");
       }
+
+      return serializeUser(updated);
     }),
 
   /**
    * Dismiss a memory item
+   * 
+   * @param memory - Memory string to dismiss
+   * 
+   * @returns Updated user data
+   * 
+   * @throws {TRPCError} NOT_FOUND if user doesn't exist
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
   dismissMemory: protectedProcedure
-    .input(
-      z.object({
-        memory: z.string(),
-      })
-    )
+    .input(dismissMemorySchema)
+    .output(userResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const updated = await addDismissedMemory(userId, input.memory);
-        if (!updated) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "User not found",
-          });
+      const updated = await handleAsync(
+        async () => addDismissedMemory(ctx.auth.user.id, input.memory),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("dismiss memory"),
+          logMetadata: { 
+            userId: ctx.auth.user.id,
+            memory: input.memory.substring(0, 50) + "..." 
+          }
         }
-        return updated;
-      } catch (error) {
-        logger.error(`Failed to dismiss memory: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to dismiss memory",
-          cause: error,
-        });
+      );
+
+      if (!updated) {
+        throw notFoundError("User");
       }
+
+      return serializeUser(updated);
     }),
 
   /**
    * Update the user's email signature
+   * 
+   * @param signature - HTML email signature
+   * 
+   * @returns Updated user data
+   * 
+   * @throws {TRPCError} NOT_FOUND if user doesn't exist
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
   updateEmailSignature: protectedProcedure
-    .input(
-      z.object({
-        signature: z.string(),
-      })
-    )
+    .input(updateSignatureSchema)
+    .output(userResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const updated = await updateUserEmailSignature(userId, input.signature);
-        if (!updated) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "User not found",
-          });
+      const updated = await handleAsync(
+        async () => updateUserEmailSignature(ctx.auth.user.id, input.signature),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update email signature"),
+          logMetadata: { 
+            userId: ctx.auth.user.id,
+            signatureLength: input.signature.length 
+          }
         }
-        return updated;
-      } catch (error) {
-        logger.error(
-          `Failed to update user email signature: ${error instanceof Error ? error.message : String(error)}`
-        );
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update user email signature",
-          cause: error,
-        });
+      );
+
+      if (!updated) {
+        throw notFoundError("User");
       }
+
+      return serializeUser(updated);
     }),
 
   /**
-   * Upload a signature image (base64 encoded)
+   * Upload a signature image
+   * 
+   * @param filename - Original filename
+   * @param mimeType - Image MIME type
+   * @param base64Data - Base64 encoded image data
+   * @param size - File size in bytes
+   * 
+   * @returns Uploaded image details with hosted URL
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   * @throws {TRPCError} BAD_REQUEST if file is too large or invalid type
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if upload fails
    */
   uploadSignatureImage: protectedProcedure
-    .input(
-      z.object({
-        filename: z.string().min(1),
-        mimeType: z.string().min(1),
-        base64Data: z.string().min(1),
-        size: z.number().positive(),
-      })
-    )
+    .input(uploadSignatureImageSchema)
+    .output(signatureImageResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const organizationId = ctx.auth.user.organizationId;
-
-        if (!organizationId) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "User must belong to an organization",
-          });
-        }
-
-        // Validate file size (max 5MB)
-        const maxSize = 5 * 1024 * 1024; // 5MB
-        if (input.size > maxSize) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "File size too large. Maximum 5MB allowed.",
-          });
-        }
-
-        // Validate MIME type
-        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
-        if (!allowedTypes.includes(input.mimeType)) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
-          });
-        }
-
-        const result = await db
-          .insert(signatureImages)
-          .values({
-            organizationId,
-            userId,
-            filename: input.filename,
-            mimeType: input.mimeType,
-            base64Data: input.base64Data,
-            size: input.size,
-          })
-          .returning();
-
-        const image = result[0];
-        if (!image) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to save image",
-          });
-        }
-
-        // Return the image with hosted URL instead of base64 data URL
-        // This ensures the signature will have proper image URLs that work in emails
-        const baseUrl = env.BASE_URL || "https://app.givance.ai";
-        const hostedUrl = `${baseUrl}/api/signature-image/${image.id}`;
-        
-        return {
-          id: image.id,
-          filename: image.filename,
-          mimeType: image.mimeType,
-          size: image.size,
-          dataUrl: hostedUrl, // Return hosted URL instead of base64
-          createdAt: image.createdAt,
-        };
-      } catch (error) {
-        logger.error(`Failed to upload signature image: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to upload signature image",
-          cause: error,
-        });
-      }
-    }),
-
-  /**
-   * Get all signature images for the current user
-   */
-  getSignatureImages: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      const userId = ctx.auth.user.id;
-      const organizationId = ctx.auth.user.organizationId;
+      const { organizationId } = ctx.auth.user;
 
       if (!organizationId) {
-        throw new TRPCError({
+        throw createTRPCError({
           code: "UNAUTHORIZED",
           message: "User must belong to an organization",
         });
       }
 
-      const images = await db
-        .select({
-          id: signatureImages.id,
-          filename: signatureImages.filename,
-          mimeType: signatureImages.mimeType,
-          size: signatureImages.size,
-          createdAt: signatureImages.createdAt,
-        })
-        .from(signatureImages)
-        .where(
-          and(
-            eq(signatureImages.organizationId, organizationId),
-            eq(signatureImages.userId, userId)
-          )
-        )
-        .orderBy(signatureImages.createdAt);
+      // Validate file size
+      if (input.size > MAX_IMAGE_SIZE) {
+        throw createTRPCError({
+          code: "BAD_REQUEST",
+          message: "File size too large. Maximum 5MB allowed.",
+          logLevel: "info"
+        });
+      }
 
-      return images;
-    } catch (error) {
-      logger.error(`Failed to get signature images: ${error instanceof Error ? error.message : String(error)}`);
-      if (error instanceof TRPCError) throw error;
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get signature images",
-        cause: error,
+      // Validate MIME type
+      if (!ALLOWED_IMAGE_TYPES.includes(input.mimeType)) {
+        throw createTRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
+          logLevel: "info"
+        });
+      }
+
+      const [image] = await handleAsync(
+        async () => db
+          .insert(signatureImages)
+          .values({
+            organizationId,
+            userId: ctx.auth.user.id,
+            filename: input.filename,
+            mimeType: input.mimeType,
+            base64Data: input.base64Data,
+            size: input.size,
+          })
+          .returning(),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("upload signature image"),
+          logMetadata: { 
+            userId: ctx.auth.user.id,
+            filename: input.filename,
+            size: input.size 
+          }
+        }
+      );
+
+      if (!image) {
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to save image",
+        });
+      }
+
+      return serializeSignatureImage({
+        ...image,
+        dataUrl: getHostedImageUrl(image.id),
       });
-    }
-  }),
+    }),
 
   /**
-   * Get a signature image by ID with base64 data
+   * Get all signature images for the current user
+   * 
+   * @returns List of signature images without base64 data
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   */
+  getSignatureImages: protectedProcedure
+    .output(z.array(signatureImageResponseSchema.omit({ dataUrl: true })))
+    .query(async ({ ctx }) => {
+      const { organizationId } = ctx.auth.user;
+
+      if (!organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: "User must belong to an organization",
+        });
+      }
+
+      const images = await handleAsync(
+        async () => db
+          .select({
+            id: signatureImages.id,
+            filename: signatureImages.filename,
+            mimeType: signatureImages.mimeType,
+            size: signatureImages.size,
+            createdAt: signatureImages.createdAt,
+          })
+          .from(signatureImages)
+          .where(
+            and(
+              eq(signatureImages.organizationId, organizationId),
+              eq(signatureImages.userId, ctx.auth.user.id)
+            )
+          )
+          .orderBy(signatureImages.createdAt),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch signature images"),
+          logMetadata: { userId: ctx.auth.user.id }
+        }
+      );
+
+      return images.map(serializeSignatureImage);
+    }),
+
+  /**
+   * Get a signature image by ID with hosted URL
+   * 
+   * @param imageId - Signature image ID
+   * 
+   * @returns Image details with hosted URL
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   * @throws {TRPCError} NOT_FOUND if image doesn't exist
    */
   getSignatureImageData: protectedProcedure
-    .input(z.object({ imageId: z.number() }))
+    .input(imageIdSchema)
+    .output(signatureImageResponseSchema)
     .query(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const organizationId = ctx.auth.user.organizationId;
+      const { organizationId } = ctx.auth.user;
 
-        if (!organizationId) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "User must belong to an organization",
-          });
-        }
+      if (!organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: "User must belong to an organization",
+        });
+      }
 
-        const image = await db
+      const [image] = await handleAsync(
+        async () => db
           .select()
           .from(signatureImages)
           .where(
             and(
               eq(signatureImages.id, input.imageId),
               eq(signatureImages.organizationId, organizationId),
-              eq(signatureImages.userId, userId)
+              eq(signatureImages.userId, ctx.auth.user.id)
             )
           )
-          .limit(1);
-
-        if (!image[0]) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Image not found",
-          });
+          .limit(1),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch signature image"),
+          logMetadata: { imageId: input.imageId }
         }
+      );
 
-        const img = image[0];
-        // Return hosted URL instead of base64 for better email compatibility
-        const baseUrl = env.BASE_URL || "https://app.givance.ai";
-        const hostedUrl = `${baseUrl}/api/signature-image/${img.id}`;
-        
-        return {
-          id: img.id,
-          filename: img.filename,
-          mimeType: img.mimeType,
-          size: img.size,
-          dataUrl: hostedUrl, // Return hosted URL instead of base64
-          createdAt: img.createdAt,
-        };
-      } catch (error) {
-        logger.error(`Failed to get signature image data: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to get signature image data",
-          cause: error,
-        });
+      if (!image) {
+        throw notFoundError("Image");
       }
+
+      return serializeSignatureImage({
+        id: image.id,
+        filename: image.filename,
+        mimeType: image.mimeType,
+        size: image.size,
+        dataUrl: getHostedImageUrl(image.id),
+        createdAt: image.createdAt,
+      });
     }),
 
   /**
    * Delete a signature image
+   * 
+   * @param imageId - Signature image ID to delete
+   * 
+   * @returns Success status
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   * @throws {TRPCError} NOT_FOUND if image doesn't exist
    */
   deleteSignatureImage: protectedProcedure
-    .input(z.object({ imageId: z.number() }))
+    .input(imageIdSchema)
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        const userId = ctx.auth.user.id;
-        const organizationId = ctx.auth.user.organizationId;
+      const { organizationId } = ctx.auth.user;
 
-        if (!organizationId) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "User must belong to an organization",
-          });
-        }
+      if (!organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: "User must belong to an organization",
+        });
+      }
 
-        const result = await db
+      const [deleted] = await handleAsync(
+        async () => db
           .delete(signatureImages)
           .where(
             and(
               eq(signatureImages.id, input.imageId),
               eq(signatureImages.organizationId, organizationId),
-              eq(signatureImages.userId, userId)
+              eq(signatureImages.userId, ctx.auth.user.id)
             )
           )
-          .returning();
-
-        if (!result[0]) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Image not found",
-          });
+          .returning(),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("delete signature image"),
+          logMetadata: { imageId: input.imageId }
         }
+      );
 
-        return { success: true };
-      } catch (error) {
-        logger.error(`Failed to delete signature image: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof TRPCError) throw error;
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to delete signature image",
-          cause: error,
-        });
+      if (!deleted) {
+        throw notFoundError("Image");
       }
+
+      return { success: true };
     }),
 });
