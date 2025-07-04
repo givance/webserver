@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
 import {
   getDonorById,
   getDonorByEmail,
@@ -17,27 +16,130 @@ import { getStaffById } from "@/app/lib/data/staff";
 import { db } from "@/app/lib/db";
 import { donors, type DonorNote } from "@/app/lib/db/schema";
 import { and, inArray, eq, sql } from "drizzle-orm";
+import { 
+  createTRPCError,
+  handleAsync,
+  notFoundError,
+  conflictError,
+  ERROR_MESSAGES
+} from "@/app/lib/utils/trpc-errors";
+import {
+  idSchema,
+  emailSchema,
+  nameSchema,
+  phoneSchema,
+  addressSchema,
+  paginationSchema,
+  orderingSchema,
+} from "@/app/lib/validation/schemas";
+
+// ============================================================================
+// Schema Definitions
+// ============================================================================
 
 /**
- * Input validation schemas for donor operations
+ * Donor note structure for type-safe note handling
  */
+const donorNoteSchema = z.object({
+  createdAt: z.string(),
+  createdBy: z.string(),
+  content: z.string(),
+});
+
+/**
+ * Base donor schema for consistent type validation across operations
+ */
+const baseDonorSchema = z.object({
+  id: idSchema,
+  organizationId: z.string(),
+  externalId: z.string().nullable(),
+  firstName: nameSchema,
+  lastName: nameSchema,
+  // Couple structure fields
+  hisTitle: z.string().nullable(),
+  hisFirstName: z.string().nullable(),
+  hisInitial: z.string().nullable(),
+  hisLastName: z.string().nullable(),
+  herTitle: z.string().nullable(),
+  herFirstName: z.string().nullable(),
+  herInitial: z.string().nullable(),
+  herLastName: z.string().nullable(),
+  displayName: z.string().nullable(),
+  isCouple: z.boolean().nullable(),
+  email: emailSchema,
+  phone: phoneSchema.nullable(),
+  address: addressSchema.nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  country: z.string().nullable(),
+  gender: z.enum(["male", "female"]).nullable(),
+  isAnonymous: z.boolean(),
+  isOrganization: z.boolean(),
+  organizationName: z.string().nullable(),
+  notes: z.union([
+    z.string().nullable(),
+    z.array(donorNoteSchema)
+  ]).nullable(),
+  assignedToStaffId: idSchema.nullable(),
+  currentStageName: z.string().nullable(),
+  classificationReasoning: z.string().nullable(),
+  predictedActions: z.array(z.string()).optional(),
+  highPotentialDonor: z.boolean().nullable(),
+  highPotentialDonorRationale: z.string().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  stageName: z.string().optional(),
+  stageExplanation: z.string().optional(),
+  possibleActions: z.array(z.string()).optional(),
+});
+
+/**
+ * Serialized donor schema for API responses
+ */
+const donorResponseSchema = baseDonorSchema.extend({
+  createdAt: z.string(), // ISO string
+  updatedAt: z.string(), // ISO string
+});
+
+/**
+ * Lightweight donor schema for communication features
+ */
+const communicationDonorSchema = z.object({
+  id: idSchema,
+  firstName: nameSchema,
+  lastName: nameSchema,
+  email: emailSchema,
+  phone: phoneSchema.nullable(),
+  displayName: z.string().nullable(),
+  hisTitle: z.string().nullable(),
+  hisFirstName: z.string().nullable(),
+  hisInitial: z.string().nullable(),
+  hisLastName: z.string().nullable(),
+  herTitle: z.string().nullable(),
+  herFirstName: z.string().nullable(),
+  herInitial: z.string().nullable(),
+  herLastName: z.string().nullable(),
+  isCouple: z.boolean().nullable(),
+});
+
+// Input schemas
 const donorIdSchema = z.object({
-  id: z.number(),
+  id: idSchema,
 });
 
 const donorIdsSchema = z.object({
-  ids: z.array(z.number()),
+  ids: z.array(idSchema).min(1).max(1000),
 });
 
 const deleteDonorSchema = z
   .object({
-    id: z.number(),
+    id: idSchema,
     deleteMode: z.enum(["fromList", "fromAllLists", "entirely"]).optional(),
-    listId: z.number().optional(),
+    listId: idSchema.optional(),
   })
   .refine(
     (data) => {
-      // If deleteMode is 'fromList', listId is required
       if (data.deleteMode === "fromList" && !data.listId) {
         return false;
       }
@@ -51,29 +153,29 @@ const deleteDonorSchema = z
 
 const createDonorSchema = z.object({
   externalId: z.string().optional(),
-  email: z.string().email(),
-  firstName: z.string(),
-  lastName: z.string(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
+  email: emailSchema,
+  firstName: nameSchema,
+  lastName: nameSchema,
+  phone: phoneSchema.optional(),
+  address: addressSchema.optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  isAnonymous: z.boolean().default(false),
-  isOrganization: z.boolean().default(false),
+  isAnonymous: z.boolean().optional().default(false),
+  isOrganization: z.boolean().optional().default(false),
   organizationName: z.string().optional(),
 });
 
 const updateDonorSchema = z.object({
-  id: z.number(),
+  id: idSchema,
   externalId: z.string().optional(),
-  email: z.string().email().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
+  email: emailSchema.optional(),
+  firstName: nameSchema.optional(),
+  lastName: nameSchema.optional(),
+  phone: phoneSchema.optional(),
+  address: addressSchema.optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
@@ -90,472 +192,529 @@ const listDonorsSchema = z.object({
   isAnonymous: z.boolean().optional(),
   isOrganization: z.boolean().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  assignedToStaffId: z.number().nullable().optional(),
-  listId: z.number().optional(),
+  assignedToStaffId: idSchema.nullable().optional(),
+  listId: idSchema.optional(),
   notInAnyList: z.boolean().optional(),
   onlyResearched: z.boolean().optional(),
-  limit: z.number().min(1).optional(),
-  offset: z.number().min(0).optional(),
+  ...paginationSchema.shape,
   orderBy: z.enum(["firstName", "lastName", "email", "createdAt", "totalDonated"]).optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
+  orderDirection: orderingSchema.shape.orderDirection,
 });
 
 const listDonorsForCommunicationSchema = z.object({
   searchTerm: z.string().optional(),
-  limit: z.number().min(1).optional(),
-  offset: z.number().min(0).optional(),
+  ...paginationSchema.shape,
   orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
+  orderDirection: orderingSchema.shape.orderDirection,
 });
 
 const updateAssignedStaffSchema = z.object({
-  donorId: z.number(),
-  staffId: z.number().nullable(), // staffId can be null to unassign
+  donorId: idSchema,
+  staffId: idSchema.nullable(),
 });
 
 const bulkUpdateAssignedStaffSchema = z.object({
-  donorIds: z.array(z.number()),
-  staffId: z.number().nullable(), // staffId can be null to unassign all
+  donorIds: z.array(idSchema).min(1).max(1000),
+  staffId: idSchema.nullable(),
 });
 
 const validateDonorStaffEmailSchema = z.object({
-  donorIds: z.array(z.number()),
+  donorIds: z.array(idSchema).min(0).max(1000),
 });
 
 const addDonorNoteSchema = z.object({
-  donorId: z.number(),
-  content: z.string().min(1, "Note content is required"),
+  donorId: idSchema,
+  content: z.string().min(1, "Note content is required").max(5000),
 });
 
-/**
- * Base donor schema for consistent type validation across operations
- */
-const baseDonorSchema = z.object({
-  id: z.number(),
-  organizationId: z.string(),
-  externalId: z.string().nullish(), // External CRM ID
-  firstName: z.string(),
-  lastName: z.string(),
-  // New couple structure fields
-  hisTitle: z.string().nullish(),
-  hisFirstName: z.string().nullish(),
-  hisInitial: z.string().nullish(),
-  hisLastName: z.string().nullish(),
-  herTitle: z.string().nullish(),
-  herFirstName: z.string().nullish(),
-  herInitial: z.string().nullish(),
-  herLastName: z.string().nullish(),
-  displayName: z.string().nullish(),
-  isCouple: z.boolean().nullish(),
-  email: z.string(),
-  phone: z.string().nullish(),
-  address: z.string().nullish(),
-  state: z.string().nullish(),
-  gender: z.enum(["male", "female"]).nullish(),
-  notes: z.union([
-    z.string().nullish(),
-    z.array(z.object({
-      createdAt: z.string(),
-      createdBy: z.string(),
-      content: z.string(),
-    }))
-  ]).optional(),
-  assignedToStaffId: z.number().nullish(),
-  currentStageName: z.string().nullish(),
-  classificationReasoning: z.string().nullish(),
-  predictedActions: z.array(z.string()).optional(),
-  // NEW: Person research fields
-  highPotentialDonor: z.boolean().nullish(),
-  highPotentialDonorRationale: z.string().nullish(),
-  createdAt: z.date().transform((d) => d.toISOString()),
-  updatedAt: z.date().transform((d) => d.toISOString()),
-  stageName: z.string().optional(),
-  stageExplanation: z.string().optional(),
-  possibleActions: z.array(z.string()).optional(),
-});
-
-/**
- * Output schema for list operations including pagination metadata
- */
+// Output schemas
 const listDonorsOutputSchema = z.object({
-  donors: z.array(baseDonorSchema),
-  totalCount: z.number(),
+  donors: z.array(donorResponseSchema),
+  totalCount: z.number().int().min(0),
 });
 
-/**
- * Lightweight donor schema for communication features
- */
-const communicationDonorSchema = z.object({
-  id: z.number(),
-  firstName: z.string(),
-  lastName: z.string(),
-  email: z.string(),
-  phone: z.string().nullish(),
-  displayName: z.string().nullish(),
-  hisTitle: z.string().nullish(),
-  hisFirstName: z.string().nullish(),
-  hisInitial: z.string().nullish(),
-  hisLastName: z.string().nullish(),
-  herTitle: z.string().nullish(),
-  herFirstName: z.string().nullish(),
-  herInitial: z.string().nullish(),
-  herLastName: z.string().nullish(),
-  isCouple: z.boolean().nullish(),
-});
-
-/**
- * Output schema for communication donor list operations
- */
 const listDonorsForCommunicationOutputSchema = z.object({
   donors: z.array(communicationDonorSchema),
-  totalCount: z.number(),
+  totalCount: z.number().int().min(0),
 });
 
+const bulkDeleteResponseSchema = z.object({
+  success: z.number().int().min(0),
+  failed: z.number().int().min(0),
+  errors: z.array(z.string()),
+});
+
+const countListsResponseSchema = z.object({
+  count: z.number().int().min(0),
+});
+
+const bulkUpdateStaffResponseSchema = z.object({
+  updated: z.number().int().min(0),
+});
+
+const validateStaffEmailResponseSchema = z.object({
+  isValid: z.boolean(),
+  donorsWithoutStaff: z.array(z.object({
+    donorId: idSchema,
+    donorFirstName: z.string(),
+    donorLastName: z.string(),
+    donorEmail: z.string(),
+  })),
+  donorsWithStaffButNoEmail: z.array(z.object({
+    donorId: idSchema,
+    donorFirstName: z.string(),
+    donorLastName: z.string(),
+    donorEmail: z.string(),
+    staffFirstName: z.string(),
+    staffLastName: z.string(),
+    staffEmail: z.string(),
+  })),
+  errorMessage: z.string().optional(),
+});
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
 /**
- * Donors router for managing donor data and relationships
- * Provides CRUD operations and staff assignment functionality
+ * Serialize donor dates to ISO strings
  */
+const serializeDonor = (donor: any): z.infer<typeof donorResponseSchema> => ({
+  ...donor,
+  createdAt: donor.createdAt instanceof Date ? donor.createdAt.toISOString() : donor.createdAt,
+  updatedAt: donor.updatedAt instanceof Date ? donor.updatedAt.toISOString() : donor.updatedAt,
+});
+
+// ============================================================================
+// Router Definition
+// ============================================================================
+
 export const donorsRouter = router({
   /**
-   * Retrieves a donor by their ID
-   * @param input.id - The donor ID to retrieve
-   * @returns The donor data if found
-   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   * Get a donor by ID
+   * 
+   * @param id - Donor ID
+   * 
+   * @returns The donor data
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  getById: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
-    const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found",
-      });
-    }
-    return donor;
-  }),
+  getById: protectedProcedure
+    .input(donorIdSchema)
+    .output(donorResponseSchema)
+    .query(async ({ input, ctx }) => {
+      const donor = await handleAsync(
+        async () => getDonorById(input.id, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.NOT_FOUND("Donor"),
+          errorCode: "NOT_FOUND"
+        }
+      );
+
+      if (!donor) {
+        throw notFoundError("Donor");
+      }
+
+      return serializeDonor(donor);
+    }),
 
   /**
-   * Retrieves a donor by their email address
-   * @param input.email - The donor email to search for
-   * @returns The donor data if found
-   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   * Get a donor by email address
+   * 
+   * @param email - Donor email
+   * 
+   * @returns The donor data
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  getByEmail: protectedProcedure.input(z.object({ email: z.string().email() })).query(async ({ input, ctx }) => {
-    const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found",
-      });
-    }
-    return donor;
-  }),
+  getByEmail: protectedProcedure
+    .input(z.object({ email: emailSchema }))
+    .output(donorResponseSchema)
+    .query(async ({ input, ctx }) => {
+      const donor = await handleAsync(
+        async () => getDonorByEmail(input.email, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.NOT_FOUND("Donor"),
+          errorCode: "NOT_FOUND"
+        }
+      );
+
+      if (!donor) {
+        throw notFoundError("Donor");
+      }
+
+      return serializeDonor(donor);
+    }),
 
   /**
-   * Retrieves multiple donors by their IDs
-   * @param input.ids - Array of donor IDs to retrieve
-   * @returns Array of donor data found
+   * Get multiple donors by IDs
+   * 
+   * @param ids - Array of donor IDs
+   * 
+   * @returns Array of donor data
    */
-  getByIds: protectedProcedure.input(donorIdsSchema).query(async ({ input, ctx }) => {
-    return await getDonorsByIds(input.ids, ctx.auth.user.organizationId);
-  }),
+  getByIds: protectedProcedure
+    .input(donorIdsSchema)
+    .output(z.array(donorResponseSchema))
+    .query(async ({ input, ctx }) => {
+      const donors = await handleAsync(
+        async () => getDonorsByIds(input.ids, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donors"),
+          logMetadata: { count: input.ids.length }
+        }
+      );
+
+      return donors.map(serializeDonor);
+    }),
 
   /**
-   * Creates a new donor in the organization
-   * @param input - The donor data to create
-   * @returns The created donor data
-   * @throws CONFLICT if a donor with the same email already exists
+   * Create a new donor
+   * 
+   * @param email - Donor email (required)
+   * @param firstName - First name (required)
+   * @param lastName - Last name (required)
+   * @param Additional optional fields...
+   * 
+   * @returns The created donor
+   * 
+   * @throws {TRPCError} CONFLICT if email already exists
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
-  create: protectedProcedure.input(createDonorSchema).mutation(async ({ input, ctx }) => {
-    try {
-      return await createDonor({
-        ...input,
-        organizationId: ctx.auth.user.organizationId,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("already exists")) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: error.message,
+  create: protectedProcedure
+    .input(createDonorSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const donor = await createDonor({
+          ...input,
+          organizationId: ctx.auth.user.organizationId,
+        } as any); // TODO: Fix type mismatch between input schema and createDonor
+        return serializeDonor(donor);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("already exists")) {
+          throw conflictError(error.message);
+        }
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: ERROR_MESSAGES.OPERATION_FAILED("create donor"),
+          cause: error,
+          metadata: { email: input.email }
         });
       }
-      throw error;
-    }
-  }),
+    }),
 
   /**
-   * Updates an existing donor's information
-   * @param input.id - The donor ID to update
-   * @param input - The updated donor data (partial)
-   * @returns The updated donor data
-   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   * Update an existing donor
+   * 
+   * @param id - Donor ID to update
+   * @param Additional fields to update...
+   * 
+   * @returns The updated donor
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  update: protectedProcedure.input(updateDonorSchema).mutation(async ({ input, ctx }) => {
-    const { id, ...updateData } = input;
-    const updated = await updateDonor(id, updateData, ctx.auth.user.organizationId);
-    if (!updated) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found",
-      });
-    }
-    return updated;
-  }),
+  update: protectedProcedure
+    .input(updateDonorSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { id, ...updateData } = input;
+      
+      const updated = await handleAsync(
+        async () => updateDonor(id, updateData as any, ctx.auth.user.organizationId), // TODO: Fix type mismatch
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update donor"),
+          logMetadata: { donorId: id }
+        }
+      );
+
+      if (!updated) {
+        throw notFoundError("Donor");
+      }
+
+      return serializeDonor(updated);
+    }),
 
   /**
-   * Deletes a donor from the organization with different deletion modes
-   * @param input.id - The donor ID to delete
-   * @param input.deleteMode - Optional deletion mode: 'fromList', 'fromAllLists', or 'entirely' (default)
-   * @param input.listId - Required when deleteMode is 'fromList'
-   * @throws NOT_FOUND if donor doesn't exist
-   * @throws BAD_REQUEST if invalid parameters
-   * @throws PRECONDITION_FAILED if donor is linked to other records (when deleting entirely)
+   * Delete a donor
+   * 
+   * @param id - Donor ID to delete
+   * @param deleteMode - Deletion mode: 'fromList', 'fromAllLists', or 'entirely'
+   * @param listId - List ID (required when deleteMode is 'fromList')
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
+   * @throws {TRPCError} BAD_REQUEST if invalid parameters
+   * @throws {TRPCError} PRECONDITION_FAILED if donor has linked records
    */
-  delete: protectedProcedure.input(deleteDonorSchema).mutation(async ({ input, ctx }) => {
-    try {
-      const options =
-        input.deleteMode || input.listId
+  delete: protectedProcedure
+    .input(deleteDonorSchema)
+    .output(z.void())
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const options = input.deleteMode || input.listId
           ? {
               deleteMode: input.deleteMode || "entirely",
               listId: input.listId,
             }
           : undefined;
 
-      await deleteDonor(input.id, ctx.auth.user.organizationId, options);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes("List ID is required")) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: error.message,
-          });
+        await deleteDonor(input.id, ctx.auth.user.organizationId, options);
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes("List ID is required")) {
+            throw createTRPCError({
+              code: "BAD_REQUEST",
+              message: error.message,
+              logLevel: "info"
+            });
+          }
+          if (error.message.includes("not a member of the specified list")) {
+            throw notFoundError(error.message);
+          }
+          if (error.message.includes("linked to other records")) {
+            throw createTRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "Cannot delete donor as they are linked to other records",
+              logLevel: "info"
+            });
+          }
         }
-        if (error.message.includes("not a member of the specified list")) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: error.message,
-          });
+        throw error;
+      }
+    }),
+
+  /**
+   * Bulk delete multiple donors
+   * 
+   * @param ids - Array of donor IDs to delete
+   * 
+   * @returns Summary of successful/failed deletions
+   * 
+   * @throws {TRPCError} BAD_REQUEST if no IDs provided
+   */
+  bulkDelete: protectedProcedure
+    .input(donorIdsSchema)
+    .output(bulkDeleteResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      return await handleAsync(
+        async () => bulkDeleteDonors(input.ids, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk delete donors"),
+          logMetadata: { count: input.ids.length }
         }
-        if (error.message.includes("linked to other records")) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "Cannot delete donor as they are linked to other records",
-          });
+      );
+    }),
+
+  /**
+   * Get all donor IDs matching filters
+   * 
+   * @param Various filter parameters...
+   * 
+   * @returns Array of donor IDs
+   */
+  getAllIds: protectedProcedure
+    .input(listDonorsSchema.partial())
+    .output(z.array(idSchema))
+    .query(async ({ input, ctx }) => {
+      const result = await handleAsync(
+        async () => listDonors(input, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor IDs"),
+          logMetadata: { filters: input }
+        }
+      );
+
+      return result.donors.map((donor) => donor.id);
+    }),
+
+  /**
+   * Count lists a donor belongs to
+   * 
+   * @param id - Donor ID
+   * 
+   * @returns Count of lists
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
+   */
+  countLists: protectedProcedure
+    .input(donorIdSchema)
+    .output(countListsResponseSchema)
+    .query(async ({ input, ctx }) => {
+      // Verify donor exists
+      const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
+      if (!donor) {
+        throw notFoundError("Donor");
+      }
+
+      const count = await handleAsync(
+        async () => countListsForDonor(input.id, ctx.auth.user.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("count donor lists"),
+          logMetadata: { donorId: input.id }
+        }
+      );
+
+      return { count };
+    }),
+
+  /**
+   * Update assigned staff for a donor
+   * 
+   * @param donorId - Donor ID
+   * @param staffId - Staff ID (null to unassign)
+   * 
+   * @returns Updated donor
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor or staff doesn't exist
+   */
+  updateAssignedStaff: protectedProcedure
+    .input(updateAssignedStaffSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { donorId, staffId } = input;
+      const { organizationId } = ctx.auth.user;
+
+      // Verify donor
+      const donor = await getDonorById(donorId, organizationId);
+      if (!donor) {
+        throw notFoundError("Donor");
+      }
+
+      // Verify staff if provided
+      if (staffId !== null) {
+        const staff = await getStaffById(staffId, organizationId);
+        if (!staff) {
+          throw notFoundError("Staff member");
         }
       }
-      throw error;
-    }
-  }),
 
-  /**
-   * Deletes multiple donors from the organization
-   * @param input.ids - Array of donor IDs to delete
-   * @returns Object with success/failure counts and any error messages
-   * @throws BAD_REQUEST if no IDs provided
-   */
-  bulkDelete: protectedProcedure.input(donorIdsSchema).mutation(async ({ input, ctx }) => {
-    if (input.ids.length === 0) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "No donor IDs provided",
-      });
-    }
+      const updatedDonor = await handleAsync(
+        async () => updateDonor(donorId, { assignedToStaffId: staffId }, organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update assigned staff"),
+          logMetadata: { donorId, staffId }
+        }
+      );
 
-    return await bulkDeleteDonors(input.ids, ctx.auth.user.organizationId);
-  }),
-
-  /**
-   * Gets all donor IDs for the organization with optional filtering (for bulk operations)
-   * @param input - Optional filters to apply (same as list endpoint)
-   * @returns Array of donor IDs matching the criteria
-   */
-  getAllIds: protectedProcedure.input(listDonorsSchema.partial()).query(async ({ input, ctx }) => {
-    const result = await listDonors(
-      {
-        ...input,
-        // No limit to get all matching donors
-        // No offset for bulk operations
-      },
-      ctx.auth.user.organizationId
-    );
-
-    return result.donors.map((donor) => donor.id);
-  }),
-
-  /**
-   * Counts the number of lists a donor belongs to
-   * @param input.id - The donor ID to check
-   * @returns The count of lists the donor belongs to
-   * @throws NOT_FOUND if donor doesn't exist
-   */
-  countLists: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
-    const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found",
-      });
-    }
-
-    const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
-    return { count };
-  }),
-
-  /**
-   * Updates the staff member assigned to a donor
-   * @param input.donorId - The donor ID to update
-   * @param input.staffId - The staff ID to assign (null to unassign)
-   * @returns The updated donor data
-   * @throws NOT_FOUND if donor or staff member doesn't exist in the organization
-   * @throws INTERNAL_SERVER_ERROR if the update operation fails
-   */
-  updateAssignedStaff: protectedProcedure.input(updateAssignedStaffSchema).mutation(async ({ input, ctx }) => {
-    const { donorId, staffId } = input;
-    const { organizationId } = ctx.auth.user;
-
-    // Verify donor belongs to the organization
-    const donor = await getDonorById(donorId, organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found in your organization",
-      });
-    }
-
-    // If staffId is provided, verify staff member belongs to the organization
-    if (staffId !== null) {
-      const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found in your organization",
+      if (!updatedDonor) {
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update donor's assigned staff",
         });
       }
-    }
 
-    // Update the donor's assignedToStaffId
-    const updatedDonor = await updateDonor(donorId, { assignedToStaffId: staffId }, organizationId);
-    if (!updatedDonor) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update donor's assigned staff",
-      });
-    }
-    return updatedDonor;
-  }),
+      return serializeDonor(updatedDonor);
+    }),
 
   /**
-   * Updates the staff member assigned to multiple donors in bulk
-   * @param input.donorIds - Array of donor IDs to update
-   * @param input.staffId - The staff ID to assign (null to unassign all)
-   * @returns Count of donors updated successfully
-   * @throws NOT_FOUND if staff member doesn't exist in the organization
-   * @throws INTERNAL_SERVER_ERROR if the update operation fails
+   * Bulk update assigned staff for multiple donors
+   * 
+   * @param donorIds - Array of donor IDs
+   * @param staffId - Staff ID (null to unassign)
+   * 
+   * @returns Count of updated donors
+   * 
+   * @throws {TRPCError} NOT_FOUND if staff doesn't exist
    */
-  bulkUpdateAssignedStaff: protectedProcedure.input(bulkUpdateAssignedStaffSchema).mutation(async ({ input, ctx }) => {
-    const { donorIds, staffId } = input;
-    const { organizationId } = ctx.auth.user;
+  bulkUpdateAssignedStaff: protectedProcedure
+    .input(bulkUpdateAssignedStaffSchema)
+    .output(bulkUpdateStaffResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { donorIds, staffId } = input;
+      const { organizationId } = ctx.auth.user;
 
-    if (donorIds.length === 0) {
-      return { updated: 0 };
-    }
-
-    // If staffId is provided, verify staff member belongs to the organization
-    if (staffId !== null) {
-      const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found in your organization",
-        });
+      if (donorIds.length === 0) {
+        return { updated: 0 };
       }
-    }
 
-    // Verify all donors belong to the organization
-    const validDonors = await getDonorsByIds(donorIds, organizationId);
-    const validDonorIds = validDonors.map((d) => d.id);
+      // Verify staff if provided
+      if (staffId !== null) {
+        const staff = await getStaffById(staffId, organizationId);
+        if (!staff) {
+          throw notFoundError("Staff member");
+        }
+      }
 
-    if (validDonorIds.length === 0) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "No valid donors found in your organization",
-      });
-    }
+      // Verify donors belong to organization
+      const validDonors = await getDonorsByIds(donorIds, organizationId);
+      const validDonorIds = validDonors.map((d) => d.id);
 
-    // Bulk update the donors' assignedToStaffId using raw SQL for efficiency
-    try {
-      const result = await db
-        .update(donors)
-        .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
-        .where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId)));
+      if (validDonorIds.length === 0) {
+        throw notFoundError("No valid donors found in your organization");
+      }
+
+      // Bulk update
+      await handleAsync(
+        async () => db
+          .update(donors)
+          .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
+          .where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId))),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk update assigned staff"),
+          logMetadata: { count: validDonorIds.length, staffId }
+        }
+      );
 
       return { updated: validDonorIds.length };
-    } catch (error) {
-      console.error("Failed to bulk update assigned staff:", error);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update donors' assigned staff",
-      });
-    }
-  }),
+    }),
 
   /**
-   * Lists donors with filtering, searching, and pagination
-   * @param input.searchTerm - Optional search term to filter by name or email
-   * @param input.state - Optional state filter
-   * @param input.isAnonymous - Optional filter for anonymous donors
-   * @param input.isOrganization - Optional filter for organization donors
-   * @param input.gender - Optional filter for gender
-   * @param input.assignedToStaffId - Optional filter for donors assigned to a specific staff member
-   * @param input.listId - Optional filter for donors in a specific list
-   * @param input.notInAnyList - Optional filter for donors not in any list
-   * @param input.onlyResearched - Optional filter for donors who have been researched
-   * @param input.limit - Maximum number of donors to return (1-100, default varies)
-   * @param input.offset - Number of donors to skip for pagination
-   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt, totalDonated)
-   * @param input.orderDirection - Sort direction (asc or desc)
-   * @returns Object containing donors array and total count for pagination
+   * List donors with filtering and pagination
+   * 
+   * @param searchTerm - Search by name or email
+   * @param Various filter and pagination parameters...
+   * 
+   * @returns Paginated list of donors
    */
   list: protectedProcedure
     .input(listDonorsSchema)
     .output(listDonorsOutputSchema)
     .query(async ({ input, ctx }) => {
-      return await listDonors(
+      const result = await handleAsync(
+        async () => listDonors(input, ctx.auth.user.organizationId),
         {
-          ...input,
-        },
-        ctx.auth.user.organizationId
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list donors"),
+          logMetadata: { filters: input }
+        }
       );
+
+      return {
+        donors: result.donors.map(serializeDonor),
+        totalCount: result.totalCount,
+      };
     }),
 
   /**
-   * Lists donors with minimal data optimized for communication features
-   * Returns only essential fields without expensive stage information processing
-   * @param input.searchTerm - Optional search term to filter by name or email
-   * @param input.limit - Maximum number of donors to return
-   * @param input.offset - Number of donors to skip for pagination
-   * @param input.orderBy - Field to sort by (firstName, lastName, email, createdAt)
-   * @param input.orderDirection - Sort direction (asc or desc)
-   * @returns Object containing lightweight donor objects and total count for pagination
+   * List donors optimized for communication features
+   * 
+   * @param searchTerm - Search by name or email
+   * @param Pagination parameters...
+   * 
+   * @returns Lightweight donor list for communications
    */
   listForCommunication: protectedProcedure
     .input(listDonorsForCommunicationSchema)
     .output(listDonorsForCommunicationOutputSchema)
     .query(async ({ input, ctx }) => {
-      return await listDonorsForCommunication(
+      return await handleAsync(
+        async () => listDonorsForCommunication(input, ctx.auth.user.organizationId),
         {
-          ...input,
-        },
-        ctx.auth.user.organizationId
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list donors for communication"),
+          logMetadata: { filters: input }
+        }
       );
     }),
 
   /**
-   * Validates that all specified donors have assigned staff with connected Gmail accounts
-   * @param input.donorIds - Array of donor IDs to validate
-   * @returns Validation result with detailed information about any issues
+   * Validate staff email connectivity for donors
+   * 
+   * @param donorIds - Array of donor IDs to validate
+   * 
+   * @returns Validation results with detailed issues
    */
   validateStaffEmailConnectivity: protectedProcedure
     .input(validateDonorStaffEmailSchema)
+    .output(validateStaffEmailResponseSchema)
     .query(async ({ input, ctx }) => {
       const { donorIds } = input;
       const { organizationId } = ctx.auth.user;
@@ -568,25 +727,31 @@ export const donorsRouter = router({
         };
       }
 
-      // Import staff and staffGmailTokens schemas
+      // Import schemas
       const { staff, staffGmailTokens } = await import("@/app/lib/db/schema");
 
-      const donorsWithStaff = await db
-        .select({
-          donorId: donors.id,
-          donorFirstName: donors.firstName,
-          donorLastName: donors.lastName,
-          donorEmail: donors.email,
-          assignedToStaffId: donors.assignedToStaffId,
-          staffFirstName: staff.firstName,
-          staffLastName: staff.lastName,
-          staffEmail: staff.email,
-          hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
-        })
-        .from(donors)
-        .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
-        .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
-        .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
+      const donorsWithStaff = await handleAsync(
+        async () => db
+          .select({
+            donorId: donors.id,
+            donorFirstName: donors.firstName,
+            donorLastName: donors.lastName,
+            donorEmail: donors.email,
+            assignedToStaffId: donors.assignedToStaffId,
+            staffFirstName: staff.firstName,
+            staffLastName: staff.lastName,
+            staffEmail: staff.email,
+            hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+          })
+          .from(donors)
+          .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+          .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+          .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId))),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("validate staff email connectivity"),
+          logMetadata: { donorCount: donorIds.length }
+        }
+      );
 
       // Check for validation errors
       const donorsWithoutStaff = donorsWithStaff
@@ -633,56 +798,65 @@ export const donorsRouter = router({
     }),
 
   /**
-   * Adds a note to a donor
-   * @param input.donorId - The donor ID to add the note to
-   * @param input.content - The note content
-   * @returns The updated donor data
-   * @throws NOT_FOUND if donor doesn't exist or doesn't belong to the organization
+   * Add a note to a donor
+   * 
+   * @param donorId - Donor ID
+   * @param content - Note content
+   * 
+   * @returns Updated donor
+   * 
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  addNote: protectedProcedure.input(addDonorNoteSchema).mutation(async ({ input, ctx }) => {
-    const { donorId, content } = input;
-    
-    // First, get the donor to ensure it exists and belongs to the organization
-    const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Donor not found",
-      });
-    }
+  addNote: protectedProcedure
+    .input(addDonorNoteSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { donorId, content } = input;
+      
+      // Verify donor exists
+      const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
+      if (!donor) {
+        throw notFoundError("Donor");
+      }
 
-    // Create the new note
-    const newNote: DonorNote = {
-      createdAt: new Date().toISOString(),
-      createdBy: ctx.auth.user.id,
-      content: content.trim(),
-    };
+      // Create new note
+      const newNote: DonorNote = {
+        createdAt: new Date().toISOString(),
+        createdBy: ctx.auth.user.id,
+        content: content.trim(),
+      };
 
-    // Get existing notes or default to empty array
-    const existingNotes = (donor.notes as DonorNote[]) || [];
+      // Get existing notes
+      const existingNotes = (donor.notes as DonorNote[]) || [];
 
-    // Update the donor with the new notes array
-    const [updatedDonor] = await db
-      .update(donors)
-      .set({
-        notes: [...existingNotes, newNote],
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(donors.id, donorId),
-          eq(donors.organizationId, ctx.auth.user.organizationId)
-        )
-      )
-      .returning();
+      // Update donor
+      const [updatedDonor] = await handleAsync(
+        async () => db
+          .update(donors)
+          .set({
+            notes: [...existingNotes, newNote],
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(donors.id, donorId),
+              eq(donors.organizationId, ctx.auth.user.organizationId)
+            )
+          )
+          .returning(),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("add note"),
+          logMetadata: { donorId }
+        }
+      );
 
-    if (!updatedDonor) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to add note",
-      });
-    }
+      if (!updatedDonor) {
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to add note",
+        });
+      }
 
-    return updatedDonor;
-  }),
+      return serializeDonor(updatedDonor);
+    }),
 });

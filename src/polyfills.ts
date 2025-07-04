@@ -74,3 +74,26 @@ if (typeof global.MessageChannel === "undefined") {
 
 // Polyfill for whatwg-fetch in test environment
 import "whatwg-fetch";
+
+// React 19 compatibility for testing
+if (typeof global.React === "undefined") {
+  // Import React 19 compatibility layer
+  const React = require("react");
+  global.React = React;
+  
+  // Mock React internals that are expected by testing library
+  const MockReactInternals = {
+    ReactCurrentDispatcher: { current: null },
+    ReactCurrentBatchConfig: { transition: null },
+    ReactCurrentOwner: { current: null },
+    ReactDebugCurrentFrame: { current: null },
+    IsSomeRendererActing: { current: false },
+  };
+
+  // Ensure React internals are available
+  if (!React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED) {
+    React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = MockReactInternals;
+  }
+  
+  global.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+}

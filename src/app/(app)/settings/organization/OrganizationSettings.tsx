@@ -85,8 +85,8 @@ export function OrganizationSettings() {
   const handleGenerateShortDescription = async () => {
     setIsGeneratingShortDescription(true);
     try {
-      const generatedDescription = await generateShortDescription();
-      setFormData((prev) => ({ ...prev, shortDescription: generatedDescription }));
+      const result = await generateShortDescription();
+      setFormData((prev) => ({ ...prev, shortDescription: result.shortDescription }));
     } catch (error) {
       // Error is already handled in the hook
     } finally {

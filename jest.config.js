@@ -62,6 +62,8 @@ const customJestConfig = {
         jsx: 'react-jsx',
       },
     },
+    // React 19 compatibility
+    React: 'react',
   },
 
   // Transform ignore patterns

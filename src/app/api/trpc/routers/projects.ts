@@ -1,130 +1,241 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
-import { getProjectById, createProject, updateProject, deleteProject, listProjects } from "@/app/lib/data/projects";
+import { 
+  getProjectById, 
+  createProject, 
+  updateProject, 
+  deleteProject, 
+  listProjects 
+} from "@/app/lib/data/projects";
+import { 
+  createTRPCError,
+  handleAsync,
+  notFoundError,
+  conflictError,
+  ERROR_MESSAGES
+} from "@/app/lib/utils/trpc-errors";
+import {
+  idSchema,
+  nameSchema,
+  descriptionSchema,
+  paginationSchema,
+  orderingSchema,
+  projectSchemas,
+} from "@/app/lib/validation/schemas";
 
-// Input validation schemas
-const projectIdSchema = z.object({
-  id: z.number(),
-});
-
-const createProjectSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  active: z.boolean().default(true),
-  goal: z.number().optional(),
-  tags: z.array(z.string()).optional(),
-  organizationId: z.string(),
-  external: z.boolean().default(false),
-});
-
-const updateProjectSchema = z.object({
-  id: z.number(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  active: z.boolean().optional(),
-  goal: z.number().optional(),
-  tags: z.array(z.string()).optional(),
-  external: z.boolean().optional(),
-});
-
-const listProjectsSchema = z.object({
-  active: z.boolean().optional(),
-  limit: z.number().min(1).max(100).optional(),
-  offset: z.number().min(0).optional(),
-  orderBy: z.enum(["name", "createdAt"]).optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
-  searchTerm: z.string().optional(),
-});
-
-// Define a Zod schema for the Project model
-const projectSchema = z.object({
-  id: z.number(),
+// Schema definitions
+const projectResponseSchema = z.object({
+  id: idSchema,
   organizationId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  notes: z.string().nullable(), // Add notes field
   active: z.boolean(),
   goal: z.number().nullable(),
-  tags: z.array(z.string()).nullable(), // Based on text("tags").array()
+  tags: z.array(z.string()).nullable(),
   external: z.boolean(),
-  createdAt: z.date(), // Timestamps will be Date objects
+  createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-// Define the output schema for the list procedure to include totalCount
-const listProjectsOutputSchema = z.object({
-  projects: z.array(projectSchema), // Use the specific project schema
+const listProjectsInputSchema = z.object({
+  active: z.boolean().optional(),
+  searchTerm: z.string().optional(),
+  ...paginationSchema.shape,
+  ...orderingSchema.shape,
+  orderBy: z.enum(["name", "createdAt"]).optional(),
+});
+
+const listProjectsResponseSchema = z.object({
+  projects: z.array(projectResponseSchema),
   totalCount: z.number(),
 });
 
 export const projectsRouter = router({
-  getById: protectedProcedure.input(projectIdSchema).query(async ({ input }) => {
-    const project = await getProjectById(input.id);
-    if (!project) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The project you're looking for doesn't exist or has been deleted",
-      });
-    }
-    return project;
-  }),
+  /**
+   * Get a project by ID
+   * 
+   * @param id - Project ID
+   * 
+   * @returns The requested project
+   * 
+   * @throws {TRPCError} NOT_FOUND if project doesn't exist
+   */
+  getById: protectedProcedure
+    .input(z.object({ id: idSchema }))
+    .output(projectResponseSchema)
+    .query(async ({ input }) => {
+      const project = await handleAsync(
+        async () => getProjectById(input.id),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch project"),
+          logMetadata: { projectId: input.id }
+        }
+      );
 
-  create: protectedProcedure.input(createProjectSchema).mutation(async ({ input, ctx }) => {
-    try {
-      return await createProject({
-        ...input,
-        organizationId: ctx.auth.user.organizationId,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("already exists")) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
+      if (!project) {
+        throw notFoundError("Project");
+      }
+
+      return project;
+    }),
+
+  /**
+   * Create a new project
+   * 
+   * @param name - Project name (required)
+   * @param description - Project description
+   * @param active - Whether the project is active
+   * @param goal - Fundraising goal amount
+   * @param tags - Array of tags for categorization
+   * 
+   * @returns The created project
+   * 
+   * @throws {TRPCError} CONFLICT if project name already exists
+   * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
+   */
+  create: protectedProcedure
+    .input(projectSchemas.create)
+    .output(projectResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.auth.user?.organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to create project. Please try again.",
-      });
-    }
-  }),
 
-  update: protectedProcedure.input(updateProjectSchema).mutation(async ({ input }) => {
-    const { id, ...updateData } = input;
-    const updated = await updateProject(id, updateData);
-    if (!updated) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Unable to update. The project doesn't exist or has been deleted.",
-      });
-    }
-    return updated;
-  }),
-
-  delete: protectedProcedure.input(projectIdSchema).mutation(async ({ input }) => {
-    try {
-      await deleteProject(input.id);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("linked to other records")) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "This project cannot be deleted because it has associated donations or other records. Please remove those associations first.",
+      try {
+        return await createProject({
+          ...input,
+          organizationId: ctx.auth.user.organizationId,
+          external: false,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("already exists")) {
+          throw createTRPCError({
+            code: "CONFLICT",
+            message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
+            logLevel: "info",
+            metadata: { projectName: input.name }
+          });
+        }
+        
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: ERROR_MESSAGES.OPERATION_FAILED("create project"),
+          cause: error,
+          metadata: { userId: ctx.auth.user.id }
         });
       }
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to delete the project. Please try again.",
-      });
-    }
-  }),
+    }),
 
+  /**
+   * Update an existing project
+   * 
+   * @param id - Project ID to update
+   * @param name - New project name
+   * @param description - New description
+   * @param active - New active status
+   * @param goal - New fundraising goal
+   * @param tags - New tags
+   * 
+   * @returns The updated project
+   * 
+   * @throws {TRPCError} NOT_FOUND if project doesn't exist
+   * @throws {TRPCError} CONFLICT if new name already exists
+   */
+  update: protectedProcedure
+    .input(z.object({
+      id: idSchema,
+      ...projectSchemas.update.shape,
+    }))
+    .output(projectResponseSchema)
+    .mutation(async ({ input }) => {
+      const { id, ...updateData } = input;
+      
+      const updated = await handleAsync(
+        async () => updateProject(id, updateData),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update project"),
+          logMetadata: { projectId: id, updates: Object.keys(updateData) }
+        }
+      );
+
+      if (!updated) {
+        throw notFoundError("Project");
+      }
+
+      return updated;
+    }),
+
+  /**
+   * Delete a project
+   * 
+   * @param id - Project ID to delete
+   * 
+   * @throws {TRPCError} NOT_FOUND if project doesn't exist
+   * @throws {TRPCError} CONFLICT if project has associated records
+   */
+  delete: protectedProcedure
+    .input(z.object({ id: idSchema }))
+    .output(z.void())
+    .mutation(async ({ input }) => {
+      try {
+        await deleteProject(input.id);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("linked to other records")) {
+          throw createTRPCError({
+            code: "CONFLICT",
+            message: "This project cannot be deleted because it has associated donations or other records. Please remove those associations first.",
+            logLevel: "info",
+            metadata: { projectId: input.id }
+          });
+        }
+        
+        throw createTRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: ERROR_MESSAGES.OPERATION_FAILED("delete project"),
+          cause: error,
+          metadata: { projectId: input.id }
+        });
+      }
+    }),
+
+  /**
+   * List projects with filtering and pagination
+   * 
+   * @param active - Filter by active status
+   * @param searchTerm - Search projects by name
+   * @param limit - Maximum number of results
+   * @param offset - Number of results to skip
+   * @param orderBy - Field to order by
+   * @param orderDirection - Sort direction (asc/desc)
+   * 
+   * @returns Object containing projects array and total count
+   * 
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   */
   list: protectedProcedure
-    .input(listProjectsSchema)
-    // Explicitly type the output of the query based on the new schema
-    .output(listProjectsOutputSchema)
+    .input(listProjectsInputSchema)
+    .output(listProjectsResponseSchema)
     .query(async ({ input, ctx }) => {
-      // The listProjects function now returns an object with projects and totalCount
-      const result = await listProjects(input, ctx.auth.user.organizationId);
-      return result; // This matches the listProjectsOutputSchema
+      if (!ctx.auth.user?.organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+        });
+      }
+
+      return await handleAsync(
+        async () => listProjects(input, ctx.auth.user!.organizationId),
+        {
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list projects"),
+          logMetadata: { 
+            organizationId: ctx.auth.user.organizationId,
+            filters: input 
+          }
+        }
+      );
     }),
 });
