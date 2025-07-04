@@ -4,8 +4,29 @@ import { emailGenerationSessions, generatedEmails } from "@/app/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 
+// Mock drizzle-orm operators
+jest.mock("drizzle-orm", () => ({
+  eq: jest.fn((a, b) => ({ type: "eq", a, b })),
+  and: jest.fn((...conditions) => ({ type: "and", conditions })),
+  or: jest.fn((...conditions) => ({ type: "or", conditions })),
+  desc: jest.fn((column) => ({ type: "desc", column })),
+  count: jest.fn((column) => ({ type: "count", column })),
+  sql: jest.fn((strings, ...values) => ({ type: "sql", strings, values })),
+  relations: jest.fn(() => ({})),
+}));
+
 // Mock dependencies
 jest.mock("@/app/lib/db");
+jest.mock("@/app/lib/logger", () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn((message, error) => {
+      console.log('Logger error:', message, error?.message || error);
+    }),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
 jest.mock("@trigger.dev/sdk/v3", () => ({
   runs: {
     cancel: jest.fn().mockResolvedValue(undefined),
@@ -16,6 +37,10 @@ jest.mock("@/trigger/jobs/generateBulkEmails", () => ({
     trigger: jest.fn().mockResolvedValue({ id: "mock-trigger-job-id" }),
   },
 }));
+jest.mock("@/app/lib/utils/email-with-signature", () => ({
+  appendSignatureToEmail: jest.fn((content) => content + "\n\nBest regards,\nTest Team"),
+  removeSignatureFromContent: jest.fn((content) => content),
+}));
 
 describe("EmailCampaignsService - Draft Completion", () => {
   let service: EmailCampaignsService;
@@ -25,6 +50,42 @@ describe("EmailCampaignsService - Draft Completion", () => {
   beforeEach(() => {
     service = new EmailCampaignsService();
     jest.clearAllMocks();
+    
+    // Setup comprehensive database mocks
+    (db.query as any) = {
+      emailGenerationSessions: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    
+    // Setup default db operation mocks
+    (db.select as jest.Mock) = jest.fn(() => ({
+      from: jest.fn(() => ({
+        where: jest.fn(() => ({
+          limit: jest.fn(() => Promise.resolve([])),
+        })),
+      })),
+    }));
+    
+    (db.insert as jest.Mock) = jest.fn(() => ({
+      values: jest.fn(() => ({
+        returning: jest.fn(() => Promise.resolve([{ id: 1 }])),
+      })),
+    }));
+    
+    (db.update as jest.Mock) = jest.fn(() => ({
+      set: jest.fn(() => ({
+        where: jest.fn(() => ({
+          returning: jest.fn(() => Promise.resolve([{ id: 1 }])),
+        })),
+      })),
+    }));
+    
+    // Mock dynamic imports
+    global.import = jest.fn().mockResolvedValue({
+      appendSignatureToEmail: jest.fn((content) => content + "\n\nBest regards,\nTest Team"),
+      removeSignatureFromContent: jest.fn((content) => content),
+    });
   });
 
   describe("launchCampaign from draft with all emails", () => {
@@ -183,7 +244,13 @@ describe("EmailCampaignsService - Draft Completion", () => {
       // Mock checkAndUpdateCampaignCompletion call (no additional update mock needed for this path)
       jest.spyOn(service, "checkAndUpdateCampaignCompletion").mockResolvedValue(undefined);
 
-      const result = await service.launchCampaign(input, mockOrgId, mockUserId);
+      let result;
+      try {
+        result = await service.launchCampaign(input, mockOrgId, mockUserId);
+      } catch (error) {
+        console.log('Test error in launchCampaign:', error);
+        throw error;
+      }
 
       expect(result.sessionId).toBe(1);
 
@@ -230,7 +297,13 @@ describe("EmailCampaignsService - Draft Completion", () => {
         }),
       });
 
-      const result = await service.createSession(input, mockOrgId, mockUserId);
+      let result;
+      try {
+        result = await service.createSession(input, mockOrgId, mockUserId);
+      } catch (error) {
+        console.log('Test caught error in createSession:', error.message);
+        throw error;
+      }
 
       expect(result.sessionId).toBe(1);
       expect(db.insert).toHaveBeenCalled();

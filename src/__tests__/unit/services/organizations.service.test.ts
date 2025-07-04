@@ -75,21 +75,15 @@ describe('OrganizationsService', () => {
       expect(result).toBeDefined();
     });
 
-    it('should trigger website crawl when URL changes', async () => {
+    it('should not trigger website crawl when URL changes (crawling disabled)', async () => {
       const input: UpdateOrganizationInput = {
         websiteUrl: 'https://new-site.com',
       };
 
       await service.updateOrganizationWithWebsiteCrawl('org123', input);
 
-      expect(tasks.trigger).toHaveBeenCalledWith(
-        'crawl-and-summarize-website',
-        {
-          organizationId: 'org123',
-          url: 'https://new-site.com',
-        }
-      );
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Triggered crawl task'));
+      expect(tasks.trigger).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Website crawling is disabled'));
     });
 
     it('should handle null URL changes', async () => {
@@ -100,7 +94,7 @@ describe('OrganizationsService', () => {
       await service.updateOrganizationWithWebsiteCrawl('org123', input);
 
       expect(tasks.trigger).not.toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('not updated or no valid new URL'));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Website crawling is disabled'));
     });
 
     it('should throw error when organization not found', async () => {
@@ -119,18 +113,16 @@ describe('OrganizationsService', () => {
       ).rejects.toThrow(TRPCError);
     });
 
-    it('should log error when crawl trigger fails', async () => {
+    it('should complete successfully when crawling is disabled', async () => {
       const input: UpdateOrganizationInput = {
         websiteUrl: 'https://new-site.com',
       };
 
-      (tasks.trigger as jest.Mock).mockRejectedValue(new Error('Trigger failed'));
+      const result = await service.updateOrganizationWithWebsiteCrawl('org123', input);
 
-      await service.updateOrganizationWithWebsiteCrawl('org123', input);
-
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to trigger crawl task')
-      );
+      expect(result).toBeDefined();
+      expect(tasks.trigger).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Website crawling is disabled'));
     });
   });
 

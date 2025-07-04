@@ -4,7 +4,11 @@ import { CampaignSteps } from "@/app/(app)/campaign/components/CampaignSteps";
 describe("CampaignSteps", () => {
   it("should be defined", () => {
     expect(CampaignSteps).toBeDefined();
-    expect(typeof CampaignSteps).toBe("function");
+    // React.memo returns an object, not a function, so we check if it's callable
+    expect(typeof CampaignSteps).toBe("object");
+    expect(typeof CampaignSteps).not.toBe("undefined");
+    // Verify it's a React component (has a render method or is callable)
+    expect(CampaignSteps).toHaveProperty("$$typeof");
   });
 
   it("should have expected props", () => {
