@@ -7,9 +7,20 @@ import { z } from "zod";
 // Base schemas for common types
 export const idSchema = z.number().int().positive();
 export const stringIdSchema = z.string().min(1);
+export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().email();
 export const urlSchema = z.string().url();
 export const phoneSchema = z.string().regex(/^\+?[\d\s\-\(\)]+$/, "Invalid phone number format");
+export const dateSchema = z.date();
+export const dateStringSchema = z.string().datetime();
+
+// Common field schemas
+export const nameSchema = z.string().min(1).max(255);
+export const descriptionSchema = z.string();
+export const notesSchema = z.string();
+export const currencySchema = z.string().length(3).default("USD");
+export const amountSchema = z.number().int().positive();
+export const percentageSchema = z.number().min(0).max(100);
 
 // Pagination schemas
 export const paginationSchema = z.object({
@@ -17,10 +28,76 @@ export const paginationSchema = z.object({
   offset: z.number().min(0).optional(),
 });
 
+export const cursorPaginationSchema = z.object({
+  limit: z.number().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+});
+
 export const orderingSchema = z.object({
   orderBy: z.string().optional(),
   orderDirection: z.enum(["asc", "desc"]).optional(),
 });
+
+// Search and filter schemas
+export const searchSchema = z.object({
+  searchTerm: z.string().optional(),
+  searchFields: z.array(z.string()).optional(),
+});
+
+export const dateRangeSchema = z.object({
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return data.startDate <= data.endDate;
+    }
+    return true;
+  },
+  {
+    message: "Start date must be before or equal to end date",
+    path: ["endDate"],
+  }
+);
+
+// Response wrapper schemas
+export const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+  z.object({
+    success: z.literal(true),
+    data: dataSchema,
+  });
+
+export const errorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+});
+
+export const paginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
+  z.object({
+    items: z.array(itemSchema),
+    total: z.number().int().min(0),
+    limit: z.number().int().positive(),
+    offset: z.number().int().min(0),
+    hasMore: z.boolean(),
+  });
+
+// Batch operation schemas
+export const batchOperationSchema = z.object({
+  ids: z.array(idSchema).min(1).max(100),
+});
+
+export const batchResultSchema = <T extends z.ZodType>(itemSchema: T) =>
+  z.object({
+    successful: z.array(itemSchema),
+    failed: z.array(z.object({
+      id: idSchema,
+      error: z.string(),
+    })),
+  });
 
 /**
  * Organization-related validation schemas
