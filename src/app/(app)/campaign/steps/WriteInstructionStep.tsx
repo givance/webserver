@@ -84,7 +84,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // Data hooks
   const { getOrganization } = useOrganization();
-  const { launchCampaign, updateEmailStatus } = useCommunications();
+  const { launchCampaign, updateEmailStatus, regenerateAllEmails } = useCommunications();
   const { listProjects } = useProjects();
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
@@ -213,6 +213,15 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     );
     await handlers.handleEmailStatusChange(emailId, status, updateEmailStatus);
   }, [emailGeneration, emailState, chatState, previewDonors, instructionInput, donorsData, organization, previousInstruction, currentSignature, sessionId, onInstructionChange, updateEmailStatus]);
+
+  const handleRegenerateEmails = useCallback(async (onlyUnapproved: boolean) => {
+    const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
+    const handlers = createEmailGenerationHandlers(
+      emailGeneration, emailState, chatState, previewDonors, instructionInput,
+      donorsData || [], organization, previousInstruction, currentSignature, sessionId, onInstructionChange
+    );
+    await handlers.handleRegenerateEmails(onlyUnapproved, regenerateAllEmails);
+  }, [emailGeneration, emailState, chatState, previewDonors, instructionInput, donorsData, organization, previousInstruction, currentSignature, sessionId, onInstructionChange, regenerateAllEmails]);
 
   const emailListViewerEmails = useMemo(() => {
     return emailState.allGeneratedEmails
@@ -384,7 +393,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         approvedCount={emailState.approvedCount}
         pendingCount={emailState.pendingCount}
         isRegenerating={emailGeneration.isRegenerating}
-        onConfirm={async () => {}}
+        onConfirm={async (onlyUnapproved: boolean) => {
+          await handleRegenerateEmails(onlyUnapproved);
+          setShowRegenerateDialog(false);
+        }}
       />
     </div>
   );
