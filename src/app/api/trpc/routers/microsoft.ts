@@ -16,6 +16,7 @@ import { and, eq } from "drizzle-orm";
 import "isomorphic-fetch";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
+import type { Context } from "../context";
 
 // Ensure you have these in your environment variables
 const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
@@ -460,9 +461,7 @@ export const microsoftRouter = router({
    * Get Microsoft connection status
    */
   getMicrosoftConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
-    const tokenInfo = await db.query.microsoftOAuthTokens.findFirst({
-      where: eq(microsoftOAuthTokens.userId, ctx.auth.user.id),
-    });
+    const tokenInfo = await ctx.services.microsoftOAuth.getMicrosoftToken(ctx.auth.user.id);
 
     if (tokenInfo) {
       return {
@@ -486,9 +485,7 @@ export const microsoftRouter = router({
     const userId = ctx.auth.user.id;
 
     // Delete the token from the database
-    await db.delete(microsoftOAuthTokens).where(eq(microsoftOAuthTokens.userId, userId));
-
-    logger.info(`Microsoft account disconnected for user ${userId}`);
+    await ctx.services.microsoftOAuth.disconnectMicrosoftToken(userId);
 
     return {
       success: true,
