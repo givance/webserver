@@ -38,17 +38,18 @@ test.describe("Campaign Draft Completion Status", () => {
     // Go to campaign creation
     await navigateToCampaignCreation(page);
 
-    // Step 1: Select Donors
+    // Step 1: Select Donors and set campaign name on the same page
     await selectDonors(page, 3);
-
-    // Click Next to go to Campaign Name step
-    await clickNextButton(page);
-
-    // Step 2: Set Campaign Name
+    
+    // Set Campaign Name (same page as donor selection)
     await setCampaignName(page, campaignName);
 
-    // Continue to template selection
-    await clickContinueButton(page);
+    // Click Continue to proceed (this should redirect to edit mode)
+    await clickNextButton(page);
+    
+    // Wait for redirect to edit mode
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
 
     // Step 3: Handle template selection - we might be redirected to edit mode
     await page.waitForTimeout(2000);
@@ -148,16 +149,19 @@ test.describe("Campaign Draft Completion Status", () => {
 
     await navigateToCampaignCreation(page);
 
-    // Step 1: Select Donors
+    // Step 1: Select Donors and set campaign name on the same page
     const targetDonorCount = 5;
     await selectDonors(page, targetDonorCount);
-
-    // Continue through the workflow
-    await clickNextButton(page);
-
-    // Step 2: Campaign Name
+    
+    // Set Campaign Name (same page as donor selection)
     await setCampaignName(page, campaignName);
-    await clickContinueButton(page);
+
+    // Click Continue to proceed (this should redirect to edit mode)
+    await clickNextButton(page);
+    
+    // Wait for redirect to edit mode
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
 
     // Step 3: Handle template selection - we might be redirected to edit mode
     await page.waitForTimeout(2000);

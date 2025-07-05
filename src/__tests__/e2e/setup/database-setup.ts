@@ -306,19 +306,19 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         subject: "Thank you for your generous support, Alice!",
         structuredContent: JSON.stringify([
           {
-            type: "paragraph",
-            content:
-              "Dear Alice Johnson,\n\nThank you so much for your generous donation of $5,000 to our cause. Your support has made a tremendous impact on our mission to help those in need.",
+            piece: "Dear Alice Johnson,\n\nThank you so much for your generous donation of $5,000 to our cause. Your support has made a tremendous impact on our mission to help those in need.",
+            references: [],
+            addNewlineAfter: true,
           },
           {
-            type: "paragraph",
-            content:
-              "Thanks to supporters like you, we've been able to provide meals to over 1,000 families this month. Your contribution directly funded 100 of those meals.",
+            piece: "Thanks to supporters like you, we've been able to provide meals to over 1,000 families this month. Your contribution directly funded 100 of those meals.",
+            references: [],
+            addNewlineAfter: true,
           },
           {
-            type: "paragraph",
-            content:
-              "We are deeply grateful for your continued support.\n\nWith heartfelt appreciation,\nThe Development Team",
+            piece: "We are deeply grateful for your continued support.\n\nWith heartfelt appreciation,\nThe Development Team",
+            references: [],
+            addNewlineAfter: false,
           },
         ]),
         referenceContexts: JSON.stringify({}),
@@ -332,19 +332,19 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
         subject: "Your major gift is changing lives, Bob!",
         structuredContent: JSON.stringify([
           {
-            type: "paragraph",
-            content:
-              "Dear Bob Smith,\n\nWe are incredibly grateful for your major gift of $25,000. Your generosity exemplifies the spirit of giving that drives our organization forward.",
+            piece: "Dear Bob Smith,\n\nWe are incredibly grateful for your major gift of $25,000. Your generosity exemplifies the spirit of giving that drives our organization forward.",
+            references: [],
+            addNewlineAfter: true,
           },
           {
-            type: "paragraph",
-            content:
-              "Your contribution has enabled us to expand our educational programs, directly benefiting 500 students this semester. We're also able to provide scholarships to 25 deserving students who otherwise wouldn't have access to higher education.",
+            piece: "Your contribution has enabled us to expand our educational programs, directly benefiting 500 students this semester. We're also able to provide scholarships to 25 deserving students who otherwise wouldn't have access to higher education.",
+            references: [],
+            addNewlineAfter: true,
           },
           {
-            type: "paragraph",
-            content:
-              "Thank you for believing in our mission and making such a significant impact.\n\nWith sincere gratitude,\nThe Development Team",
+            piece: "Thank you for believing in our mission and making such a significant impact.\n\nWith sincere gratitude,\nThe Development Team",
+            references: [],
+            addNewlineAfter: false,
           },
         ]),
         referenceContexts: JSON.stringify({}),

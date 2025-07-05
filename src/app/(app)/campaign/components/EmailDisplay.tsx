@@ -316,12 +316,40 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   // Get email status to check if sent - only query if emailId exists
   const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
 
+  // Convert new format (type/content) to legacy format (piece/references/addNewlineAfter)
+  const convertToLegacyFormat = (content: any[]): EmailPiece[] => {
+    return content.map((item) => {
+      // If it's already in legacy format, return as-is
+      if (item.piece !== undefined && item.references !== undefined && item.addNewlineAfter !== undefined) {
+        return item as EmailPiece;
+      }
+      
+      // If it's in new format, convert it
+      if (item.type && item.content) {
+        return {
+          piece: item.content,
+          references: [], // New format doesn't have references
+          addNewlineAfter: true, // Default to true for paragraph breaks
+        };
+      }
+      
+      // Fallback for malformed data
+      return {
+        piece: typeof item === 'string' ? item : JSON.stringify(item),
+        references: [],
+        addNewlineAfter: true,
+      };
+    });
+  };
+
   // For legacy format, we may need to fetch signature separately
   const displayContent = isPreviewMode ? previewContent : content || [];
+  const legacyFormatContent = convertToLegacyFormat(displayContent);
+  
   const { data: signatureData } = trpc.emailCampaigns.getEmailWithSignature.useQuery(
     {
       donorId: donorId || 0,
-      structuredContent: displayContent,
+      structuredContent: legacyFormatContent,
     },
     {
       enabled: !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat && !isPreviewMode,
@@ -347,9 +375,9 @@ export const EmailDisplay = React.memo(function EmailDisplay({
     }
   );
 
-  // Use signature-appended content for legacy format when available, otherwise use provided content
+  // Use signature-appended content for legacy format when available, otherwise use converted content
   const contentWithSignature =
-    signatureData && isLegacyFormat && !isNewFormat ? signatureData.structuredContent : displayContent;
+    signatureData && isLegacyFormat && !isNewFormat ? signatureData.structuredContent : legacyFormatContent;
 
   // Use signature-appended content for new format when available
   const emailContentWithSignature =
