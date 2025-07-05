@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Pre-commit hook to run tests and build
+# Exit on any error
+set -e
+
+echo "Running pre-commit checks..."
+
+# Source nvm and use Node.js 22.4.0
+echo "Setting Node.js version..."
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 22.4.0
+
+# Run tests
+echo "Running tests..."
+pnpm test
+
+# Run build
+echo "Running build..."
+pnpm build
+
+echo "Pre-commit checks passed!"

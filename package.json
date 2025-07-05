@@ -17,7 +17,8 @@
     "db:migrate": "tsx src/app/lib/db/migrate.ts",
     "import:boruch": "tsx data/boruch/run_import_optimized.ts",
     "trigger:dev": "pnpm dlx trigger.dev@latest dev",
-    "trigger:deploy": "pnpm dlx trigger.dev@latest deploy"
+    "trigger:deploy": "pnpm dlx trigger.dev@latest deploy",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.10",
@@ -151,6 +152,7 @@
     "drizzle-kit": "^0.31.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
+    "husky": "^9.1.7",
     "ignore-loader": "^0.1.2",
     "jest": "^30.0.2",
     "jest-environment-jsdom": "^30.0.2",

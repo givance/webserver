@@ -78,6 +78,7 @@ import "whatwg-fetch";
 // React 19 compatibility for testing
 if (typeof global.React === "undefined") {
   // Import React 19 compatibility layer
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
   global.React = React;
   
@@ -95,5 +96,6 @@ if (typeof global.React === "undefined") {
     React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = MockReactInternals;
   }
   
-  global.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (global as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
 }

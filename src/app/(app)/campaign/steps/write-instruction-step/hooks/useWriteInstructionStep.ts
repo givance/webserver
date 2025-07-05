@@ -114,7 +114,7 @@ export function useWriteInstructionStep(
       setLocalInstruction(instruction || "");
       setHasInputContent(!!instruction?.trim());
     }
-  }, [instruction]);
+  }, [instruction, localInstruction]);
 
   useEffect(() => {
     if (
@@ -148,7 +148,7 @@ export function useWriteInstructionStep(
       setPreviewDonorIds(preview);
       hasGeneratedPreviewRef.current = true;
     }
-  }, []);
+  }, [initialPreviewDonorIds, previewDonorIds.length, selectedDonors]);
 
   // Computed Values
   const { approvedCount, pendingCount } = useMemo(() => {

@@ -528,7 +528,7 @@ describe('EmailDisplay', () => {
       
       const TestWrapper = ({ content }: { content: string }) => {
         const formatted = React.useMemo(() => expensiveFormatter(content), [content]);
-        return <EmailDisplay {...baseProps} content={formatted} />;
+        return <EmailDisplay {...baseProps} emailContent={formatted} />;
       };
       
       const { rerender } = renderWithProviders(<TestWrapper content="test" />);
