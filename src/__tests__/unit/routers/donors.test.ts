@@ -73,44 +73,43 @@ describe("donorsRouter", () => {
     organizationId: "org-1",
   };
 
-  describe("getById", () => {
-    it("should fetch a donor by ID", async () => {
+  describe("getByIds", () => {
+    it("should fetch donors by IDs", async () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
 
-      const result = await caller.getById({ id: 1 });
+      const result = await caller.getByIds({ ids: [1] });
 
-      expect(result).toMatchObject({
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
         id: 1,
         firstName: "John",
         lastName: "Doe",
         email: "john.doe@example.com",
         organizationId: "org-1",
       });
-      expect(result.createdAt).toBe("2024-01-01T00:00:00.000Z");
-      expect(mockDonorsData.getDonorById).toHaveBeenCalledWith(1, "org-1");
+      expect(result[0].createdAt).toBe("2024-01-01T00:00:00.000Z");
+      expect(mockDonorsData.getDonorsByIds).toHaveBeenCalledWith([1], "org-1");
     });
 
-    it("should throw NOT_FOUND if donor doesn't exist", async () => {
+    it("should return empty array if no donors found", async () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue(null);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([]);
 
-      await expectTRPCError(
-        caller.getById({ id: 999 }),
-        "NOT_FOUND",
-        "Donor not found"
-      );
+      const result = await caller.getByIds({ ids: [999] });
+      
+      expect(result).toEqual([]);
     });
 
     it("should throw UNAUTHORIZED if user is not authenticated", async () => {
       const ctx = createTestContext({ auth: { user: null } });
       const caller = donorsRouter.createCaller(ctx);
 
-      await expectTRPCError(caller.getById({ id: 1 }), "UNAUTHORIZED");
+      await expectTRPCError(caller.getByIds({ ids: [1] }), "UNAUTHORIZED");
     });
   });
 
@@ -313,7 +312,7 @@ describe("donorsRouter", () => {
       const caller = donorsRouter.createCaller(ctx);
 
       // First mock the authorization check
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
 
       // Then mock the update
       const updatedDonor = {
@@ -353,7 +352,7 @@ describe("donorsRouter", () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
       mockDonorsData.updateDonor.mockResolvedValue({
         ...mockDonor,
         phone: "+9876543210",
@@ -378,7 +377,7 @@ describe("donorsRouter", () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
       mockDonorsData.deleteDonor.mockResolvedValue(undefined);
 
       await expect(
@@ -602,10 +601,10 @@ describe("donorsRouter", () => {
       const caller = donorsRouter.createCaller(ctx);
 
       // Mock authorization check
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
       
       // Mock staff validation
-      mockStaffData.getStaffById.mockResolvedValue(mockStaff);
+      mockStaffData.getStaffByIds.mockResolvedValue([mockStaff]);
       
       // Mock update
       mockDonorsData.updateDonor.mockResolvedValue({
@@ -625,10 +624,10 @@ describe("donorsRouter", () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue({
+      mockDonorsData.getDonorsByIds.mockResolvedValue([{
         ...mockDonor,
         assignedToStaffId: 456,
-      });
+      }]);
 
       mockDonorsData.updateDonor.mockResolvedValue({
         ...mockDonor,
@@ -647,8 +646,8 @@ describe("donorsRouter", () => {
       const ctx = createProtectedTestContext();
       const caller = donorsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
-      mockStaffData.getStaffById.mockResolvedValue(null);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
+      mockStaffData.getStaffByIds.mockResolvedValue([]);
 
       await expectTRPCError(
         caller.updateAssignedStaff({ donorId: 1, staffId: 999 }),
@@ -666,7 +665,7 @@ describe("donorsRouter", () => {
       const noteContent = "This is a test note";
       
       // Mock authorization check
-      mockDonorsData.getDonorById.mockResolvedValue(mockDonor);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
 
       // Mock the update operation
       const updatedDonor = {
@@ -706,10 +705,10 @@ describe("donorsRouter", () => {
         content: "Existing note",
       };
 
-      mockDonorsData.getDonorById.mockResolvedValue({
+      mockDonorsData.getDonorsByIds.mockResolvedValue([{
         ...mockDonor,
         notes: [existingNote],
-      });
+      }]);
 
       const mockUpdate = jest.fn().mockReturnValue({
         set: jest.fn().mockReturnValue({
@@ -763,17 +762,17 @@ describe("donorsRouter", () => {
       const org1Caller = donorsRouter.createCaller(org1Ctx);
       const org2Caller = donorsRouter.createCaller(org2Ctx);
 
-      mockDonorsData.getDonorById
-        .mockResolvedValueOnce(mockDonor)
-        .mockResolvedValueOnce(null);
+      mockDonorsData.getDonorsByIds
+        .mockResolvedValueOnce([mockDonor])
+        .mockResolvedValueOnce([]);
 
-      const org1Result = await org1Caller.getById({ id: 1 });
-      await expectTRPCError(
-        org2Caller.getById({ id: 1 }),
-        "NOT_FOUND"
-      );
+      const org1Result = await org1Caller.getByIds({ ids: [1] });
+      expect(org1Result).toHaveLength(1);
+      
+      const org2Result = await org2Caller.getByIds({ ids: [1] });
+      expect(org2Result).toHaveLength(0);
 
-      expect(org1Result.organizationId).toBe("org-1");
+      expect(org1Result[0].organizationId).toBe("org-1");
     });
   });
 });

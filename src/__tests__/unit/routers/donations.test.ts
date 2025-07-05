@@ -577,16 +577,14 @@ describe("donationsRouter", () => {
       const donor1 = { ...mockDonor, id: 123 };
       const donor2 = { ...mockDonor, id: 124 };
 
-      mockDonorsData.getDonorById
-        .mockResolvedValueOnce(donor1)
-        .mockResolvedValueOnce(donor2);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([donor1, donor2]);
       
       mockDonationsData.getMultipleDonorDonationStats.mockResolvedValue(mockMultipleStats);
 
       const result = await caller.getMultipleDonorStats({ donorIds: [123, 124] });
 
       expect(result).toEqual(mockMultipleStats);
-      expect(mockDonorsData.getDonorById).toHaveBeenCalledTimes(2);
+      expect(mockDonorsData.getDonorsByIds).toHaveBeenCalledWith([123, 124], "org-1");
       expect(mockDonationsData.getMultipleDonorDonationStats).toHaveBeenCalledWith(
         [123, 124],
         "org-1"
@@ -597,14 +595,12 @@ describe("donationsRouter", () => {
       const ctx = createProtectedTestContext();
       const caller = donationsRouter.createCaller(ctx);
 
-      mockDonorsData.getDonorById
-        .mockResolvedValueOnce(mockDonor)
-        .mockResolvedValueOnce(null);
+      mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]); // Only returns one donor, not two
 
       await expectTRPCError(
         caller.getMultipleDonorStats({ donorIds: [123, 999] }),
         "NOT_FOUND",
-        "One or more donors not found in your organization"
+        "Donors not found in your organization"
       );
     });
   });

@@ -20,7 +20,7 @@ export default function ProjectDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   // Query for project data
-  const { data: project, isLoading, error, refetch } = getProjectById({ id: projectId });
+  const { data: project, isLoading, error, refetch } = getProjectById(projectId);
 
   useEffect(() => {
     if (error) {

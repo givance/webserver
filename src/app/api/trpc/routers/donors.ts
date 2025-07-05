@@ -11,7 +11,7 @@ import {
   listDonorsForCommunication,
 } from "@/app/lib/data/donors";
 import { countListsForDonor } from "@/app/lib/data/donor-lists";
-import { getStaffById } from "@/app/lib/data/staff";
+import { getStaffByIds } from "@/app/lib/data/staff";
 import { db } from "@/app/lib/db";
 import { donors, type DonorNote } from "@/app/lib/db/schema";
 import { and, inArray, eq, sql } from "drizzle-orm";
@@ -513,8 +513,8 @@ export const donorsRouter = router({
     .output(countListsResponseSchema)
     .query(async ({ input, ctx }) => {
       // Verify donor exists
-      const donor = await getDonorById(input.id, ctx.auth.user.organizationId);
-      if (!donor) {
+      const donorResults = await getDonorsByIds([input.id], ctx.auth.user.organizationId);
+      if (donorResults.length === 0) {
         throw notFoundError("Donor");
       }
 
@@ -547,15 +547,16 @@ export const donorsRouter = router({
       const { organizationId } = ctx.auth.user;
 
       // Verify donor
-      const donor = await getDonorById(donorId, organizationId);
-      if (!donor) {
+      const donorResults = await getDonorsByIds([donorId], organizationId);
+      if (donorResults.length === 0) {
         throw notFoundError("Donor");
       }
+      const donor = donorResults[0];
 
       // Verify staff if provided
       if (staffId !== null) {
-        const staff = await getStaffById(staffId, organizationId);
-        if (!staff) {
+        const staffResults = await getStaffByIds([staffId], organizationId);
+        if (staffResults.length === 0) {
           throw notFoundError("Staff member");
         }
       }
@@ -601,8 +602,8 @@ export const donorsRouter = router({
 
       // Verify staff if provided
       if (staffId !== null) {
-        const staff = await getStaffById(staffId, organizationId);
-        if (!staff) {
+        const staffResults = await getStaffByIds([staffId], organizationId);
+        if (staffResults.length === 0) {
           throw notFoundError("Staff member");
         }
       }
@@ -786,10 +787,11 @@ export const donorsRouter = router({
       const { donorId, content } = input;
       
       // Verify donor exists
-      const donor = await getDonorById(donorId, ctx.auth.user.organizationId);
-      if (!donor) {
+      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+      if (donorResults.length === 0) {
         throw notFoundError("Donor");
       }
+      const donor = donorResults[0];
 
       // Create new note
       const newNote: DonorNote = {

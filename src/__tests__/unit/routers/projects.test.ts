@@ -30,37 +30,35 @@ describe("projectsRouter", () => {
     updatedAt: new Date("2024-01-01"),
   };
 
-  describe("getById", () => {
-    it("should fetch a project by ID", async () => {
+  describe("getByIds", () => {
+    it("should fetch projects by IDs", async () => {
       const ctx = createProtectedTestContext();
       const caller = projectsRouter.createCaller(ctx);
 
-      mockProjectsData.getProjectById.mockResolvedValue(mockProject);
+      mockProjectsData.getProjectsByIds.mockResolvedValue([mockProject]);
 
-      const result = await caller.getById({ id: 1 });
+      const result = await caller.getByIds({ ids: [1] });
 
-      expect(result).toEqual(mockProject);
-      expect(mockProjectsData.getProjectById).toHaveBeenCalledWith(1);
+      expect(result).toEqual([mockProject]);
+      expect(mockProjectsData.getProjectsByIds).toHaveBeenCalledWith([1], "org-1");
     });
 
-    it("should throw NOT_FOUND if project doesn't exist", async () => {
+    it("should return empty array if no projects found", async () => {
       const ctx = createProtectedTestContext();
       const caller = projectsRouter.createCaller(ctx);
 
-      mockProjectsData.getProjectById.mockResolvedValue(null);
+      mockProjectsData.getProjectsByIds.mockResolvedValue([]);
 
-      await expectTRPCError(
-        caller.getById({ id: 999 }),
-        "NOT_FOUND",
-        "Project not found"
-      );
+      const result = await caller.getByIds({ ids: [999] });
+      
+      expect(result).toEqual([]);
     });
 
     it("should throw UNAUTHORIZED if user is not authenticated", async () => {
       const ctx = createTestContext({ auth: { user: null } });
       const caller = projectsRouter.createCaller(ctx);
 
-      await expectTRPCError(caller.getById({ id: 1 }), "UNAUTHORIZED");
+      await expectTRPCError(caller.getByIds({ ids: [1] }), "UNAUTHORIZED");
     });
   });
 
