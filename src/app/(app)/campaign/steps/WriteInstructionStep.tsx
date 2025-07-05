@@ -44,7 +44,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     initialRefinedInstruction,
   } = props;
 
-
   // UI State
   const [showBulkGenerationDialog, setShowBulkGenerationDialog] = useState(false);
   const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
@@ -57,18 +56,11 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   );
 
   // Signature state (simplified)
-  const [selectedSignatureType, setSelectedSignatureType] = useState<"none" | "custom" | "staff">("none");
   const [customSignature, setCustomSignature] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
 
   // Consolidated hook
-  const {
-    emailGeneration,
-    emailState,
-    chatState,
-    instructionInput,
-    previewDonors,
-  } = useWriteInstructionStep(
+  const { emailGeneration, emailState, chatState, instructionInput, previewDonors } = useWriteInstructionStep(
     initialGeneratedEmails,
     editMode,
     initialChatHistory,
@@ -96,7 +88,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const { data: organization } = getOrganization();
   const { data: staffData } = listStaff({ limit: 100, isRealPerson: true });
   const { data: primaryStaff } = getPrimaryStaff();
-  const { data: projectsData, isLoading: isLoadingProjects } = listProjects({ active: true, limit: 100 });
+  const { data: projectsData, isLoading: isLoadingProjects } = listProjects({
+    active: true,
+    limit: 100,
+  });
 
   // Computed values
   const projectMentions = useMemo(() => {
@@ -113,12 +108,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   }, [selectedStaffId, staffData]);
 
   const currentSignature = useMemo(() => {
-    switch (selectedSignatureType) {
-      case "custom": return customSignature;
-      case "staff": return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || "Staff"}`;
-      default: return "";
-    }
-  }, [selectedSignatureType, customSignature, selectedStaff]);
+    return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || "Staff"}`;
+  }, [customSignature, selectedStaff]);
 
   const donorUtils = useDonorUtils(donorsData || []);
 
@@ -130,38 +121,53 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     return "Enter your instructions... Press Cmd/Ctrl + Enter to send.";
   }, [isLoadingProjects, projectMentions.length]);
 
-  const sessionData = useMemo(() => ({
-    chatHistory: chatState.chatMessages,
-    previewDonorIds: previewDonors.previewDonorIds,
-    generatedEmails: emailState.allGeneratedEmails,
-    referenceContexts: emailState.referenceContexts,
-  }), [chatState.chatMessages, previewDonors.previewDonorIds, emailState.allGeneratedEmails, emailState.referenceContexts]);
+  const sessionData = useMemo(
+    () => ({
+      chatHistory: chatState.chatMessages,
+      previewDonorIds: previewDonors.previewDonorIds,
+      generatedEmails: emailState.allGeneratedEmails,
+      referenceContexts: emailState.referenceContexts,
+    }),
+    [chatState.chatMessages, previewDonors.previewDonorIds, emailState.allGeneratedEmails, emailState.referenceContexts]
+  );
 
   // Handlers (using dynamic imports to reduce bundle size)
-  const handleSubmitInstruction = useCallback(async (instructionToSubmit?: string) => {
-    const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-    const handlers = createEmailGenerationHandlers(
+  const handleSubmitInstruction = useCallback(
+    async (instructionToSubmit?: string) => {
+      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
+      const handlers = createEmailGenerationHandlers(
+        emailGeneration,
+        emailState,
+        chatState,
+        previewDonors,
+        instructionInput,
+        donorsData || [],
+        organization,
+        previousInstruction,
+        currentSignature,
+        sessionId,
+        onInstructionChange
+      );
+
+      const { handleEmailResult } = await import("./write-instruction-step/handlers/emailResultHandler");
+      await handlers.handleSubmitInstruction(instructionToSubmit);
+      setIsChatCollapsed(true);
+      setIsEmailListExpanded(true);
+    },
+    [
       emailGeneration,
       emailState,
       chatState,
       previewDonors,
       instructionInput,
-      donorsData || [],
+      donorsData,
       organization,
       previousInstruction,
       currentSignature,
       sessionId,
-      onInstructionChange
-    );
-    
-    const { handleEmailResult } = await import("./write-instruction-step/handlers/emailResultHandler");
-    await handlers.handleSubmitInstruction(instructionToSubmit);
-    setIsChatCollapsed(true);
-    setIsEmailListExpanded(true);
-  }, [
-    emailGeneration, emailState, chatState, previewDonors, instructionInput, 
-    donorsData, organization, previousInstruction, currentSignature, sessionId, onInstructionChange
-  ]);
+      onInstructionChange,
+    ]
+  );
 
   const handleBulkGeneration = async () => {
     if (isStartingBulkGeneration || !userId) return;
@@ -205,23 +211,73 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     setShowBulkGenerationDialog(true);
   }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
 
-  const handleEmailStatusChange = useCallback(async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
-    const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-    const handlers = createEmailGenerationHandlers(
-      emailGeneration, emailState, chatState, previewDonors, instructionInput,
-      donorsData || [], organization, previousInstruction, currentSignature, sessionId, onInstructionChange
-    );
-    await handlers.handleEmailStatusChange(emailId, status, updateEmailStatus);
-  }, [emailGeneration, emailState, chatState, previewDonors, instructionInput, donorsData, organization, previousInstruction, currentSignature, sessionId, onInstructionChange, updateEmailStatus]);
+  const handleEmailStatusChange = useCallback(
+    async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
+      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
+      const handlers = createEmailGenerationHandlers(
+        emailGeneration,
+        emailState,
+        chatState,
+        previewDonors,
+        instructionInput,
+        donorsData || [],
+        organization,
+        previousInstruction,
+        currentSignature,
+        sessionId,
+        onInstructionChange
+      );
+      await handlers.handleEmailStatusChange(emailId, status, updateEmailStatus);
+    },
+    [
+      emailGeneration,
+      emailState,
+      chatState,
+      previewDonors,
+      instructionInput,
+      donorsData,
+      organization,
+      previousInstruction,
+      currentSignature,
+      sessionId,
+      onInstructionChange,
+      updateEmailStatus,
+    ]
+  );
 
-  const handleRegenerateEmails = useCallback(async (onlyUnapproved: boolean) => {
-    const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-    const handlers = createEmailGenerationHandlers(
-      emailGeneration, emailState, chatState, previewDonors, instructionInput,
-      donorsData || [], organization, previousInstruction, currentSignature, sessionId, onInstructionChange
-    );
-    await handlers.handleRegenerateEmails(onlyUnapproved, regenerateAllEmails);
-  }, [emailGeneration, emailState, chatState, previewDonors, instructionInput, donorsData, organization, previousInstruction, currentSignature, sessionId, onInstructionChange, regenerateAllEmails]);
+  const handleRegenerateEmails = useCallback(
+    async (onlyUnapproved: boolean) => {
+      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
+      const handlers = createEmailGenerationHandlers(
+        emailGeneration,
+        emailState,
+        chatState,
+        previewDonors,
+        instructionInput,
+        donorsData || [],
+        organization,
+        previousInstruction,
+        currentSignature,
+        sessionId,
+        onInstructionChange
+      );
+      await handlers.handleRegenerateEmails(onlyUnapproved, regenerateAllEmails);
+    },
+    [
+      emailGeneration,
+      emailState,
+      chatState,
+      previewDonors,
+      instructionInput,
+      donorsData,
+      organization,
+      previousInstruction,
+      currentSignature,
+      sessionId,
+      onInstructionChange,
+      regenerateAllEmails,
+    ]
+  );
 
   const emailListViewerEmails = useMemo(() => {
     return emailState.allGeneratedEmails
@@ -290,10 +346,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       <div className="h-[600px] bg-background border rounded-lg overflow-hidden">
         <div className="h-full flex">
           {/* Chat Side */}
-          <div className={cn(
-            "flex flex-col h-full border-r overflow-hidden transition-all duration-300 ease-in-out",
-            isChatCollapsed ? "w-0 opacity-0" : "w-full lg:w-1/2"
-          )}>
+          <div
+            className={cn(
+              "flex flex-col h-full border-r overflow-hidden transition-all duration-300 ease-in-out",
+              isChatCollapsed ? "w-0 opacity-0" : "w-full lg:w-1/2"
+            )}
+          >
             <div className="flex-1 min-h-0 overflow-hidden">
               <ChatInterface
                 chatMessages={chatState.chatMessages}
@@ -303,10 +361,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               />
             </div>
 
-            <div className={cn(
-              "border-t bg-background flex-shrink-0 transition-all duration-300 ease-in-out",
-              isChatCollapsed && "opacity-0 pointer-events-none"
-            )}>
+            <div
+              className={cn(
+                "border-t bg-background flex-shrink-0 transition-all duration-300 ease-in-out",
+                isChatCollapsed && "opacity-0 pointer-events-none"
+              )}
+            >
               <IsolatedMentionsInput
                 initialValue={instructionInput.localInstruction}
                 placeholder={mentionsInputPlaceholder}
@@ -319,7 +379,11 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               <div className="flex justify-end gap-2 px-4 py-2 border-t">
                 <Button
                   onClick={() => setShowRegenerateDialog(true)}
-                  disabled={emailGeneration.isRegenerating || emailGeneration.isGenerating || emailState.allGeneratedEmails.length === 0}
+                  disabled={
+                    emailGeneration.isRegenerating ||
+                    emailGeneration.isGenerating ||
+                    emailState.allGeneratedEmails.length === 0
+                  }
                   variant="outline"
                   size="sm"
                   className="flex items-center gap-1 h-7 text-xs"
@@ -341,10 +405,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           </div>
 
           {/* Email Preview Side */}
-          <div className={cn(
-            "flex flex-col h-full bg-muted/5 overflow-hidden relative transition-all duration-300 ease-in-out",
-            isChatCollapsed ? "flex-1" : "flex-1 lg:w-1/2"
-          )}>
+          <div
+            className={cn(
+              "flex flex-col h-full bg-muted/5 overflow-hidden relative transition-all duration-300 ease-in-out",
+              isChatCollapsed ? "flex-1" : "flex-1 lg:w-1/2"
+            )}
+          >
             <div className="h-full overflow-hidden">
               <EmailPreviewPanel
                 isGenerating={emailGeneration.isGenerating}
@@ -378,7 +444,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         allGeneratedEmails={emailState.allGeneratedEmails}
         approvedCount={emailState.approvedCount}
         pendingCount={emailState.pendingCount}
-        selectedSignatureType={selectedSignatureType}
         currentSignature={currentSignature}
         isStartingBulkGeneration={isStartingBulkGeneration}
         onConfirm={handleBulkGeneration}

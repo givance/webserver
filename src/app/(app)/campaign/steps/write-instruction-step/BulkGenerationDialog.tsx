@@ -20,7 +20,6 @@ interface BulkGenerationDialogProps {
   allGeneratedEmails: GeneratedEmail[];
   approvedCount: number;
   pendingCount: number;
-  selectedSignatureType: "none" | "custom" | "staff";
   currentSignature: string;
   isStartingBulkGeneration: boolean;
   onConfirm: () => void;
@@ -33,7 +32,6 @@ export function BulkGenerationDialog({
   allGeneratedEmails,
   approvedCount,
   pendingCount,
-  selectedSignatureType,
   currentSignature,
   isStartingBulkGeneration,
   onConfirm,
@@ -47,8 +45,8 @@ export function BulkGenerationDialog({
             Confirm Campaign Launch
           </DialogTitle>
           <DialogDescription className="text-sm">
-            You&apos;re about to launch a campaign to generate personalized emails for all selected donors based on
-            your current instruction.
+            You&apos;re about to launch a campaign to generate personalized
+            emails for all selected donors based on your current instruction.
           </DialogDescription>
         </DialogHeader>
 
@@ -66,20 +64,28 @@ export function BulkGenerationDialog({
                 <p className="text-xs text-muted-foreground">donors</p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-xs font-medium text-green-600">Already Reviewed</p>
-                <p className="text-lg font-bold text-green-600">{allGeneratedEmails.length}</p>
+                <p className="text-xs font-medium text-green-600">
+                  Already Reviewed
+                </p>
+                <p className="text-lg font-bold text-green-600">
+                  {allGeneratedEmails.length}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {approvedCount} approved, {pendingCount} pending
                 </p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-xs font-medium text-blue-600">To Be Generated</p>
-                <p className="text-lg font-bold text-blue-600">{selectedDonorsCount - allGeneratedEmails.length}</p>
+                <p className="text-xs font-medium text-blue-600">
+                  To Be Generated
+                </p>
+                <p className="text-lg font-bold text-blue-600">
+                  {selectedDonorsCount - allGeneratedEmails.length}
+                </p>
                 <p className="text-xs text-muted-foreground">new emails</p>
               </div>
             </div>
 
-            {selectedSignatureType !== "none" && currentSignature && (
+            {currentSignature && (
               <div className="space-y-2 mt-3">
                 <p className="text-xs font-medium">Selected Signature</p>
                 <div className="bg-muted rounded p-2">
@@ -87,7 +93,9 @@ export function BulkGenerationDialog({
                     className="prose prose-sm max-w-none text-xs"
                     dangerouslySetInnerHTML={{
                       __html:
-                        currentSignature.length > 150 ? currentSignature.substring(0, 150) + "..." : currentSignature,
+                        currentSignature.length > 150
+                          ? currentSignature.substring(0, 150) + "..."
+                          : currentSignature,
                     }}
                   />
                 </div>
@@ -99,13 +107,18 @@ export function BulkGenerationDialog({
             <p className="text-xs text-blue-800">
               {allGeneratedEmails.length > 0 ? (
                 <>
-                  This will launch your campaign for all {selectedDonorsCount} selected donors.{" "}
-                  <strong>{approvedCount} approved emails</strong> will be kept exactly as they are.
+                  This will launch your campaign for all {selectedDonorsCount}{" "}
+                  selected donors.{" "}
+                  <strong>{approvedCount} approved emails</strong> will be kept
+                  exactly as they are.
                   {selectedDonorsCount - allGeneratedEmails.length > 0 ? (
                     <>
                       {" "}
-                      <strong>{selectedDonorsCount - allGeneratedEmails.length} new emails</strong> will be
-                      generated for the remaining donors.
+                      <strong>
+                        {selectedDonorsCount - allGeneratedEmails.length} new
+                        emails
+                      </strong>{" "}
+                      will be generated for the remaining donors.
                     </>
                   ) : (
                     <> All selected donors already have generated emails.</>
@@ -113,11 +126,12 @@ export function BulkGenerationDialog({
                 </>
               ) : (
                 <>
-                  This will launch your campaign to generate personalized emails for all {selectedDonorsCount}{" "}
-                  selected donors.
+                  This will launch your campaign to generate personalized emails
+                  for all {selectedDonorsCount} selected donors.
                 </>
               )}{" "}
-              You&apos;ll be redirected to the communication jobs page where you can monitor the progress.
+              You&apos;ll be redirected to the communication jobs page where you
+              can monitor the progress.
             </p>
           </div>
         </div>
@@ -131,7 +145,11 @@ export function BulkGenerationDialog({
           >
             Cancel
           </Button>
-          <Button onClick={onConfirm} disabled={isStartingBulkGeneration} size="sm">
+          <Button
+            onClick={onConfirm}
+            disabled={isStartingBulkGeneration}
+            size="sm"
+          >
             {isStartingBulkGeneration ? "Launching..." : "Launch Campaign"}
           </Button>
         </DialogFooter>

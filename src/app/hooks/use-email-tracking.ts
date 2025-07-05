@@ -17,6 +17,20 @@ export function useSessionTrackingStats(sessionId: number) {
 }
 
 /**
+ * Hook to get tracking statistics for multiple email generation sessions in batch
+ */
+export function useMultipleSessionTrackingStats(sessionIds: number[]) {
+  return trpc.emailTracking.getMultipleSessionStats.useQuery(
+    { sessionIds },
+    {
+      enabled: sessionIds.length > 0,
+      refetchInterval: 30000, // Refresh every 30 seconds for live tracking
+      staleTime: 25000, // Consider data stale after 25 seconds
+    }
+  );
+}
+
+/**
  * Hook to get donor-level tracking statistics for a session
  */
 export function useDonorTrackingStats(sessionId: number) {

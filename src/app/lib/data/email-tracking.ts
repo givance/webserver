@@ -1,4 +1,4 @@
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { donors, emailOpens, emailTrackers, linkClicks, linkTrackers } from "../db/schema";
 import type {
@@ -157,6 +157,79 @@ export async function getSessionTrackingStats(sessionId: number): Promise<Sessio
     clickToOpenRate,
     donorStats,
   };
+}
+
+/**
+ * Gets tracking stats for multiple email sessions in a single batch query
+ */
+export async function getMultipleSessionTrackingStats(sessionIds: number[]): Promise<SessionTrackingStats[]> {
+  if (sessionIds.length === 0) return [];
+
+  // Get session info for all sessions
+  const sessionInfos = await db
+    .select({
+      id: emailTrackers.sessionId,
+      jobName: sql<string>`'Communication Job'`, // We'll need to join with sessions table for actual job name
+    })
+    .from(emailTrackers)
+    .where(inArray(emailTrackers.sessionId, sessionIds))
+    .groupBy(emailTrackers.sessionId);
+
+  if (sessionInfos.length === 0) return [];
+
+  // Get overall stats for all sessions in one query
+  const overallStats = await db
+    .select({
+      sessionId: emailTrackers.sessionId,
+      totalSent: count(emailTrackers.id),
+      totalOpens: count(emailOpens.id),
+      uniqueOpens: sql<number>`COUNT(DISTINCT ${emailOpens.emailTrackerId})`,
+      totalClicks: count(linkClicks.id),
+      uniqueClicks: sql<number>`COUNT(DISTINCT ${linkClicks.linkTrackerId})`,
+    })
+    .from(emailTrackers)
+    .leftJoin(emailOpens, eq(emailTrackers.id, emailOpens.emailTrackerId))
+    .leftJoin(linkTrackers, eq(emailTrackers.id, linkTrackers.emailTrackerId))
+    .leftJoin(linkClicks, eq(linkTrackers.id, linkClicks.linkTrackerId))
+    .where(inArray(emailTrackers.sessionId, sessionIds))
+    .groupBy(emailTrackers.sessionId);
+
+  // Get donor-level stats for all sessions
+  const donorStatsPromises = sessionIds.map(sessionId => getDonorTrackingStatsForSession(sessionId));
+  const allDonorStats = await Promise.all(donorStatsPromises);
+
+  // Combine results
+  const results: SessionTrackingStats[] = [];
+  
+  for (let i = 0; i < sessionIds.length; i++) {
+    const sessionId = sessionIds[i];
+    const sessionInfo = sessionInfos.find(s => s.id === sessionId);
+    const stats = overallStats.find(s => s.sessionId === sessionId);
+    const donorStats = allDonorStats[i];
+
+    if (!sessionInfo || !stats) continue;
+
+    // Calculate rates
+    const openRate = stats.totalSent > 0 ? (stats.uniqueOpens / stats.totalSent) * 100 : 0;
+    const clickRate = stats.totalSent > 0 ? (stats.uniqueClicks / stats.totalSent) * 100 : 0;
+    const clickToOpenRate = stats.uniqueOpens > 0 ? (stats.uniqueClicks / stats.uniqueOpens) * 100 : 0;
+
+    results.push({
+      sessionId,
+      jobName: sessionInfo.jobName,
+      totalSent: stats.totalSent,
+      totalOpens: stats.totalOpens,
+      uniqueOpens: stats.uniqueOpens,
+      totalClicks: stats.totalClicks,
+      uniqueClicks: stats.uniqueClicks,
+      openRate,
+      clickRate,
+      clickToOpenRate,
+      donorStats,
+    });
+  }
+
+  return results;
 }
 
 /**

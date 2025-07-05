@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import {
   getSessionTrackingStats,
+  getMultipleSessionTrackingStats,
   getDonorTrackingStatsForSession,
   getEmailTrackingData,
   hasEmailBeenOpened,
@@ -33,6 +34,28 @@ export const emailTrackingRouter = router({
       if (!stats) {
         return null;
       }
+
+      return stats;
+    }),
+
+  /**
+   * Get tracking statistics for multiple email generation sessions in batch
+   */
+  getMultipleSessionStats: protectedProcedure
+    .input(
+      z.object({
+        sessionIds: z.array(z.number()),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { user } = ctx.auth;
+      if (!user?.organizationId) {
+        throw new Error("User must belong to an organization");
+      }
+
+      logger.info(`Fetching tracking stats for ${input.sessionIds.length} sessions: ${input.sessionIds.join(', ')}`);
+
+      const stats = await getMultipleSessionTrackingStats(input.sessionIds);
 
       return stats;
     }),

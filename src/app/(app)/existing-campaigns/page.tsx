@@ -1,7 +1,7 @@
 "use client";
 
 import { useCommunications } from "@/app/hooks/use-communications";
-import { useSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+import { useSessionTrackingStats, useMultipleSessionTrackingStats } from "@/app/hooks/use-email-tracking";
 
 import { trpc } from "@/app/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
@@ -120,19 +120,18 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   return <Badge variant="secondary">Unknown</Badge>;
 }
 
-// Enhanced status component that gets tracking stats
-function CampaignStatus({ campaign }: { campaign: ExistingCampaign }) {
-  const { data: trackingStats } = useSessionTrackingStats(campaign.id);
+// Enhanced status component that gets tracking stats from batch data
+function CampaignStatus({ campaign, trackingStatsMap }: { campaign: ExistingCampaign; trackingStatsMap: Map<number, any> }) {
+  const trackingStats = trackingStatsMap.get(campaign.id);
   return getEnhancedStatusBadge(campaign, trackingStats);
 }
 
 // Component to show scheduled emails button
 // Removed ScheduledEmailsButton - schedule functionality moved to main campaign page
 
-// Enhanced progress component for individual campaigns
-function CampaignProgress({ campaign }: { campaign: ExistingCampaign }) {
-  const { data: trackingStats, isLoading } = useSessionTrackingStats(campaign.id);
-
+// Enhanced progress component for individual campaigns using batch data
+function CampaignProgress({ campaign, trackingStatsMap, isLoading }: { campaign: ExistingCampaign; trackingStatsMap: Map<number, any>; isLoading?: boolean }) {
+  const trackingStats = trackingStatsMap.get(campaign.id);
   const generated = campaign.totalEmails;
   const sent = campaign.sentEmails;
   const opened = trackingStats?.uniqueOpens || 0;
@@ -204,6 +203,7 @@ interface ConfirmationDialogProps {
     minGapMinutes: number;
     maxGapMinutes: number;
   } | null;
+  trackingStats?: any;
 }
 
 function ConfirmationDialog({
@@ -215,11 +215,9 @@ function ConfirmationDialog({
   isLoading,
   userEmail,
   scheduleConfig,
+  trackingStats,
 }: ConfirmationDialogProps) {
   const [sendType, setSendType] = useState<"all" | "unsent">("unsent");
-
-  // Get tracking stats for this campaign
-  const { data: trackingStats } = useSessionTrackingStats(campaign?.id || 0);
 
   if (!campaign) return null;
 
@@ -399,6 +397,18 @@ function ExistingCampaignsContent() {
   const totalCount = campaignsResponse?.totalCount || 0;
   const pageCount = Math.ceil(totalCount / pageSize);
 
+  // Get tracking stats for all campaigns in batch
+  const sessionIds = campaigns.map(c => c.id);
+  const { data: batchTrackingStats, isLoading: isLoadingStats } = useMultipleSessionTrackingStats(sessionIds);
+
+  // Create a lookup map for quick access
+  const trackingStatsMap = new Map();
+  if (batchTrackingStats) {
+    batchTrackingStats.forEach(stats => {
+      trackingStatsMap.set(stats.sessionId, stats);
+    });
+  }
+
   // Debug logging
   console.log(
     "[ExistingCampaigns] Campaigns data:",
@@ -562,14 +572,17 @@ function ExistingCampaignsContent() {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <CampaignStatus campaign={row.original} />,
+      cell: ({ row }) => {
+        const campaign = row.original;
+        return <CampaignStatus campaign={campaign} trackingStatsMap={trackingStatsMap} />;
+      },
     },
     {
       accessorKey: "progress",
       header: "Progress",
       cell: ({ row }) => {
         const campaign = row.original;
-        return <CampaignProgress campaign={campaign} />;
+        return <CampaignProgress campaign={campaign} trackingStatsMap={trackingStatsMap} isLoading={isLoadingStats} />;
       },
     },
     {
@@ -775,6 +788,7 @@ function ExistingCampaignsContent() {
         isLoading={isLoadingAction}
         userEmail={gmailStatus?.email || null}
         scheduleConfig={scheduleConfig}
+        trackingStats={confirmationDialog.campaign ? trackingStatsMap.get(confirmationDialog.campaign.id) : undefined}
       />
       <DataTable
         columns={columns}
