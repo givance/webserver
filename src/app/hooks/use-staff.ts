@@ -16,7 +16,7 @@ import {
 } from "./utils";
 import { useOrganization } from "@/app/hooks/use-organization";
 
-type StaffOutput = inferProcedureOutput<AppRouter["staff"]["getById"]>;
+type StaffOutput = inferProcedureOutput<AppRouter["staff"]["getByIds"]>[0];
 type ListStaffInput = inferProcedureInput<AppRouter["staff"]["list"]>;
 type CreateStaffInput = inferProcedureInput<AppRouter["staff"]["create"]>;
 type UpdateStaffInput = inferProcedureInput<AppRouter["staff"]["update"]>;
@@ -48,9 +48,22 @@ export function useStaff() {
   };
 
   const getStaffById = (id: number) => {
-    return trpc.staff.getById.useQuery(
-      { id },
+    const query = trpc.staff.getByIds.useQuery(
+      { ids: [id] },
       createConditionalQueryOptions(!!id)
+    );
+
+    // Transform the response to return a single staff member instead of an array
+    return {
+      ...query,
+      data: query.data?.[0],
+    };
+  };
+
+  const getStaffByIds = (ids: number[]) => {
+    return trpc.staff.getByIds.useQuery(
+      { ids },
+      createConditionalQueryOptions(ids.length > 0)
     );
   };
 
@@ -301,6 +314,7 @@ export function useStaff() {
     // Query functions
     listStaff,
     getStaffById,
+    getStaffByIds,
     getAssignedDonors,
     getPrimaryStaff,
     listEmailExamples,

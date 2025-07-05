@@ -57,6 +57,28 @@ export async function getDonorListById(id: number, organizationId: string): Prom
 }
 
 /**
+ * Get multiple donor lists by their IDs
+ * @param ids Array of donor list IDs
+ * @param organizationId The organization ID for authorization
+ * @returns Array of donor lists
+ */
+export async function getDonorListsByIds(
+  ids: number[],
+  organizationId: string
+): Promise<DonorList[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const lists = await db
+    .select()
+    .from(donorLists)
+    .where(and(inArray(donorLists.id, ids), eq(donorLists.organizationId, organizationId)));
+
+  return lists;
+}
+
+/**
  * Get a donor list with member count
  * @param id The donor list ID
  * @param organizationId The organization ID for authorization

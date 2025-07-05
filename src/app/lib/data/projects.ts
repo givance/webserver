@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { projects } from "../db/schema";
-import { eq, sql, desc, asc, SQL, AnyColumn, and, count, like, or } from "drizzle-orm";
+import { eq, sql, desc, asc, SQL, AnyColumn, and, count, like, or, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Project = InferSelectModel<typeof projects>;
@@ -18,6 +18,29 @@ export async function getProjectById(id: number): Promise<Project | undefined> {
   } catch (error) {
     console.error("Failed to retrieve project by ID:", error);
     throw new Error("Could not retrieve project.");
+  }
+}
+
+/**
+ * Retrieves multiple projects by their IDs.
+ * @param ids - Array of project IDs to retrieve.
+ * @param organizationId - The ID of the organization the projects belong to.
+ * @returns Array of project objects.
+ */
+export async function getProjectsByIds(ids: number[], organizationId: string): Promise<Project[]> {
+  try {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const result = await db
+      .select()
+      .from(projects)
+      .where(and(inArray(projects.id, ids), eq(projects.organizationId, organizationId)));
+    return result;
+  } catch (error) {
+    console.error("Failed to retrieve projects by IDs:", error);
+    throw new Error("Could not retrieve projects by IDs.");
   }
 }
 

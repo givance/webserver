@@ -37,7 +37,34 @@ export function useProjects() {
 
   // Query hooks
   const listProjects = trpc.projects.list.useQuery;
-  const getProjectById = trpc.projects.getById.useQuery;
+  
+  // Get project by ID - uses getByIds internally for consistency
+  const getProjectById = (id: number, options?: any) => {
+    const query = trpc.projects.getByIds.useQuery(
+      { ids: [id] },
+      {
+        ...options,
+        enabled: !!id && (options?.enabled ?? true),
+      }
+    );
+
+    // Transform the response to return a single project instead of an array
+    return {
+      ...query,
+      data: query.data?.[0],
+    };
+  };
+
+  // Get multiple projects by IDs
+  const getProjectsByIds = (ids: number[], options?: any) => {
+    return trpc.projects.getByIds.useQuery(
+      { ids },
+      {
+        ...options,
+        enabled: ids.length > 0 && (options?.enabled ?? true),
+      }
+    );
+  };
 
   // Mutation hooks
   const createMutation = trpc.projects.create.useMutation({
@@ -105,6 +132,7 @@ export function useProjects() {
     // Query functions
     listProjects,
     getProjectById,
+    getProjectsByIds,
 
     // Mutation functions
     createProject,

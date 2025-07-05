@@ -11,7 +11,7 @@ import {
   getMultipleDonorDonationStats,
   type DonationWithDetails,
 } from "@/app/lib/data/donations";
-import { getDonorById } from "@/app/lib/data/donors";
+import { getDonorById, getDonorsByIds } from "@/app/lib/data/donors";
 import { getProjectById } from "@/app/lib/data/projects";
 
 // Helper function to authorize donation access
@@ -210,16 +210,16 @@ export const donationsRouter = router({
   getMultipleDonorStats: protectedProcedure
     .input(z.object({ donorIds: z.array(z.number()) }))
     .query(async ({ input, ctx }) => {
-      // Verify all donors belong to the organization
-      const donorPromises = input.donorIds.map((id) => getDonorById(id, ctx.auth.user.organizationId));
-      const donors = await Promise.all(donorPromises);
+      // Verify all donors belong to the organization using batch fetch
+      const donors = await getDonorsByIds(input.donorIds, ctx.auth.user.organizationId);
 
-      // Check if any donors were not found
-      const missingDonors = donors.some((donor) => !donor);
-      if (missingDonors) {
+      // Check if we got all the requested donors
+      if (donors.length !== input.donorIds.length) {
+        const foundIds = new Set(donors.map(d => d.id));
+        const missingIds = input.donorIds.filter(id => !foundIds.has(id));
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "One or more donors not found in your organization",
+          message: `Donors not found in your organization: ${missingIds.join(', ')}`,
         });
       }
 

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { 
-  getProjectById, 
+  getProjectById,
+  getProjectsByIds, 
   createProject, 
   updateProject, 
   deleteProject, 
@@ -51,33 +52,40 @@ const listProjectsResponseSchema = z.object({
   totalCount: z.number(),
 });
 
+const projectIdsSchema = z.object({
+  ids: z.array(idSchema).min(1).max(1000),
+});
+
 export const projectsRouter = router({
   /**
-   * Get a project by ID
+   * Get multiple projects by their IDs
    * 
-   * @param id - Project ID
+   * @param ids - Array of project IDs
    * 
-   * @returns The requested project
+   * @returns Array of projects
    * 
-   * @throws {TRPCError} NOT_FOUND if project doesn't exist
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getById: protectedProcedure
-    .input(z.object({ id: idSchema }))
-    .output(projectResponseSchema)
-    .query(async ({ input }) => {
-      const project = await handleAsync(
-        async () => getProjectById(input.id),
+  getByIds: protectedProcedure
+    .input(projectIdsSchema)
+    .output(z.array(projectResponseSchema))
+    .query(async ({ input, ctx }) => {
+      if (!ctx.auth.user?.organizationId) {
+        throw createTRPCError({
+          code: "UNAUTHORIZED",
+          message: ERROR_MESSAGES.UNAUTHORIZED,
+        });
+      }
+
+      const projects = await handleAsync(
+        async () => getProjectsByIds(input.ids, ctx.auth.user!.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch project"),
-          logMetadata: { projectId: input.id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch projects"),
+          logMetadata: { projectIds: input.ids }
         }
       );
 
-      if (!project) {
-        throw notFoundError("Project");
-      }
-
-      return project;
+      return projects;
     }),
 
   /**

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import {
   getStaffById,
+  getStaffByIds,
   getStaffByEmail,
   getStaffWithGmailById,
   createStaff,
@@ -54,6 +55,10 @@ const staffResponseSchema = z.object({
     id: idSchema,
     email: z.string(),
   }).nullable().optional(),
+});
+
+const staffIdsSchema = z.object({
+  ids: z.array(idSchema).min(1).max(1000),
 });
 
 const listStaffInputSchema = z.object({
@@ -137,33 +142,29 @@ const emailExamplesResponseSchema = z.object({
 });
 
 export const staffRouter = router({
+
   /**
-   * Get a staff member by ID
+   * Get multiple staff members by their IDs
    * 
-   * @param id - Staff member ID
+   * @param ids - Array of staff member IDs
    * 
-   * @returns The requested staff member
+   * @returns Array of staff members
    * 
-   * @throws {TRPCError} NOT_FOUND if staff member doesn't exist
-   * @throws {TRPCError} FORBIDDEN if staff member belongs to different organization
+   * @throws {TRPCError} NOT_FOUND if any staff member doesn't exist
    */
-  getById: protectedProcedure
-    .input(z.object({ id: idSchema }))
-    .output(staffResponseSchema)
+  getByIds: protectedProcedure
+    .input(staffIdsSchema)
+    .output(z.array(staffResponseSchema))
     .query(async ({ input, ctx }) => {
-      const staff = await handleAsync(
-        async () => getStaffById(input.id, ctx.auth.user!.organizationId),
+      const staffMembers = await handleAsync(
+        async () => getStaffByIds(input.ids, ctx.auth.user!.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff member"),
-          logMetadata: { staffId: input.id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff members"),
+          logMetadata: { staffIds: input.ids }
         }
       );
 
-      if (!staff) {
-        throw notFoundError("Staff member");
-      }
-
-      return staff;
+      return staffMembers;
     }),
 
   /**

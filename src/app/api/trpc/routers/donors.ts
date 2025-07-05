@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import {
-  getDonorById,
   getDonorByEmail,
   getDonorsByIds,
   createDonor,
@@ -290,33 +289,6 @@ const serializeDonor = (donor: any): z.infer<typeof donorResponseSchema> => ({
 // ============================================================================
 
 export const donorsRouter = router({
-  /**
-   * Get a donor by ID
-   * 
-   * @param id - Donor ID
-   * 
-   * @returns The donor data
-   * 
-   * @throws {TRPCError} NOT_FOUND if donor doesn't exist
-   */
-  getById: protectedProcedure
-    .input(donorIdSchema)
-    .output(donorResponseSchema)
-    .query(async ({ input, ctx }) => {
-      const donor = await handleAsync(
-        async () => getDonorById(input.id, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.NOT_FOUND("Donor"),
-          errorCode: "NOT_FOUND"
-        }
-      );
-
-      if (!donor) {
-        throw notFoundError("Donor");
-      }
-
-      return serializeDonor(donor);
-    }),
 
   /**
    * Get a donor by email address

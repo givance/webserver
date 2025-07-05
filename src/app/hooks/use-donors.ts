@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { logger } from "@/app/lib/logger";
 import type { TRPCClientErrorLike } from "@trpc/client";
 
-type DonorOutput = inferProcedureOutput<AppRouter["donors"]["getById"]>;
+type DonorOutput = inferProcedureOutput<AppRouter["donors"]["getByIds"]>[0];
 type ListDonorsInput = inferProcedureInput<AppRouter["donors"]["list"]>;
 type CreateDonorInput = inferProcedureInput<AppRouter["donors"]["create"]>;
 type UpdateDonorInput = inferProcedureInput<AppRouter["donors"]["update"]>;
@@ -55,10 +55,10 @@ export function useDonors() {
     });
   };
 
-  // Get donor query hook
-  const getDonorQuery = (id: number) =>
-    trpc.donors.getById.useQuery(
-      { id },
+  // Get donor query hook - uses getByIds internally for consistency
+  const getDonorQuery = (id: number) => {
+    const query = trpc.donors.getByIds.useQuery(
+      { ids: [id] },
       {
         // Don't refetch automatically
         refetchOnWindowFocus: false,
@@ -67,6 +67,13 @@ export function useDonors() {
         enabled: !!id, // Only run the query if we have an ID
       }
     );
+
+    // Transform the response to return a single donor instead of an array
+    return {
+      ...query,
+      data: query.data?.[0],
+    };
+  };
 
   // Get multiple donors query hook
   const getDonorsQuery = (ids: number[]) =>
@@ -152,7 +159,7 @@ export function useDonors() {
   const updateMutation = trpc.donors.update.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       toast.success("Donor updated successfully");
     },
     onError: (error) => {
@@ -163,7 +170,7 @@ export function useDonors() {
   const deleteMutation = trpc.donors.delete.useMutation({
     onSuccess: (_, variables) => {
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       utils.lists.invalidate(); // Invalidate lists in case we removed from lists
       
       if (variables.deleteMode === 'fromList') {
@@ -182,7 +189,7 @@ export function useDonors() {
   const bulkDeleteMutation = trpc.donors.bulkDelete.useMutation({
     onSuccess: (result) => {
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
 
       if (result.success > 0 && result.failed === 0) {
         toast.success(`Successfully deleted ${result.success} donor${result.success === 1 ? "" : "s"}`);
@@ -211,7 +218,7 @@ export function useDonors() {
         );
       }
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       logger.info("Invalidating queries with root key ['donors'] to refetch donor data.");
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
@@ -229,7 +236,7 @@ export function useDonors() {
     onSuccess: (data, variables) => {
       toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
@@ -247,7 +254,7 @@ export function useDonors() {
     onSuccess: (data, variables) => {
       toast.success(`Successfully assigned staff to ${data.updated} donor${data.updated !== 1 ? "s" : ""}.`);
       utils.donors.list.invalidate();
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       logger.info("Invalidating queries with root key ['donors'] to refetch donor data after bulk staff assignment.");
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {

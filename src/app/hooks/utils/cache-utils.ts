@@ -65,11 +65,11 @@ export const createCrossResourceInvalidators = (utils: TRPCUtils) => ({
   invalidateDonorRelated: (donorId?: number) => {
     utils.donors.list.invalidate();
     if (donorId) {
-      utils.donors.getById.invalidate({ id: donorId });
+      utils.donors.getByIds.invalidate({ ids: [donorId] });
       utils.donations.getDonorStats.invalidate({ donorId });
       utils.lists.getListsForDonor.invalidate({ donorId });
     } else {
-      utils.donors.getById.invalidate();
+      utils.donors.getByIds.invalidate();
       utils.donations.getDonorStats.invalidate();
     }
   },
@@ -80,7 +80,7 @@ export const createCrossResourceInvalidators = (utils: TRPCUtils) => ({
   invalidateListRelated: (listId?: number) => {
     utils.lists.list.invalidate();
     if (listId) {
-      utils.lists.getById.invalidate({ id: listId });
+      utils.lists.getByIds.invalidate({ ids: [listId] });
       utils.lists.getByIdWithMemberCount.invalidate({ id: listId });
       utils.lists.getByIdWithMembers.invalidate({ id: listId });
     } else {
@@ -95,8 +95,8 @@ export const createCrossResourceInvalidators = (utils: TRPCUtils) => ({
   invalidateStaffRelated: (staffId?: number) => {
     utils.staff.list.invalidate();
     if (staffId) {
-      utils.staff.getById.invalidate({ id: staffId });
-      utils.staff.getAssignedDonors.invalidate({ staffId });
+      utils.staff.getByIds.invalidate({ ids: [staffId] });
+      utils.staff.getAssignedDonors.invalidate({ id: staffId });
     } else {
       utils.staff.invalidate();
     }

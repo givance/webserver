@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { staff, gmailOAuthTokens, staffEmailExamples } from "../db/schema";
-import { eq, sql, like, or, asc, desc, SQL, and, count } from "drizzle-orm";
+import { eq, sql, like, or, asc, desc, SQL, and, count, inArray } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 export type Staff = InferSelectModel<typeof staff>;
@@ -71,6 +71,29 @@ export async function getStaffByEmail(email: string, organizationId: string): Pr
   } catch (error) {
     console.error("Failed to retrieve staff member by email:", error);
     throw new Error("Could not retrieve staff member by email.");
+  }
+}
+
+/**
+ * Retrieves multiple staff members by their IDs.
+ * @param ids - Array of staff member IDs to retrieve.
+ * @param organizationId - The ID of the organization the staff members belong to.
+ * @returns Array of staff member objects.
+ */
+export async function getStaffByIds(ids: number[], organizationId: string): Promise<Staff[]> {
+  try {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const result = await db
+      .select()
+      .from(staff)
+      .where(and(inArray(staff.id, ids), eq(staff.organizationId, organizationId)));
+    return result;
+  } catch (error) {
+    console.error("Failed to retrieve staff members by IDs:", error);
+    throw new Error("Could not retrieve staff members by IDs.");
   }
 }
 

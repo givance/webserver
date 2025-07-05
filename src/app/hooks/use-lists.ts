@@ -16,7 +16,7 @@ import {
 } from "./utils";
 
 // Type inference for better type safety
-type DonorListOutput = inferProcedureOutput<AppRouter["lists"]["getById"]>;
+type DonorListOutput = inferProcedureOutput<AppRouter["lists"]["getByIds"]>[0];
 type DonorListWithMemberCountOutput = inferProcedureOutput<AppRouter["lists"]["getByIdWithMemberCount"]>;
 type DonorListWithMembersOutput = inferProcedureOutput<AppRouter["lists"]["getByIdWithMembers"]>;
 type ListDonorListsInput = inferProcedureInput<AppRouter["lists"]["list"]>;
@@ -38,11 +38,25 @@ export function useLists() {
     return trpc.lists.list.useQuery(params, STANDARD_QUERY_OPTIONS);
   };
 
-  // Get donor list query hook
-  const getDonorListQuery = (id: number) =>
-    trpc.lists.getById.useQuery(
-      { id },
+  // Get donor list query hook - uses getByIds internally for consistency
+  const getDonorListQuery = (id: number) => {
+    const query = trpc.lists.getByIds.useQuery(
+      { ids: [id] },
       createConditionalQueryOptions(!!id)
+    );
+
+    // Transform the response to return a single list instead of an array
+    return {
+      ...query,
+      data: query.data?.[0],
+    };
+  };
+
+  // Get multiple donor lists query hook
+  const getDonorListsQuery = (ids: number[]) =>
+    trpc.lists.getByIds.useQuery(
+      { ids },
+      createConditionalQueryOptions(ids.length > 0)
     );
 
   // Get donor list with member count query hook
@@ -87,8 +101,8 @@ export function useLists() {
 
   const updateMutation = trpc.lists.update.useMutation({
     onSuccess: (data) => {
-      // Update the cache directly instead of invalidating and refetching
-      utils.lists.getById.setData({ id: data.id }, data);
+      // Invalidate the getByIds cache 
+      utils.lists.getByIds.invalidate();
       utils.lists.getByIdWithMemberCount.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
       utils.lists.getByIdWithMembers.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
 
@@ -282,6 +296,7 @@ export function useLists() {
     // Query hooks
     listDonorLists,
     getDonorListQuery,
+    getDonorListsQuery,
     getDonorListWithMemberCountQuery,
     getDonorListWithMembersQuery,
     getDonorIdsFromListsQuery,

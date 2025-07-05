@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   createDonorList,
   getDonorListById,
+  getDonorListsByIds,
   getDonorListWithMemberCount,
   getDonorListWithMembers,
   listDonorLists,
@@ -26,6 +27,10 @@ import { donorListCriteriaSchemas } from "../../../lib/validation/schemas";
  */
 const listIdSchema = z.object({
   id: z.number(),
+});
+
+const listIdsSchema = z.object({
+  ids: z.array(z.number()).min(1).max(1000),
 });
 
 const deleteListSchema = z.object({
@@ -125,20 +130,13 @@ export const listsRouter = router({
   }),
 
   /**
-   * Get a donor list by ID
-   * @param input.id - The donor list ID
-   * @returns The donor list if found and authorized
-   * @throws NOT_FOUND if the list doesn't exist or doesn't belong to the organization
+   * Get multiple donor lists by their IDs
+   * @param input.ids - Array of donor list IDs
+   * @returns Array of donor lists
    */
-  getById: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
-    const list = await getDonorListById(input.id, ctx.auth.user.organizationId);
-    if (!list) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The donor list you're looking for doesn't exist or has been deleted.",
-      });
-    }
-    return list;
+  getByIds: protectedProcedure.input(listIdsSchema).query(async ({ input, ctx }) => {
+    const lists = await getDonorListsByIds(input.ids, ctx.auth.user.organizationId);
+    return lists;
   }),
 
   /**
