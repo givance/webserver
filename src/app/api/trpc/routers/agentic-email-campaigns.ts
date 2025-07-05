@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import {
-  AgenticEmailGenerationService,
-  AgenticEmailGenerationInput,
-} from "@/app/lib/services/agentic-email-generation.service";
+import type { AgenticEmailGenerationInput } from "@/app/lib/services/agentic-email-generation.service";
 import { env } from "@/app/lib/env";
 
 // Input validation schemas for agentic flow
@@ -56,8 +53,7 @@ export const agenticEmailCampaignsRouter = router({
         throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
       }
 
-      const agenticService = new AgenticEmailGenerationService();
-      return await agenticService.startAgenticFlow(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+      return await ctx.services.agenticEmailGeneration.startAgenticFlow(input, ctx.auth.user.organizationId, ctx.auth.user.id);
     }),
 
   /**
@@ -68,8 +64,7 @@ export const agenticEmailCampaignsRouter = router({
       throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
     }
 
-    const agenticService = new AgenticEmailGenerationService();
-    return await agenticService.continueAgenticFlow(input.sessionId, input.userResponse);
+    return await ctx.services.agenticEmailGeneration.continueAgenticFlow(input.sessionId, input.userResponse);
   }),
 
   /**
@@ -80,8 +75,7 @@ export const agenticEmailCampaignsRouter = router({
       throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
     }
 
-    const agenticService = new AgenticEmailGenerationService();
-    return await agenticService.generateFinalPrompt(input.sessionId);
+    return await ctx.services.agenticEmailGeneration.generateFinalPrompt(input.sessionId);
   }),
 
   /**
@@ -92,8 +86,7 @@ export const agenticEmailCampaignsRouter = router({
       throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
     }
 
-    const agenticService = new AgenticEmailGenerationService();
-    return await agenticService.executeEmailGeneration(input.sessionId, input.confirmedPrompt);
+    return await ctx.services.agenticEmailGeneration.executeEmailGeneration(input.sessionId, input.confirmedPrompt);
   }),
 
   /**
@@ -104,7 +97,6 @@ export const agenticEmailCampaignsRouter = router({
       throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
     }
 
-    const agenticService = new AgenticEmailGenerationService();
-    return agenticService.getSessionState(input.sessionId);
+    return ctx.services.agenticEmailGeneration.getSessionState(input.sessionId);
   }),
 });

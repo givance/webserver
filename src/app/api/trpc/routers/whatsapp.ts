@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { WhatsAppPermissionService } from "@/app/lib/services/whatsapp/whatsapp-permission.service";
-import { WhatsAppStaffLoggingService } from "@/app/lib/services/whatsapp/whatsapp-staff-logging.service";
 import { getStaffById } from "@/app/lib/data/staff";
 
 // Input validation schemas
@@ -61,8 +59,7 @@ export const whatsappRouter = router({
         });
       }
 
-      const permissionService = new WhatsAppPermissionService();
-      const result = await permissionService.addPhoneNumberToStaff(staffId, phoneNumber);
+      const result = await ctx.services.whatsappPermission.addPhoneNumberToStaff(staffId, phoneNumber);
 
       if (!result) {
         throw new TRPCError({
@@ -106,7 +103,7 @@ export const whatsappRouter = router({
         });
       }
 
-      const permissionService = new WhatsAppPermissionService();
+      const permissionService = ctx.services.whatsappPermission;
       const result = await permissionService.removePhoneNumberFromStaff(staffId, phoneNumber);
 
       if (!result) {
@@ -148,7 +145,7 @@ export const whatsappRouter = router({
         });
       }
 
-      const permissionService = new WhatsAppPermissionService();
+      const permissionService = ctx.services.whatsappPermission;
       const phoneNumbers = await permissionService.getStaffPhoneNumbers(staffId);
 
       return {
@@ -183,7 +180,7 @@ export const whatsappRouter = router({
         });
       }
 
-      const loggingService = new WhatsAppStaffLoggingService();
+      const loggingService = ctx.services.whatsappStaffLogging;
       const activities = await loggingService.getStaffActivityLog(staffId, limit, offset);
 
       return {
@@ -219,7 +216,7 @@ export const whatsappRouter = router({
         });
       }
 
-      const loggingService = new WhatsAppStaffLoggingService();
+      const loggingService = ctx.services.whatsappStaffLogging;
       const stats = await loggingService.getStaffActivityStats(staffId, days);
 
       return {
@@ -251,7 +248,7 @@ export const whatsappRouter = router({
       const organizationId = ctx.auth.user.organizationId;
 
       try {
-        const permissionService = new WhatsAppPermissionService();
+        const permissionService = ctx.services.whatsappPermission;
         const result = await permissionService.checkPhonePermission(phoneNumber);
 
         // Only return permission info if it belongs to the user's organization
@@ -287,9 +284,7 @@ export const whatsappRouter = router({
         });
       }
 
-      // Import WhatsAppHistoryService
-      const { WhatsAppHistoryService } = await import("@/app/lib/services/whatsapp/whatsapp-history.service");
-      const historyService = new WhatsAppHistoryService();
+      const historyService = ctx.services.whatsappHistory;
 
       const messages = await historyService.getChatHistory(organizationId, staffId, phoneNumber, limit);
 
@@ -316,14 +311,9 @@ export const whatsappRouter = router({
     const { message, phoneNumber, isTranscribed } = input;
     
     try {
-      // Import required services
-      const { WhatsAppAIService } = await import("@/app/lib/services/whatsapp/whatsapp-ai.service");
-      const { WhatsAppPermissionService } = await import("@/app/lib/services/whatsapp/whatsapp-permission.service");
-      const { WhatsAppStaffLoggingService } = await import("@/app/lib/services/whatsapp/whatsapp-staff-logging.service");
-      
-      const permissionService = new WhatsAppPermissionService();
-      const whatsappAI = new WhatsAppAIService();
-      const loggingService = new WhatsAppStaffLoggingService();
+      const permissionService = ctx.services.whatsappPermission;
+      const whatsappAI = ctx.services.whatsappAI;
+      const loggingService = ctx.services.whatsappStaffLogging;
       
       // Check permissions first (same as webhook)
       const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
@@ -410,11 +400,11 @@ export const whatsappRouter = router({
       // Try to log the error if we have staff info
       if (input.phoneNumber) {
         try {
-          const permissionService = new WhatsAppPermissionService();
+          const permissionService = ctx.services.whatsappPermission;
           const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
           
           if (permissionResult.isAllowed && permissionResult.staffId && permissionResult.organizationId) {
-            const loggingService = new WhatsAppStaffLoggingService();
+            const loggingService = ctx.services.whatsappStaffLogging;
             await loggingService.logError(
               permissionResult.staffId,
               permissionResult.organizationId,

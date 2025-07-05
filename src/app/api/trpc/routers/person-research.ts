@@ -1,14 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { PersonResearchService } from "@/app/lib/services/person-research.service";
-import { BulkDonorResearchService } from "@/app/lib/services/bulk-donor-research.service";
 import { logger } from "@/app/lib/logger";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getOrganizationById } from "@/app/lib/data/organizations";
-
-const personResearchService = new PersonResearchService();
-const bulkDonorResearchService = new BulkDonorResearchService();
 
 /**
  * Helper function to generate research topic for a donor
@@ -104,7 +99,7 @@ export const personResearchRouter = router({
       );
 
       // Conduct the research using our service
-      const result = await personResearchService.conductPersonResearch({
+      const result = await ctx.services.personResearch.conductPersonResearch({
         researchTopic,
         organizationId: user.organizationId,
         userId: user.id,
@@ -240,7 +235,7 @@ export const personResearchRouter = router({
       logger.info(`[Donor Research API] Generated research topic for donor ${donorId}: "${researchTopic}"`);
 
       // Conduct and save the research
-      const { result, dbRecord } = await personResearchService.conductAndSavePersonResearch(
+      const { result, dbRecord } = await ctx.services.personResearch.conductAndSavePersonResearch(
         {
           researchTopic,
           organizationId: user.organizationId,
@@ -343,7 +338,7 @@ export const personResearchRouter = router({
       }
 
       // Get research result
-      const result = await personResearchService.getPersonResearch(donorId, user.organizationId, version);
+      const result = await ctx.services.personResearch.getPersonResearch(donorId, user.organizationId, version);
 
       if (!result) {
         logger.info(
@@ -425,7 +420,7 @@ export const personResearchRouter = router({
       }
 
       // Get all research versions
-      const versions = await personResearchService.getAllPersonResearchVersions(donorId, user.organizationId);
+      const versions = await ctx.services.personResearch.getAllPersonResearchVersions(donorId, user.organizationId);
 
       logger.info(
         `[Donor Research API] Successfully retrieved ${versions.length} research versions for donor ${donorId}`
@@ -500,7 +495,7 @@ export const personResearchRouter = router({
         }
 
         // Start the bulk research job
-        const result = await bulkDonorResearchService.startBulkResearch({
+        const result = await ctx.services.bulkDonorResearch.startBulkResearch({
           organizationId: user.organizationId,
           userId: user.id,
           donorIds,
@@ -562,7 +557,7 @@ export const personResearchRouter = router({
       }
 
       // Get research statistics
-      const stats = await bulkDonorResearchService.getResearchStatistics(user.organizationId);
+      const stats = await ctx.services.bulkDonorResearch.getResearchStatistics(user.organizationId);
 
       logger.info(
         `[Research Statistics API] Successfully retrieved research statistics - Total: ${stats.totalDonors}, Researched: ${stats.researchedDonors}, Unresearched: ${stats.unresearchedDonors}, Percentage: ${stats.researchPercentage}%`

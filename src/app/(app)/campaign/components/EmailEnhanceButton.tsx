@@ -86,7 +86,6 @@ export function EmailEnhanceButton({
         // If we have a sessionId from props, manually trigger a refetch
         if (sessionId && result.sessionId) {
           // The mutation onSuccess should handle the invalidation
-          console.log("Email enhanced for session:", result.sessionId);
         }
 
         // Close dialog and reset

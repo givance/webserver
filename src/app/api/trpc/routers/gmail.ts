@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { GmailService } from "@/app/lib/services/gmail.service";
 import { 
   createTRPCError,
   handleAsync,
@@ -12,9 +11,6 @@ import {
   gmailSchemas,
 } from "@/app/lib/validation/schemas";
 import { TRPCError } from "@trpc/server";
-
-// Service instance
-const gmailService = new GmailService();
 
 // Schema definitions
 const sendEmailSchema = z.object({
@@ -86,7 +82,7 @@ export const gmailRouter = router({
   getGmailAuthUrl: protectedProcedure
     .output(z.object({ url: z.string(), authUrl: z.string() }))
     .mutation(async ({ ctx }) => {
-      const url = gmailService.getAuthUrl(ctx.auth.user?.id);
+      const url = ctx.services.gmail.getAuthUrl(ctx.auth.user?.id);
       return { url, authUrl: url }; // Return both for backwards compatibility
     }),
 
@@ -106,7 +102,7 @@ export const gmailRouter = router({
       }
 
       const connected = await handleAsync(
-        async () => gmailService.isConnected(ctx.auth.user!.id),
+        async () => ctx.services.gmail.isConnected(ctx.auth.user!.id),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("check Gmail connection"),
           errorCode: "INTERNAL_SERVER_ERROR"
@@ -117,7 +113,7 @@ export const gmailRouter = router({
       let email: string | undefined;
       if (connected) {
         try {
-          const profile = await gmailService.getProfile(ctx.auth.user.id);
+          const profile = await ctx.services.gmail.getProfile(ctx.auth.user.id);
           email = profile.emailAddress;
         } catch {
           // Ignore error - just don't return email
@@ -142,7 +138,7 @@ export const gmailRouter = router({
       }
 
       await handleAsync(
-        async () => gmailService.disconnect(ctx.auth.user!.id),
+        async () => ctx.services.gmail.disconnect(ctx.auth.user!.id),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("disconnect Gmail"),
           logMetadata: { userId: ctx.auth.user.id }
@@ -159,7 +155,7 @@ export const gmailRouter = router({
   getAuthUrl: protectedProcedure
     .output(z.object({ url: z.string() }))
     .query(async ({ ctx }) => {
-      const url = gmailService.getAuthUrl(ctx.auth.user?.id);
+      const url = ctx.services.gmail.getAuthUrl(ctx.auth.user?.id);
       return { url };
     }),
 
@@ -184,7 +180,7 @@ export const gmailRouter = router({
       }
 
       await handleAsync(
-        async () => gmailService.handleOAuthCallback(input.code, ctx.auth.user!.id),
+        async () => ctx.services.gmail.handleOAuthCallback(input.code, ctx.auth.user!.id),
         {
           errorMessage: "Failed to connect Gmail account. Please try again.",
           logMetadata: { userId: ctx.auth.user.id }
@@ -207,7 +203,7 @@ export const gmailRouter = router({
       }
 
       const connected = await handleAsync(
-        async () => gmailService.isConnected(ctx.auth.user!.id),
+        async () => ctx.services.gmail.isConnected(ctx.auth.user!.id),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("check Gmail connection"),
           errorCode: "INTERNAL_SERVER_ERROR"
@@ -233,7 +229,7 @@ export const gmailRouter = router({
       }
 
       await handleAsync(
-        async () => gmailService.disconnect(ctx.auth.user!.id),
+        async () => ctx.services.gmail.disconnect(ctx.auth.user!.id),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("disconnect Gmail"),
           logMetadata: { userId: ctx.auth.user.id }
@@ -259,7 +255,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.getProfile(ctx.auth.user!.id),
+        async () => ctx.services.gmail.getProfile(ctx.auth.user!.id),
         {
           errorMessage: "Failed to fetch Gmail profile. Please reconnect your account.",
           logMetadata: { userId: ctx.auth.user.id }
@@ -294,7 +290,7 @@ export const gmailRouter = router({
       }
 
       const messageId = await handleAsync(
-        async () => gmailService.sendEmail(
+        async () => ctx.services.gmail.sendEmail(
           ctx.auth.user!.id,
           {
             to: input.to,
@@ -345,7 +341,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.sendBulkEmails(ctx.auth.user!.id, input),
+        async () => ctx.services.gmail.sendBulkEmails(ctx.auth.user!.id, input),
         {
           errorMessage: "Failed to send bulk emails. Some emails may have been sent.",
           logMetadata: {
@@ -379,7 +375,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.listMessages(
+        async () => ctx.services.gmail.listMessages(
           ctx.auth.user!.id,
           input.query,
           input.maxResults
@@ -413,7 +409,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.listThreads(
+        async () => ctx.services.gmail.listThreads(
           ctx.auth.user!.id,
           input.query,
           input.maxResults
@@ -447,7 +443,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.getThread(ctx.auth.user!.id, input.threadId),
+        async () => ctx.services.gmail.getThread(ctx.auth.user!.id, input.threadId),
         {
           errorMessage: ERROR_MESSAGES.NOT_FOUND("Gmail thread"),
           errorCode: "NOT_FOUND",
@@ -485,7 +481,7 @@ export const gmailRouter = router({
       }
 
       return await handleAsync(
-        async () => gmailService.sendBulkEmails(ctx.auth.user!.id, input),
+        async () => ctx.services.gmail.sendBulkEmails(ctx.auth.user!.id, input),
         {
           errorMessage: "Failed to send emails. Some emails may have been sent.",
           logMetadata: {

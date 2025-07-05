@@ -32,8 +32,6 @@ interface CampaignStepsProps {
 }
 
 function CampaignStepsComponent({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
-  // Debug logging
-  console.log(`[CampaignSteps] RENDER at ${new Date().toISOString()}`);
   // Get organization data for default campaign name generation
   const { getOrganization } = useOrganization();
   const { data: organization } = getOrganization();
@@ -116,10 +114,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   // Update templatePrompt when template data is loaded in edit mode
   useEffect(() => {
     if (editMode && templateData?.prompt && !templatePrompt) {
-      console.log(
-        "[CampaignSteps] Loading template prompt for edit mode:",
-        templateData.prompt.substring(0, 100) + "..."
-      );
       setTemplatePrompt(templateData.prompt);
     }
   }, [editMode, templateData, templatePrompt]);
@@ -127,11 +121,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   // Navigation auto-save hook
   const { autoSave: navigationAutoSave, manualSave } = useCampaignAutoSave({
     onSessionIdChange: (newSessionId: number) => {
-      console.log("[CampaignSteps] onSessionIdChange called with:", {
-        newSessionId,
-        editMode,
-        currentSessionId: sessionId,
-      });
 
       setSessionId(newSessionId);
     },
@@ -157,7 +146,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
             previewDonorIds: persistedPreviewDonorIds,
           });
         } catch (error) {
-          console.error("[CampaignSteps] Auto-save failed during navigation:", error);
           // Continue with navigation even if save fails
         }
       }
@@ -181,20 +169,12 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   };
 
   const handleCampaignNameSet = async (name: string) => {
-    console.log("[CampaignSteps] handleCampaignNameSet called with:", {
-      name,
-      campaignName,
-      sessionId,
-      editMode,
-      selectedDonorsCount: selectedDonors.length,
-    });
 
     // Use the provided name (should not be empty at this point)
     setCampaignName(name);
 
     // If we're not in edit mode, save and redirect to edit mode
     if (!editMode && selectedDonors.length > 0 && name.trim()) {
-      console.log("[CampaignSteps] About to trigger manualSave and redirect to edit mode");
       try {
         const result = await manualSave({
           sessionId,
@@ -206,32 +186,22 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
           previewDonorIds: persistedPreviewDonorIds,
         });
 
-        console.log("[CampaignSteps] Manual save result:", result);
 
         // Get the session ID (either from result or existing sessionId)
         const finalSessionId = result?.sessionId || sessionId;
 
         if (finalSessionId) {
-          console.log("[CampaignSteps] Redirecting to edit mode with sessionId:", finalSessionId);
           router.replace(`/campaign/edit/${finalSessionId}`);
           return; // Don't navigate to next step, we're redirecting
         }
       } catch (error) {
-        console.error("Failed to save campaign after name set:", error);
         // Continue with navigation even if save failed
       }
     } else if (editMode) {
-      console.log("[CampaignSteps] In edit mode, navigating to next step normally");
     } else {
-      console.log("[CampaignSteps] Skipping save - conditions not met:", {
-        editMode,
-        selectedDonorsLength: selectedDonors.length,
-        nameToUseTrimmed: name.trim(),
-      });
     }
 
     // Navigate to next step only if we're in edit mode and didn't redirect
-    console.log("[CampaignSteps] Navigating to step 1");
     handleStepNavigation(1);
   };
 
@@ -375,7 +345,6 @@ const areEqual = (prevProps: CampaignStepsProps, nextProps: CampaignStepsProps):
   // We ignore onClose function changes since they're typically stable
 
   if (!essentialPropsEqual) {
-    console.log("[CampaignSteps] Re-render: essential props changed");
     return false;
   }
 

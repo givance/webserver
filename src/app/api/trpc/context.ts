@@ -4,6 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { getUserById } from "@/app/lib/data/users";
 import { getOrganizationById } from "@/app/lib/data/organizations";
 import { logger } from "@/app/lib/logger";
+import { createServices, type Services } from "@/app/lib/services";
+
+// Create services instance once for the application
+const services = createServices();
 
 interface AuthContext {
   user: BackendUser | null;
@@ -13,6 +17,7 @@ interface RequestContext {
   auth: AuthContext;
   req: Request;
   resHeaders: Headers;
+  services: Services;
 }
 
 export async function createContext({ req, resHeaders }: FetchCreateContextFnOptions): Promise<RequestContext> {
@@ -20,7 +25,7 @@ export async function createContext({ req, resHeaders }: FetchCreateContextFnOpt
   const { userId, orgId, orgRole } = authData;
 
   if (!userId || !orgId) {
-    return { auth: { user: null }, req, resHeaders };
+    return { auth: { user: null }, req, resHeaders, services };
   }
 
   const user = await getUserById(userId);
@@ -30,7 +35,7 @@ export async function createContext({ req, resHeaders }: FetchCreateContextFnOpt
     logger.error(
       `Could not find user or organization in backend (function: createContext, userId: ${userId}, orgId: ${orgId})`
     );
-    return { auth: { user: null }, req, resHeaders };
+    return { auth: { user: null }, req, resHeaders, services };
   }
 
   const backendUser: BackendUser = {
@@ -48,6 +53,7 @@ export async function createContext({ req, resHeaders }: FetchCreateContextFnOpt
     auth: { user: backendUser },
     req,
     resHeaders,
+    services,
   };
 }
 

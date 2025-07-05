@@ -46,19 +46,6 @@ export default function CampaignDetailPage() {
   // Get primary staff for email fallback
   const { data: primaryStaff } = getPrimaryStaff();
 
-  // Debug: Log what we're actually getting from getSession
-  React.useEffect(() => {
-    if (sessionData) {
-      console.log("[CampaignDetailPage] Session data received:", {
-        hasSession: !!sessionData.session,
-        hasEmails: !!sessionData.emails,
-        emailsLength: sessionData.emails?.length || 0,
-        hasScheduledEmails: !!(sessionData as any).scheduledEmails,
-        hasStats: !!(sessionData as any).stats,
-        sessionKeys: Object.keys(sessionData),
-      });
-    }
-  }, [sessionData]);
 
   // Get schedule data
   const { data: scheduleData, isLoading: isLoadingSchedule } = getEmailSchedule(
@@ -140,7 +127,6 @@ export default function CampaignDetailPage() {
   }
 
   if (sessionError) {
-    console.error("Session error:", sessionError);
     return (
       <div className="container mx-auto py-8">
         <p className="text-red-500">Error loading campaign: {sessionError.message}</p>
