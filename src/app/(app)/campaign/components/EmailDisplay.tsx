@@ -194,7 +194,6 @@ function ReferencesDisplay({ references, referenceContexts }: ReferencesDisplayP
             {references.map((ref) => {
               const context = referenceContexts[ref];
               if (!context) {
-                console.warn(`No context found for reference: ${ref}`);
                 return null;
               }
               return (
@@ -235,12 +234,6 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   hasLinkedEmail = true,
   defaultStaffEmail,
 }: EmailDisplayProps) {
-  // Debug logging for re-renders
-  console.log(`[EmailDisplay] RENDER at ${new Date().toISOString()}`, {
-    donorId,
-    emailId,
-    subjectLength: subject?.length,
-  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
@@ -301,7 +294,6 @@ export const EmailDisplay = React.memo(function EmailDisplay({
           });
         }
       } catch (error) {
-        console.error("Failed to load donations:", error);
       } finally {
         setIsLoadingDonations(false);
       }

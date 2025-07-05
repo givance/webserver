@@ -55,7 +55,6 @@ export async function handleEmailGeneration(
     day: "numeric",
   });
 
-  console.log("[emailOperations] About to call generateEmailsForDonors");
   const result = await generateEmailsForDonors({
     instruction: finalInstruction,
     donors: donorData,
@@ -67,16 +66,13 @@ export async function handleEmailGeneration(
     signature: currentSignature,
   });
 
-  console.log("[emailOperations] generateEmails result:", result);
 
   if (result) {
     // Check if this is an agentic flow response
     if ("isAgenticFlow" in result && result.isAgenticFlow) {
-      console.log("[emailOperations] Detected agentic flow response");
       return { type: "agentic", result: result as AgenticFlowResponse, updatedChatMessages };
     } else {
       // Handle traditional email generation response
-      console.log("[emailOperations] Handling traditional email generation response");
       const emailResult = result as GenerateEmailsResponse;
 
       // Save generated emails incrementally if we have a sessionId

@@ -44,10 +44,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     initialRefinedInstruction,
   } = props;
 
-  // Debug logging
-  const renderCountRef = useRef(0);
-  renderCountRef.current++;
-  console.log(`[WriteInstructionStep] RENDER #${renderCountRef.current}`);
 
   // UI State
   const [showBulkGenerationDialog, setShowBulkGenerationDialog] = useState(false);

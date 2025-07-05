@@ -30,13 +30,6 @@ export function CampaignNameStep({
   onSessionIdChange,
   templateId,
 }: CampaignNameStepProps) {
-  console.log("[CampaignNameStep] Component mounted/updated with props:", {
-    selectedDonorsCount: selectedDonors?.length,
-    campaignName,
-    sessionId,
-    templateId,
-    hasOnSessionIdChange: !!onSessionIdChange,
-  });
 
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
   const [error, setError] = useState("");
@@ -74,7 +67,6 @@ export function CampaignNameStep({
       onCampaignNameChange(trimmedName);
       await onNext(trimmedName);
     } catch (error) {
-      console.error("Error in handleNext:", error);
       setError("Failed to save campaign. Please try again.");
     } finally {
       setIsProcessing(false);
@@ -82,7 +74,6 @@ export function CampaignNameStep({
   };
 
   const handleCampaignNameChange = (value: string) => {
-    console.log("[CampaignNameStep] handleCampaignNameChange called with:", value);
     setLocalCampaignName(value);
     if (error) {
       setError("");

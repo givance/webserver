@@ -69,7 +69,6 @@ export function useWriteInstructionStep(
   // Email State Effects
   useEffect(() => {
     if (editMode && initialGeneratedEmails.length > 0) {
-      console.log("[useWriteInstructionStep] Updating emails from props:", initialGeneratedEmails.length);
       setAllGeneratedEmails(initialGeneratedEmails);
       setGeneratedEmails(initialGeneratedEmails);
 
@@ -92,7 +91,6 @@ export function useWriteInstructionStep(
   // Chat State Effects
   useEffect(() => {
     if (initialChatHistory.length > 0 && chatMessages.length === 0) {
-      console.log("[useWriteInstructionStep] Loading chat history from props:", initialChatHistory.length, "messages");
       setChatMessages(initialChatHistory);
     }
   }, [initialChatHistory, chatMessages.length]);
@@ -105,11 +103,6 @@ export function useWriteInstructionStep(
 
   // Instruction Input Effects
   useEffect(() => {
-    console.log("[useWriteInstructionStep] instruction prop changed:", {
-      instructionLength: instruction?.length || 0,
-      localInstructionLength: localInstruction?.length || 0,
-      willUpdate: instruction !== localInstruction,
-    });
     if (instruction !== localInstruction) {
       setLocalInstruction(instruction || "");
       setHasInputContent(!!instruction?.trim());
@@ -142,7 +135,6 @@ export function useWriteInstructionStep(
     }
 
     if (!hasGeneratedPreviewRef.current && selectedDonors.length > 0) {
-      console.log("[useWriteInstructionStep] Generating random preview donors - this should only happen ONCE");
       const shuffled = [...selectedDonors].sort(() => 0.5 - Math.random());
       const preview = shuffled.slice(0, Math.min(PREVIEW_DONOR_COUNT, selectedDonors.length));
       setPreviewDonorIds(preview);
@@ -238,17 +230,11 @@ export function useWriteInstructionStep(
   const saveChatHistory = useCallback(
     async (messages?: Array<{ role: "user" | "assistant"; content: string }>, refinedInst?: string) => {
       if (!sessionId || !campaignName) {
-        console.log("[useWriteInstructionStep] Skipping chat history save - no sessionId or campaignName");
         return;
       }
 
       const messagesToSave = messages || chatMessages;
 
-      console.log("[useWriteInstructionStep] Saving chat history", {
-        sessionId,
-        chatMessagesCount: messagesToSave.length,
-        lastMessage: messagesToSave[messagesToSave.length - 1],
-      });
 
       try {
         await saveDraft.mutateAsync({

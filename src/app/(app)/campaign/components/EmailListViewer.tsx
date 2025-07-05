@@ -176,12 +176,6 @@ export const EmailListViewer = React.memo(function EmailListViewer({
   isRecipientsExpanded,
   onRecipientsExpandedChange,
 }: EmailListViewerProps) {
-  // Debug logging for re-renders
-  console.log(`[EmailListViewer] RENDER at ${new Date().toISOString()}`, {
-    emailsCount: emails?.length,
-    donorsCount: donors?.length,
-    sessionId,
-  });
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingDonations, setLoadingDonations] = useState<Record<number, boolean>>({});
@@ -341,7 +335,6 @@ export const EmailListViewer = React.memo(function EmailListViewer({
           }));
         }
       } catch (error) {
-        console.error("Failed to load donations:", error);
       } finally {
         setLoadingDonations((prev) => ({ ...prev, [donorId]: false }));
       }
