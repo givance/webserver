@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/app/api/trpc/trpc";
-import { TodoService, type UpdateTodoInput } from "@/app/lib/services/todo-service";
+import type { UpdateTodoInput } from "@/app/lib/services/todo-service";
 import { 
   createTRPCError,
   handleAsync,
@@ -12,9 +12,6 @@ import {
   todoSchemas,
   batchResultSchema
 } from "@/app/lib/validation/schemas";
-
-// Service instance
-const todoService = new TodoService();
 
 // Helper to convert Todo dates to ISO strings
 const serializeTodo = (todo: any) => ({
@@ -136,7 +133,7 @@ export const todoRouter = router({
       }
 
       const result = await handleAsync(
-        async () => todoService.createTodo({
+        async () => ctx.services.todos.createTodo({
           ...input,
           organizationId: user.organizationId,
         }),
@@ -168,7 +165,7 @@ export const todoRouter = router({
       const { id, ...updateData } = input;
       
       const result = await handleAsync(
-        async () => todoService.updateTodo(id, updateData),
+        async () => ctx.services.todos.updateTodo(id, updateData),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update todo"),
           logMetadata: { todoId: id, userId: ctx.auth.user?.id }
@@ -209,7 +206,7 @@ export const todoRouter = router({
         async () => {
           const serviceUpdateData: UpdateTodoInput = { ...data };
           const updatePromises = ids.map((id) => 
-            todoService.updateTodo(id, serviceUpdateData)
+            ctx.services.todos.updateTodo(id, serviceUpdateData)
           );
           return await Promise.all(updatePromises);
         },
@@ -239,7 +236,7 @@ export const todoRouter = router({
     .output(z.void())
     .mutation(async ({ ctx, input }) => {
       await handleAsync(
-        async () => todoService.deleteTodo(input.id),
+        async () => ctx.services.todos.deleteTodo(input.id),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("delete todo"),
           logMetadata: { todoId: input.id, userId: ctx.auth.user?.id }
@@ -274,7 +271,7 @@ export const todoRouter = router({
       }
 
       const todos = await handleAsync(
-        async () => todoService.getTodosByOrganization(user.organizationId, input),
+        async () => ctx.services.todos.getTodosByOrganization(user.organizationId, input),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch todos"),
           logMetadata: { organizationId: user.organizationId, filters: input }
@@ -310,7 +307,7 @@ export const todoRouter = router({
       }
 
       const grouped = await handleAsync(
-        async () => todoService.getTodosGroupedByType(
+        async () => ctx.services.todos.getTodosGroupedByType(
           user.organizationId, 
           input.statusesToExclude
         ),
@@ -342,7 +339,7 @@ export const todoRouter = router({
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const todos = await handleAsync(
-        async () => todoService.getTodosByDonor(input.donorId),
+        async () => ctx.services.todos.getTodosByDonor(input.donorId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor todos"),
           logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id }
@@ -366,7 +363,7 @@ export const todoRouter = router({
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const todos = await handleAsync(
-        async () => todoService.getTodosByStaff(input.staffId),
+        async () => ctx.services.todos.getTodosByStaff(input.staffId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff todos"),
           logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id }

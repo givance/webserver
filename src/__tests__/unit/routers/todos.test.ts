@@ -27,8 +27,22 @@ import {
 } from "@/__tests__/utils/trpc-router-test-utils";
 import { TRPCError } from "@trpc/server";
 
-// Get the mock service from the module
-const mockTodoService = (TodoService as any).__mockService || require("@/app/lib/services/todo-service").__mockService;
+// Get the mock service
+const mockTodoService = {
+  createTodo: jest.fn(),
+  updateTodo: jest.fn(),
+  deleteTodo: jest.fn(),
+  getTodosByOrganization: jest.fn(),
+  getTodosGroupedByType: jest.fn(),
+  getTodosByDonor: jest.fn(),
+  getTodosByStaff: jest.fn(),
+  createTodosFromPredictedActions: jest.fn(),
+};
+
+// Create mock services object
+const mockServices = {
+  todos: mockTodoService,
+};
 
 describe("todoRouter", () => {
   beforeEach(() => {
@@ -58,7 +72,7 @@ describe("todoRouter", () => {
     };
 
     it("should create a todo successfully", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.createTodo.mockResolvedValue([mockCreatedTodo]);
@@ -104,7 +118,7 @@ describe("todoRouter", () => {
     });
 
     it("should validate required fields", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       // Missing title
@@ -119,7 +133,7 @@ describe("todoRouter", () => {
     });
 
     it("should handle optional fields", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       const minimalInput = {
@@ -165,7 +179,7 @@ describe("todoRouter", () => {
     };
 
     it("should update a todo successfully", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       const updateInput = {
@@ -208,7 +222,7 @@ describe("todoRouter", () => {
     });
 
     it("should allow partial updates", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.updateTodo.mockResolvedValue([{
@@ -230,7 +244,7 @@ describe("todoRouter", () => {
 
   describe("updateMany", () => {
     it("should update multiple todos successfully", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       const updateInput = {
@@ -257,7 +271,7 @@ describe("todoRouter", () => {
     });
 
     it("should handle partial failures", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.updateTodo
@@ -275,7 +289,7 @@ describe("todoRouter", () => {
     });
 
     it("should validate maximum batch size", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       const tooManyIds = Array.from({ length: 101 }, (_, i) => i + 1);
@@ -291,7 +305,7 @@ describe("todoRouter", () => {
 
   describe("delete", () => {
     it("should delete a todo successfully", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.deleteTodo.mockResolvedValue(undefined);
@@ -349,7 +363,7 @@ describe("todoRouter", () => {
     ];
 
     it("should fetch todos for organization", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosByOrganization.mockResolvedValue(mockTodos);
@@ -367,7 +381,7 @@ describe("todoRouter", () => {
     });
 
     it("should filter by type", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosByOrganization.mockResolvedValue([mockTodos[0]]);
@@ -384,7 +398,7 @@ describe("todoRouter", () => {
     });
 
     it("should filter by multiple criteria", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosByOrganization.mockResolvedValue([]);
@@ -465,7 +479,7 @@ describe("todoRouter", () => {
     };
 
     it("should fetch todos grouped by type", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosGroupedByType.mockResolvedValue(mockGroupedTodos);
@@ -483,7 +497,7 @@ describe("todoRouter", () => {
     });
 
     it("should exclude specified statuses", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosGroupedByType.mockResolvedValue({
@@ -539,7 +553,7 @@ describe("todoRouter", () => {
     ];
 
     it("should fetch todos for a specific donor", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosByDonor.mockResolvedValue(mockDonorTodos);
@@ -574,7 +588,7 @@ describe("todoRouter", () => {
     ];
 
     it("should fetch todos for a specific staff member", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       mockTodoService.getTodosByStaff.mockResolvedValue(mockStaffTodos);
@@ -590,7 +604,7 @@ describe("todoRouter", () => {
 
   describe("date serialization", () => {
     it("should properly serialize dates to ISO strings", async () => {
-      const ctx = createProtectedTestContext();
+      const ctx = createProtectedTestContext({ services: mockServices });
       const caller = todoRouter.createCaller(ctx);
       
       const todoWithDates = {
