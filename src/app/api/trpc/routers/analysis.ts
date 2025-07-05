@@ -5,10 +5,8 @@ import { logger } from "@/app/lib/logger";
 import type { StageClassificationService } from "@/app/lib/analysis/stage-classification-service";
 import type { StageTransitionService } from "@/app/lib/analysis/stage-transition-service";
 import type { ActionPredictionService } from "@/app/lib/analysis/action-prediction-service";
-import { db } from "@/app/lib/db";
-import { donors as donorSchema } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
 import type { TodoService } from "@/app/lib/services/todo-service";
+import type { DonorAnalysisService } from "@/app/lib/services/donor-analysis.service";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getDonorCommunicationHistory, type CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 import { listDonations } from "@/app/lib/data/donations";
@@ -21,12 +19,13 @@ import type { DonationWithDetails } from "@/app/lib/data/donations";
 /**
  * Service for handling donor analysis operations
  */
-class DonorAnalysisService {
+class DonorAnalysisLogicService {
   constructor(
     private todoService: TodoService,
     private stageClassificationService: StageClassificationService,
     private stageTransitionService: StageTransitionService,
-    private actionPredictionService: ActionPredictionService
+    private actionPredictionService: ActionPredictionService,
+    private donorAnalysisService: DonorAnalysisService
   ) {}
 
   /**
@@ -186,15 +185,11 @@ class DonorAnalysisService {
       `Donor ${donorId} classified to stage "${stageName}". Reasoning: ${classificationResult.reasoning || "N/A"}`
     );
 
-    await db
-      .update(donorSchema)
-      .set({
-        currentStageName: stageName,
-        classificationReasoning: classificationResult.reasoning,
-      })
-      .where(eq(donorSchema.id, Number(donorId)));
-
-    logger.info(`Updated stage and reasoning for donor ${donorId} to "${stageName}" in database.`);
+    await this.donorAnalysisService.updateDonorStageClassification(
+      Number(donorId),
+      stageName,
+      classificationResult.reasoning
+    );
     return stageName;
   }
 
@@ -233,15 +228,11 @@ class DonorAnalysisService {
     );
 
     if (transitionResult.canTransition && nextStageName) {
-      await db
-        .update(donorSchema)
-        .set({
-          currentStageName: nextStageName,
-          classificationReasoning: transitionResult.reasoning,
-        })
-        .where(eq(donorSchema.id, Number(donorId)));
-
-      logger.info(`Donor ${donorId} transitioned to new stage "${nextStageName}".`);
+      await this.donorAnalysisService.updateDonorStageTransition(
+        Number(donorId),
+        nextStageName,
+        transitionResult.reasoning
+      );
       return nextStageName;
     }
 
@@ -280,12 +271,10 @@ class DonorAnalysisService {
     );
 
     // Update predicted actions in database
-    await db
-      .update(donorSchema)
-      .set({
-        predictedActions: predictionResult.predictedActions,
-      })
-      .where(eq(donorSchema.id, Number(donorId)));
+    await this.donorAnalysisService.updateDonorPredictedActions(
+      Number(donorId),
+      predictionResult.predictedActions
+    );
 
     // Create todos for predicted actions using the dedicated method
     await this.todoService.createTodosFromPredictedActions(
@@ -347,11 +336,12 @@ export const analysisRouter = router({
         `Using donor journey graph for org ${organizationId} with ${donorJourneyGraph.nodes.length} nodes and ${donorJourneyGraph.edges.length} edges.`
       );
 
-      const analysisService = new DonorAnalysisService(
+      const analysisService = new DonorAnalysisLogicService(
         ctx.services.todos,
         ctx.services.stageClassification,
         ctx.services.stageTransition,
-        ctx.services.actionPrediction
+        ctx.services.actionPrediction,
+        ctx.services.donorAnalysis
       );
       const results = await Promise.all(
         donorIds.map((donorId) =>

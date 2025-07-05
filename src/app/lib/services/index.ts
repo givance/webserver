@@ -13,6 +13,7 @@ import { WhatsAppPermissionService } from './whatsapp/whatsapp-permission.servic
 import { WhatsAppStaffLoggingService } from './whatsapp/whatsapp-staff-logging.service';
 import { WhatsAppHistoryService } from './whatsapp/whatsapp-history.service';
 import { WhatsAppAIService } from './whatsapp/whatsapp-ai.service';
+import { DonorAnalysisService } from './donor-analysis.service';
 
 // Import analysis services
 import { StageClassificationService } from '@/app/lib/analysis/stage-classification-service';
@@ -49,6 +50,7 @@ export const createServices = () => {
     stageClassification: new StageClassificationService(),
     stageTransition: new StageTransitionService(),
     actionPrediction: new ActionPredictionService(),
+    donorAnalysis: new DonorAnalysisService(),
     
     // WhatsApp services
     whatsappPermission: new WhatsAppPermissionService(),
@@ -79,3 +81,4 @@ export { GmailService } from './gmail.service';
 export { PersonResearchService } from './person-research.service';
 export { BulkDonorResearchService } from './bulk-donor-research.service';
 export { DonorJourneyService } from './donor-journey.service';
+export { DonorAnalysisService } from './donor-analysis.service';
