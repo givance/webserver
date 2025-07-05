@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { OrganizationsService } from "@/app/lib/services/organizations.service";
 import type { DonorJourney } from "@/app/lib/data/organizations";
 import { 
   createTRPCError,
@@ -102,9 +101,6 @@ const processDonorJourneyResponseSchema = z.object({
 // Helpers
 // ============================================================================
 
-// Service instance (singleton)
-const organizationsService = new OrganizationsService();
-
 /**
  * Serialize organization dates to ISO strings
  */
@@ -138,7 +134,7 @@ export const organizationsRouter = router({
       }
 
       const org = await handleAsync(
-        async () => organizationsService.getOrganization(ctx.auth.user.organizationId),
+        async () => ctx.services.organizations.getOrganization(ctx.auth.user.organizationId),
         {
           errorMessage: ERROR_MESSAGES.NOT_FOUND("Organization"),
           errorCode: "NOT_FOUND"
@@ -177,7 +173,7 @@ export const organizationsRouter = router({
       }
 
       const org = await handleAsync(
-        async () => organizationsService.updateOrganizationWithWebsiteCrawl(
+        async () => ctx.services.organizations.updateOrganizationWithWebsiteCrawl(
           ctx.auth.user.organizationId, 
           input
         ),
@@ -213,7 +209,7 @@ export const organizationsRouter = router({
       }
 
       const shortDescription = await handleAsync(
-        async () => organizationsService.generateShortDescription(ctx.auth.user.organizationId),
+        async () => ctx.services.organizations.generateShortDescription(ctx.auth.user.organizationId),
         {
           errorMessage: "Failed to generate short description. Please ensure your organization has a website URL or description.",
           logMetadata: { organizationId: ctx.auth.user.organizationId }
@@ -245,7 +241,7 @@ export const organizationsRouter = router({
       }
 
       const result = await handleAsync(
-        async () => organizationsService.moveMemoryFromUserToOrganization(
+        async () => ctx.services.organizations.moveMemoryFromUserToOrganization(
           ctx.auth.user.id,
           ctx.auth.user.organizationId,
           input
@@ -283,7 +279,7 @@ export const organizationsRouter = router({
       }
 
       return await handleAsync(
-        async () => organizationsService.getOrganizationDonorJourney(ctx.auth.user.organizationId),
+        async () => ctx.services.organizations.getOrganizationDonorJourney(ctx.auth.user.organizationId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor journey"),
           logMetadata: { organizationId: ctx.auth.user.organizationId }
@@ -314,7 +310,7 @@ export const organizationsRouter = router({
       }
 
       const org = await handleAsync(
-        async () => organizationsService.updateOrganizationDonorJourney(
+        async () => ctx.services.organizations.updateOrganizationDonorJourney(
           ctx.auth.user.organizationId, 
           input
         ),
@@ -350,7 +346,7 @@ export const organizationsRouter = router({
       }
 
       return await handleAsync(
-        async () => organizationsService.getOrganizationDonorJourneyText(ctx.auth.user.organizationId),
+        async () => ctx.services.organizations.getOrganizationDonorJourneyText(ctx.auth.user.organizationId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor journey text"),
           logMetadata: { organizationId: ctx.auth.user.organizationId }
@@ -379,7 +375,7 @@ export const organizationsRouter = router({
       }
 
       await handleAsync(
-        async () => organizationsService.updateOrganizationDonorJourneyText(
+        async () => ctx.services.organizations.updateOrganizationDonorJourneyText(
           ctx.auth.user.organizationId, 
           input
         ),
@@ -417,7 +413,7 @@ export const organizationsRouter = router({
       }
 
       const org = await handleAsync(
-        async () => organizationsService.processAndUpdateDonorJourney(
+        async () => ctx.services.organizations.processAndUpdateDonorJourney(
           ctx.auth.user.organizationId, 
           input
         ),
