@@ -236,9 +236,7 @@ export const staffGmailRouter = router({
     }
 
     // Delete the Gmail token for this staff member
-    await db.delete(staffGmailTokens).where(eq(staffGmailTokens.staffId, input.staffId));
-
-    logger.info(`Staff Gmail account disconnected for staff ${input.staffId}`);
+    await ctx.services.staffGmail.disconnectStaffGmailToken(input.staffId);
 
     return {
       success: true,

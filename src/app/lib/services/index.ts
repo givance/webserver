@@ -16,6 +16,7 @@ import { WhatsAppAIService } from './whatsapp/whatsapp-ai.service';
 import { DonorAnalysisService } from './donor-analysis.service';
 import { DonorsService } from './donors.service';
 import { MicrosoftOAuthService } from './microsoft-oauth.service';
+import { StaffGmailService } from './staff-gmail.service';
 
 // Import analysis services
 import { StageClassificationService } from '@/app/lib/analysis/stage-classification-service';
@@ -45,6 +46,7 @@ export const createServices = () => {
     // Integration services
     gmail: new GmailService(),
     microsoftOAuth: new MicrosoftOAuthService(),
+    staffGmail: new StaffGmailService(),
     
     // Research services
     personResearch: new PersonResearchService(),
@@ -88,3 +90,4 @@ export { DonorJourneyService } from './donor-journey.service';
 export { DonorAnalysisService } from './donor-analysis.service';
 export { DonorsService } from './donors.service';
 export { MicrosoftOAuthService } from './microsoft-oauth.service';
+export { StaffGmailService } from './staff-gmail.service';
