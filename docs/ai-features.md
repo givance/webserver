@@ -5,9 +5,13 @@ This document provides comprehensive documentation for all AI-powered features i
 ## Table of Contents
 - [Overview](#overview)
 - [AI Email Generation](#ai-email-generation)
+- [Agentic Email Generation](#agentic-email-generation)
 - [Donor Research](#donor-research)
 - [Donor Journey Analysis](#donor-journey-analysis)
+- [AI-Powered Action Predictions](#ai-powered-action-predictions)
 - [WhatsApp AI Assistant](#whatsapp-ai-assistant)
+- [Email Signature Management](#email-signature-management)
+- [Email Scheduling Optimization](#email-scheduling-optimization)
 - [AI Configuration](#ai-configuration)
 - [Token Management](#token-management)
 - [Prompt Engineering](#prompt-engineering)
@@ -27,13 +31,21 @@ Givance leverages multiple AI providers to deliver intelligent features:
 1. **AgenticEmailGenerationService**: Conversational email campaign creation
 2. **PersonResearchService**: Web-based donor research and analysis
 3. **DonorJourneyService**: Journey stage classification and predictions
-4. **WhatsAppAIService**: Natural language query processing
+4. **WhatsAppAIService**: Natural language query processing with voice support
+5. **StageClassificationService**: AI-powered donor stage analysis
+6. **ActionPredictionService**: Generates actionable recommendations
+7. **EmailSchedulingService**: AI-optimized email timing
+8. **TodoService**: Converts AI predictions to actionable tasks
 
 ## AI Email Generation
 
-### Architecture
+### Traditional Email Generation
 
-The email generation system uses a multi-step conversational approach:
+The standard email generation uses a single-step approach with predefined instructions.
+
+### Agentic Email Generation
+
+The agentic system uses a multi-step conversational approach:
 
 ```typescript
 // src/app/lib/services/agenticEmailGeneration.service.ts
@@ -252,6 +264,59 @@ INSERT INTO person_research (
 
 ## Donor Journey Analysis
 
+### Advanced Stage Classification Pipeline
+
+The platform includes a sophisticated AI pipeline for donor journey management:
+
+```typescript
+// src/app/lib/analysis/stage-classification-service.ts
+
+export class StageClassificationService {
+  async classifyDonorStage(donor: Donor): Promise<StageClassification> {
+    const prompt = await this.promptBuilder.buildStageClassificationPrompt(
+      donor,
+      donorHistory,
+      organizationContext
+    );
+    
+    const result = await this.aiService.generateStructuredOutput({
+      prompt,
+      schema: stageClassificationSchema,
+    });
+    
+    // Update database with new stage
+    if (result.suggestedStage !== donor.currentStage) {
+      await this.updateDonorStage(donor.id, result);
+    }
+    
+    return result;
+  }
+}
+```
+
+### Stage Transition Management
+
+```typescript
+// src/app/lib/analysis/stage-transition-service.ts
+
+export class StageTransitionService {
+  async processStageTransition(
+    donorId: string,
+    newStage: string,
+    reasoning: string
+  ): Promise<void> {
+    // Record transition history
+    await this.recordTransition(donorId, oldStage, newStage);
+    
+    // Trigger automated actions
+    await this.triggerStageActions(donorId, newStage);
+    
+    // Create follow-up tasks
+    await this.createTransitionTasks(donorId, newStage);
+  }
+}
+```
+
 ### Journey Stage Classification
 
 The system uses AI to classify donors into journey stages:
@@ -346,7 +411,110 @@ async function recordTransition(
 }
 ```
 
+## AI-Powered Action Predictions
+
+### Predictive Action Generation
+
+The system generates specific, actionable recommendations for each donor:
+
+```typescript
+// src/app/lib/analysis/action-prediction-service.ts
+
+export class ActionPredictionService {
+  async predictActions(donor: Donor): Promise<PredictedAction[]> {
+    const prompt = await this.promptBuilder.buildActionPredictionPrompt(
+      donor,
+      donorHistory,
+      stageInfo
+    );
+    
+    const predictions = await this.aiService.generateStructuredOutput({
+      prompt,
+      schema: actionPredictionSchema,
+    });
+    
+    // Convert to TODO items
+    await this.todoService.createTodosFromPredictedActions(
+      predictions.actions,
+      donor
+    );
+    
+    return predictions.actions;
+  }
+}
+```
+
+### TODO Generation from AI
+
+AI predictions automatically become actionable tasks:
+
+```typescript
+// src/app/lib/services/todo-service.ts
+
+async createTodosFromPredictedActions(
+  actions: PredictedAction[],
+  donor: Donor
+): Promise<void> {
+  for (const action of actions) {
+    await this.createTodo({
+      title: action.action,
+      description: action.reasoning,
+      donorId: donor.id,
+      assigneeId: donor.assignedStaffId,
+      priority: action.priority,
+      dueDate: action.deadline,
+      aiGenerated: true,
+      metadata: {
+        expectedOutcome: action.expectedOutcome,
+        successProbability: action.successProbability,
+      },
+    });
+  }
+}
+```
+
 ## WhatsApp AI Assistant
+
+### Voice Message Transcription
+
+The assistant supports voice messages through OpenAI Whisper:
+
+```typescript
+// src/app/api/whatsapp/webhook/route.ts
+
+if (messageType === 'audio') {
+  const audioUrl = message.audio.url;
+  const transcription = await transcribeAudio(audioUrl);
+  
+  // Process transcribed text as regular query
+  await processWhatsAppQuery(transcription, senderId);
+}
+```
+
+### Advanced Donor Insights Tools
+
+The platform includes specialized AI tools for donor analysis:
+
+```typescript
+// src/app/lib/services/whatsapp/donor-action-insights-tool.ts
+
+export const donorActionInsightsTool = {
+  name: 'donor_action_insights',
+  description: 'Analyzes donor patterns and suggests actions',
+  
+  execute: async (params) => {
+    const insights = await analyzeDonorPatterns(params.donorId);
+    
+    return {
+      riskLevel: insights.churnRisk,
+      seasonalPatterns: insights.givingSeasons,
+      communicationGaps: insights.contactGaps,
+      recommendedActions: insights.actions,
+      priorityScore: insights.priority,
+    };
+  },
+};
+```
 
 ### Natural Language Processing
 
@@ -397,6 +565,168 @@ async function processQuery(query: string): Promise<QueryResponse> {
      - Total amounts
      - Donor counts
      - Average donation size
+     - Trend visualization
+
+## Email Signature Management
+
+### Intelligent Signature Selection
+
+The system uses AI to select appropriate signatures:
+
+```typescript
+// src/app/lib/utils/email-with-signature.ts
+
+export async function getSignatureForEmail(
+  donor: Donor,
+  campaign: Campaign,
+  user: User
+): Promise<string> {
+  // Hierarchical selection logic
+  // 1. Custom signature for campaign
+  // 2. Assigned staff signature
+  // 3. Primary staff signature
+  // 4. User fallback
+  
+  const signature = await intelligentSignatureSelection({
+    donor,
+    campaign,
+    user,
+    context: await gatherContext(donor),
+  });
+  
+  return signature;
+}
+```
+
+### Rich Text Signature Editor
+
+AI-enhanced signature creation with image processing:
+
+```typescript
+// src/components/signature/SignatureEditor.tsx
+
+// Advanced clipboard processing for Gmail compatibility
+const processClipboardImage = async (file: File) => {
+  const optimized = await optimizeImageForEmail(file);
+  const base64 = await convertToBase64(optimized);
+  
+  // AI-powered image analysis
+  const analysis = await analyzeSignatureImage(base64);
+  
+  if (analysis.inappropriate) {
+    throw new Error('Image not suitable for signature');
+  }
+  
+  return base64;
+};
+```
+
+## Email Scheduling Optimization
+
+### AI-Powered Send Time Optimization
+
+The scheduling service uses AI to determine optimal send times:
+
+```typescript
+// src/app/lib/services/email-scheduling.service.ts
+
+export class EmailSchedulingService {
+  async calculateOptimalSendTime(
+    donor: Donor,
+    campaign: Campaign
+  ): Promise<Date> {
+    const factors = {
+      donorTimezone: donor.timezone,
+      historicalOpenTimes: await this.getOpenHistory(donor.id),
+      campaignType: campaign.type,
+      dayOfWeek: this.getOptimalDays(donor),
+    };
+    
+    const optimalTime = await this.aiService.predictBestSendTime(factors);
+    
+    // Apply constraints
+    return this.applySchedulingConstraints(optimalTime, {
+      dailyLimit: campaign.dailyLimit,
+      minGapHours: campaign.minGapHours,
+      businessHours: campaign.respectBusinessHours,
+    });
+  }
+}
+```
+
+### Intelligent Campaign Distribution
+
+```typescript
+async distributeEmailsOverTime(
+  emails: Email[],
+  constraints: SchedulingConstraints
+): Promise<ScheduledEmail[]> {
+  // AI groups similar donors
+  const donorClusters = await this.clusterDonorsByBehavior(emails);
+  
+  // Optimize send times per cluster
+  return this.optimizeClusterScheduling(donorClusters, constraints);
+}
+```
+
+## Agentic Email Generation
+
+### Instruction Refinement Agent
+
+The system includes an AI agent for improving email instructions:
+
+```typescript
+// src/app/lib/utils/email-generator/instruction-agent.ts
+
+export class InstructionRefinementAgent {
+  async refineInstructions(
+    initialInstructions: string,
+    feedback: string,
+    context: CampaignContext
+  ): Promise<RefinedInstructions> {
+    const conversationHistory = await this.getHistory(context.sessionId);
+    
+    const refinedPrompt = `
+    Current Instructions: ${initialInstructions}
+    User Feedback: ${feedback}
+    Campaign Context: ${JSON.stringify(context)}
+    Previous Refinements: ${conversationHistory}
+    
+    Improve the instructions based on feedback while:
+    1. Maintaining consistency with organization voice
+    2. Addressing the user's concerns
+    3. Keeping personalization capabilities
+    4. Ensuring clarity for AI generation
+    `;
+    
+    return await this.generateRefinement(refinedPrompt);
+  }
+}
+```
+
+### Conversational Flow Management
+
+```typescript
+export class AgenticEmailGenerationService {
+  async manageConversation(
+    sessionId: string,
+    userMessage: string
+  ): Promise<ConversationResponse> {
+    const state = await this.getConversationState(sessionId);
+    
+    switch (state.phase) {
+      case 'understanding':
+        return this.clarifyRequirements(userMessage, state);
+      
+      case 'refining':
+        return this.refineInstructions(userMessage, state);
+      
+      case 'generating':
+        return this.generateEmails(state.finalInstructions);
+    }
+  }
+}
+```
      - Percentage change
 
 3. **Action Queries**
