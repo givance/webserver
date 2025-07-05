@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm run dev              # Start dev server with Turbopack
-nvm use 22.4.0          # Required Node.js version
+nvm use 22.4.0          # Recommended Node.js version (also works with 24.x)
 
 # Database
 npm run db:generate     # Generate Drizzle migrations
@@ -21,8 +21,8 @@ npm run lint            # ESLint check
 npm run start           # Start production server
 
 # Background Jobs
-npm run trigger:dev     # Run Trigger.dev jobs locally
-npm run trigger:deploy  # Deploy background jobs
+npm run trigger:dev     # Run Trigger.dev jobs locally (uses pnpm dlx)
+npm run trigger:deploy  # Deploy background jobs (uses pnpm dlx)
 
 # Data Import
 npm run import:boruch   # Import Boruch donor data
@@ -33,14 +33,15 @@ npm run import:boruch   # Import Boruch donor data
 This is a **Next.js 15** nonprofit donor management platform called "Givance" with sophisticated AI-powered features for donor outreach and management.
 
 ### Core Stack
-- **Next.js 15** with App Router
+- **Next.js 15.3.1** with App Router
+- **React 19** with compatibility layer for testing
 - **TypeScript** with strict typing
 - **tRPC v11** for type-safe APIs
-- **Drizzle ORM** with PostgreSQL
+- **Drizzle ORM** with PostgreSQL (Note: Prisma is in package.json but not used)
 - **Clerk** for multi-tenant authentication
 - **TailwindCSS + Shadcn UI** components
-- **Multiple AI providers** (OpenAI, Anthropic, Azure)
-- **Trigger.dev** for background job processing
+- **AI SDK v4** with multiple providers (OpenAI, Anthropic, Azure)
+- **Trigger.dev v3** for background job processing
 
 ### Database Schema Architecture
 Multi-tenant SaaS supporting:
@@ -51,25 +52,38 @@ Multi-tenant SaaS supporting:
 - **Staff** - Team members with OAuth integrations
 - **Email Generation** - AI-powered bulk campaigns with tracking
 - **Templates** - Reusable communication templates
+- **Signatures** - Rich text email signatures with image support
+- **Todos** - Task management with AI-powered action predictions
+- **Lists** - Donor list management and segmentation
+- **Analysis** - AI-powered donor stage classification and action prediction
 
 ### Key Features
 
 #### AI-Powered Email Campaigns
 - Multi-step campaign creation workflow (`src/app/(app)/campaign/`)
+- **Agentic Email Generation** - Iterative AI conversation flows for email creation
 - AI generates personalized emails using donor history
 - Bulk generation via Trigger.dev background jobs
-- Email tracking and analytics
+- Advanced email scheduling with timezone support and daily limits
+- Email tracking (opens, clicks) and analytics
+- Rich text signature editor with image management
 
 #### Donor Management
 - Comprehensive donor profiles with external ID mapping
 - AI-powered donor research and background analysis
-- Donor stage classification and journey tracking
+- **Bulk Donor Research** - Background job processing for large-scale research
+- **Donor Journey Analysis** - AI stage classification and action prediction
+- **Person Research Pipeline** - Multi-stage web crawling and synthesis
 - High-potential donor identification
+- Automated todo generation from AI predictions
 
 #### WhatsApp AI Assistant
 - Business API integration for staff queries (`src/app/api/whatsapp/`)
-- Natural language donor database queries
-- Real-time donation statistics
+- Natural language to SQL conversion for donor queries
+- Real-time donation statistics and insights
+- Conversation history management
+- Permission-based access control
+- Donor action insights and analysis tools
 
 ## Development Guidelines
 
@@ -113,9 +127,13 @@ Multi-tenant SaaS supporting:
 
 ### Environment & Security
 - Environment variables through `src/app/lib/env.ts` with type validation
+- **Feature Flags**: `USE_AGENTIC_FLOW` for agentic email generation
+- **AI Provider Keys**: Azure OpenAI, Anthropic, OpenAI configurations
+- **Search Integration**: `GOOGLE_SEARCH_API_KEY` for web search
 - Multi-tenant security via Clerk organization scoping
 - OAuth integrations for Gmail/Microsoft email access
 - WhatsApp Business API with secure organization access
+- Multiple OAuth redirect URIs for different environments
 
 ## Important File Locations
 
@@ -127,6 +145,15 @@ Multi-tenant SaaS supporting:
 
 ### Business Logic
 - `src/app/lib/services/` - Core business services
+  - `agentic-email-generation.service.ts` - Iterative AI email flows
+  - `email-scheduling.service.ts` - Campaign scheduling and control
+  - `donor-journey.service.ts` - Journey visualization
+  - `todo-service.ts` - Task management
+  - `person-research/` - Research pipeline services
+  - `whatsapp/` - WhatsApp AI services
+- `src/app/lib/analysis/` - AI analysis services
+  - `action-prediction-service.ts` - Next action predictions
+  - `stage-classification-service.ts` - Donor stage classification
 - `src/app/lib/utils/email-generator/` - AI email generation
 - `src/trigger/jobs/` - Background job definitions
 
@@ -134,21 +161,32 @@ Multi-tenant SaaS supporting:
 - `src/app/(app)/` - Main application routes
 - `src/components/ui/` - Shadcn UI components  
 - `src/components/layout/MainLayout.tsx` - Application shell
+- `src/components/signature/` - Email signature management
+  - `SignatureEditor.tsx` - Rich text editor
+  - `ImageGallery.tsx` - Signature image management
 
 ### API Integration
 - `src/app/api/trpc/routers/` - tRPC endpoint implementations
+  - `agentic-email-campaigns.ts` - Agentic email generation
+  - `analysis.ts` - AI analysis operations
+  - `communication-threads.ts` - Thread management
+  - `email-tracking.ts` - Tracking functionality
+  - `lists.ts` - List management
+  - `todos.ts` - Task management
+  - `person-research.ts` - Research operations
 - `src/app/api/whatsapp/` - WhatsApp webhook handling
 - `src/app/api/track/` - Email tracking endpoints
+- `src/app/api/signature-image/` - Signature image serving
 
 ## Testing & Build Process
 
 When fixing build errors:
-1. Run `nvm use 22.4.0 && pnpm build`
+1. Run `nvm use 22.4.0 && npm run build`
 2. Fix errors iteratively
 3. Ensure build passes before completing tasks
 4. Run linting: `npm run lint`
 
-Never run `pnpm build` unless explicitly requested by the user.
+Never run `npm run build` unless explicitly requested by the user.
 
 ## Component Development Patterns
 
@@ -230,13 +268,18 @@ src/__tests__/
 ### Testing Patterns
 - **Unit Tests**: Mock all external dependencies with `jest.mock()`
 - **Component Tests**: Limited due to React 19/Jest compatibility issues
+  - React 19 compatibility layer at `src/__tests__/react19-compat.ts`
 - **E2E Tests**: Full Playwright setup with Clerk authentication
 - **Database Tests**: Real PostgreSQL for E2E, mocked for unit tests
+- **MSW Integration**: Mock Service Worker for API mocking
+- **Test Utilities**: Custom utilities for tRPC route testing
 
 ### Mock Strategies
 - **tRPC Mocking**: Type-safe mock client with procedure mocking
 - **Database Mocking**: Drizzle ORM mocked with realistic responses
 - **AI Services**: Mocked with expected response structures
+- **MSW Handlers**: API route mocking with Mock Service Worker
+- **Test Factories**: Data generation utilities for testing
 
 ## Database Development
 
@@ -258,6 +301,10 @@ src/__tests__/
 
 ### Trigger.dev Integration
 - **Job Definitions**: Located in `src/trigger/jobs/`
+  - `generateBulkEmails.ts` - Bulk email generation
+  - `bulkDonorResearch.ts` - Large-scale donor research
+  - `crawlAndSummarizeWebsite.ts` - Web content analysis
+  - `sendSingleEmail.ts` - Individual email delivery
 - **Concurrency Control**: Controlled batching to prevent resource exhaustion
 - **State Management**: Track progress and handle failures gracefully
   ```typescript
@@ -280,6 +327,12 @@ src/__tests__/
 - **Strict TypeScript**: Never use `any` - use proper interfaces
 - **Zod Validation**: Three-layer validation (environment, API, forms)
 - **Input Validation**: All tRPC procedures must validate inputs
+
+## Package Manager Note
+
+- This project uses **npm** for most commands but **pnpm** for Trigger.dev operations
+- Always use `npm run` for development, build, and test commands
+- Trigger.dev commands use `pnpm dlx` (already configured in package.json)
 
 ## Common Pitfalls & Gotchas
 

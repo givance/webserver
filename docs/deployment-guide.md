@@ -16,19 +16,23 @@ This guide covers deploying the Givance platform to production, including infras
 ## Prerequisites
 
 ### Required Services
-- **Node.js**: v22.4.0 (use nvm for version management)
+- **Node.js**: v22.4.0 (use nvm for version management, also compatible with v24.x)
+- **npm**: Primary package manager
+- **pnpm**: Required for Trigger.dev commands
 - **PostgreSQL**: v15+ with UUID extension
-- **Redis**: v7+ for caching and job queues
+- **Redis**: v7+ for caching and job queues (optional)
 - **Domain**: With SSL certificate
-- **Email Service**: SMTP or transactional email provider
-- **Storage**: S3-compatible storage for attachments
+- **Email Service**: Gmail/Microsoft OAuth or SMTP provider
+- **Storage**: Local filesystem or S3-compatible for signature images
 
 ### Third-Party Services
-- **Clerk**: Authentication and organization management
-- **OpenAI/Anthropic**: AI model access
+- **Clerk**: Authentication and multi-tenant organization management
+- **OpenAI**: GPT-4 and GPT-4o models
+- **Anthropic**: Claude models (optional)
+- **Azure OpenAI**: Enterprise AI deployment (optional)
 - **Google Cloud**: Custom Search API for donor research
-- **WhatsApp Business**: API access (optional)
-- **Trigger.dev**: Background job processing
+- **WhatsApp Business**: API access with webhook support (optional)
+- **Trigger.dev v3**: Background job processing
 - **Sentry**: Error tracking (recommended)
 
 ## Infrastructure Requirements
@@ -47,10 +51,11 @@ This guide covers deploying the Givance platform to production, including infras
 - **Storage**: 100GB SSD (with growth capacity)
 - **Backup**: Daily automated backups
 
-#### Redis Server
+#### Redis Server (Optional)
 - **CPU**: 2 vCPUs
 - **RAM**: 4GB
 - **Persistence**: AOF enabled
+- **Note**: Not required for basic deployment
 
 ### Recommended Architecture
 
@@ -68,10 +73,10 @@ This guide covers deploying the Givance platform to production, including infras
                     │                     │
         ┌───────────┼─────────────────────┤
         ▼           ▼                     ▼
-┌─────────────┐ ┌─────────────┐   ┌─────────────┐
-│ PostgreSQL  │ │    Redis    │   │ Trigger.dev │
-│  (Primary)  │ │   (Cache)   │   │   Workers   │
-└─────────────┘ └─────────────┘   └─────────────┘
+┌─────────────┐ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ PostgreSQL  │ │    Redis    │   │ Trigger.dev │   │  WhatsApp   │
+│  (Primary)  │ │ (Optional)  │   │ v3 Workers  │   │  Webhooks   │
+└─────────────┘ └─────────────┘   └─────────────┘   └─────────────┘
         │
 ┌─────────────┐
 │ PostgreSQL  │
@@ -93,11 +98,15 @@ cp .env.example .env.production
 # Core Configuration
 NODE_ENV=production
 DATABASE_URL=postgresql://user:password@host:5432/givance_prod?ssl=true
-REDIS_URL=redis://default:password@host:6379
+REDIS_URL=redis://default:password@host:6379  # Optional
+BASE_URL=https://app.givance.com
 
 # Application URLs
 NEXT_PUBLIC_APP_URL=https://app.givance.com
-NEXT_PUBLIC_API_URL=https://api.givance.com
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 
 # Authentication (Clerk)
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -112,11 +121,28 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 AZURE_OPENAI_API_KEY=...
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-AZURE_OPENAI_DEPLOYMENT=gpt-4
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
+AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_RESOURCE_NAME=your-resource
+
+# AI Model Configuration
+SMALL_MODEL=gpt-4o-mini
+MID_MODEL=gpt-4o
+POWERFUL_MODEL=gpt-4
+USE_AGENTIC_FLOW=true
 
 # Google APIs
 GOOGLE_CUSTOM_SEARCH_API_KEY=...
 GOOGLE_CUSTOM_SEARCH_ENGINE_ID=...
+GOOGLE_SEARCH_API_KEY=...
+
+# OAuth Configuration
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=https://app.givance.com/api/auth/callback/google
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+MICROSOFT_REDIRECT_URI=https://app.givance.com/api/auth/callback/microsoft
 
 # Email Configuration
 SMTP_HOST=smtp.sendgrid.net
@@ -130,9 +156,11 @@ WHATSAPP_ACCESS_TOKEN=...
 WHATSAPP_PHONE_NUMBER_ID=...
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=...
 WHATSAPP_BUSINESS_ACCOUNT_ID=...
+WHATSAPP_VERIFY_TOKEN=...
+WHATSAPP_TOKEN=...
 
-# Trigger.dev
-TRIGGER_API_KEY=...
+# Trigger.dev v3
+TRIGGER_SECRET_KEY=...
 TRIGGER_API_URL=https://api.trigger.dev
 TRIGGER_PROJECT_ID=...
 
@@ -148,8 +176,8 @@ SENTRY_AUTH_TOKEN=...
 ### 3. Validate Environment
 
 ```bash
-# Use the built-in validation
-npm run validate:env
+# Environment variables are validated on startup
+# The app will fail to start if required variables are missing
 ```
 
 ## Database Setup
@@ -380,12 +408,10 @@ server {
 
 ## Background Jobs
 
-### 1. Deploy Trigger.dev Workers
+### 1. Deploy Trigger.dev v3 Workers
 
 ```bash
-# Install Trigger.dev CLI
-npm install -g @trigger.dev/cli
-
+# Trigger.dev v3 uses pnpm dlx
 # Deploy to Trigger.dev cloud
 npm run trigger:deploy
 
@@ -512,6 +538,78 @@ monitors:
     query: "sum(last_1h):sum:ai.tokens.used{app:givance} > 1000000"
 ```
 
+## WhatsApp Business API Setup
+
+### 1. Configure Webhook
+
+```bash
+# Set webhook URL in Meta Business Manager
+https://app.givance.com/api/whatsapp/webhook
+
+# Verify token must match WHATSAPP_WEBHOOK_VERIFY_TOKEN
+```
+
+### 2. Configure Permissions
+
+```sql
+-- Set up WhatsApp staff permissions
+INSERT INTO staff_whatsapp_phone_numbers (staff_id, phone_number)
+VALUES ('staff-uuid', '+1234567890');
+```
+
+### 3. Test Integration
+
+```bash
+# Send test message via API
+curl -X POST https://graph.facebook.com/v17.0/PHONE_NUMBER_ID/messages \
+  -H "Authorization: Bearer WHATSAPP_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "RECIPIENT_PHONE",
+    "type": "text",
+    "text": {"body": "Test message"}
+  }'
+```
+
+## Email Signature Images
+
+### 1. Configure Storage
+
+```bash
+# Create signature images directory
+mkdir -p /var/www/givance/public/signatures
+chmod 755 /var/www/givance/public/signatures
+```
+
+### 2. Set Up Image Serving
+
+```nginx
+# Add to Nginx config
+location /api/signature-image {
+    proxy_pass http://givance_app;
+    proxy_cache_valid 200 1y;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+## Email Scheduling
+
+### 1. Configure Timezone Support
+
+```sql
+-- Ensure timezone data is available
+SELECT name FROM pg_timezone_names LIMIT 5;
+```
+
+### 2. Set Up Cron for Scheduled Sends
+
+```bash
+# Add to crontab
+*/5 * * * * cd /var/www/givance && npm run process:scheduled-emails
+```
+
 ## Security Checklist
 
 ### Pre-Deployment
@@ -538,11 +636,16 @@ monitors:
 
 - [ ] Authentication required on all protected routes
 - [ ] Organization-based data isolation verified
+- [ ] Multi-tenant data access controls tested
+- [ ] OAuth tokens encrypted at rest
+- [ ] WhatsApp webhook signature verification enabled
+- [ ] Signature image access controls implemented
 - [ ] Sensitive data encryption at rest
 - [ ] Audit logging for sensitive operations
 - [ ] Error messages don't leak sensitive info
 - [ ] File upload restrictions implemented
 - [ ] Session timeout configured
+- [ ] AI token usage limits configured
 
 ### Compliance
 
@@ -603,14 +706,56 @@ ORDER BY n_distinct DESC;
 
 #### 4. Background Job Failures
 ```bash
-# Check Trigger.dev logs
-trigger logs --tail
+# Check Trigger.dev v3 logs
+npm run trigger:dev  # For local debugging
 
-# Retry failed jobs
-trigger retry --job-id=xxx
+# Monitor job status in Trigger.dev dashboard
+# https://cloud.trigger.dev/projects/YOUR_PROJECT_ID
+```
 
-# Scale workers
-trigger scale --workers=5
+#### 5. WhatsApp Integration Issues
+```bash
+# Verify webhook is accessible
+curl -X GET "https://app.givance.com/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=YOUR_VERIFY_TOKEN&hub.challenge=test"
+
+# Check webhook logs
+tail -f logs/whatsapp-webhook.log
+
+# Test message sending
+npm run test:whatsapp
+```
+
+#### 6. Email Scheduling Issues
+```bash
+# Check scheduled jobs
+SELECT * FROM email_send_jobs 
+WHERE status = 'pending' 
+AND scheduled_for < NOW() 
+ORDER BY scheduled_for;
+
+# Process stuck jobs manually
+UPDATE email_send_jobs 
+SET status = 'pending', attempts = 0 
+WHERE status = 'processing' 
+AND updated_at < NOW() - INTERVAL '1 hour';
+```
+
+#### 7. AI Token Usage Issues
+```bash
+# Check current usage
+SELECT 
+  DATE(created_at) as date,
+  SUM(token_usage) as total_tokens,
+  COUNT(*) as requests
+FROM person_research
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+
+# Implement emergency rate limiting
+UPDATE organizations 
+SET ai_rate_limit = 1000 
+WHERE id = 'org-id';
 ```
 
 ### Emergency Procedures

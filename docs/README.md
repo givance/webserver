@@ -26,10 +26,13 @@ The Nonprofit Webserver is a sophisticated donor management and email campaign p
 This platform serves as a comprehensive CRM and communication hub for nonprofit organizations, providing:
 - **Donor Management**: Centralized donor database with detailed profiles and interaction history
 - **AI-Powered Email Campaigns**: Generate personalized emails using large language models (LLMs)
+- **Agentic Email Generation**: Interactive AI conversation flows for crafting perfect emails
 - **Campaign Analytics**: Track email opens, clicks, and donor engagement
 - **Staff Management**: Assign donors to staff members and track interactions
-- **Research Tools**: Analyze donor patterns and generate insights
-- **Communication Tracking**: Monitor all touchpoints with donors
+- **Research Tools**: AI-powered donor research with web crawling and synthesis
+- **Communication Tracking**: Threaded conversations across multiple channels
+- **WhatsApp AI Assistant**: Natural language queries for donor insights
+- **Todo Management**: AI-powered task predictions and assignment
 
 ### Target Users
 
@@ -43,8 +46,9 @@ This platform serves as a comprehensive CRM and communication hub for nonprofit 
 
 ### Prerequisites
 
-- **Node.js**: Version 22.4.0 (use `nvm use 22.4.0`)
-- **pnpm**: Package manager
+- **Node.js**: Version 22.4.0 recommended (also works with 24.x)
+- **npm**: Primary package manager
+- **pnpm**: Used for Trigger.dev commands only
 - **PostgreSQL**: Database server
 - **Git**: Version control
 
@@ -59,7 +63,7 @@ This platform serves as a comprehensive CRM and communication hub for nonprofit 
 2. **Install dependencies**
    ```bash
    nvm use 22.4.0
-   pnpm install
+   npm install
    ```
 
 3. **Set up environment variables**
@@ -70,14 +74,14 @@ This platform serves as a comprehensive CRM and communication hub for nonprofit 
 
 4. **Set up the database**
    ```bash
-   pnpm db:generate
-   pnpm db:push
-   pnpm db:migrate
+   npm run db:generate
+   npm run db:push
+   npm run db:migrate
    ```
 
 5. **Start development server**
    ```bash
-   pnpm dev
+   npm run dev
    ```
 
 6. **Open your browser**
@@ -89,22 +93,26 @@ This platform serves as a comprehensive CRM and communication hub for nonprofit 
 
 ### Frontend Architecture
 
-- **Framework**: Next.js 15 with App Router
+- **Framework**: Next.js 15.3.1 with App Router
+- **React**: Version 19 with compatibility layer
 - **UI Library**: Radix UI primitives with shadcn/ui components
 - **Styling**: Tailwind CSS with CSS variables
 - **State Management**: React hooks and tRPC for server state
 - **Icons**: Lucide React
 - **Forms**: React Hook Form with Zod validation
+- **Rich Text**: TipTap editor for signatures and content
 
 ### Backend Architecture
 
-- **Runtime**: Node.js 22.4.0
-- **API Layer**: tRPC (Type-safe Remote Procedure Calls)
+- **Runtime**: Node.js 22.4.0 (compatible with 24.x)
+- **API Layer**: tRPC v11 (Type-safe Remote Procedure Calls)
 - **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Clerk
-- **Background Jobs**: Trigger.dev
+- **Authentication**: Clerk (multi-tenant)
+- **Background Jobs**: Trigger.dev v3
 - **Logging**: Winston (backend only)
-- **AI/LLM**: Vercel AI SDK with multiple providers (Anthropic, OpenAI, Azure)
+- **AI/LLM**: Vercel AI SDK v4 with multiple providers (Anthropic, OpenAI, Azure)
+- **Web Search**: Google Search API integration
+- **Testing**: Jest with React 19 compatibility, MSW, Playwright
 
 ### Database Layer
 
@@ -115,11 +123,13 @@ This platform serves as a comprehensive CRM and communication hub for nonprofit 
 
 ### Third-Party Integrations
 
-- **Email Tracking**: Custom tracking system
+- **Email Tracking**: Custom tracking system with open/click analytics
 - **AI Providers**: Anthropic Claude, OpenAI GPT, Azure OpenAI
-- **Authentication**: Clerk
+- **Authentication**: Clerk with OAuth (Gmail, Microsoft)
 - **File Processing**: Puppeteer for PDF generation
 - **Spreadsheet Processing**: XLSX library
+- **WhatsApp**: Business API integration
+- **Email Services**: Gmail and Microsoft Graph APIs
 
 ---
 
@@ -137,21 +147,27 @@ webserver/
 │   │   │   ├── donors/      # Donor management
 │   │   │   ├── staff/       # Staff management
 │   │   │   ├── research/    # Analytics and insights
+│   │   │   ├── lists/       # Donor list management
+│   │   │   ├── todos/       # Task management
 │   │   │   └── settings/    # Application settings
 │   │   ├── api/             # API routes
 │   │   │   ├── trpc/        # tRPC API endpoints
 │   │   │   ├── webhook/     # Webhook handlers
-│   │   │   └── track/       # Email tracking
+│   │   │   ├── whatsapp/    # WhatsApp webhook
+│   │   │   ├── track/       # Email tracking
+│   │   │   └── signature-image/ # Signature images
 │   │   ├── components/      # Reusable components
 │   │   ├── hooks/           # Custom React hooks
 │   │   ├── lib/             # Utility libraries
 │   │   │   ├── db/          # Database configuration
 │   │   │   ├── services/    # Business logic services
+│   │   │   ├── analysis/    # AI analysis services
 │   │   │   └── utils/       # Helper functions
 │   │   └── types/           # TypeScript type definitions
 │   ├── components/          # Shared UI components
 │   │   ├── ui/              # shadcn/ui components
 │   │   ├── layout/          # Layout components
+│   │   ├── signature/       # Email signature editor
 │   │   └── [feature]/       # Feature-specific components
 │   ├── server/              # Server-side code
 │   │   └── api/             # API router configuration
@@ -206,15 +222,19 @@ The project follows a structured 4-phase development approach:
 
 ### 2. AI-Powered Email Campaigns
 - Generate personalized emails using LLMs
-- Batch processing for large donor lists
+- **Agentic Email Generation**: Interactive AI conversation flows
+- Batch processing for large donor lists with Trigger.dev
+- Advanced scheduling with timezone support and daily limits
 - Preview and refinement capabilities
 - Reference-based content generation
+- Rich text signature editor with image support
 
 ### 3. Campaign Analytics
-- Email open and click tracking
+- Email open and click tracking with pixel tracking
 - Campaign performance metrics
 - Donor engagement analytics
 - Real-time tracking dashboard
+- Campaign pause/resume/cancel controls
 
 ### 4. Staff Management
 - User roles and permissions
@@ -222,10 +242,24 @@ The project follows a structured 4-phase development approach:
 - Activity tracking and reporting
 
 ### 5. Research & Insights
-- Donor behavior analysis
+- **AI-Powered Donor Research**: Web crawling and synthesis
+- **Donor Journey Analysis**: Stage classification and predictions
+- **Action Predictions**: AI suggests next best actions
 - Campaign effectiveness reports
 - Data visualization and charts
 - Export capabilities for further analysis
+
+### 6. WhatsApp AI Assistant
+- Natural language queries about donors
+- SQL generation from questions
+- Permission-based access control
+- Conversation history tracking
+
+### 7. Todo Management
+- AI-generated tasks from donor interactions
+- Staff assignment and tracking
+- Priority management
+- Integration with action predictions
 
 ---
 
@@ -293,24 +327,38 @@ ANTHROPIC_API_KEY="sk-ant-..."
 OPENAI_API_KEY="sk-..."
 AZURE_OPENAI_API_KEY="..."
 AZURE_OPENAI_ENDPOINT="https://..."
+AZURE_OPENAI_DEPLOYMENT_NAME="..."
+AZURE_OPENAI_API_VERSION="2024-02-15-preview"
 
 # Application
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NODE_ENV="development"
+
+# Feature Flags
+USE_AGENTIC_FLOW="true"
 
 # Email Tracking
 TRACKING_SECRET="your-tracking-secret"
 
 # Background Jobs (Trigger.dev)
 TRIGGER_SECRET_KEY="tr_..."
+
+# Web Search
+GOOGLE_SEARCH_API_KEY="..."
+GOOGLE_CUSTOM_SEARCH_ENGINE_ID="..."
+
+# WhatsApp (optional)
+WHATSAPP_VERIFY_TOKEN="..."
+WHATSAPP_BUSINESS_ACCOUNT_ID="..."
+WHATSAPP_ACCESS_TOKEN="..."
 ```
 
 ### Development Tools
 
-- **Database Management**: Use `pnpm db:studio` for Drizzle Studio
+- **Database Management**: Use `npm run db:studio` for Drizzle Studio
 - **Code Formatting**: ESLint configured with Next.js rules
 - **Type Checking**: TypeScript strict mode enabled
-- **Package Management**: Use `pnpm` exclusively
+- **Package Management**: Use `npm` for most commands (pnpm only for Trigger.dev)
 
 ---
 
@@ -326,16 +374,16 @@ TRIGGER_SECRET_KEY="tr_..."
 
 ```bash
 # Generate migration from schema changes
-pnpm db:generate
+npm run db:generate
 
 # Push schema changes to database
-pnpm db:push
+npm run db:push
 
 # Run migrations
-pnpm db:migrate
+npm run db:migrate
 
 # Open database studio
-pnpm db:studio
+npm run db:studio
 ```
 
 ### Database Design Principles
@@ -353,30 +401,36 @@ pnpm db:studio
 
 ```bash
 # Development build
-pnpm dev
+npm run dev
 
 # Production build
-pnpm build
+npm run build
 
 # Start production server
-pnpm start
+npm run start
 
 # Lint code
-pnpm lint
+npm run lint
+
+# Run tests
+npm run test
+
+# E2E tests
+npm run test:e2e
 ```
 
 ### Build Requirements
 
-- **Node Version**: Must use Node.js 22.4.0
-- **Memory**: Increased Node memory limit for builds
+- **Node Version**: Node.js 22.4.0 recommended (also works with 24.x)
+- **Memory**: Increased Node memory limit for builds (4GB)
 - **TypeScript**: Strict type checking enabled
-- **Bundle Analysis**: Webpack configured for optimal bundling
+- **Bundle Analysis**: Next.js 15 with Turbopack for development
 
 ### Deployment Checklist
 
 1. **Environment Variables**: All required vars configured
 2. **Database**: Migrations applied
-3. **Build Success**: `pnpm build` completes without errors
+3. **Build Success**: `npm run build` completes without errors
 4. **Type Safety**: No TypeScript errors
 5. **Linting**: All ESLint rules passing
 

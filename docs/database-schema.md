@@ -349,36 +349,155 @@ CREATE TABLE generated_emails (
 );
 ```
 
-### email_events
-Email interaction tracking.
+### email_trackers
+Tracking metadata for sent emails.
 
 ```sql
-CREATE TABLE email_events (
+CREATE TABLE email_trackers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
   email_id UUID NOT NULL REFERENCES generated_emails(id),
-  event_type TEXT CHECK (event_type IN ('open', 'click', 'bounce', 'unsubscribe')) NOT NULL,
+  
+  -- Tracking identifiers
+  tracker_id TEXT UNIQUE NOT NULL,  -- For pixel tracking
+  
+  -- Metadata
+  recipient_email TEXT NOT NULL,
+  campaign_id UUID REFERENCES email_generation_sessions(id),
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_trackers_org_email (organization_id, email_id),
+  INDEX idx_trackers_tracker (tracker_id)
+);
+```
+
+### link_trackers
+Individual link tracking within emails.
+
+```sql
+CREATE TABLE link_trackers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email_tracker_id UUID NOT NULL REFERENCES email_trackers(id) ON DELETE CASCADE,
+  
+  -- Link details
+  tracker_id TEXT UNIQUE NOT NULL,
+  original_url TEXT NOT NULL,
+  link_text TEXT,
+  link_position INTEGER,  -- Position in email
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_link_trackers_email (email_tracker_id),
+  INDEX idx_link_trackers_id (tracker_id)
+);
+```
+
+### email_opens
+Email open tracking events.
+
+```sql
+CREATE TABLE email_opens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email_tracker_id UUID NOT NULL REFERENCES email_trackers(id) ON DELETE CASCADE,
   
   -- Event details
-  timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ip_address INET,
   user_agent TEXT,
   
-  -- Click-specific data
-  link_url TEXT,
-  link_position INTEGER,
+  -- Device/client info
+  device_type TEXT,
+  email_client TEXT,
+  location JSONB,  -- Geo data if available
   
-  -- Bounce-specific data
-  bounce_type TEXT,
-  bounce_message TEXT,
+  INDEX idx_opens_tracker (email_tracker_id),
+  INDEX idx_opens_time (opened_at DESC)
+);
+```
+
+### link_clicks
+Link click tracking events.
+
+```sql
+CREATE TABLE link_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  link_tracker_id UUID NOT NULL REFERENCES link_trackers(id) ON DELETE CASCADE,
   
-  -- Geolocation (if available)
-  country TEXT,
-  region TEXT,
-  city TEXT,
+  -- Event details
+  clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ip_address INET,
+  user_agent TEXT,
   
-  INDEX idx_events_email (email_id, event_type),
-  INDEX idx_events_timestamp (organization_id, timestamp DESC)
+  -- Device/client info
+  device_type TEXT,
+  browser TEXT,
+  location JSONB,  -- Geo data if available
+  
+  INDEX idx_clicks_tracker (link_tracker_id),
+  INDEX idx_clicks_time (clicked_at DESC)
+);
+```
+
+### email_schedule_config
+Organization-level email scheduling configuration.
+
+```sql
+CREATE TABLE email_schedule_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  session_id UUID NOT NULL REFERENCES email_generation_sessions(id),
+  
+  -- Scheduling parameters
+  daily_limit INTEGER DEFAULT 100,
+  min_gap_hours INTEGER DEFAULT 24,
+  timezone TEXT DEFAULT 'America/New_York',
+  
+  -- Time windows
+  send_start_hour INTEGER DEFAULT 9,  -- 9 AM
+  send_end_hour INTEGER DEFAULT 17,   -- 5 PM
+  send_days INTEGER[] DEFAULT '{1,2,3,4,5}',  -- Mon-Fri
+  
+  -- Status
+  is_active BOOLEAN DEFAULT TRUE,
+  paused_at TIMESTAMP,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(organization_id, session_id),
+  INDEX idx_schedule_config_session (session_id)
+);
+```
+
+### email_send_jobs
+Individual scheduled email send jobs.
+
+```sql
+CREATE TABLE email_send_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  email_id UUID NOT NULL REFERENCES generated_emails(id),
+  
+  -- Scheduling
+  scheduled_for TIMESTAMP NOT NULL,
+  timezone TEXT NOT NULL,
+  
+  -- Status
+  status TEXT CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'cancelled')) DEFAULT 'pending',
+  attempts INTEGER DEFAULT 0,
+  last_attempt_at TIMESTAMP,
+  
+  -- Result
+  sent_at TIMESTAMP,
+  error_message TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_send_jobs_scheduled (organization_id, scheduled_for),
+  INDEX idx_send_jobs_status (organization_id, status),
+  INDEX idx_send_jobs_email (email_id)
 );
 ```
 
@@ -419,6 +538,47 @@ CREATE TABLE donor_list_members (
   
   PRIMARY KEY (list_id, donor_id),
   INDEX idx_list_members_donor (donor_id)
+);
+```
+
+### todos
+Task management with AI predictions.
+
+```sql
+CREATE TABLE todos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Task details
+  title TEXT NOT NULL,
+  description TEXT,
+  type TEXT CHECK (type IN ('call', 'email', 'meeting', 'task', 'follow_up')) DEFAULT 'task',
+  due_date DATE,
+  priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+  status TEXT CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')) DEFAULT 'pending',
+  
+  -- Associations
+  donor_id UUID REFERENCES donors(id),
+  project_id UUID REFERENCES projects(id),
+  assigned_to UUID REFERENCES users(id),
+  created_by UUID REFERENCES users(id),
+  
+  -- AI-generated tasks
+  is_ai_generated BOOLEAN DEFAULT FALSE,
+  ai_reasoning TEXT,
+  ai_confidence DECIMAL(3,2),  -- 0.00 to 1.00
+  
+  -- Completion tracking
+  completed_at TIMESTAMP,
+  completed_by UUID REFERENCES users(id),
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_todos_org_status (organization_id, status),
+  INDEX idx_todos_donor (organization_id, donor_id),
+  INDEX idx_todos_assigned (organization_id, assigned_to),
+  INDEX idx_todos_due (organization_id, due_date)
 );
 ```
 
@@ -463,6 +623,60 @@ CREATE TABLE communications (
 );
 ```
 
+### communication_threads
+Groups related communications across channels.
+
+```sql
+CREATE TABLE communication_threads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Thread details
+  subject TEXT,
+  channel TEXT CHECK (channel IN ('email', 'whatsapp', 'phone', 'in_person', 'other')) DEFAULT 'email',
+  status TEXT CHECK (status IN ('active', 'archived', 'resolved')) DEFAULT 'active',
+  
+  -- Metadata
+  tags TEXT[],
+  internal_notes TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_threads_org_status (organization_id, status),
+  INDEX idx_threads_created (organization_id, created_at DESC)
+);
+```
+
+### communication_thread_staff
+Junction table for threads and staff participants.
+
+```sql
+CREATE TABLE communication_thread_staff (
+  thread_id UUID NOT NULL REFERENCES communication_threads(id) ON DELETE CASCADE,
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'participant',
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  PRIMARY KEY (thread_id, staff_id),
+  INDEX idx_thread_staff_member (staff_id)
+);
+```
+
+### communication_thread_donors
+Junction table for threads and donor participants.
+
+```sql
+CREATE TABLE communication_thread_donors (
+  thread_id UUID NOT NULL REFERENCES communication_threads(id) ON DELETE CASCADE,
+  donor_id UUID NOT NULL REFERENCES donors(id) ON DELETE CASCADE,
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  PRIMARY KEY (thread_id, donor_id),
+  INDEX idx_thread_donor_member (donor_id)
+);
+```
+
 ### templates
 Reusable email/communication templates.
 
@@ -492,46 +706,6 @@ CREATE TABLE templates (
   
   INDEX idx_templates_org_active (organization_id, is_active),
   INDEX idx_templates_category (organization_id, category)
-);
-```
-
-### todos
-Task management with AI predictions.
-
-```sql
-CREATE TABLE todos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id),
-  
-  -- Task details
-  title TEXT NOT NULL,
-  description TEXT,
-  due_date DATE,
-  priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
-  status TEXT CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')) DEFAULT 'pending',
-  
-  -- Associations
-  donor_id UUID REFERENCES donors(id),
-  project_id UUID REFERENCES projects(id),
-  assigned_to UUID REFERENCES users(id),
-  created_by UUID REFERENCES users(id),
-  
-  -- AI-generated tasks
-  is_ai_generated BOOLEAN DEFAULT FALSE,
-  ai_reasoning TEXT,
-  ai_confidence DECIMAL(3,2),  -- 0.00 to 1.00
-  
-  -- Completion tracking
-  completed_at TIMESTAMP,
-  completed_by UUID REFERENCES users(id),
-  
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
-  INDEX idx_todos_org_status (organization_id, status),
-  INDEX idx_todos_donor (organization_id, donor_id),
-  INDEX idx_todos_assigned (organization_id, assigned_to),
-  INDEX idx_todos_due (organization_id, due_date)
 );
 ```
 
@@ -623,6 +797,212 @@ CREATE TABLE webhook_events (
 );
 ```
 
+### oauth_tokens
+OAuth tokens for email provider integrations.
+
+```sql
+-- Gmail OAuth tokens for users
+CREATE TABLE gmail_oauth_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Token data
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  scope TEXT,
+  
+  -- Account info
+  email TEXT NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(user_id)
+);
+
+-- Staff-specific Gmail tokens
+CREATE TABLE staff_gmail_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  
+  -- Token data  
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  scope TEXT,
+  
+  -- Account info
+  email TEXT NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(staff_id)
+);
+
+-- Microsoft OAuth tokens for users
+CREATE TABLE microsoft_oauth_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Token data
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  scope TEXT,
+  
+  -- Account info
+  email TEXT NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(user_id)
+);
+
+-- Staff-specific Microsoft tokens
+CREATE TABLE staff_microsoft_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  
+  -- Token data
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  scope TEXT,
+  
+  -- Account info
+  email TEXT NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(staff_id)
+);
+```
+
+### whatsapp_chat_history
+WhatsApp conversation history.
+
+```sql
+CREATE TABLE whatsapp_chat_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Participants
+  phone_number TEXT NOT NULL,
+  staff_id UUID REFERENCES staff(id),
+  
+  -- Message content
+  message_type TEXT CHECK (message_type IN ('text', 'voice')) DEFAULT 'text',
+  message_text TEXT NOT NULL,
+  voice_transcription TEXT,
+  
+  -- Response
+  ai_response TEXT NOT NULL,
+  
+  -- Metadata
+  whatsapp_message_id TEXT,
+  processing_time_ms INTEGER,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_whatsapp_chat_org_phone (organization_id, phone_number),
+  INDEX idx_whatsapp_chat_staff (staff_id)
+);
+```
+
+### staff_whatsapp_phone_numbers
+Authorized phone numbers per staff member.
+
+```sql
+CREATE TABLE staff_whatsapp_phone_numbers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  phone_number TEXT NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  PRIMARY KEY (staff_id, phone_number),
+  INDEX idx_staff_phone_number (phone_number)
+);
+```
+
+### staff_whatsapp_activity_log
+Comprehensive WhatsApp activity logging.
+
+```sql
+CREATE TABLE staff_whatsapp_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  staff_id UUID NOT NULL REFERENCES staff(id),
+  
+  -- Activity details
+  activity_type TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  query TEXT,
+  response TEXT,
+  
+  -- Technical details
+  processing_time_ms INTEGER,
+  error_message TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_activity_log_staff (staff_id, created_at DESC),
+  INDEX idx_activity_log_org (organization_id, created_at DESC)
+);
+```
+
+### signature_images
+Base64 encoded signature images.
+
+```sql
+CREATE TABLE signature_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Image data
+  data TEXT NOT NULL,  -- Base64 encoded
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER,
+  
+  -- Metadata
+  uploaded_by UUID REFERENCES users(id),
+  filename TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_signature_images_org (organization_id)
+);
+```
+
+### staff_email_examples
+Example emails for AI reference.
+
+```sql
+CREATE TABLE staff_email_examples (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  staff_id UUID NOT NULL REFERENCES staff(id),
+  
+  -- Email content
+  subject TEXT,
+  body TEXT NOT NULL,
+  
+  -- Metadata
+  tags TEXT[],
+  donor_type TEXT,
+  campaign_type TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_email_examples_staff (staff_id)
+);
+```
+
 ## Relationships
 
 ### Key Foreign Key Relationships
@@ -645,14 +1025,35 @@ CREATE TABLE webhook_events (
    - staff → users (many-to-one)
    - communications → staff (many-to-one)
    - generated_emails → staff (for sent_by)
+   - todos → staff (for assigned_to)
 
 5. **Email Campaign Flow**
    - generated_emails → email_generation_sessions
-   - email_events → generated_emails
-   - email_generation_sessions tracks bulk generation
+   - email_trackers → generated_emails
+   - link_trackers → email_trackers
+   - email_opens → email_trackers
+   - link_clicks → link_trackers
+   - email_schedule_config → email_generation_sessions
+   - email_send_jobs → generated_emails
 
 6. **List Management**
    - donor_list_members creates many-to-many between donor_lists and donors
+
+7. **Communication Threading**
+   - communication_thread_staff → communication_threads & staff
+   - communication_thread_donors → communication_threads & donors
+   - communications → communication_threads (optional)
+
+8. **OAuth Token Management**
+   - gmail_oauth_tokens → users
+   - staff_gmail_tokens → staff
+   - microsoft_oauth_tokens → users
+   - staff_microsoft_tokens → staff
+
+9. **WhatsApp Integration**
+   - whatsapp_chat_history → staff
+   - staff_whatsapp_phone_numbers → staff
+   - staff_whatsapp_activity_log → staff
 
 ## Indexes & Performance
 

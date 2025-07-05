@@ -39,7 +39,7 @@ The Nonprofit Webserver follows a modern full-stack architecture with clear sepa
 
 ### Next.js App Router Structure
 
-The application uses Next.js 15 with the App Router for a modern, performant routing system:
+The application uses Next.js 15.3.1 with React 19 and the App Router for a modern, performant routing system:
 
 ```
 src/app/
@@ -48,11 +48,15 @@ src/app/
 │   ├── donors/            # Donor management interface
 │   ├── staff/             # Staff management
 │   ├── research/          # Analytics and insights
+│   ├── lists/             # Donor list management
+│   ├── todos/             # Task management
 │   └── settings/          # Application configuration
 ├── api/                   # API route handlers
 │   ├── trpc/             # tRPC endpoint configuration
 │   ├── webhook/          # External webhook handlers
-│   └── track/            # Email tracking endpoints
+│   ├── whatsapp/         # WhatsApp webhook handler
+│   ├── track/            # Email tracking endpoints
+│   └── signature-image/  # Signature image serving
 ├── layout.tsx            # Root layout with providers
 ├── page.tsx              # Home page
 └── globals.css           # Global styles
@@ -77,6 +81,10 @@ src/components/
 │   ├── EmailListViewer.tsx
 │   ├── CampaignResults.tsx
 │   └── [other-campaign-components].tsx
+├── signature/            # Email signature management
+│   ├── SignatureEditor.tsx
+│   ├── SignaturePreview.tsx
+│   └── ImageGallery.tsx
 └── [feature]/            # Other feature-specific components
 ```
 
@@ -97,12 +105,22 @@ Type-safe API communication using tRPC:
 // Router structure
 src/app/api/trpc/
 ├── routers/
-│   ├── donors.ts         # Donor management operations
-│   ├── campaigns.ts      # Campaign management
-│   ├── staff.ts          # Staff operations
-│   └── analytics.ts      # Analytics and reporting
-├── root.ts              # Root router configuration
-└── trpc.ts              # tRPC configuration
+│   ├── donors.ts                    # Donor management operations
+│   ├── campaigns.ts                 # Campaign management
+│   ├── agentic-email-campaigns.ts   # AI-powered campaign flows
+│   ├── staff.ts                     # Staff operations
+│   ├── analysis.ts                  # AI analysis operations
+│   ├── lists.ts                     # Donor list management
+│   ├── todos.ts                     # Task management
+│   ├── whatsapp.ts                  # WhatsApp integration
+│   ├── person-research.ts           # AI donor research
+│   ├── email-tracking.ts            # Email analytics
+│   ├── communication-threads.ts     # Thread management
+│   ├── staff-gmail.ts               # Gmail integration
+│   ├── staff-microsoft.ts           # Microsoft integration
+│   └── templates.ts                 # Template management
+├── _app.ts                          # Main router configuration
+└── trpc.ts                          # tRPC configuration
 ```
 
 ### Service Layer Architecture
@@ -111,23 +129,35 @@ Business logic is encapsulated in service classes:
 
 ```
 src/app/lib/services/
-├── email-campaigns.service.ts    # Campaign management logic
-├── donor.service.ts              # Donor operations
-├── ai.service.ts                 # AI/LLM integration
-├── tracking.service.ts           # Email tracking
-└── analytics.service.ts          # Data analysis
+├── email-campaigns.service.ts           # Campaign management logic
+├── agentic-email-generation.service.ts  # AI conversation flows
+├── donor.service.ts                     # Donor operations
+├── email-scheduling.service.ts          # Email scheduling
+├── bulk-donor-research.service.ts       # Bulk research operations
+├── donor-journey.service.ts             # Journey tracking
+├── todo-service.ts                      # Task management
+├── person-research/                     # Research pipeline
+│   ├── web-search.service.ts
+│   ├── web-crawler.service.ts
+│   ├── answer-synthesis.service.ts
+│   └── structured-data-extraction.service.ts
+├── whatsapp/                            # WhatsApp AI
+│   ├── whatsapp-ai.service.ts
+│   ├── whatsapp-query-engine.service.ts
+│   └── whatsapp-sql-engine.service.ts
+└── gmail.service.ts                     # Gmail integration
 ```
 
 ### Background Jobs Architecture
 
-Asynchronous processing using Trigger.dev:
+Asynchronous processing using Trigger.dev v3:
 
 ```
 src/trigger/jobs/
-├── email-generation.ts     # Bulk email generation
-├── campaign-sending.ts     # Email dispatch
-├── analytics-processing.ts # Data analysis jobs
-└── data-import.ts          # Data import operations
+├── generateBulkEmails.ts         # Bulk email generation
+├── sendSingleEmail.ts            # Individual email dispatch
+├── bulkDonorResearch.ts          # Large-scale donor research
+└── crawlAndSummarizeWebsite.ts   # Web content analysis
 ```
 
 ## Database Architecture
@@ -148,13 +178,19 @@ src/app/lib/db/
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Users     │────▶│    Staff    │────▶│   Donors    │
-│             │     │             │     │             │
+│Organizations│────▶│    Staff    │────▶│   Donors    │
+│   (Clerk)   │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
-                                               │
-                                               ▼
+        │                    │                 │
+        ▼                    ▼                 ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  Campaigns  │────▶│   Emails    │────▶│  Tracking   │
+│             │     │             │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+        │                    │                 │
+        ▼                    ▼                 ▼
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│    Lists    │────▶│    Todos    │────▶│  Research   │
 │             │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
@@ -170,15 +206,18 @@ src/app/lib/db/
 
 ### LLM Provider Integration
 
-The platform supports multiple AI providers through Vercel AI SDK:
+The platform supports multiple AI providers through Vercel AI SDK v4:
 
 ```typescript
 // AI Service Architecture
 class AIService {
   private providers = {
-    anthropic: new AnthropicProvider(),
-    openai: new OpenAIProvider(),
-    azure: new AzureOpenAIProvider()
+    anthropic: createAnthropic(),
+    openai: createOpenAI(),
+    azure: createAzure({
+      baseURL: process.env.AZURE_OPENAI_ENDPOINT,
+      apiKey: process.env.AZURE_OPENAI_API_KEY,
+    })
   };
 
   async generateEmail(prompt: string, provider: string) {
@@ -190,19 +229,21 @@ class AIService {
 ### Email Generation Pipeline
 
 ```
-User Input → Prompt Engineering → LLM Processing → Content Validation → Email Generation
-    ↓              ↓                    ↓                ↓                ↓
-Requirements   Context Building    AI Response      Quality Check    Formatted Email
+User Input → Agentic Conversation → Prompt Refinement → LLM Processing → Content Validation → Email Generation
+    ↓              ↓                    ↓                    ↓                ↓                ↓
+Requirements   Interactive Flow    Instruction Agent    AI Response      Quality Check    Formatted Email
 ```
 
 ## Security Architecture
 
 ### Authentication & Authorization
 
-1. **Authentication**: Clerk for user management and session handling
-2. **Route Protection**: Middleware-based route protection
-3. **API Security**: tRPC procedures with input validation
-4. **Data Validation**: Zod schemas for type-safe validation
+1. **Authentication**: Clerk for multi-tenant user management
+2. **Organization Scoping**: All data scoped to active organization
+3. **Route Protection**: Middleware-based route protection
+4. **API Security**: tRPC procedures with input validation
+5. **Data Validation**: Zod schemas for type-safe validation
+6. **OAuth Integration**: Secure Gmail/Microsoft authentication
 
 ### Data Protection
 
@@ -242,6 +283,89 @@ Requirements   Context Building    AI Response      Quality Check    Formatted E
 2. **Memory Management**: Proper resource cleanup
 3. **Caching Layers**: Multiple levels of caching
 4. **Connection Optimization**: Efficient resource utilization
+
+## Multi-Tenant Architecture
+
+### Organization-Level Isolation
+
+1. **Clerk Organizations**: Each customer is a separate Clerk organization
+2. **Data Isolation**: All queries scoped by organizationId
+3. **Permission Boundaries**: Staff can only access their organization's data
+4. **Resource Limits**: Per-organization rate limiting and quotas
+
+### Tenant Context Management
+
+```typescript
+// Every tRPC procedure includes organization context
+const procedure = publicProcedure.use(async ({ ctx, next }) => {
+  const organizationId = ctx.auth.user.organizationId;
+  return next({
+    ctx: { ...ctx, organizationId }
+  });
+});
+```
+
+## Communication Architecture
+
+### Email System
+
+1. **Provider Integration**: Gmail and Microsoft Graph API support
+2. **Tracking Pipeline**: Pixel tracking for opens, link tracking for clicks
+3. **Scheduling System**: Timezone-aware scheduling with constraints
+4. **Signature Management**: Rich text signatures with image support
+
+### WhatsApp Integration
+
+1. **Business API**: Webhook-based message processing
+2. **Natural Language Processing**: AI-powered query understanding
+3. **Voice Support**: Whisper API for voice message transcription
+4. **Permission System**: Staff-level phone number access control
+
+## AI Pipeline Architecture
+
+### Agentic Email Generation
+
+```
+Initial Request → Understanding Phase → Refinement Phase → Generation Phase
+      ↓                   ↓                    ↓                  ↓
+User Intent      Context Gathering     Instruction Polish    Bulk Generation
+```
+
+### Donor Research Pipeline
+
+```
+Research Request → Web Search → Content Crawling → Data Extraction → Synthesis
+        ↓              ↓              ↓                  ↓              ↓
+   Query Builder   Search APIs    Puppeteer        Structured AI    Final Report
+```
+
+### Analysis Pipeline
+
+```
+Donor Data → Stage Classification → Action Prediction → Todo Generation
+     ↓              ↓                      ↓                  ↓
+Historical    AI Classification      AI Recommendations   Task Creation
+```
+
+## Feature-Specific Architectures
+
+### List Management
+- Dynamic list creation with criteria-based filtering
+- Bulk operations for member management
+- Real-time member count updates
+- CSV import/export capabilities
+
+### Todo System
+- AI-generated tasks from donor analysis
+- Priority and deadline management
+- Staff assignment and tracking
+- Integration with donor journey stages
+
+### Email Tracking
+- Pixel-based open tracking
+- Link wrapping for click tracking
+- Real-time analytics dashboard
+- Campaign performance metrics
 
 ## Monitoring & Observability
 
