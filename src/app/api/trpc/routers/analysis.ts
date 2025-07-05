@@ -2,13 +2,13 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import type { Context } from "../context";
 import { logger } from "@/app/lib/logger";
-import { StageClassificationService } from "@/app/lib/analysis/stage-classification-service";
-import { StageTransitionService } from "@/app/lib/analysis/stage-transition-service";
-import { ActionPredictionService } from "@/app/lib/analysis/action-prediction-service";
+import type { StageClassificationService } from "@/app/lib/analysis/stage-classification-service";
+import type { StageTransitionService } from "@/app/lib/analysis/stage-transition-service";
+import type { ActionPredictionService } from "@/app/lib/analysis/action-prediction-service";
 import { db } from "@/app/lib/db";
 import { donors as donorSchema } from "@/app/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { TodoService } from "@/app/lib/services/todo-service";
+import type { TodoService } from "@/app/lib/services/todo-service";
 import { getDonorById } from "@/app/lib/data/donors";
 import { getDonorCommunicationHistory, type CommunicationThreadWithDetails } from "@/app/lib/data/communications";
 import { listDonations } from "@/app/lib/data/donations";
@@ -22,7 +22,12 @@ import type { DonationWithDetails } from "@/app/lib/data/donations";
  * Service for handling donor analysis operations
  */
 class DonorAnalysisService {
-  private todoService = new TodoService();
+  constructor(
+    private todoService: TodoService,
+    private stageClassificationService: StageClassificationService,
+    private stageTransitionService: StageTransitionService,
+    private actionPredictionService: ActionPredictionService
+  ) {}
 
   /**
    * Fetches donor details formatted for analysis
@@ -109,9 +114,7 @@ class DonorAnalysisService {
       } threads, Donation History: ${donationHistory.length} records`
     );
 
-    const classificationService = new StageClassificationService();
-    const transitionService = new StageTransitionService();
-    const predictionService = new ActionPredictionService();
+    // Services are injected via constructor
 
     // Stage classification or transition logic
     if (!currentStageName) {
@@ -121,7 +124,7 @@ class DonorAnalysisService {
         donorJourneyGraph,
         communicationHistory,
         donationHistory,
-        classificationService
+        this.stageClassificationService
       );
     } else {
       currentStageName = await this.performStageTransition(
@@ -131,7 +134,7 @@ class DonorAnalysisService {
         donorJourneyGraph,
         communicationHistory,
         donationHistory,
-        transitionService
+        this.stageTransitionService
       );
     }
 
@@ -143,7 +146,7 @@ class DonorAnalysisService {
       donorJourneyGraph,
       communicationHistory,
       donationHistory,
-      predictionService,
+      this.actionPredictionService,
       organizationId,
       userId
     );
@@ -344,7 +347,12 @@ export const analysisRouter = router({
         `Using donor journey graph for org ${organizationId} with ${donorJourneyGraph.nodes.length} nodes and ${donorJourneyGraph.edges.length} edges.`
       );
 
-      const analysisService = new DonorAnalysisService();
+      const analysisService = new DonorAnalysisService(
+        ctx.services.todos,
+        ctx.services.stageClassification,
+        ctx.services.stageTransition,
+        ctx.services.actionPrediction
+      );
       const results = await Promise.all(
         donorIds.map((donorId) =>
           analysisService.analyzeSingleDonor(donorId, organizationId, donorJourneyGraph, user.id)

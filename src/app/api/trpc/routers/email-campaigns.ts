@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { EmailGenerationService, type GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
-import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
-import { EmailSchedulingService } from "@/app/lib/services/email-scheduling.service";
-import { AgenticEmailGenerationService } from "@/app/lib/services/agentic-email-generation.service";
+import type { GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
 import { env } from "@/app/lib/env";
 
 // Input validation schemas
@@ -221,8 +218,7 @@ export const emailCampaignsRouter = router({
       // Check if agentic flow is enabled
       if (env.USE_AGENTIC_FLOW) {
         // Use agentic flow - start conversation
-        const agenticService = new AgenticEmailGenerationService();
-        const agenticResult = await agenticService.startAgenticFlow(
+        const agenticResult = await ctx.services.agenticEmailGeneration.startAgenticFlow(
           {
             instruction: input.instruction,
             donors: input.donors,
@@ -237,8 +233,8 @@ export const emailCampaignsRouter = router({
         // If agentic flow is complete and doesn't need user input, proceed to generation
         if (agenticResult.isComplete && !agenticResult.needsUserInput) {
           // Generate final prompt and execute generation automatically
-          const finalPrompt = await agenticService.generateFinalPrompt(agenticResult.sessionId);
-          const emailResult = await agenticService.executeEmailGeneration(
+          const finalPrompt = await ctx.services.agenticEmailGeneration.generateFinalPrompt(agenticResult.sessionId);
+          const emailResult = await ctx.services.agenticEmailGeneration.executeEmailGeneration(
             agenticResult.sessionId,
             finalPrompt.finalPrompt
           );
@@ -252,8 +248,7 @@ export const emailCampaignsRouter = router({
         }
       } else {
         // Use traditional direct flow
-        const emailService = new EmailGenerationService();
-        return await emailService.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+        return await ctx.services.emailGeneration.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
       }
     }),
 
@@ -261,88 +256,77 @@ export const emailCampaignsRouter = router({
    * Creates a new draft email generation session (does not trigger generation)
    */
   createSession: protectedProcedure.input(createSessionSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.createSession(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.createSession(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
    * Launch a draft campaign (transition from DRAFT to GENERATING/READY_TO_SEND)
    */
   launchCampaign: protectedProcedure.input(launchCampaignSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.launchCampaign(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.launchCampaign(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
    * Gets an email generation session with generated emails
    */
   getSession: protectedProcedure.input(getSessionSchema).query(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.getSession(input.sessionId, ctx.auth.user.organizationId, input.signature);
+    return await ctx.services.emailCampaigns.getSession(input.sessionId, ctx.auth.user.organizationId, input.signature);
   }),
 
   /**
    * Gets the status of an email generation session
    */
   getSessionStatus: protectedProcedure.input(getSessionStatusSchema).query(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.getSessionStatus(input.sessionId, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.getSessionStatus(input.sessionId, ctx.auth.user.organizationId);
   }),
 
   /**
    * Lists campaigns with filtering and pagination
    */
   listCampaigns: protectedProcedure.input(listCampaignsSchema).query(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.listCampaigns(input, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.listCampaigns(input, ctx.auth.user.organizationId);
   }),
 
   /**
    * Deletes a campaign and its associated emails
    */
   deleteCampaign: protectedProcedure.input(deleteCampaignSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.deleteCampaign(input.campaignId, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.deleteCampaign(input.campaignId, ctx.auth.user.organizationId);
   }),
 
   /**
    * Get email sending status
    */
   getEmailStatus: protectedProcedure.input(getEmailStatusSchema).query(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.getEmailStatus(input.emailId, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.getEmailStatus(input.emailId, ctx.auth.user.organizationId);
   }),
 
   /**
    * Update email content and subject
    */
   updateEmail: protectedProcedure.input(updateEmailSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.updateEmail(input, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.updateEmail(input, ctx.auth.user.organizationId);
   }),
 
   /**
    * Update email approval status
    */
   updateEmailStatus: protectedProcedure.input(updateEmailStatusSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.updateEmailStatus(input.emailId, input.status, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.updateEmailStatus(input.emailId, input.status, ctx.auth.user.organizationId);
   }),
 
   /**
    * Update campaign data (for editing campaigns)
    */
   updateCampaign: protectedProcedure.input(updateCampaignSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.updateCampaign(input, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
   }),
 
   /**
    * Enhance email content using AI
    */
   enhanceEmail: protectedProcedure.input(enhanceEmailSchema).mutation(async ({ ctx, input }) => {
-    const emailService = new EmailGenerationService();
-    return await emailService.enhanceEmail(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailGeneration.enhanceEmail(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
@@ -350,32 +334,28 @@ export const emailCampaignsRouter = router({
    * This will delete all existing emails and regenerate them
    */
   regenerateAllEmails: protectedProcedure.input(regenerateAllEmailsSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.regenerateAllEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.regenerateAllEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
    * Save campaign as draft - auto-saves campaign data without triggering generation
    */
   saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
    * Save a generated email incrementally with PENDING_APPROVAL status
    */
   saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.saveGeneratedEmail(input, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.saveGeneratedEmail(input, ctx.auth.user.organizationId);
   }),
 
   /**
    * Retry a campaign that is stuck in PENDING status
    */
   retryCampaign: protectedProcedure.input(retryCampaignSchema).mutation(async ({ ctx, input }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.retryCampaign(input.campaignId, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.retryCampaign(input.campaignId, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**
@@ -388,8 +368,7 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.scheduleEmailCampaign(
+      return await ctx.services.emailScheduling.scheduleEmailCampaign(
         input.sessionId,
         ctx.auth.user.organizationId,
         ctx.auth.user.id
@@ -406,8 +385,7 @@ export const emailCampaignsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.getCampaignSchedule(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.getCampaignSchedule(input.sessionId, ctx.auth.user.organizationId);
     }),
 
   /**
@@ -420,8 +398,7 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.pauseCampaign(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.pauseCampaign(input.sessionId, ctx.auth.user.organizationId);
     }),
 
   /**
@@ -434,8 +411,7 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.resumeCampaign(input.sessionId, ctx.auth.user.organizationId, ctx.auth.user.id);
+      return await ctx.services.emailScheduling.resumeCampaign(input.sessionId, ctx.auth.user.organizationId, ctx.auth.user.id);
     }),
 
   /**
@@ -448,16 +424,14 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.cancelCampaign(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.cancelCampaign(input.sessionId, ctx.auth.user.organizationId);
     }),
 
   /**
    * Get or create email schedule configuration
    */
   getScheduleConfig: protectedProcedure.query(async ({ ctx }) => {
-    const schedulingService = new EmailSchedulingService();
-    return await schedulingService.getOrCreateScheduleConfig(ctx.auth.user.organizationId);
+    return await ctx.services.emailScheduling.getOrCreateScheduleConfig(ctx.auth.user.organizationId);
   }),
 
   /**
@@ -484,16 +458,14 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const schedulingService = new EmailSchedulingService();
-      return await schedulingService.updateScheduleConfig(ctx.auth.user.organizationId, input);
+      return await ctx.services.emailScheduling.updateScheduleConfig(ctx.auth.user.organizationId, input);
     }),
 
   /**
    * Fix stuck campaigns by checking and updating their status
    */
   fixStuckCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
-    const campaignsService = new EmailCampaignsService();
-    return await campaignsService.fixStuckCampaigns(ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.fixStuckCampaigns(ctx.auth.user.organizationId);
   }),
 
   /**

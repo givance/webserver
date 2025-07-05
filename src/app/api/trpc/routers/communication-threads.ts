@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { CommunicationsService } from "@/app/lib/services/communications.service";
 
 // Input validation schemas
 const threadIdSchema = z.object({
@@ -60,8 +59,7 @@ export const communicationThreadsRouter = router({
    * Creates a new communication thread with participants
    */
   createThread: protectedProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.createThreadWithParticipants(
+    return await ctx.services.communications.createThreadWithParticipants(
       input.channel,
       input.staffIds,
       input.donorIds,
@@ -75,8 +73,7 @@ export const communicationThreadsRouter = router({
   getThread: protectedProcedure
     .input(z.object({ ...threadIdSchema.shape, ...threadDetailsSchema.shape }))
     .query(async ({ input, ctx }) => {
-      const communicationsService = new CommunicationsService();
-      return await communicationsService.authorizeThreadAccess(input.id, ctx.auth.user.organizationId, {
+      return await ctx.services.communications.authorizeThreadAccess(input.id, ctx.auth.user.organizationId, {
         includeStaff: input.includeStaff,
         includeDonors: input.includeDonors,
         includeMessages: input.includeMessages,
@@ -87,16 +84,14 @@ export const communicationThreadsRouter = router({
    * Lists communication threads with filtering and pagination
    */
   listThreads: protectedProcedure.input(listThreadsSchema).query(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.listAuthorizedThreads(input, ctx.auth.user.organizationId);
+    return await ctx.services.communications.listAuthorizedThreads(input, ctx.auth.user.organizationId);
   }),
 
   /**
    * Adds a message to a communication thread
    */
   addMessage: protectedProcedure.input(addMessageSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.addAuthorizedMessage(
+    return await ctx.services.communications.addAuthorizedMessage(
       input.threadId,
       input.content,
       input.fromStaffId,
@@ -111,8 +106,7 @@ export const communicationThreadsRouter = router({
    * Retrieves messages from a communication thread
    */
   getMessages: protectedProcedure.input(getMessagesSchema).query(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.getAuthorizedMessages(
+    return await ctx.services.communications.getAuthorizedMessages(
       input.threadId,
       input.limit,
       input.offset,
@@ -125,8 +119,7 @@ export const communicationThreadsRouter = router({
    * Adds a staff member to a communication thread
    */
   addStaffToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.addAuthorizedParticipant(
+    return await ctx.services.communications.addAuthorizedParticipant(
       input.threadId,
       input.participantId,
       "staff",
@@ -138,8 +131,7 @@ export const communicationThreadsRouter = router({
    * Removes a staff member from a communication thread
    */
   removeStaffFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.removeAuthorizedParticipant(
+    return await ctx.services.communications.removeAuthorizedParticipant(
       input.threadId,
       input.participantId,
       "staff",
@@ -151,8 +143,7 @@ export const communicationThreadsRouter = router({
    * Adds a donor to a communication thread
    */
   addDonorToThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.addAuthorizedParticipant(
+    return await ctx.services.communications.addAuthorizedParticipant(
       input.threadId,
       input.participantId,
       "donor",
@@ -164,8 +155,7 @@ export const communicationThreadsRouter = router({
    * Removes a donor from a communication thread
    */
   removeDonorFromThread: protectedProcedure.input(participantSchema).mutation(async ({ input, ctx }) => {
-    const communicationsService = new CommunicationsService();
-    return await communicationsService.removeAuthorizedParticipant(
+    return await ctx.services.communications.removeAuthorizedParticipant(
       input.threadId,
       input.participantId,
       "donor",

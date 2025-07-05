@@ -3,6 +3,33 @@ import { type inferAsyncReturnType } from "@trpc/server";
 import { z } from "zod";
 import type { BackendUser } from "@/app/hooks/use-user";
 import type { Context, ProtectedContext } from "@/app/api/trpc/context";
+import { createServices } from "@/app/lib/services";
+
+// Create mock services for testing
+export const createMockServices = () => {
+  const mockTodoService = {
+    createTodo: jest.fn(),
+    updateTodo: jest.fn(),
+    deleteTodo: jest.fn(),
+    getTodosByOrganization: jest.fn(),
+    getTodosGroupedByType: jest.fn(),
+    getTodosByDonor: jest.fn(),
+    getTodosByStaff: jest.fn(),
+    createTodosFromPredictedActions: jest.fn(),
+  };
+
+  // Get actual services but override with mocks where needed
+  const services = createServices();
+  
+  // Override the todos service with the mock
+  return {
+    ...services,
+    todos: mockTodoService,
+    __mocks: {
+      todos: mockTodoService,
+    }
+  };
+};
 
 // Mock BackendUser
 export const createMockBackendUser = (overrides: Partial<BackendUser> = {}): BackendUser => ({
@@ -35,6 +62,7 @@ export const createTestContext = (overrides: any = {}): Context => {
       ...overrides.req,
     }),
     resHeaders: new Headers(overrides.resHeaders || {}),
+    services: overrides.services || {},
   };
 };
 
@@ -54,6 +82,7 @@ export const createProtectedTestContext = (overrides: any = {}): ProtectedContex
       ...overrides.req,
     }),
     resHeaders: new Headers(overrides.resHeaders || {}),
+    services: overrides.services || {},
   };
 };
 
