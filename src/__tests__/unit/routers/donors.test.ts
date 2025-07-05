@@ -659,7 +659,16 @@ describe("donorsRouter", () => {
 
   describe("addNote", () => {
     it("should add a note to donor", async () => {
-      const ctx = createProtectedTestContext();
+      const mockDonorsService = {
+        bulkUpdateAssignedStaff: jest.fn(),
+        addNoteTodonor: jest.fn(),
+      };
+
+      const ctx = createProtectedTestContext({
+        services: {
+          donors: mockDonorsService,
+        },
+      });
       const caller = donorsRouter.createCaller(ctx);
 
       const noteContent = "This is a test note";
@@ -667,7 +676,7 @@ describe("donorsRouter", () => {
       // Mock authorization check
       mockDonorsData.getDonorsByIds.mockResolvedValue([mockDonor]);
 
-      // Mock the update operation
+      // Mock the service operation
       const updatedDonor = {
         ...mockDonor,
         notes: [{
@@ -677,26 +686,36 @@ describe("donorsRouter", () => {
         }],
       };
 
-      const mockUpdate = jest.fn().mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([updatedDonor]),
-          }),
-        }),
-      });
-      mockDb.update = mockUpdate;
+      mockDonorsService.addNoteTodonor.mockResolvedValue(updatedDonor);
 
       const result = await caller.addNote({
         donorId: 1,
         content: noteContent,
       });
 
+      expect(mockDonorsService.addNoteTodonor).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          createdBy: "user-1",
+          content: noteContent,
+        }),
+        "org-1"
+      );
       expect(result.notes).toBeDefined();
       expect(Array.isArray(result.notes)).toBe(true);
     });
 
     it("should append to existing notes", async () => {
-      const ctx = createProtectedTestContext();
+      const mockDonorsService = {
+        bulkUpdateAssignedStaff: jest.fn(),
+        addNoteTodonor: jest.fn(),
+      };
+
+      const ctx = createProtectedTestContext({
+        services: {
+          donors: mockDonorsService,
+        },
+      });
       const caller = donorsRouter.createCaller(ctx);
 
       const existingNote = {
@@ -710,27 +729,31 @@ describe("donorsRouter", () => {
         notes: [existingNote],
       }]);
 
-      const mockUpdate = jest.fn().mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([{
-              ...mockDonor,
-              notes: [existingNote, {
-                createdAt: new Date().toISOString(),
-                createdBy: "user-1",
-                content: "New note",
-              }],
-            }]),
-          }),
-        }),
-      });
-      mockDb.update = mockUpdate;
+      // Mock the service to return updated donor with appended note
+      const updatedDonor = {
+        ...mockDonor,
+        notes: [existingNote, {
+          createdAt: new Date().toISOString(),
+          createdBy: "user-1",
+          content: "New note",
+        }],
+      };
+
+      mockDonorsService.addNoteTodonor.mockResolvedValue(updatedDonor);
 
       const result = await caller.addNote({
         donorId: 1,
         content: "New note",
       });
 
+      expect(mockDonorsService.addNoteTodonor).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          createdBy: "user-1",
+          content: "New note",
+        }),
+        "org-1"
+      );
       expect(result.notes).toHaveLength(2);
     });
 

@@ -12,9 +12,7 @@ import {
 } from "@/app/lib/data/donors";
 import { countListsForDonor } from "@/app/lib/data/donor-lists";
 import { getStaffByIds } from "@/app/lib/data/staff";
-import { db } from "@/app/lib/db";
-import { donors, type DonorNote } from "@/app/lib/db/schema";
-import { and, inArray, eq, sql } from "drizzle-orm";
+import { type DonorNote } from "@/app/lib/db/schema";
 import { 
   createTRPCError,
   handleAsync,
@@ -618,10 +616,7 @@ export const donorsRouter = router({
 
       // Bulk update
       await handleAsync(
-        async () => db
-          .update(donors)
-          .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
-          .where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId))),
+        async () => ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk update assigned staff"),
           logMetadata: { count: validDonorIds.length, staffId }
@@ -700,26 +695,30 @@ export const donorsRouter = router({
         };
       }
 
-      // Import schemas
-      const { staff, staffGmailTokens } = await import("@/app/lib/db/schema");
+      // Import schemas and db for this specific validation query
+      const { db } = await import("@/app/lib/db");
+      const schema = await import("@/app/lib/db/schema");
+      const { staff, staffGmailTokens } = schema;
+      const donorSchema = schema.donors;
+      const { and, inArray, eq, sql } = await import("drizzle-orm");
 
       const donorsWithStaff = await handleAsync(
         async () => db
           .select({
-            donorId: donors.id,
-            donorFirstName: donors.firstName,
-            donorLastName: donors.lastName,
-            donorEmail: donors.email,
-            assignedToStaffId: donors.assignedToStaffId,
+            donorId: donorSchema.id,
+            donorFirstName: donorSchema.firstName,
+            donorLastName: donorSchema.lastName,
+            donorEmail: donorSchema.email,
+            assignedToStaffId: donorSchema.assignedToStaffId,
             staffFirstName: staff.firstName,
             staffLastName: staff.lastName,
             staffEmail: staff.email,
             hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
           })
-          .from(donors)
-          .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+          .from(donorSchema)
+          .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
           .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
-          .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId))),
+          .where(and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("validate staff email connectivity"),
           logMetadata: { donorCount: donorIds.length }
@@ -800,24 +799,9 @@ export const donorsRouter = router({
         content: content.trim(),
       };
 
-      // Get existing notes
-      const existingNotes = (donor.notes as DonorNote[]) || [];
-
-      // Update donor
-      const [updatedDonor] = await handleAsync(
-        async () => db
-          .update(donors)
-          .set({
-            notes: [...existingNotes, newNote],
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(donors.id, donorId),
-              eq(donors.organizationId, ctx.auth.user.organizationId)
-            )
-          )
-          .returning(),
+      // Update donor with new note
+      const updatedDonor = await handleAsync(
+        async () => ctx.services.donors.addNoteTodonor(donorId, newNote, ctx.auth.user.organizationId),
         {
           errorMessage: ERROR_MESSAGES.OPERATION_FAILED("add note"),
           logMetadata: { donorId }

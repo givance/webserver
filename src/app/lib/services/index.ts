@@ -14,6 +14,7 @@ import { WhatsAppStaffLoggingService } from './whatsapp/whatsapp-staff-logging.s
 import { WhatsAppHistoryService } from './whatsapp/whatsapp-history.service';
 import { WhatsAppAIService } from './whatsapp/whatsapp-ai.service';
 import { DonorAnalysisService } from './donor-analysis.service';
+import { DonorsService } from './donors.service';
 
 // Import analysis services
 import { StageClassificationService } from '@/app/lib/analysis/stage-classification-service';
@@ -32,6 +33,7 @@ export const createServices = () => {
     communications: new CommunicationsService(),
     todos: new TodoService(),
     donorJourney: new DonorJourneyService(),
+    donors: new DonorsService(),
     
     // Email services
     agenticEmailGeneration: new AgenticEmailGenerationService(),
@@ -82,3 +84,4 @@ export { PersonResearchService } from './person-research.service';
 export { BulkDonorResearchService } from './bulk-donor-research.service';
 export { DonorJourneyService } from './donor-journey.service';
 export { DonorAnalysisService } from './donor-analysis.service';
+export { DonorsService } from './donors.service';
