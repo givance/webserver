@@ -1,9 +1,9 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import { useCommunications } from "@/app/hooks/use-communications";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { CampaignSteps } from "../../components/CampaignSteps";
 
@@ -88,14 +88,18 @@ export default function EditCampaignPage() {
           campaignName: sessionData.session.jobName,
           selectedDonorIds: sessionData.session.selectedDonorIds as number[],
           chatHistory: Array.isArray(sessionData.session.chatHistory)
-            ? (sessionData.session.chatHistory as Array<{ role: "user" | "assistant"; content: string }>)
+            ? (sessionData.session.chatHistory as Array<{
+                role: "user" | "assistant";
+                content: string;
+              }>)
             : [], // Ensure chatHistory is always an array
           instruction: sessionData.session.instruction || "", // Pass the original instruction for fallback
           templateId: sessionData.session.templateId ?? undefined,
           // Include any existing generated emails for reference
           existingGeneratedEmails: sessionData.emails || [],
           // Include the previewDonorIds from the session (THIS WAS MISSING!)
-          previewDonorIds: (sessionData.session.previewDonorIds as number[]) || [],
+          previewDonorIds:
+            (sessionData.session.previewDonorIds as number[]) || [],
         }}
       />
     </div>
