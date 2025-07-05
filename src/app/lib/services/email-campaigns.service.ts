@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, count, sql, or } from "drizzle-orm";
+import { and, desc, eq, count, sql, or, inArray } from "drizzle-orm";
 import { db } from "@/app/lib/db";
 import {
   emailGenerationSessions,
@@ -538,48 +538,69 @@ export class EmailCampaignsService {
       .limit(limit)
       .offset(offset);
 
-    // Get email counts for each campaign separately and fix stuck campaigns
-    const campaignsWithCounts = await Promise.all(
-      campaigns.map(async (campaign) => {
-        // Check and fix stuck campaigns before returning data
-        if (
-          campaign.status === EmailGenerationSessionStatus.GENERATING ||
-          campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
-        ) {
-          try {
-            await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
-          } catch (error) {
-            logger.warn(`Failed to check completion for campaign ${campaign.id}: ${error}`);
-          }
-        }
+    // Check and fix stuck campaigns in batch
+    const campaignsToCheck = campaigns
+      .filter(campaign => 
+        campaign.status === EmailGenerationSessionStatus.GENERATING ||
+        campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
+      )
+      .map(campaign => campaign.id);
 
-        const [sentEmailsResult, totalEmailsResult] = await Promise.all([
-          db
-            .select({ count: count() })
-            .from(generatedEmails)
-            .where(and(eq(generatedEmails.sessionId, campaign.id), eq(generatedEmails.isSent, true))),
-          db.select({ count: count() }).from(generatedEmails).where(eq(generatedEmails.sessionId, campaign.id)),
-        ]);
+    let batchResults = new Map();
+    if (campaignsToCheck.length > 0) {
+      try {
+        batchResults = await this.checkAndUpdateMultipleCampaignCompletion(campaignsToCheck, organizationId);
+      } catch (error) {
+        logger.warn(`Failed to check completion for campaigns ${campaignsToCheck.join(', ')}: ${error}`);
+      }
+    }
 
-        // Get updated campaign status after the check
-        const [updatedCampaign] = await db
-          .select({
-            status: emailGenerationSessions.status,
-            completedDonors: emailGenerationSessions.completedDonors,
-          })
-          .from(emailGenerationSessions)
-          .where(eq(emailGenerationSessions.id, campaign.id))
-          .limit(1);
-
-        return {
-          ...campaign,
-          status: updatedCampaign?.status ?? campaign.status,
-          completedDonors: updatedCampaign?.completedDonors ?? campaign.completedDonors,
-          sentEmails: sentEmailsResult[0]?.count ?? 0,
-          totalEmails: totalEmailsResult[0]?.count ?? 0,
-        };
+    // Get email counts for all campaigns in batch
+    const allSessionIds = campaigns.map(c => c.id);
+    const emailCounts = await db
+      .select({
+        sessionId: generatedEmails.sessionId,
+        totalEmails: count(),
+        sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
       })
-    );
+      .from(generatedEmails)
+      .where(inArray(generatedEmails.sessionId, allSessionIds))
+      .groupBy(generatedEmails.sessionId);
+
+    // Create lookup map for email counts
+    const emailCountsMap = new Map();
+    emailCounts.forEach(count => {
+      emailCountsMap.set(count.sessionId, count);
+    });
+
+    // Get updated campaign statuses in batch
+    const updatedCampaigns = await db
+      .select({
+        id: emailGenerationSessions.id,
+        status: emailGenerationSessions.status,
+        completedDonors: emailGenerationSessions.completedDonors,
+      })
+      .from(emailGenerationSessions)
+      .where(inArray(emailGenerationSessions.id, allSessionIds));
+
+    const updatedCampaignsMap = new Map();
+    updatedCampaigns.forEach(campaign => {
+      updatedCampaignsMap.set(campaign.id, campaign);
+    });
+
+    // Combine all data
+    const campaignsWithCounts = campaigns.map(campaign => {
+      const emailCount = emailCountsMap.get(campaign.id) || { totalEmails: 0, sentEmails: 0 };
+      const updatedData = updatedCampaignsMap.get(campaign.id);
+      
+      return {
+        ...campaign,
+        status: updatedData?.status ?? campaign.status,
+        completedDonors: updatedData?.completedDonors ?? campaign.completedDonors,
+        sentEmails: emailCount.sentEmails,
+        totalEmails: emailCount.totalEmails,
+      };
+    });
 
     const totalCountResult = await db
       .select({ count: count() })
@@ -1192,113 +1213,159 @@ export class EmailCampaignsService {
   }
 
   /**
+   * Checks and updates completion status for multiple campaigns in batch
+   * @param sessionIds - Array of session IDs to check
+   * @param organizationId - The organization ID
+   * @returns Map of sessionId to updated status info
+   */
+  async checkAndUpdateMultipleCampaignCompletion(sessionIds: number[], organizationId: string) {
+    if (sessionIds.length === 0) return new Map();
+
+    try {
+      // Get all sessions in batch
+      const sessions = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            inArray(emailGenerationSessions.id, sessionIds),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        );
+
+      if (sessions.length === 0) return new Map();
+
+      // Get email stats for all sessions in batch
+      const emailStats = await db
+        .select({
+          sessionId: generatedEmails.sessionId,
+          totalEmails: count(),
+          sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
+          approvedEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.status} = 'APPROVED' THEN 1 END)`,
+        })
+        .from(generatedEmails)
+        .where(inArray(generatedEmails.sessionId, sessionIds))
+        .groupBy(generatedEmails.sessionId);
+
+      // Create lookup map for email stats
+      const emailStatsMap = new Map();
+      emailStats.forEach(stats => {
+        emailStatsMap.set(stats.sessionId, stats);
+      });
+
+      const results = new Map();
+      const sessionsToUpdate = [];
+
+      logger.info(`[checkAndUpdateMultipleCampaignCompletion] Checking ${sessions.length} campaigns in batch`, {
+        sessionIds,
+        organizationId,
+      });
+
+      // Process each session
+      for (const session of sessions) {
+        const stats = emailStatsMap.get(session.id) || { totalEmails: 0, sentEmails: 0, approvedEmails: 0 };
+        const selectedDonorIds = (session.selectedDonorIds as number[]) || [];
+        const totalDonors = selectedDonorIds.length;
+
+        let shouldUpdate = false;
+        let newStatus = session.status;
+        let newCompletedDonors = session.completedDonors;
+
+        // Same logic as individual function but collected for batch update
+        if (session.status === EmailGenerationSessionStatus.GENERATING && stats.approvedEmails > 0) {
+          logger.info(
+            `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} moving from GENERATING to READY_TO_SEND`
+          );
+          newStatus = EmailGenerationSessionStatus.READY_TO_SEND;
+          newCompletedDonors = stats.approvedEmails;
+          shouldUpdate = true;
+        }
+
+        // Check for completion (works for both IN_PROGRESS and campaigns that were just updated)
+        if (
+          (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
+            (session.status === EmailGenerationSessionStatus.GENERATING && stats.approvedEmails > 0)) &&
+          stats.totalEmails > 0 &&
+          stats.totalEmails === stats.sentEmails
+        ) {
+          logger.info(
+            `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} completed - all emails sent`
+          );
+          newStatus = EmailGenerationSessionStatus.COMPLETED;
+          newCompletedDonors = totalDonors;
+          shouldUpdate = true;
+        } else if (
+          (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
+            session.status === EmailGenerationSessionStatus.GENERATING) &&
+          stats.approvedEmails === totalDonors &&
+          stats.sentEmails === 0
+        ) {
+          // All emails generated but none sent yet - ensure status is READY_TO_SEND
+          if (session.status === EmailGenerationSessionStatus.GENERATING) {
+            logger.info(
+              `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} all emails generated, moving to READY_TO_SEND`
+            );
+            newStatus = EmailGenerationSessionStatus.READY_TO_SEND;
+            newCompletedDonors = totalDonors;
+            shouldUpdate = true;
+          }
+        }
+
+        if (shouldUpdate) {
+          sessionsToUpdate.push({
+            id: session.id,
+            status: newStatus,
+            completedDonors: newCompletedDonors,
+            shouldSetCompletedAt: newStatus === EmailGenerationSessionStatus.COMPLETED,
+          });
+        }
+
+        results.set(session.id, {
+          status: newStatus,
+          completedDonors: newCompletedDonors,
+          totalEmails: stats.totalEmails,
+          sentEmails: stats.sentEmails,
+          approvedEmails: stats.approvedEmails,
+        });
+      }
+
+      // Perform batch updates
+      if (sessionsToUpdate.length > 0) {
+        for (const update of sessionsToUpdate) {
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              status: update.status,
+              completedDonors: update.completedDonors,
+              updatedAt: new Date(),
+              ...(update.shouldSetCompletedAt && {
+                completedAt: new Date(),
+              }),
+            })
+            .where(eq(emailGenerationSessions.id, update.id));
+        }
+
+        logger.info(
+          `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate.map(u => `${u.id}->${u.status}`).join(', ')}`
+        );
+      }
+
+      return results;
+    } catch (error) {
+      logger.error(`Failed to check campaign completion for sessions ${sessionIds.join(', ')}: ${error}`);
+      return new Map();
+    }
+  }
+
+  /**
    * Checks if all emails in a session have been sent and updates status to COMPLETED
    * Also handles campaigns stuck in PENDING that should be IN_PROGRESS or COMPLETED
    * @param sessionId - The session ID
    * @param organizationId - The organization ID
    */
   async checkAndUpdateCampaignCompletion(sessionId: number, organizationId: string) {
-    try {
-      // Get the session
-      const session = await db.query.emailGenerationSessions.findFirst({
-        where: and(
-          eq(emailGenerationSessions.id, sessionId),
-          eq(emailGenerationSessions.organizationId, organizationId)
-        ),
-      });
-
-      if (!session) {
-        return;
-      }
-
-      // Count total emails and sent emails
-      const [emailStats] = await db
-        .select({
-          totalEmails: count(),
-          sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
-          approvedEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.status} = 'APPROVED' THEN 1 END)`,
-        })
-        .from(generatedEmails)
-        .where(eq(generatedEmails.sessionId, sessionId));
-
-      const selectedDonorIds = (session.selectedDonorIds as number[]) || [];
-      const totalDonors = selectedDonorIds.length;
-
-      // Handle different status scenarios
-      logger.info(`[checkAndUpdateCampaignCompletion] Checking campaign ${sessionId} status`, {
-        sessionId,
-        currentStatus: session.status,
-        totalDonors,
-        completedDonors: session.completedDonors,
-        totalEmails: emailStats.totalEmails,
-        sentEmails: emailStats.sentEmails,
-        approvedEmails: emailStats.approvedEmails,
-        organizationId,
-      });
-
-      if (session.status === EmailGenerationSessionStatus.GENERATING && emailStats.approvedEmails > 0) {
-        // Campaign is stuck in PENDING but has generated emails - move to IN_PROGRESS
-        logger.info(
-          `[checkAndUpdateCampaignCompletion] Campaign ${sessionId} stuck in PENDING with ${emailStats.approvedEmails} generated emails - moving to IN_PROGRESS`
-        );
-
-        await db
-          .update(emailGenerationSessions)
-          .set({
-            status: EmailGenerationSessionStatus.READY_TO_SEND,
-            completedDonors: emailStats.approvedEmails,
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, sessionId));
-
-        logger.info(
-          `Campaign ${sessionId} updated from PENDING to IN_PROGRESS - found ${emailStats.approvedEmails} generated emails`
-        );
-      }
-
-      // Check for completion (works for both IN_PROGRESS and campaigns that were just updated)
-      if (
-        (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
-          (session.status === EmailGenerationSessionStatus.GENERATING && emailStats.approvedEmails > 0)) &&
-        emailStats.totalEmails > 0 &&
-        emailStats.totalEmails === emailStats.sentEmails
-      ) {
-        await db
-          .update(emailGenerationSessions)
-          .set({
-            status: "COMPLETED",
-            completedDonors: totalDonors,
-            completedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, sessionId));
-
-        logger.info(`Campaign ${sessionId} marked as COMPLETED - all ${emailStats.totalEmails} emails have been sent`);
-      } else if (
-        (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
-          session.status === EmailGenerationSessionStatus.GENERATING) &&
-        emailStats.approvedEmails === totalDonors &&
-        emailStats.sentEmails === 0
-      ) {
-        // All emails generated but none sent yet - ensure status is IN_PROGRESS
-        if (session.status === EmailGenerationSessionStatus.GENERATING) {
-          await db
-            .update(emailGenerationSessions)
-            .set({
-              status: EmailGenerationSessionStatus.READY_TO_SEND,
-              completedDonors: totalDonors,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailGenerationSessions.id, sessionId));
-
-          logger.info(
-            `Campaign ${sessionId} updated from PENDING to IN_PROGRESS - all ${totalDonors} emails generated`
-          );
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to check campaign completion for session ${sessionId}: ${error}`);
-    }
+    // Use batch function with single session ID for consistency
+    await this.checkAndUpdateMultipleCampaignCompletion([sessionId], organizationId);
   }
 
   /**
