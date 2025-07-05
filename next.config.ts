@@ -16,13 +16,17 @@ const nextConfig: NextConfig = {
       config.externals.push("winston");
     }
 
-    // Exclude worktrees directory from webpack compilation
+    // Exclude other worktrees directory from webpack compilation (but not the current one)
     config.module = config.module || {};
     config.module.rules = config.module.rules || [];
-    config.module.rules.push({
-      test: /worktrees/,
-      loader: "ignore-loader",
-    });
+    // Only ignore worktrees that are not the current working directory
+    const currentPath = process.cwd();
+    if (!currentPath.includes('worktrees')) {
+      config.module.rules.push({
+        test: /worktrees/,
+        loader: "ignore-loader",
+      });
+    }
 
     // Exclude test files from the build
     config.module.rules.push({

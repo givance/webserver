@@ -96,6 +96,5 @@ if (typeof global.React === "undefined") {
     React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = MockReactInternals;
   }
   
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
 }
