@@ -993,13 +993,25 @@ export class EmailCampaignsService {
         });
       }
 
+      // Check if only schedule config is being updated
+      const isOnlyScheduleUpdate =
+        input.scheduleConfig !== undefined &&
+        !input.campaignName &&
+        !input.chatHistory &&
+        !input.selectedDonorIds &&
+        !input.previewDonorIds &&
+        input.templateId === undefined;
+
+      // Don't allow editing other fields if campaign is processing
       if (
-        existingCampaign.status === EmailGenerationSessionStatus.GENERATING ||
-        existingCampaign.status === EmailGenerationSessionStatus.READY_TO_SEND
+        (existingCampaign.status === EmailGenerationSessionStatus.GENERATING ||
+          existingCampaign.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
+        !isOnlyScheduleUpdate
       ) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Cannot edit a campaign that is currently processing',
+          message:
+            'Cannot edit campaign content while it is currently processing. You can only update schedule settings.',
         });
       }
 
@@ -1036,12 +1048,57 @@ export class EmailCampaignsService {
         .where(eq(emailGenerationSessions.id, input.campaignId))
         .returning();
 
+      // If schedule config was updated and campaign has scheduled emails, reschedule them
+      if (input.scheduleConfig !== undefined && isOnlyScheduleUpdate) {
+        // Cancel any existing scheduled send jobs for unsent emails
+        const cancelledCount = await db
+          .update(emailSendJobs)
+          .set({
+            status: 'cancelled',
+            processedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(emailSendJobs.sessionId, input.campaignId), eq(emailSendJobs.status, 'pending'))
+          );
+
+        logger.info(
+          `Cancelled ${cancelledCount.rowCount} pending email send jobs for campaign ${input.campaignId} due to schedule update`
+        );
+
+        // Reset sendStatus for unsent emails so they can be rescheduled
+        const resetCount = await db
+          .update(generatedEmails)
+          .set({
+            sendStatus: null,
+            sendJobId: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(generatedEmails.sessionId, input.campaignId),
+              eq(generatedEmails.isSent, false),
+              or(
+                eq(generatedEmails.sendStatus, 'scheduled'),
+                eq(generatedEmails.sendStatus, 'pending')
+              )
+            )
+          );
+
+        logger.info(
+          `Reset send status for ${resetCount.rowCount} unsent emails in campaign ${input.campaignId} for rescheduling`
+        );
+      }
+
       logger.info(`Updated campaign ${input.campaignId} for organization ${organizationId}`);
 
       return {
         success: true,
         campaign: updatedCampaign,
-        message: 'Campaign updated successfully',
+        message:
+          input.scheduleConfig !== undefined && isOnlyScheduleUpdate
+            ? 'Campaign schedule updated successfully. Unsent emails will be rescheduled with the new settings.'
+            : 'Campaign updated successfully',
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
