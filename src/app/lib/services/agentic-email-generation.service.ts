@@ -1,22 +1,20 @@
-import { logger } from "@/app/lib/logger";
-import { env } from "@/app/lib/env";
-import {
-  AgenticEmailGenerationOrchestrator,
-  AgenticFlowContext,
-  AgenticFlowStep,
-  AgenticFlowResult,
-} from "../utils/email-generator/agentic-flow";
-import { EmailGenerationService, GenerateEmailsInput } from "./email-generation.service";
-import fs from "fs/promises";
-import path from "path";
-import { db } from "@/app/lib/db";
-import { organizations, donors } from "@/app/lib/db/schema";
-import { eq, inArray, and } from "drizzle-orm";
 import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 import { listDonations } from "@/app/lib/data/donations";
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getUserMemories } from "@/app/lib/data/users";
+import { db } from "@/app/lib/db";
+import { donors, organizations } from "@/app/lib/db/schema";
+import { logger } from "@/app/lib/logger";
 import { PersonResearchService } from "@/app/lib/services/person-research.service";
+import { and, eq, inArray } from "drizzle-orm";
+import fs from "fs/promises";
+import path from "path";
+import {
+  AgenticEmailGenerationOrchestrator,
+  AgenticFlowContext,
+  AgenticFlowStep,
+} from "../utils/email-generator/agentic-flow";
+import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-generation.service";
 
 export interface AgenticEmailGenerationInput {
   donors: Array<{
@@ -52,12 +50,12 @@ export interface AgenticConversationMessage {
  */
 export class AgenticEmailGenerationService {
   private orchestrator: AgenticEmailGenerationOrchestrator;
-  private emailGenerationService: EmailGenerationService;
+  private unifiedEmailService: UnifiedSmartEmailGenerationService;
   private activeSessions: Map<string, AgenticFlowState> = new Map();
 
   constructor() {
     this.orchestrator = new AgenticEmailGenerationOrchestrator();
-    this.emailGenerationService = new EmailGenerationService();
+    this.unifiedEmailService = new UnifiedSmartEmailGenerationService();
   }
 
   /**
@@ -227,52 +225,77 @@ export class AgenticEmailGenerationService {
   }
 
   /**
-   * Executes email generation using the confirmed prompt
+   * Executes the final email generation based on the confirmed prompt
    */
   async executeEmailGeneration(sessionId: string, confirmedPrompt: string): Promise<any> {
-    logger.info(`[AGENTIC SERVICE] Executing email generation`);
-    logger.info(`[AGENTIC SERVICE] Session: ${sessionId}`);
-    logger.info(`[AGENTIC SERVICE] Confirmed prompt length: ${confirmedPrompt.length} chars`);
+    logger.info(`[AGENTIC SERVICE] Executing email generation for session: ${sessionId}`);
 
     const flowState = this.activeSessions.get(sessionId);
     if (!flowState) {
-      logger.error(`[AGENTIC SERVICE ERROR] Session not found for execution: ${sessionId}`);
+      logger.error(`[AGENTIC SERVICE ERROR] Session not found: ${sessionId}`);
       throw new Error("Session not found or expired");
     }
 
     logger.info(`[AGENTIC SERVICE] Session found - donors: ${flowState.context.donors.length}`);
 
     try {
-      // Convert context back to the format expected by the regular email generation service
-      const generateEmailsInput: GenerateEmailsInput = {
-        donors: flowState.context.donors.map((donor) => ({
-          id: donor.id,
-          firstName: donor.firstName || "",
-          lastName: donor.lastName || "",
-          email: donor.email,
-        })),
-        organizationName: flowState.context.organizationName,
-        organizationWritingInstructions: flowState.context.organizationWritingInstructions,
-        currentDate: flowState.context.currentDate,
-      };
+      // Use the unified email generation service directly
+      logger.info(`[AGENTIC SERVICE] Calling unified email generation service`);
 
-      logger.info(`[AGENTIC SERVICE] Calling traditional email generation service`);
+      // Convert the donor format for the unified service
+      const donorIds = flowState.context.donors.map((d) => String(d.id));
 
-      // Use the regular email generation service
-      const result = await this.emailGenerationService.generateSmartEmails(
-        generateEmailsInput,
-        flowState.context.organization?.id || "",
-        "" // userId - we'll need to pass this through the context
-      );
+      // Build chat history from the final prompt
+      const chatHistory = [
+        {
+          role: "user" as const,
+          content: confirmedPrompt,
+        },
+      ];
+
+      const result = await this.unifiedEmailService.generateSmartEmailsForCampaign({
+        organizationId: flowState.context.organization?.id || "",
+        sessionId: sessionId, // Use the same sessionId
+        chatHistory,
+        donorIds,
+      });
 
       // Clean up the session
       this.activeSessions.delete(sessionId);
 
       logger.info(`[AGENTIC SERVICE] Email generation completed successfully`);
       logger.info(`[AGENTIC SERVICE] Session cleaned up: ${sessionId}`);
-      logger.info(`[AGENTIC SERVICE] Generated emails count: ${result.emails?.length || 0}`);
+      logger.info(`[AGENTIC SERVICE] Generated emails count: ${result.results?.length || 0}`);
 
-      return result;
+      // Convert the result format to match expected output
+      const emails = result.results
+        .filter((r) => r.email !== null)
+        .map((r) => ({
+          donorId: r.donor.id,
+          subject: r.email!.subject,
+          emailContent: r.email!.content,
+          reasoning: r.email!.reasoning,
+          response: r.email!.response,
+          structuredContent: [
+            {
+              piece: r.email!.content,
+              references: ["email-content"],
+              addNewlineAfter: false,
+            },
+          ],
+          referenceContexts: { "email-content": "Generated email content" },
+          tokenUsage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: r.tokensUsed || 0,
+          },
+        }));
+
+      return {
+        emails,
+        sessionId: parseInt(sessionId), // Convert back to number if needed
+        tokensUsed: result.totalTokensUsed,
+      };
     } catch (error) {
       logger.error(`[AGENTIC SERVICE ERROR] Failed to execute email generation`);
       logger.error(`[AGENTIC SERVICE ERROR] Session: ${sessionId}`);

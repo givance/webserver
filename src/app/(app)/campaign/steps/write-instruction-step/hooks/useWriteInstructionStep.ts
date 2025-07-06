@@ -60,8 +60,7 @@ export function useWriteInstructionStep(
   const hasGeneratedPreviewRef = useRef(false);
 
   // Hooks
-  const { generateEmails, saveGeneratedEmail, saveDraft, regenerateAllEmails, smartEmailGeneration } =
-    useCommunications();
+  const { saveGeneratedEmail, saveDraft, smartEmailGeneration } = useCommunications();
 
   // Email State Effects
   useEffect(() => {
@@ -157,23 +156,6 @@ export function useWriteInstructionStep(
   }, [allGeneratedEmails, previewDonorIds, selectedDonors]);
 
   // Callbacks
-  const regenerateAllEmailsCallback = useCallback(
-    async (params: {
-      sessionId: number;
-      chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    }): Promise<{ message: string; success: boolean }> => {
-      try {
-        const result = await regenerateAllEmails.mutateAsync(params);
-        return result;
-      } catch (error) {
-        console.error("Error regenerating emails:", error);
-        toast.error("Failed to regenerate emails. Please try again.");
-        throw error;
-      }
-    },
-    [regenerateAllEmails]
-  );
-
   const smartEmailGenerationCallback = useCallback(
     async (params: {
       sessionId: number;
@@ -276,7 +258,7 @@ export function useWriteInstructionStep(
   }, [onInstructionChange]);
 
   return {
-    // Email Generation
+    // Email Generation State
     emailGeneration: {
       isGenerating,
       setIsGenerating,
@@ -284,9 +266,12 @@ export function useWriteInstructionStep(
       setIsGeneratingMore,
       isRegenerating,
       setIsRegenerating,
-      regenerateAllEmails: regenerateAllEmailsCallback,
       smartEmailGeneration: smartEmailGenerationCallback,
-      saveEmailsToSession,
+      saveEmailsToSession: async (emails: GeneratedEmail[], sessionId: number) => {
+        // This can be implemented if needed for saving emails individually
+        // For now, emails are saved automatically by the backend
+        console.log("Saving emails:", emails.length, "to session:", sessionId);
+      },
     },
 
     // Email State

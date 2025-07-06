@@ -1,36 +1,10 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import type { GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
 import { env } from "@/app/lib/env";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { appendSignatureToPlainText } from "@/app/lib/utils/email-with-signature";
 
 // Input validation schemas
-const generateEmailsSchema = z.object({
-  donors: z.array(
-    z.object({
-      id: z.number(),
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string(),
-    })
-  ),
-  organizationName: z.string(),
-  organizationWritingInstructions: z.string().optional(),
-  previousInstruction: z.string().optional(),
-  currentDate: z.string().optional(),
-  chatHistory: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string(),
-      })
-    )
-    .optional(),
-  signature: z.string().optional(),
-  sessionId: z.number().optional(), // Add sessionId to use existing session
-});
-
 const createSessionSchema = z.object({
   campaignName: z.string().min(1).max(255),
   chatHistory: z.array(
@@ -117,16 +91,6 @@ const updateCampaignSchema = z.object({
   templateId: z.number().optional(),
 });
 
-const regenerateAllEmailsSchema = z.object({
-  sessionId: z.number(),
-  chatHistory: z.array(
-    z.object({
-      role: z.enum(["user", "assistant"]),
-      content: z.string(),
-    })
-  ),
-});
-
 const smartEmailGenerationSchema = z.object({
   sessionId: z.number(),
   mode: z.enum(["generate_more", "regenerate_all", "generate_with_new_message"]),
@@ -199,53 +163,6 @@ const getPlainTextEmailWithSignatureSchema = z.object({
  */
 export const emailCampaignsRouter = router({
   /**
-   * Generates smart donor emails based on instruction and donor data
-   * Routes to agentic flow if USE_AGENTIC_FLOW is enabled, otherwise uses direct flow
-   */
-  generateEmails: protectedProcedure
-    .input(generateEmailsSchema)
-    .mutation(async ({ ctx, input }: { ctx: any; input: GenerateEmailsInput }) => {
-      // Check if agentic flow is enabled
-      if (env.USE_AGENTIC_FLOW) {
-        // Use agentic flow - start conversation
-        const agenticResult = await ctx.services.agenticEmailGeneration.startAgenticFlow(
-          {
-            donors: input.donors,
-            organizationName: input.organizationName,
-            organizationWritingInstructions: input.organizationWritingInstructions,
-            currentDate: input.currentDate,
-          },
-          ctx.auth.user.organizationId,
-          ctx.auth.user.id
-        );
-
-        // If agentic flow is complete and doesn't need user input, proceed to generation
-        if (agenticResult.isComplete && !agenticResult.needsUserInput) {
-          // Generate final prompt and execute generation automatically
-          const finalPrompt = await ctx.services.agenticEmailGeneration.generateFinalPrompt(agenticResult.sessionId);
-          const emailResult = await ctx.services.agenticEmailGeneration.executeEmailGeneration(
-            agenticResult.sessionId,
-            finalPrompt.finalPrompt
-          );
-          return emailResult;
-        } else {
-          // Return agentic conversation state for frontend to handle
-          return {
-            isAgenticFlow: true,
-            ...agenticResult,
-          };
-        }
-      } else {
-        // Use traditional direct flow
-        return await ctx.services.emailGeneration.generateSmartEmails(
-          input,
-          ctx.auth.user.organizationId,
-          ctx.auth.user.id
-        );
-      }
-    }),
-
-  /**
    * Creates a new draft email generation session (does not trigger generation)
    */
   createSession: protectedProcedure.input(createSessionSchema).mutation(async ({ ctx, input }) => {
@@ -317,14 +234,6 @@ export const emailCampaignsRouter = router({
    */
   updateCampaign: protectedProcedure.input(updateCampaignSchema).mutation(async ({ ctx, input }) => {
     return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
-  }),
-
-  /**
-   * Regenerate all emails for a campaign with new instructions
-   * This will delete all existing emails and regenerate them
-   */
-  regenerateAllEmails: protectedProcedure.input(regenerateAllEmailsSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.regenerateAllEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
   }),
 
   /**

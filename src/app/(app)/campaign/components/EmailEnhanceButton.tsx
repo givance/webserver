@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles } from "lucide-react";
@@ -46,64 +48,53 @@ export function EmailEnhanceButton({
 }: EmailEnhanceButtonProps) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const { regenerateAllEmails, getSession } = useCommunications();
+  const { smartEmailGeneration, getSession } = useCommunications();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleEnhance = async () => {
     if (!instruction.trim()) {
-      toast.error("Please enter an enhancement instruction");
+      toast.error("Please enter enhancement instructions");
       return;
     }
 
-    // Handle preview mode
-    if (isPreviewMode && onPreviewEnhance) {
-      onPreviewEnhance(instruction);
-      setOpen(false);
-      setInstruction("");
+    if (!sessionId) {
+      toast.error("No session found");
       return;
     }
 
-    // Handle normal mode - use regeneration with enhancement instruction
-    if (!isPreviewMode && sessionId) {
-      try {
-        // Get current session data to build chat history
-        const sessionData = getSession({ sessionId });
-        const currentSession = sessionData.data?.session;
-        if (!currentSession) {
-          throw new Error("Failed to get session data");
-        }
+    try {
+      setIsLoading(true);
 
-        // Build new chat history with enhancement instruction
-        const currentChatHistory = (currentSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || [];
-        const enhancedChatHistory: Array<{ role: "user" | "assistant"; content: string }> = [
-          ...currentChatHistory,
-          {
-            role: "user",
-            content: `Please enhance the email with the following instruction: ${instruction}`,
-          },
-        ];
+      // Use smartEmailGeneration with generate_with_new_message mode
+      const result = await smartEmailGeneration.mutateAsync({
+        sessionId,
+        mode: "generate_with_new_message",
+        newMessage: instruction,
+      });
 
-        // Regenerate emails with the enhancement instruction
-        const result = await regenerateAllEmails.mutateAsync({
-          sessionId,
-          chatHistory: enhancedChatHistory,
-        });
-
+      if (result.success) {
         toast.success("Email enhanced successfully!");
-
-        // Close dialog and reset
-        setOpen(false);
         setInstruction("");
-      } catch (error) {
-        toast.error("Failed to enhance email with AI");
+        setOpen(false);
+      } else {
+        toast.error("Failed to enhance email");
       }
-    } else if (!isPreviewMode) {
-      toast.error("Cannot enhance email without a valid session ID");
+    } catch (error) {
+      console.error("Error enhancing email:", error);
+      toast.error("Failed to enhance email");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="flex items-center gap-1.5 h-7 text-xs px-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 h-7 text-xs px-2"
+      >
         <Sparkles className="h-3 w-3" />
         Enhance
       </Button>
@@ -176,8 +167,8 @@ export function EmailEnhanceButton({
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEnhance} disabled={regenerateAllEmails.isPending || !instruction.trim()}>
-              {regenerateAllEmails.isPending ? "Enhancing..." : "Enhance Email"}
+            <Button onClick={handleEnhance} disabled={smartEmailGeneration.isPending || !instruction.trim()}>
+              {smartEmailGeneration.isPending ? "Enhancing..." : "Enhance Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

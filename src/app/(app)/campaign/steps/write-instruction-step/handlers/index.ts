@@ -9,10 +9,6 @@ interface EmailGenerationState {
   setIsRegenerating: (regenerating: boolean) => void;
   isGeneratingMore: boolean;
   isRegenerating: boolean;
-  regenerateAllEmails: (params: {
-    sessionId: number;
-    chatHistory: ConversationMessage[];
-  }) => Promise<{ message: string; success: boolean }>;
   smartEmailGeneration: (params: {
     sessionId: number;
     mode: "generate_more" | "regenerate_all" | "generate_with_new_message";
@@ -109,13 +105,6 @@ interface UpdateEmailStatusMutation {
       reasoning: string | null;
       response: string | null;
     };
-    message: string;
-    success: boolean;
-  }>;
-}
-
-interface RegenerateEmailsMutation {
-  mutateAsync: (params: { sessionId: number; chatHistory: ConversationMessage[] }) => Promise<{
     message: string;
     success: boolean;
   }>;
@@ -301,8 +290,7 @@ export async function handleEmailStatusChange(
 
 export async function handleRegenerateEmails(
   params: RegenerateEmailsParams,
-  onlyUnapproved: boolean,
-  regenerateAllEmails: RegenerateEmailsMutation
+  onlyUnapproved: boolean
 ): Promise<{
   success: boolean;
   donorIdsToRegenerate: number[];
@@ -343,11 +331,10 @@ export async function handleRegenerateEmails(
   }
 
   try {
-    // Use the regenerateAllEmails endpoint with existing chat history (no new message)
-    // The key difference from regular generate is we don't append a new message
-    await regenerateAllEmails.mutateAsync({
+    // Use the unified smartEmailGeneration API with regenerate_all mode
+    await emailGeneration.smartEmailGeneration({
       sessionId,
-      chatHistory: chatState.chatMessages, // Use existing chat history without adding new message
+      mode: "regenerate_all",
     });
 
     return {

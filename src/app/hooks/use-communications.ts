@@ -48,11 +48,10 @@ export function useCommunications() {
   });
 
   // Mutation hooks - Email Campaigns
-  const generateEmails = trpc.communications.campaigns.generateEmails.useMutation();
-
   const createSession = trpc.communications.campaigns.createSession.useMutation({
     onSuccess: () => {
-      // Optionally invalidate any session-related queries
+      // Invalidate campaign sessions since a new session is created
+      utils.communications.campaigns.listCampaigns.invalidate();
     },
   });
 
@@ -104,25 +103,11 @@ export function useCommunications() {
     },
   });
 
-  // Regenerate all emails mutation hook
-  const regenerateAllEmails = trpc.communications.campaigns.regenerateAllEmails.useMutation({
-    onSuccess: async (data) => {
-      // Invalidate the session query to refetch updated status
-      if (data.sessionId) {
-        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-        await utils.communications.campaigns.listCampaigns.invalidate();
-      }
-    },
-  });
-
   // Smart email generation mutation hook
   const smartEmailGeneration = trpc.communications.campaigns.smartEmailGeneration.useMutation({
-    onSuccess: async (data) => {
-      // Invalidate the session query to refetch updated status
-      if (data.sessionId) {
-        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-        await utils.communications.campaigns.listCampaigns.invalidate();
-      }
+    onSuccess: () => {
+      // Invalidate campaign sessions since emails are generated/regenerated
+      utils.communications.campaigns.listCampaigns.invalidate();
     },
   });
 
@@ -202,7 +187,6 @@ export function useCommunications() {
     // Mutation hooks
     createThread,
     addMessage,
-    generateEmails,
     createSession,
     launchCampaign,
     saveToDraft,
@@ -213,7 +197,6 @@ export function useCommunications() {
     updateEmail,
     updateEmailStatus,
     updateCampaign,
-    regenerateAllEmails,
     smartEmailGeneration,
     saveDraft,
     saveGeneratedEmail,
