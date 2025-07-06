@@ -15,8 +15,18 @@ import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { InlineTextEdit, InlineSelectEdit, InlineToggleEdit } from "@/components/ui/inline-edit";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  InlineTextEdit,
+  InlineSelectEdit,
+  InlineToggleEdit,
+} from "@/components/ui/inline-edit";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Activity,
@@ -64,7 +74,14 @@ export default function DonorProfilePage() {
   const donorId = Number(params.id);
 
   // Use pagination hook like main donors page
-  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
+  const {
+    currentPage,
+    pageSize,
+    setCurrentPage,
+    setPageSize,
+    getOffset,
+    getPageCount,
+  } = usePagination();
 
   // Notes editing state
   const [isAddingNote, setIsAddingNote] = useState(false);
@@ -73,7 +90,11 @@ export default function DonorProfilePage() {
   // Fetch donor data
   const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
   const donorQuery = getDonorQuery(donorId);
-  const { data: donor, isLoading: isDonorLoading, error: donorError } = donorQuery;
+  const {
+    data: donor,
+    isLoading: isDonorLoading,
+    error: donorError,
+  } = donorQuery;
 
   // Fetch staff members for assignment dropdown
   const { getStaffMembers } = useStaff();
@@ -88,28 +109,31 @@ export default function DonorProfilePage() {
 
   // Fetch donor donations with proper pagination
   const { listDonations } = useDonations();
-  const { data: donationsResponse, isLoading: isDonationsLoading } = listDonations({
-    donorId,
-    includeDonor: false,
-    includeProject: true,
-    limit: pageSize,
-    offset: getOffset(),
-    orderBy: "date",
-    orderDirection: "desc",
-  });
+  const { data: donationsResponse, isLoading: isDonationsLoading } =
+    listDonations({
+      donorId,
+      includeDonor: false,
+      includeProject: true,
+      limit: pageSize,
+      offset: getOffset(),
+      orderBy: "date",
+      orderDirection: "desc",
+    });
 
   // Fetch donor communications
   const { listThreads } = useCommunications();
-  const { data: communicationsResponse, isLoading: isCommunicationsLoading } = listThreads({
-    donorId,
-    includeStaff: true,
-    includeDonors: false,
-    includeLatestMessage: true,
-    limit: 100, // Get all communications for now
-  });
+  const { data: communicationsResponse, isLoading: isCommunicationsLoading } =
+    listThreads({
+      donorId,
+      includeStaff: true,
+      includeDonors: false,
+      includeLatestMessage: true,
+      limit: 100, // Get all communications for now
+    });
 
   // Fetch donor research data
-  const { hasResearch, conductResearch, isConductingResearch } = useDonorResearchData(donorId);
+  const { hasResearch, conductResearch, isConductingResearch } =
+    useDonorResearchData(donorId);
 
   // Add note mutation
   const addNoteMutation = trpc.donors.addNote.useMutation({
@@ -149,7 +173,8 @@ export default function DonorProfilePage() {
 
   const validatePhone = (phone: string): string | null => {
     if (!phone) return null; // Phone is optional
-    const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{4,6}$/;
+    const phoneRegex =
+      /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{4,6}$/;
     if (!phoneRegex.test(phone)) return "Invalid phone format";
     return null;
   };
@@ -183,20 +208,30 @@ export default function DonorProfilePage() {
   // Process donations data
   const { donations, totalDonated, donationCount, totalCount } = useMemo(() => {
     if (!donationsResponse?.donations) {
-      return { donations: [], totalDonated: 0, donationCount: 0, totalCount: 0 };
+      return {
+        donations: [],
+        totalDonated: 0,
+        donationCount: 0,
+        totalCount: 0,
+      };
     }
 
-    const donationItems: DonationRow[] = donationsResponse.donations.map((donation) => ({
-      id: donation.id,
-      date: new Date(donation.date).toISOString(),
-      amount: donation.amount,
-      projectId: donation.project?.id || 0,
-      projectName: donation.project?.name || "Unknown Project",
-      status: "completed", // Assuming all donations are completed
-    }));
+    const donationItems: DonationRow[] = donationsResponse.donations.map(
+      (donation) => ({
+        id: donation.id,
+        date: new Date(donation.date).toISOString(),
+        amount: donation.amount,
+        projectId: donation.project?.id || 0,
+        projectName: donation.project?.name || "Unknown Project",
+        status: "completed", // Assuming all donations are completed
+      })
+    );
 
     // For current page donations, calculate the total from current page
-    const currentPageTotal = donationsResponse.donations.reduce((sum, donation) => sum + donation.amount, 0);
+    const currentPageTotal = donationsResponse.donations.reduce(
+      (sum, donation) => sum + donation.amount,
+      0
+    );
 
     return {
       donations: donationItems,
@@ -212,13 +247,17 @@ export default function DonorProfilePage() {
       return { communications: [], communicationCount: 0 };
     }
 
-    const communicationItems: CommunicationRow[] = communicationsResponse.threads.map((thread) => ({
-      id: thread.id,
-      channel: thread.channel,
-      createdAt: new Date(thread.createdAt).toISOString(),
-      latestMessage: thread.content?.[0]?.content || "No messages",
-      staff: thread.staff?.map((s) => `${s.staff?.firstName} ${s.staff?.lastName}`).filter(Boolean) || [],
-    }));
+    const communicationItems: CommunicationRow[] =
+      communicationsResponse.threads.map((thread) => ({
+        id: thread.id,
+        channel: thread.channel,
+        createdAt: new Date(thread.createdAt).toISOString(),
+        latestMessage: thread.content?.[0]?.content || "No messages",
+        staff:
+          thread.staff
+            ?.map((s) => `${s.staff?.firstName} ${s.staff?.lastName}`)
+            .filter(Boolean) || [],
+      }));
 
     return {
       communications: communicationItems,
@@ -245,7 +284,10 @@ export default function DonorProfilePage() {
         const projectId = row.original.projectId;
         const projectName = row.getValue("projectName") as string;
         return projectId ? (
-          <Link href={`/projects/${projectId}`} className="hover:underline text-blue-600">
+          <Link
+            href={`/projects/${projectId}`}
+            className="hover:underline text-blue-600"
+          >
             {projectName}
           </Link>
         ) : (
@@ -257,7 +299,11 @@ export default function DonorProfilePage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={row.getValue("status") === "completed" ? "default" : "secondary"}>
+        <Badge
+          variant={
+            row.getValue("status") === "completed" ? "default" : "secondary"
+          }
+        >
           {row.getValue("status")}
         </Badge>
       ),
@@ -269,7 +315,8 @@ export default function DonorProfilePage() {
     {
       accessorKey: "createdAt",
       header: "Date",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleDateString(),
+      cell: ({ row }) =>
+        new Date(row.getValue("createdAt")).toLocaleDateString(),
     },
     {
       accessorKey: "channel",
@@ -292,7 +339,10 @@ export default function DonorProfilePage() {
       accessorKey: "latestMessage",
       header: "Latest Message",
       cell: ({ row }) => (
-        <div className="max-w-[300px] truncate" title={row.getValue("latestMessage")}>
+        <div
+          className="max-w-[300px] truncate"
+          title={row.getValue("latestMessage")}
+        >
           {row.getValue("latestMessage")}
         </div>
       ),
@@ -320,16 +370,22 @@ export default function DonorProfilePage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold text-red-600">{donorError ? "Error loading donor" : "Donor not found"}</h1>
+          <h1 className="text-2xl font-bold text-red-600">
+            {donorError ? "Error loading donor" : "Donor not found"}
+          </h1>
         </div>
         <div className="text-muted-foreground">
-          {donorError ? "There was an error loading the donor information." : "The requested donor could not be found."}
+          {donorError
+            ? "There was an error loading the donor information."
+            : "The requested donor could not be found."}
         </div>
       </div>
     );
   }
 
-  const lastDonationDate = donorStats?.lastDonationDate ? new Date(donorStats.lastDonationDate) : null;
+  const lastDonationDate = donorStats?.lastDonationDate
+    ? new Date(donorStats.lastDonationDate)
+    : null;
 
   return (
     <div className="container mx-auto py-6">
@@ -342,7 +398,14 @@ export default function DonorProfilePage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">{formatDonorName(donor)}</h1>
+            <h1 className="text-2xl font-bold">
+              {formatDonorName(donor)}
+              {donor.externalId && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  External ID: ({donor.externalId})
+                </span>
+              )}
+            </h1>
             <p className="text-muted-foreground">{donor.email}</p>
           </div>
         </div>
@@ -376,13 +439,17 @@ export default function DonorProfilePage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(donorStats?.totalDonated || 0)}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(donorStats?.totalDonated || 0)}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Donations</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Donations
+            </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -397,14 +464,18 @@ export default function DonorProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {lastDonationDate ? lastDonationDate.toLocaleDateString() : "Never"}
+              {lastDonationDate
+                ? lastDonationDate.toLocaleDateString()
+                : "Never"}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Communications</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Communications
+            </CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -464,22 +535,31 @@ export default function DonorProfilePage() {
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium">Notes</h4>
               {!isAddingNote && (
-                <Button variant="ghost" size="sm" onClick={() => setIsAddingNote(true)} className="h-8 px-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsAddingNote(true)}
+                  className="h-8 px-2"
+                >
                   <Edit className="h-4 w-4" />
                 </Button>
               )}
             </div>
-            
+
             {/* Notes list */}
             <div className="space-y-2 mb-3">
               {notes.length === 0 ? (
                 <p className="text-muted-foreground">No notes added yet.</p>
               ) : (
                 notes.map((note, index) => (
-                  <div key={index} className="border rounded-md p-3 bg-muted/30">
+                  <div
+                    key={index}
+                    className="border rounded-md p-3 bg-muted/30"
+                  >
                     <p className="text-sm">{note.content}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(note.createdAt).toLocaleDateString()} at {new Date(note.createdAt).toLocaleTimeString()}
+                      {new Date(note.createdAt).toLocaleDateString()} at{" "}
+                      {new Date(note.createdAt).toLocaleTimeString()}
                     </p>
                   </div>
                 ))
@@ -500,7 +580,9 @@ export default function DonorProfilePage() {
                   <Button
                     size="sm"
                     onClick={handleAddNote}
-                    disabled={!newNoteContent.trim() || addNoteMutation.isPending}
+                    disabled={
+                      !newNoteContent.trim() || addNoteMutation.isPending
+                    }
                   >
                     {addNoteMutation.isPending ? "Adding..." : "Add Note"}
                   </Button>
@@ -527,10 +609,14 @@ export default function DonorProfilePage() {
         <CardContent className="space-y-6">
           {/* Basic Information */}
           <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Basic Information</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">
+              Basic Information
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-muted-foreground">First Name</label>
+                <label className="text-sm text-muted-foreground">
+                  First Name
+                </label>
                 <InlineTextEdit
                   value={donor.firstName}
                   onSave={(value) => handleUpdateField("firstName", value)}
@@ -538,7 +624,9 @@ export default function DonorProfilePage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Last Name</label>
+                <label className="text-sm text-muted-foreground">
+                  Last Name
+                </label>
                 <InlineTextEdit
                   value={donor.lastName}
                   onSave={(value) => handleUpdateField("lastName", value)}
@@ -547,7 +635,9 @@ export default function DonorProfilePage() {
               </div>
               {donor.displayName && (
                 <div className="md:col-span-2">
-                  <label className="text-sm text-muted-foreground">Display Name</label>
+                  <label className="text-sm text-muted-foreground">
+                    Display Name
+                  </label>
                   <InlineTextEdit
                     value={donor.displayName}
                     onSave={(value) => handleUpdateField("displayName", value)}
@@ -560,12 +650,16 @@ export default function DonorProfilePage() {
           {/* Couple Information (if applicable) */}
           {donor.isCouple && (
             <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-3">Couple Information</h4>
+              <h4 className="text-sm font-medium text-muted-foreground mb-3">
+                Couple Information
+              </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <h5 className="text-sm font-medium">His Information</h5>
                   <div>
-                    <label className="text-sm text-muted-foreground">Title</label>
+                    <label className="text-sm text-muted-foreground">
+                      Title
+                    </label>
                     <InlineTextEdit
                       value={donor.hisTitle || ""}
                       onSave={(value) => handleUpdateField("hisTitle", value)}
@@ -574,18 +668,26 @@ export default function DonorProfilePage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">First Name</label>
+                    <label className="text-sm text-muted-foreground">
+                      First Name
+                    </label>
                     <InlineTextEdit
                       value={donor.hisFirstName || ""}
-                      onSave={(value) => handleUpdateField("hisFirstName", value)}
+                      onSave={(value) =>
+                        handleUpdateField("hisFirstName", value)
+                      }
                       emptyText="Add first name"
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Last Name</label>
+                    <label className="text-sm text-muted-foreground">
+                      Last Name
+                    </label>
                     <InlineTextEdit
                       value={donor.hisLastName || ""}
-                      onSave={(value) => handleUpdateField("hisLastName", value)}
+                      onSave={(value) =>
+                        handleUpdateField("hisLastName", value)
+                      }
                       emptyText="Add last name"
                     />
                   </div>
@@ -593,7 +695,9 @@ export default function DonorProfilePage() {
                 <div className="space-y-3">
                   <h5 className="text-sm font-medium">Her Information</h5>
                   <div>
-                    <label className="text-sm text-muted-foreground">Title</label>
+                    <label className="text-sm text-muted-foreground">
+                      Title
+                    </label>
                     <InlineTextEdit
                       value={donor.herTitle || ""}
                       onSave={(value) => handleUpdateField("herTitle", value)}
@@ -602,18 +706,26 @@ export default function DonorProfilePage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">First Name</label>
+                    <label className="text-sm text-muted-foreground">
+                      First Name
+                    </label>
                     <InlineTextEdit
                       value={donor.herFirstName || ""}
-                      onSave={(value) => handleUpdateField("herFirstName", value)}
+                      onSave={(value) =>
+                        handleUpdateField("herFirstName", value)
+                      }
                       emptyText="Add first name"
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Last Name</label>
+                    <label className="text-sm text-muted-foreground">
+                      Last Name
+                    </label>
                     <InlineTextEdit
                       value={donor.herLastName || ""}
-                      onSave={(value) => handleUpdateField("herLastName", value)}
+                      onSave={(value) =>
+                        handleUpdateField("herLastName", value)
+                      }
                       emptyText="Add last name"
                     />
                   </div>
@@ -624,12 +736,20 @@ export default function DonorProfilePage() {
 
           {/* Management */}
           <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Management</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">
+              Management
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-muted-foreground">Assigned Staff</label>
+                <label className="text-sm text-muted-foreground">
+                  Assigned Staff
+                </label>
                 <InlineSelectEdit
-                  value={donor.assignedToStaffId ? String(donor.assignedToStaffId) : null}
+                  value={
+                    donor.assignedToStaffId
+                      ? String(donor.assignedToStaffId)
+                      : null
+                  }
                   options={[
                     { value: "", label: "Unassigned" },
                     ...staffMembers.map((staff) => ({
@@ -638,20 +758,27 @@ export default function DonorProfilePage() {
                     })),
                   ]}
                   onSave={async (value) => {
-                    await handleUpdateField("assignedToStaffId", value ? Number(value) : null);
+                    await handleUpdateField(
+                      "assignedToStaffId",
+                      value ? Number(value) : null
+                    );
                   }}
                   emptyText="Unassigned"
                 />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Donor Journey Stage</label>
+                <label className="text-sm text-muted-foreground">
+                  Donor Journey Stage
+                </label>
                 <InlineSelectEdit
                   value={donor.currentStageName || null}
                   options={donorJourneyStages.map((stage) => ({
                     value: stage.name,
                     label: stage.name,
                   }))}
-                  onSave={(value) => handleUpdateField("currentStageName", value)}
+                  onSave={(value) =>
+                    handleUpdateField("currentStageName", value)
+                  }
                   emptyText="No stage set"
                 />
               </div>
@@ -674,8 +801,12 @@ export default function DonorProfilePage() {
       {/* Donations, Communications, and Research Tabs */}
       <Tabs defaultValue="donations" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="donations">Donations ({donationCount})</TabsTrigger>
-          <TabsTrigger value="communications">Communications ({communicationCount})</TabsTrigger>
+          <TabsTrigger value="donations">
+            Donations ({donationCount})
+          </TabsTrigger>
+          <TabsTrigger value="communications">
+            Communications ({communicationCount})
+          </TabsTrigger>
           {/* Research tab hidden
           <TabsTrigger value="research">Research {hasResearch && <span className="ml-1 text-xs">✓</span>}</TabsTrigger>
           */}
@@ -721,10 +852,14 @@ export default function DonorProfilePage() {
                   pageCount={getPageCount(totalCount)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
-                  onPageSizeChange={(size: number) => setPageSize(size as 10 | 20 | 50 | 100)}
+                  onPageSizeChange={(size: number) =>
+                    setPageSize(size as 10 | 20 | 50 | 100)
+                  }
                 />
               ) : (
-                <div className="text-center py-8 text-muted-foreground">No donations found for this donor.</div>
+                <div className="text-center py-8 text-muted-foreground">
+                  No donations found for this donor.
+                </div>
               )}
             </CardContent>
           </Card>
@@ -751,10 +886,14 @@ export default function DonorProfilePage() {
                   pageCount={Math.ceil(communications.length / pageSize)}
                   currentPage={currentPage}
                   onPageChange={setCurrentPage}
-                  onPageSizeChange={(size: number) => setPageSize(size as 10 | 20 | 50 | 100)}
+                  onPageSizeChange={(size: number) =>
+                    setPageSize(size as 10 | 20 | 50 | 100)
+                  }
                 />
               ) : (
-                <div className="text-center py-8 text-muted-foreground">No communications found for this donor.</div>
+                <div className="text-center py-8 text-muted-foreground">
+                  No communications found for this donor.
+                </div>
               )}
             </CardContent>
           </Card>
