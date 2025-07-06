@@ -234,7 +234,6 @@ export function useWriteInstructionStep(
 
       const messagesToSave = messages || chatMessages;
 
-
       try {
         await saveDraft.mutateAsync({
           sessionId,
@@ -249,7 +248,7 @@ export function useWriteInstructionStep(
         console.error("[useWriteInstructionStep] Failed to save chat history:", error);
       }
     },
-    [sessionId, campaignName, saveDraft, chatMessages, previewDonorIds, selectedDonors, templateId]
+    [sessionId, campaignName, saveDraft, previewDonorIds, selectedDonors, templateId]
   );
 
   const handleInstructionValueChange = useCallback((value: string) => {

@@ -43,7 +43,8 @@ export async function handleEmailResult(
         role: "assistant" as const,
         content: result.responseMessage,
       }];
-      setTimeout(() => chatState.saveChatHistory(newMessages, emailResult.refinedInstruction), 100);
+      // Save chat history immediately without setTimeout to avoid race conditions
+      chatState.saveChatHistory(newMessages, emailResult.refinedInstruction);
       return newMessages;
     });
 

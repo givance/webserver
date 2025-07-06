@@ -24,6 +24,9 @@ interface EmailPreviewPanelProps {
   setIsEmailListExpanded: (expanded: boolean) => void;
   staffData?: { staff: any[] };
   primaryStaff: any;
+  canGenerateMore: boolean;
+  onGenerateMore: () => void;
+  generateMoreCount: number;
 }
 
 export function EmailPreviewPanel({
@@ -44,6 +47,9 @@ export function EmailPreviewPanel({
   setIsEmailListExpanded,
   staffData,
   primaryStaff,
+  canGenerateMore,
+  onGenerateMore,
+  generateMoreCount,
 }: EmailPreviewPanelProps) {
   return (
     <>
@@ -86,7 +92,9 @@ export function EmailPreviewPanel({
             onPreviewEnhance={handlePreviewEnhance}
             isGeneratingMore={isGeneratingMore}
             remainingDonorsCount={totalRemainingDonors}
-            generateMoreCount={GENERATE_MORE_COUNT}
+            generateMoreCount={generateMoreCount}
+            canGenerateMore={canGenerateMore}
+            onGenerateMore={onGenerateMore}
             isRecipientsExpanded={isEmailListExpanded}
             onRecipientsExpandedChange={setIsEmailListExpanded}
             getStaffName={(staffId) => {

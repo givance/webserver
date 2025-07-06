@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import "../styles.css";
 import {
   handleEmailStatusChange,
+  handleGenerateMore,
   handleRegenerateEmails,
   handleSubmitInstruction,
 } from "./write-instruction-step/handlers";
@@ -35,6 +36,7 @@ import {
   useWriteInstructionStep,
   WriteInstructionStepProps,
 } from "./write-instruction-step";
+import { GENERATE_MORE_COUNT } from "./write-instruction-step/constants";
 
 function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const {
@@ -278,6 +280,37 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     [emailGeneration, emailState, chatState, sessionId, regenerateAllEmails]
   );
 
+  const handleGenerateMoreCallback = useCallback(
+    async () => {
+      await handleGenerateMore({
+        emailGeneration,
+        emailState,
+        chatState,
+        previewDonors,
+        instructionInput,
+        organization,
+        donorsData: donorsData || [],
+        currentSignature,
+        sessionId,
+        previousInstruction,
+        selectedDonors,
+      });
+    },
+    [
+      emailGeneration,
+      emailState,
+      chatState,
+      previewDonors,
+      instructionInput,
+      organization,
+      donorsData,
+      currentSignature,
+      sessionId,
+      previousInstruction,
+      selectedDonors,
+    ]
+  );
+
   const emailListViewerEmails = useMemo(() => {
     return emailState.allGeneratedEmails
       .map((email) => ({
@@ -442,6 +475,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 setIsEmailListExpanded={setIsEmailListExpanded}
                 staffData={staffData}
                 primaryStaff={primaryStaff}
+                canGenerateMore={previewDonors.canGenerateMore}
+                onGenerateMore={handleGenerateMoreCallback}
+                generateMoreCount={GENERATE_MORE_COUNT}
               />
             </div>
           </div>
