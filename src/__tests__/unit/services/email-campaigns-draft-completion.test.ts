@@ -100,7 +100,6 @@ describe("EmailCampaignsService - Draft Completion", () => {
       const selectedDonorIds = [1, 2, 3];
       const input = {
         campaignName: "Test Campaign",
-        instruction: "Test instruction",
         chatHistory: [],
         selectedDonorIds,
         previewDonorIds: [],
@@ -184,7 +183,6 @@ describe("EmailCampaignsService - Draft Completion", () => {
       const selectedDonorIds = [1, 2, 3, 4, 5];
       const input = {
         campaignName: "Test Campaign",
-        instruction: "Test instruction",
         chatHistory: [],
         selectedDonorIds,
         previewDonorIds: [],
@@ -268,7 +266,6 @@ describe("EmailCampaignsService - Draft Completion", () => {
       const selectedDonorIds = [1, 2, 3];
       const input = {
         campaignName: "Test Campaign",
-        instruction: "Test instruction",
         chatHistory: [],
         selectedDonorIds,
         previewDonorIds: [],
@@ -320,7 +317,6 @@ describe("EmailCampaignsService - Draft Completion", () => {
       const selectedDonorIds = [1, 2, 3, 4];
       const input = {
         campaignName: "Test Campaign",
-        instruction: "Updated instruction",
         chatHistory: [],
         selectedDonorIds,
         previewDonorIds: [],

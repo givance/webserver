@@ -348,7 +348,6 @@ export const communicationSchemas = {
   }),
 
   generateEmails: z.object({
-    instruction: z.string().min(1),
     donors: z.array(
       z.object({
         id: idSchema,
@@ -364,7 +363,6 @@ export const communicationSchemas = {
 
   createSession: z.object({
     jobName: z.string().min(1).max(255),
-    instruction: z.string().min(1),
     chatHistory: z.array(
       z.object({
         role: z.enum(["user", "assistant"]),
@@ -435,7 +433,6 @@ export const todoSchemas = {
     donorId: idSchema.optional(),
     staffId: idSchema.optional(),
     explanation: z.string().optional(),
-    instruction: z.string().optional(),
   }),
 
   update: z.object({
@@ -450,7 +447,6 @@ export const todoSchemas = {
     donorId: idSchema.nullable().optional(),
     staffId: idSchema.nullable().optional(),
     explanation: z.string().optional(),
-    instruction: z.string().optional(),
   }),
 
   list: z.object({

@@ -178,15 +178,15 @@ function CampaignProgress({ campaign, trackingStatsMap, isLoading }: { campaign:
 interface ExistingCampaign {
   id: number;
   campaignName: string;
-  status: string;
+  status?: any;
   totalDonors: number;
-  completedDonors: number;
+  completedDonors?: any;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
-  sentEmails: number;
-  totalEmails: number;
+  sentEmails?: any;
+  totalEmails?: any;
   openedEmails?: number;
 }
 
