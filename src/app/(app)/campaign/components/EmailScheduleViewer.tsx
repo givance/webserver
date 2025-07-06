@@ -30,6 +30,11 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
     }
   );
 
+  // Debug log the schedule data
+  if (schedule?.scheduledEmails?.length > 0) {
+    console.log('[EmailScheduleViewer] Schedule data:', schedule.scheduledEmails[0]);
+  }
+
   // Get donor IDs from scheduled emails
   const donorIds = schedule?.scheduledEmails.map((email) => email.donorId) || [];
   const { data: donors } = getDonorsQuery(donorIds);
@@ -109,17 +114,30 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
   const formatScheduledTime = (date: Date | string | null) => {
     if (!date) return 'Not scheduled';
 
-    // Debug logging to identify the issue
-    if (typeof date === 'string' && date.includes('AM') && date.match(/\d{10,}/)) {
-      console.error('[EmailScheduleViewer] Invalid date format detected:', date);
-      // Try to extract a valid date from malformed string
-      const timestampMatch = date.match(/(\d{10,})/);
-      if (timestampMatch) {
-        const timestamp = parseInt(timestampMatch[1]);
-        // Check if it's milliseconds or seconds
+    // Handle the specific malformed format "Jul 8 AM1751976000 5:00 AM"
+    if (typeof date === 'string') {
+      // Check for the malformed pattern with embedded timestamp
+      const malformedPattern = /^(\w+\s+\d+)\s+AM(\d{10,})\s+(\d{1,2}:\d{2}\s+[AP]M)$/;
+      const match = date.match(malformedPattern);
+
+      if (match) {
+        console.error('[EmailScheduleViewer] Malformed date detected:', date);
+        // Extract the timestamp from the middle
+        const timestamp = parseInt(match[2]);
+        // Convert to milliseconds if needed
         const dateObj = new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000);
         if (!isNaN(dateObj.getTime())) {
-          console.log('[EmailScheduleViewer] Recovered date from timestamp:', dateObj);
+          console.log('[EmailScheduleViewer] Recovered date from malformed string:', dateObj);
+          date = dateObj;
+        }
+      }
+
+      // Also check for any string with large numbers that might be timestamps
+      const timestampMatch = date.match(/(\d{10,})/);
+      if (timestampMatch && typeof date === 'string' && date.includes('AM')) {
+        const timestamp = parseInt(timestampMatch[1]);
+        const dateObj = new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000);
+        if (!isNaN(dateObj.getTime())) {
           date = dateObj;
         }
       }
