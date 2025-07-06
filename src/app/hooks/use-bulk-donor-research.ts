@@ -35,6 +35,9 @@ export function useBulkDonorResearch(): UseBulkDonorResearchReturn {
 
       // Invalidate research statistics to get updated counts
       utils.personResearch.getResearchStatistics.invalidate();
+      // Invalidate donor queries since research status will change
+      utils.donors.list.invalidate();
+      utils.donors.getByIds.invalidate();
     },
     onError: (error) => {
       toast.dismiss("bulk-research-loading");
