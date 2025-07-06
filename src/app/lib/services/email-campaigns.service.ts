@@ -8,12 +8,14 @@ import {
   emailSendJobs,
   organizations,
   staff,
+  donors,
 } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { runs } from "@trigger.dev/sdk/v3";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
 import { removeSignatureFromContent } from "@/app/lib/utils/email-with-signature";
+import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-generation.service";
 
 /**
  * Input types for campaign management
@@ -940,7 +942,7 @@ export class EmailCampaignsService {
 
   /**
    * Regenerates all emails for a campaign with new instructions
-   * This will delete all existing emails and trigger new generation
+   * This will delete existing preview emails and regenerate for preview donors only
    * @param input - Regeneration parameters
    * @param organizationId - The organization ID for authorization
    * @param userId - The user ID
@@ -967,70 +969,121 @@ export class EmailCampaignsService {
         });
       }
 
-      // Fetch current organization and staff writing instructions for regeneration
-      const [organization, primaryStaff] = await Promise.all([
-        db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1),
-        db.query.staff.findFirst({
-          where: and(eq(staff.organizationId, organizationId), eq(staff.isPrimary, true)),
-        }),
-      ]);
-
-      const currentOrgWritingInstructions = organization[0]?.writingInstructions || undefined;
-      const currentStaffWritingInstructions = primaryStaff?.writingInstructions || undefined;
-
+      // Get preview donor IDs from the session
+      const previewDonorIds = (existingSession.previewDonorIds as number[]) || [];
+      
       logger.info(
-        `[regenerateAllEmails] Using current writing instructions for session ${
-          input.sessionId
-        }: orgInstructions=${!!currentOrgWritingInstructions}, staffInstructions=${!!currentStaffWritingInstructions}`
+        `[regenerateAllEmails] Session ${input.sessionId} has previewDonorIds: ${JSON.stringify(previewDonorIds)}`
       );
 
-      // Delete all existing generated emails for this session
+      // Get all emails for this session to understand what's happening
+      const allSessionEmails = await db
+        .select({ 
+          donorId: generatedEmails.donorId,
+          isPreview: generatedEmails.isPreview,
+          status: generatedEmails.status
+        })
+        .from(generatedEmails)
+        .where(eq(generatedEmails.sessionId, input.sessionId));
+      
+      logger.info(
+        `[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`
+      );
+      
+      // Get all donors that have preview emails in this session
+      const existingPreviewEmails = allSessionEmails.filter(e => e.isPreview === true);
+      const allPreviewDonorIds = [...new Set(existingPreviewEmails.map(e => e.donorId))];
+      
+      // Also check if there are any emails with PENDING_APPROVAL status (these might be preview emails too)
+      const pendingApprovalEmails = allSessionEmails.filter(e => e.status === "PENDING_APPROVAL");
+      const pendingApprovalDonorIds = [...new Set(pendingApprovalEmails.map(e => e.donorId))];
+      
+      logger.info(
+        `[regenerateAllEmails] Found ${allPreviewDonorIds.length} donors with isPreview=true, ${pendingApprovalDonorIds.length} with PENDING_APPROVAL status`
+      );
+      
+      // Combine all potential preview donors
+      const combinedDonorIds = [...new Set([...allPreviewDonorIds, ...pendingApprovalDonorIds, ...previewDonorIds])];
+      
+      logger.info(
+        `[regenerateAllEmails] Combined donor IDs (preview + pending + stored): ${JSON.stringify(combinedDonorIds)}`
+      );
+      
+      // Use combined list for regeneration
+      let donorsToRegenerate = combinedDonorIds;
+      
+      if (donorsToRegenerate.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No preview donors found for regeneration",
+        });
+      }
+
+      logger.info(
+        `[regenerateAllEmails] Regenerating emails for ${donorsToRegenerate.length} preview donors in session ${input.sessionId}: ${JSON.stringify(donorsToRegenerate)}`
+      );
+
+      // Delete only preview emails (emails for preview donors)
       const deleteResult = await db
         .delete(generatedEmails)
-        .where(eq(generatedEmails.sessionId, input.sessionId))
+        .where(
+          and(
+            eq(generatedEmails.sessionId, input.sessionId),
+            inArray(generatedEmails.donorId, donorsToRegenerate)
+          )
+        )
         .returning({ id: generatedEmails.id });
 
       const deletedCount = deleteResult.length;
-      logger.info(`Deleted ${deletedCount} existing emails for session ${input.sessionId}`);
+      logger.info(`Deleted ${deletedCount} preview emails for session ${input.sessionId}`);
 
       // Use the chat history from input
       const finalChatHistory = input.chatHistory;
 
-      // Update the session and reset status
+      // Update the session chat history and previewDonorIds if we found more
+      const updateData: any = {
+        chatHistory: finalChatHistory,
+        updatedAt: new Date(),
+      };
+      
+      // If we found more preview donors than what was stored, update the session
+      if (donorsToRegenerate.length > previewDonorIds.length) {
+        updateData.previewDonorIds = donorsToRegenerate;
+        logger.info(`Updating session ${input.sessionId} with ${donorsToRegenerate.length} preview donor IDs`);
+      }
+      
       await db
         .update(emailGenerationSessions)
-        .set({
-          chatHistory: finalChatHistory,
-          status: EmailGenerationSessionStatus.GENERATING,
-          completedDonors: 0,
-          completedAt: null,
-          errorMessage: null,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(emailGenerationSessions.id, input.sessionId));
 
-      // Trigger the background job with regeneration flag and current writing instructions
-      await generateBulkEmailsTask.trigger({
-        sessionId: existingSession.id,
+      // Now regenerate emails for preview donors using the same service as preview generation
+      const emailGenerationService = new UnifiedSmartEmailGenerationService();
+      
+      logger.info(`Starting email regeneration for ${donorsToRegenerate.length} preview donors`);
+      
+      const generationResult = await emailGenerationService.generateSmartEmailsForCampaign({
         organizationId,
-        userId,
-        selectedDonorIds: existingSession.selectedDonorIds as number[],
-        previewDonorIds: existingSession.previewDonorIds as number[],
+        sessionId: String(input.sessionId),
         chatHistory: finalChatHistory,
-        templateId: existingSession.templateId ?? undefined,
-        organizationWritingInstructions: currentOrgWritingInstructions,
-        staffWritingInstructions: currentStaffWritingInstructions,
+        donorIds: donorsToRegenerate.map(id => String(id))
       });
 
       logger.info(
-        `Started regeneration for session ${input.sessionId} with chat history and current writing instructions`
+        `Regenerated ${generationResult.results.length} emails for session ${input.sessionId}, tokens used: ${generationResult.totalTokensUsed}`
       );
+
+      // Count successful regenerations
+      const successfulCount = generationResult.results.filter(r => r.email !== null).length;
+      const failedCount = generationResult.results.filter(r => r.email === null).length;
 
       return {
         success: true,
         sessionId: existingSession.id,
         deletedEmailsCount: deletedCount,
-        message: "Email regeneration started successfully",
+        regeneratedEmailsCount: successfulCount,
+        failedEmailsCount: failedCount,
+        message: `Regenerated ${successfulCount} emails for preview donors`,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
