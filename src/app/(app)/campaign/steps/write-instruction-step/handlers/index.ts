@@ -1,5 +1,9 @@
 import { toast } from "sonner";
-import type { EmailGenerationResult, EmailOperationResult, GeneratedEmail } from "../types";
+import type {
+  EmailGenerationResult,
+  EmailOperationResult,
+  GeneratedEmail,
+} from "../types";
 import {
   handleEmailGeneration,
   handleGenerateMoreEmails,
@@ -161,7 +165,11 @@ interface RegenerateEmailsParams {
 export async function handleSubmitInstruction(
   params: SubmitInstructionParams,
   instructionToSubmit?: string
-): Promise<{ success: boolean; result?: EmailOperationResult; error?: string }> {
+): Promise<{
+  success: boolean;
+  result?: EmailOperationResult;
+  error?: string;
+}> {
   const {
     emailGeneration,
     emailState,
@@ -178,7 +186,7 @@ export async function handleSubmitInstruction(
 
   const finalInstruction =
     instructionToSubmit || instructionInput.localInstructionRef.current;
-  
+
   if (!finalInstruction.trim() || !organization) {
     return { success: false, error: "Missing instruction or organization" };
   }
@@ -202,17 +210,23 @@ export async function handleSubmitInstruction(
     if (result) {
       return { success: true, result };
     }
-    
-    return { success: false, error: "No result returned from email generation" };
+
+    return {
+      success: false,
+      error: "No result returned from email generation",
+    };
   } catch (error) {
     console.error("Error generating emails:", error);
-    return { success: false, error: "Failed to generate emails. Please try again." };
+    return {
+      success: false,
+      error: "Failed to generate emails. Please try again.",
+    };
   }
 }
 
 export async function handleGenerateMore(params: GenerateMoreParams): Promise<{
   success: boolean;
-  result?: { emails: GeneratedEmail[]; responseMessage: string };
+  result?: { emails: GeneratedEmail[] };
   error?: string;
 }> {
   const {
@@ -230,7 +244,10 @@ export async function handleGenerateMore(params: GenerateMoreParams): Promise<{
   } = params;
 
   if (emailGeneration.isGeneratingMore || !organization) {
-    return { success: false, error: "Already generating or missing organization" };
+    return {
+      success: false,
+      error: "Already generating or missing organization",
+    };
   }
 
   try {
@@ -253,11 +270,17 @@ export async function handleGenerateMore(params: GenerateMoreParams): Promise<{
     if (result) {
       return { success: true, result };
     }
-    
-    return { success: false, error: "No result returned from email generation" };
+
+    return {
+      success: false,
+      error: "No result returned from email generation",
+    };
   } catch (error) {
     console.error("Error generating more emails:", error);
-    return { success: false, error: "Failed to generate more emails. Please try again." };
+    return {
+      success: false,
+      error: "Failed to generate more emails. Please try again.",
+    };
   }
 }
 
@@ -283,7 +306,11 @@ export async function handleEmailStatusChange(
   }
 
   if (!sessionId) {
-    return { success: false, isPreviewMode: false, error: "Missing session ID" };
+    return {
+      success: false,
+      isPreviewMode: false,
+      error: "Missing session ID",
+    };
   }
 
   try {
@@ -291,15 +318,19 @@ export async function handleEmailStatusChange(
     const email = emailState.allGeneratedEmails.find(
       (email) => (email as GeneratedEmail & { id: number }).id === emailId
     ) as (GeneratedEmail & { id: number }) | undefined;
-    
+
     if (email) {
       return { success: true, isPreviewMode: false, donorId: email.donorId };
     }
-    
+
     return { success: false, isPreviewMode: false, error: "Email not found" };
   } catch (error) {
     console.error("Error updating email status:", error);
-    return { success: false, isPreviewMode: false, error: "Failed to update email status" };
+    return {
+      success: false,
+      isPreviewMode: false,
+      error: "Failed to update email status",
+    };
   }
 }
 
@@ -316,11 +347,11 @@ export async function handleRegenerateEmails(
   const { emailGeneration, emailState, chatState, sessionId } = params;
 
   if (!sessionId || emailGeneration.isRegenerating) {
-    return { 
-      success: false, 
-      donorIdsToRegenerate: [], 
-      onlyUnapproved, 
-      error: "Missing session ID or already regenerating" 
+    return {
+      success: false,
+      donorIdsToRegenerate: [],
+      onlyUnapproved,
+      error: "Missing session ID or already regenerating",
     };
   }
 
@@ -330,9 +361,7 @@ export async function handleRegenerateEmails(
   if (onlyUnapproved) {
     // Only regenerate emails that are pending approval
     donorIdsToRegenerate = emailState.allGeneratedEmails
-      .filter(
-        (email) => emailState.emailStatuses[email.donorId] !== "APPROVED"
-      )
+      .filter((email) => emailState.emailStatuses[email.donorId] !== "APPROVED")
       .map((email) => email.donorId);
   } else {
     // Regenerate all previously generated emails
@@ -342,11 +371,11 @@ export async function handleRegenerateEmails(
   }
 
   if (donorIdsToRegenerate.length === 0) {
-    return { 
-      success: false, 
-      donorIdsToRegenerate: [], 
-      onlyUnapproved, 
-      error: "No emails to regenerate" 
+    return {
+      success: false,
+      donorIdsToRegenerate: [],
+      onlyUnapproved,
+      error: "No emails to regenerate",
     };
   }
 
@@ -357,18 +386,18 @@ export async function handleRegenerateEmails(
       chatHistory: chatState.chatMessages,
     });
 
-    return { 
-      success: true, 
-      donorIdsToRegenerate, 
-      onlyUnapproved 
+    return {
+      success: true,
+      donorIdsToRegenerate,
+      onlyUnapproved,
     };
   } catch (error) {
     console.error("Error regenerating emails:", error);
-    return { 
-      success: false, 
-      donorIdsToRegenerate, 
-      onlyUnapproved, 
-      error: "Failed to regenerate emails. Please try again." 
+    return {
+      success: false,
+      donorIdsToRegenerate,
+      onlyUnapproved,
+      error: "Failed to regenerate emails. Please try again.",
     };
   }
 }

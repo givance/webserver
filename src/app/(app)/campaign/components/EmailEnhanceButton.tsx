@@ -46,7 +46,7 @@ export function EmailEnhanceButton({
 }: EmailEnhanceButtonProps) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const { enhanceEmail } = useCommunications();
+  const { regenerateAllEmails, getSession } = useCommunications();
 
   const handleEnhance = async () => {
     if (!instruction.trim()) {
@@ -62,31 +62,33 @@ export function EmailEnhanceButton({
       return;
     }
 
-    // Handle normal mode with emailId
-    if (!isPreviewMode && emailId > 0) {
+    // Handle normal mode - use regeneration with enhancement instruction
+    if (!isPreviewMode && sessionId) {
       try {
-        // Filter out signature pieces before enhancement
-        const contentWithoutSignature = currentContent.filter((piece) => !piece.references.includes("signature"));
+        // Get current session data to build chat history
+        const sessionData = getSession({ sessionId });
+        const currentSession = sessionData.data?.session;
+        if (!currentSession) {
+          throw new Error("Failed to get session data");
+        }
 
-        const result = await enhanceEmail.mutateAsync({
-          emailId,
-          enhancementInstruction: instruction,
-          currentSubject,
-          currentStructuredContent: contentWithoutSignature,
-          currentReferenceContexts,
+        // Build new chat history with enhancement instruction
+        const currentChatHistory = (currentSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || [];
+        const enhancedChatHistory: Array<{ role: "user" | "assistant"; content: string }> = [
+          ...currentChatHistory,
+          {
+            role: "user",
+            content: `Please enhance the email with the following instruction: ${instruction}`,
+          },
+        ];
+
+        // Regenerate emails with the enhancement instruction
+        const result = await regenerateAllEmails.mutateAsync({
+          sessionId,
+          chatHistory: enhancedChatHistory,
         });
 
         toast.success("Email enhanced successfully!");
-
-        // Notify parent component of the changes
-        if (onEnhanced && result.subject && result.structuredContent) {
-          onEnhanced(result.subject, result.structuredContent);
-        }
-
-        // If we have a sessionId from props, manually trigger a refetch
-        if (sessionId && result.sessionId) {
-          // The mutation onSuccess should handle the invalidation
-        }
 
         // Close dialog and reset
         setOpen(false);
@@ -95,7 +97,7 @@ export function EmailEnhanceButton({
         toast.error("Failed to enhance email with AI");
       }
     } else if (!isPreviewMode) {
-      toast.error("Cannot enhance email without a valid email ID");
+      toast.error("Cannot enhance email without a valid session ID");
     }
   };
 
@@ -174,8 +176,8 @@ export function EmailEnhanceButton({
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEnhance} disabled={enhanceEmail.isPending || !instruction.trim()}>
-              {enhanceEmail.isPending ? "Enhancing..." : "Enhance Email"}
+            <Button onClick={handleEnhance} disabled={regenerateAllEmails.isPending || !instruction.trim()}>
+              {regenerateAllEmails.isPending ? "Enhancing..." : "Enhance Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

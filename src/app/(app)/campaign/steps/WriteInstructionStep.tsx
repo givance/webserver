@@ -417,9 +417,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       if (response.success && response.result) {
         // Update email state with new emails (append to existing)
         updateEmailStateWithNewEmails(emailState, response.result.emails, true);
-        
-        // Update chat state with response message
-        updateChatStateWithNewMessage(chatState, response.result.responseMessage);
+        // Don't update chat history - just silently generate more
       } else {
         // Handle error
         toast.error(response.error || "Failed to generate more emails");

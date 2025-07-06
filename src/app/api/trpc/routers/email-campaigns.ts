@@ -116,19 +116,6 @@ const updateCampaignSchema = z.object({
   templateId: z.number().optional(),
 });
 
-const enhanceEmailSchema = z.object({
-  emailId: z.number(),
-  enhancementInstruction: z.string().min(1).max(500),
-  currentSubject: z.string(),
-  currentStructuredContent: z.array(
-    z.object({
-      piece: z.string(),
-      references: z.array(z.string()),
-      addNewlineAfter: z.boolean(),
-    })
-  ),
-  currentReferenceContexts: z.record(z.string(), z.string()),
-});
 
 const regenerateAllEmailsSchema = z.object({
   sessionId: z.number(),
@@ -317,12 +304,6 @@ export const emailCampaignsRouter = router({
     return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
   }),
 
-  /**
-   * Enhance email content using AI
-   */
-  enhanceEmail: protectedProcedure.input(enhanceEmailSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailGeneration.enhanceEmail(input, ctx.auth.user.organizationId, ctx.auth.user.id);
-  }),
 
   /**
    * Regenerate all emails for a campaign with new instructions

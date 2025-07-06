@@ -97,14 +97,6 @@ export function useCommunications() {
     },
   });
 
-  const enhanceEmail = trpc.communications.campaigns.enhanceEmail.useMutation({
-    onSuccess: async (data) => {
-      // Only invalidate once
-      if (data?.sessionId) {
-        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
-      }
-    },
-  });
 
   // Delete campaign mutation hook
   const deleteCampaign = trpc.communications.campaigns.deleteCampaign.useMutation({
@@ -211,7 +203,6 @@ export function useCommunications() {
     updateEmail,
     updateEmailStatus,
     updateCampaign,
-    enhanceEmail,
     regenerateAllEmails,
     saveDraft,
     saveGeneratedEmail,

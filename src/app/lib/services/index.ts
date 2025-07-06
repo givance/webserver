@@ -17,6 +17,7 @@ import { DonorAnalysisService } from './donor-analysis.service';
 import { DonorsService } from './donors.service';
 import { MicrosoftOAuthService } from './microsoft-oauth.service';
 import { StaffGmailService } from './staff-gmail.service';
+import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
 
 // Import analysis services
 import { StageClassificationService } from '@/app/lib/analysis/stage-classification-service';
@@ -42,6 +43,7 @@ export const createServices = () => {
     emailGeneration: new EmailGenerationService(),
     emailCampaigns: new EmailCampaignsService(),
     emailScheduling: new EmailSchedulingService(),
+    unifiedSmartEmailGeneration: new UnifiedSmartEmailGenerationService(),
     
     // Integration services
     gmail: new GmailService(),
@@ -91,3 +93,4 @@ export { DonorAnalysisService } from './donor-analysis.service';
 export { DonorsService } from './donors.service';
 export { MicrosoftOAuthService } from './microsoft-oauth.service';
 export { StaffGmailService } from './staff-gmail.service';
+export { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';

@@ -132,7 +132,7 @@ export async function handleGenerateMoreEmails(
     sessionId?: number;
     saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
   }
-): Promise<{ emails: GeneratedEmail[]; responseMessage: string } | null> {
+): Promise<{ emails: GeneratedEmail[] } | null> {
   const {
     organization,
     previousInstruction,
@@ -221,10 +221,8 @@ export async function handleGenerateMoreEmails(
       await saveEmailsToSession(emailResult.emails, sessionId);
     }
 
-    const responseMessage = `I've generated ${emailResult.emails.length} more personalized emails. You now have ${allGeneratedEmails.length + emailResult.emails.length} emails total to review.`;
-
     toast.success(`Generated ${emailResult.emails.length} more emails successfully!`);
-    return { emails: emailResult.emails, responseMessage };
+    return { emails: emailResult.emails };
   } else {
     throw new Error("Failed to generate more emails");
   }
