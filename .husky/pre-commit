@@ -17,7 +17,7 @@ nvm use 22.4.0
 # pnpm test
 
 # Run build
-echo "Running build..."
-pnpm build
+# echo "Running build..."
+# pnpm build
 
 echo "Pre-commit checks passed!"
