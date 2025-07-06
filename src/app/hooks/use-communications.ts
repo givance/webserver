@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import type { CommunicationChannel, CommunicationThreadWithDetails } from "@/app/lib/data/communications";
-import { trpc } from "@/app/lib/trpc/client";
-import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
+import type { AppRouter } from '@/app/api/trpc/routers/_app';
+import type {
+  CommunicationChannel,
+  CommunicationThreadWithDetails,
+} from '@/app/lib/data/communications';
+import { trpc } from '@/app/lib/trpc/client';
+import type { inferProcedureInput, inferProcedureOutput } from '@trpc/server';
 
 /**
  * Hook for managing communication threads through the tRPC API
@@ -92,6 +95,8 @@ export function useCommunications() {
       const sessionId = data?.campaign?.id || variables.campaignId;
       if (sessionId) {
         await utils.communications.campaigns.getSession.invalidate({ sessionId });
+        // Also invalidate email schedule to refresh the status
+        await utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId });
       }
     },
   });
@@ -127,7 +132,9 @@ export function useCommunications() {
   const saveGeneratedEmail = trpc.communications.campaigns.saveGeneratedEmail.useMutation({
     onSuccess: async (data, variables) => {
       // Only invalidate, no excessive refetching
-      await utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+      await utils.communications.campaigns.getSession.invalidate({
+        sessionId: variables.sessionId,
+      });
     },
   });
 
@@ -143,26 +150,34 @@ export function useCommunications() {
   // Email scheduling mutation hooks
   const scheduleEmailSend = trpc.communications.campaigns.scheduleEmailSend.useMutation({
     onSuccess: (data, variables) => {
-      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getEmailSchedule.invalidate({
+        sessionId: variables.sessionId,
+      });
       utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
     },
   });
 
   const pauseEmailSending = trpc.communications.campaigns.pauseEmailSending.useMutation({
     onSuccess: (data, variables) => {
-      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getEmailSchedule.invalidate({
+        sessionId: variables.sessionId,
+      });
     },
   });
 
   const resumeEmailSending = trpc.communications.campaigns.resumeEmailSending.useMutation({
     onSuccess: (data, variables) => {
-      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getEmailSchedule.invalidate({
+        sessionId: variables.sessionId,
+      });
     },
   });
 
   const cancelEmailSending = trpc.communications.campaigns.cancelEmailSending.useMutation({
     onSuccess: (data, variables) => {
-      utils.communications.campaigns.getEmailSchedule.invalidate({ sessionId: variables.sessionId });
+      utils.communications.campaigns.getEmailSchedule.invalidate({
+        sessionId: variables.sessionId,
+      });
       utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
     },
   });

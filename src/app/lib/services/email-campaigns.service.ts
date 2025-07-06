@@ -16,6 +16,7 @@ import { runs } from '@trigger.dev/sdk/v3';
 import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
 import { removeSignatureFromContent } from '@/app/lib/utils/email-with-signature';
 import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { EmailSchedulingService } from './email-scheduling.service';
 import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
 
 /**
@@ -1088,6 +1089,39 @@ export class EmailCampaignsService {
         logger.info(
           `Reset send status for ${resetCount.rowCount} unsent emails in campaign ${input.campaignId} for rescheduling`
         );
+
+        // Automatically reschedule the emails with the new configuration
+        if (resetCount.rowCount > 0) {
+          try {
+            const schedulingService = new EmailSchedulingService();
+            const rescheduleResult = await schedulingService.scheduleEmailSend(
+              input.campaignId,
+              organizationId,
+              input.scheduleConfig
+            );
+
+            logger.info(
+              `Rescheduled ${rescheduleResult.scheduled} emails for campaign ${input.campaignId} with new schedule configuration`
+            );
+
+            return {
+              success: true,
+              campaign: updatedCampaign,
+              message: `Campaign schedule updated and ${rescheduleResult.scheduled} emails rescheduled successfully. ${rescheduleResult.scheduledForToday} will be sent today.`,
+            };
+          } catch (error) {
+            logger.error(
+              `Failed to reschedule emails after schedule update: ${error instanceof Error ? error.message : String(error)}`
+            );
+            // Even if rescheduling fails, the update was successful
+            return {
+              success: true,
+              campaign: updatedCampaign,
+              message:
+                'Campaign schedule updated successfully. Please manually reschedule the emails.',
+            };
+          }
+        }
       }
 
       logger.info(`Updated campaign ${input.campaignId} for organization ${organizationId}`);
@@ -1097,7 +1131,7 @@ export class EmailCampaignsService {
         campaign: updatedCampaign,
         message:
           input.scheduleConfig !== undefined && isOnlyScheduleUpdate
-            ? 'Campaign schedule updated successfully. Unsent emails will be rescheduled with the new settings.'
+            ? 'Campaign schedule updated successfully.'
             : 'Campaign updated successfully',
       };
     } catch (error) {

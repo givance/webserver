@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import React, { useState } from 'react';
-import { Pause, Play, XCircle, Settings } from 'lucide-react';
+import { Pause, Play, XCircle, Settings, Send } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CampaignScheduleConfig } from './CampaignScheduleConfig';
@@ -34,6 +34,7 @@ export function EmailScheduleControlPanel({
     pauseEmailSending,
     resumeEmailSending,
     cancelEmailSending,
+    scheduleEmailSend,
     getSession,
     updateCampaign,
   } = useCommunications();
@@ -125,6 +126,25 @@ export function EmailScheduleControlPanel({
     }
   };
 
+  const handleScheduleSend = async () => {
+    setIsProcessing(true);
+    try {
+      const result = await scheduleEmailSend.mutateAsync({
+        sessionId,
+        scheduleConfig: campaign?.session?.scheduleConfig as any,
+      });
+      toast.success(
+        `Successfully scheduled ${result.scheduled} emails. ${result.scheduledForToday} will be sent today.`,
+        { duration: 5000 }
+      );
+    } catch (error) {
+      console.error('Failed to schedule emails:', error);
+      toast.error('Failed to schedule emails. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className={className}>
@@ -149,6 +169,7 @@ export function EmailScheduleControlPanel({
   const hasPausedEmails = stats.paused > 0;
   const hasScheduledEmails = stats.scheduled > 0;
   const hasUnsentEmails = stats.scheduled > 0 || stats.paused > 0 || stats.pending > 0;
+  const hasPendingEmails = stats.pending > 0 && !hasScheduledEmails && !hasPausedEmails;
   const isActive = hasScheduledEmails;
   const isPaused = hasPausedEmails && !hasScheduledEmails;
 
@@ -186,6 +207,19 @@ export function EmailScheduleControlPanel({
         <CardContent className="space-y-4">
           {/* Action Buttons */}
           <div className="grid grid-cols-1 gap-3">
+            {/* Schedule Send Button - for pending emails with no schedule */}
+            {hasPendingEmails && (
+              <Button
+                variant="default"
+                onClick={handleScheduleSend}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Schedule & Send ({stats.pending} emails)
+              </Button>
+            )}
+
             {/* Pause/Resume Button */}
             {(isActive || isPaused) && (
               <>
