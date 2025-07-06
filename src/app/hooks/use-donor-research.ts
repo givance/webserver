@@ -109,6 +109,9 @@ export function useDonorResearch(): UseDonorResearchReturn {
       if (data.data.donorId) {
         utils.personResearch.getDonorResearch.invalidate({ donorId: data.data.donorId });
         utils.personResearch.getAllDonorResearchVersions.invalidate({ donorId: data.data.donorId });
+        // Invalidate donor queries since research status will change
+        utils.donors.list.invalidate();
+        utils.donors.getByIds.invalidate();
       }
     },
     onError: (error) => {
