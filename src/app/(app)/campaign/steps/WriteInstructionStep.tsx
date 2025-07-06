@@ -12,6 +12,13 @@ import { ArrowLeft, ArrowRight, RefreshCw, MessageSquare, X } from "lucide-react
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import "../styles.css";
+import { 
+  handleSubmitInstruction,
+  handleGenerateMore,
+  handleEmailStatusChange,
+  handleRegenerateEmails
+} from "./write-instruction-step/handlers";
+import { handleEmailResult } from "./write-instruction-step/handlers/emailResultHandler";
 
 // Import extracted components, hooks, and types
 import {
@@ -131,26 +138,25 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     [chatState.chatMessages, previewDonors.previewDonorIds, emailState.allGeneratedEmails, emailState.referenceContexts]
   );
 
-  // Handlers (using dynamic imports to reduce bundle size)
-  const handleSubmitInstruction = useCallback(
+  // Handlers (refactored to use individual stateless functions)
+  const handleSubmitInstructionCallback = useCallback(
     async (instructionToSubmit?: string) => {
-      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-      const handlers = createEmailGenerationHandlers(
-        emailGeneration,
-        emailState,
-        chatState,
-        previewDonors,
-        instructionInput,
-        donorsData || [],
-        organization,
-        previousInstruction,
-        currentSignature,
-        sessionId,
-        onInstructionChange
+      await handleSubmitInstruction(
+        {
+          emailGeneration,
+          emailState,
+          chatState,
+          previewDonors,
+          instructionInput,
+          organization,
+          donorsData: donorsData || [],
+          currentSignature,
+          sessionId,
+          previousInstruction,
+          onInstructionChange,
+        },
+        instructionToSubmit
       );
-
-      const { handleEmailResult } = await import("./write-instruction-step/handlers/emailResultHandler");
-      await handlers.handleSubmitInstruction(instructionToSubmit);
       setIsChatCollapsed(true);
       setIsEmailListExpanded(true);
     },
@@ -210,72 +216,27 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     setShowBulkGenerationDialog(true);
   }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
 
-  const handleEmailStatusChange = useCallback(
+  const handleEmailStatusChangeCallback = useCallback(
     async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
-      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-      const handlers = createEmailGenerationHandlers(
-        emailGeneration,
-        emailState,
-        chatState,
-        previewDonors,
-        instructionInput,
-        donorsData || [],
-        organization,
-        previousInstruction,
-        currentSignature,
-        sessionId,
-        onInstructionChange
+      await handleEmailStatusChange(
+        { emailState, sessionId },
+        emailId,
+        status,
+        updateEmailStatus
       );
-      await handlers.handleEmailStatusChange(emailId, status, updateEmailStatus);
     },
-    [
-      emailGeneration,
-      emailState,
-      chatState,
-      previewDonors,
-      instructionInput,
-      donorsData,
-      organization,
-      previousInstruction,
-      currentSignature,
-      sessionId,
-      onInstructionChange,
-      updateEmailStatus,
-    ]
+    [emailState, sessionId, updateEmailStatus]
   );
 
-  const handleRegenerateEmails = useCallback(
+  const handleRegenerateEmailsCallback = useCallback(
     async (onlyUnapproved: boolean) => {
-      const { createEmailGenerationHandlers } = await import("./write-instruction-step/handlers");
-      const handlers = createEmailGenerationHandlers(
-        emailGeneration,
-        emailState,
-        chatState,
-        previewDonors,
-        instructionInput,
-        donorsData || [],
-        organization,
-        previousInstruction,
-        currentSignature,
-        sessionId,
-        onInstructionChange
+      await handleRegenerateEmails(
+        { emailGeneration, emailState, chatState, sessionId },
+        onlyUnapproved,
+        regenerateAllEmails
       );
-      await handlers.handleRegenerateEmails(onlyUnapproved, regenerateAllEmails);
     },
-    [
-      emailGeneration,
-      emailState,
-      chatState,
-      previewDonors,
-      instructionInput,
-      donorsData,
-      organization,
-      previousInstruction,
-      currentSignature,
-      sessionId,
-      onInstructionChange,
-      regenerateAllEmails,
-    ]
+    [emailGeneration, emailState, chatState, sessionId, regenerateAllEmails]
   );
 
   const emailListViewerEmails = useMemo(() => {
@@ -370,7 +331,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 initialValue={instructionInput.localInstruction}
                 placeholder={mentionsInputPlaceholder}
                 projectMentions={projectMentions}
-                onSubmit={handleSubmitInstruction}
+                onSubmit={handleSubmitInstructionCallback}
                 onValueChange={instructionInput.handleInstructionValueChange}
                 isGenerating={emailGeneration.isGenerating}
                 onKeyDown={() => {}}
@@ -391,7 +352,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                   Regenerate
                 </Button>
                 <Button
-                  onClick={() => handleSubmitInstruction()}
+                  onClick={() => handleSubmitInstructionCallback()}
                   disabled={emailGeneration.isGenerating || !instructionInput.hasInputContent}
                   variant="default"
                   size="sm"
@@ -418,7 +379,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 emailListViewerEmails={emailListViewerEmails}
                 emailListViewerDonors={donorUtils.emailListViewerDonors}
                 referenceContexts={emailState.referenceContexts}
-                handleEmailStatusChange={handleEmailStatusChange}
+                handleEmailStatusChange={handleEmailStatusChangeCallback}
                 isUpdatingStatus={emailState.isUpdatingStatus}
                 sessionId={sessionId}
                 handlePreviewEdit={async () => {}}
@@ -458,7 +419,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         pendingCount={emailState.pendingCount}
         isRegenerating={emailGeneration.isRegenerating}
         onConfirm={async (onlyUnapproved: boolean) => {
-          await handleRegenerateEmails(onlyUnapproved);
+          await handleRegenerateEmailsCallback(onlyUnapproved);
           setShowRegenerateDialog(false);
         }}
       />
