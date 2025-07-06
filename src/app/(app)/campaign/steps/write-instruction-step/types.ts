@@ -81,6 +81,14 @@ export interface AgenticFlowResponse {
 
 export type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse;
 
+// Extended type for the wrapped email generation results returned by emailOperations utility functions
+export interface EmailOperationResult {
+  type: "agentic" | "traditional";
+  result: EmailGenerationResult;
+  updatedChatMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  responseMessage?: string;
+}
+
 export interface IsolatedInputProps {
   initialValue: string;
   placeholder: string;

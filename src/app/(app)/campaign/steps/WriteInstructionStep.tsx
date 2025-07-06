@@ -24,6 +24,16 @@ import {
   handleRegenerateEmails,
   handleSubmitInstruction,
 } from "./write-instruction-step/handlers";
+import { processEmailResult } from "./write-instruction-step/handlers/emailResultHandler";
+import {
+  clearEmailState,
+  clearEmailStateForRegeneration,
+  updateEmailStateWithNewEmails,
+  updateChatStateWithNewMessage,
+  setEmailGenerationLoading,
+  clearInstructionInput,
+  updateEmailStatus as updateEmailStatusInState,
+} from "./write-instruction-step/utils/stateManagement";
 
 // Import extracted components, hooks, and types
 import {
@@ -56,7 +66,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     sessionId,
     initialRefinedInstruction,
   } = props;
-
 
   // UI State
   const [showBulkGenerationDialog, setShowBulkGenerationDialog] =
@@ -175,24 +184,74 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   // Handlers (refactored to use individual stateless functions)
   const handleSubmitInstructionCallback = useCallback(
     async (instructionToSubmit?: string) => {
-      await handleSubmitInstruction(
-        {
-          emailGeneration,
-          emailState,
-          chatState,
-          previewDonors,
-          instructionInput,
-          organization,
-          donorsData: donorsData || [],
-          currentSignature,
-          sessionId,
-          previousInstruction,
-          onInstructionChange,
-        },
-        instructionToSubmit
-      );
-      setIsChatCollapsed(true);
-      setIsEmailListExpanded(true);
+      // Set loading state
+      setEmailGenerationLoading(emailGeneration, "generating", true);
+      
+      // Clear existing state
+      clearEmailState(emailState, chatState);
+      
+      try {
+        const response = await handleSubmitInstruction(
+          {
+            emailGeneration,
+            emailState,
+            chatState,
+            previewDonors,
+            instructionInput,
+            organization,
+            donorsData: donorsData || [],
+            currentSignature,
+            sessionId,
+            previousInstruction,
+            onInstructionChange,
+          },
+          instructionToSubmit
+        );
+
+        if (response.success && response.result) {
+          // Process the result and update state
+          const processedResult = processEmailResult(response.result);
+          
+          if (processedResult.type === "agentic" && processedResult.agenticResult) {
+            // Handle agentic flow
+            chatState.setChatMessages((prev) => [...prev, ...processedResult.agenticResult!.conversationMessages]);
+            
+            if (!processedResult.agenticResult.needsUserInput) {
+              clearInstructionInput(instructionInput);
+            }
+          } else if (processedResult.type === "email" && processedResult.emailResult) {
+            // Handle email generation
+            const { emails, refinedInstruction, updatedChatMessages, responseMessage } = processedResult.emailResult;
+            
+            // Update email state
+            updateEmailStateWithNewEmails(emailState, emails);
+            
+            // Update chat state
+            chatState.setChatMessages((prev) => {
+              const newMessages = [...updatedChatMessages, {
+                role: "assistant" as const,
+                content: responseMessage,
+              }];
+              // Save chat history immediately without setTimeout to avoid race conditions
+              chatState.saveChatHistory(newMessages, refinedInstruction);
+              return newMessages;
+            });
+            
+            // Clear input and update UI
+            clearInstructionInput(instructionInput);
+            setIsChatCollapsed(true);
+            setIsEmailListExpanded(true);
+          }
+        } else {
+          // Handle error
+          toast.error(response.error || "Failed to generate emails");
+        }
+      } catch (error) {
+        console.error("Error in handleSubmitInstructionCallback:", error);
+        toast.error("An unexpected error occurred");
+      } finally {
+        setEmailGenerationLoading(emailGeneration, "generating", false);
+      }
     },
     [
       emailGeneration,
@@ -259,30 +318,89 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleEmailStatusChangeCallback = useCallback(
     async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
-      await handleEmailStatusChange(
-        { emailState, sessionId },
-        emailId,
-        status,
-        updateEmailStatus
-      );
+      // Set loading state
+      emailState.setIsUpdatingStatus(true);
+      
+      try {
+        const response = await handleEmailStatusChange(
+          { emailState, sessionId },
+          emailId,
+          status,
+          updateEmailStatus
+        );
+
+        if (response.success) {
+          // Update state based on response
+          if (response.isPreviewMode) {
+            updateEmailStatusInState(emailState, emailId, status);
+          } else if (response.donorId) {
+            updateEmailStatusInState(emailState, response.donorId, status);
+          }
+          
+          // Show success message
+          toast.success(
+            status === "APPROVED" ? "Email approved" : "Email marked as pending"
+          );
+        } else {
+          // Handle error
+          toast.error(response.error || "Failed to update email status");
+        }
+      } catch (error) {
+        console.error("Error in handleEmailStatusChangeCallback:", error);
+        toast.error("An unexpected error occurred");
+      } finally {
+        emailState.setIsUpdatingStatus(false);
+      }
     },
     [emailState, sessionId, updateEmailStatus]
   );
 
   const handleRegenerateEmailsCallback = useCallback(
     async (onlyUnapproved: boolean) => {
-      await handleRegenerateEmails(
-        { emailGeneration, emailState, chatState, sessionId },
-        onlyUnapproved,
-        regenerateAllEmails
-      );
+      // Set loading state
+      setEmailGenerationLoading(emailGeneration, "regenerating", true);
+      
+      try {
+        const response = await handleRegenerateEmails(
+          { emailGeneration, emailState, chatState, sessionId },
+          onlyUnapproved,
+          regenerateAllEmails
+        );
+
+        if (response.success) {
+          // Clear state based on regeneration type
+          clearEmailStateForRegeneration(emailState, onlyUnapproved);
+          
+          // Show success message
+          toast.success(
+            onlyUnapproved
+              ? `Regenerating ${response.donorIdsToRegenerate.length} unapproved emails...`
+              : `Regenerating all ${response.donorIdsToRegenerate.length} emails...`
+          );
+        } else {
+          // Handle error
+          if (response.error === "No emails to regenerate") {
+            toast.info(response.error);
+          } else {
+            toast.error(response.error || "Failed to regenerate emails");
+          }
+        }
+      } catch (error) {
+        console.error("Error in handleRegenerateEmailsCallback:", error);
+        toast.error("An unexpected error occurred");
+      } finally {
+        setEmailGenerationLoading(emailGeneration, "regenerating", false);
+      }
     },
     [emailGeneration, emailState, chatState, sessionId, regenerateAllEmails]
   );
 
-  const handleGenerateMoreCallback = useCallback(
-    async () => {
-      await handleGenerateMore({
+  const handleGenerateMoreCallback = useCallback(async () => {
+    // Set loading state
+    setEmailGenerationLoading(emailGeneration, "generating_more", true);
+    
+    try {
+      const response = await handleGenerateMore({
         emailGeneration,
         emailState,
         chatState,
@@ -295,21 +413,36 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         previousInstruction,
         selectedDonors,
       });
-    },
-    [
-      emailGeneration,
-      emailState,
-      chatState,
-      previewDonors,
-      instructionInput,
-      organization,
-      donorsData,
-      currentSignature,
-      sessionId,
-      previousInstruction,
-      selectedDonors,
-    ]
-  );
+
+      if (response.success && response.result) {
+        // Update email state with new emails (append to existing)
+        updateEmailStateWithNewEmails(emailState, response.result.emails, true);
+        
+        // Update chat state with response message
+        updateChatStateWithNewMessage(chatState, response.result.responseMessage);
+      } else {
+        // Handle error
+        toast.error(response.error || "Failed to generate more emails");
+      }
+    } catch (error) {
+      console.error("Error in handleGenerateMoreCallback:", error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setEmailGenerationLoading(emailGeneration, "generating_more", false);
+    }
+  }, [
+    emailGeneration,
+    emailState,
+    chatState,
+    previewDonors,
+    instructionInput,
+    organization,
+    donorsData,
+    currentSignature,
+    sessionId,
+    previousInstruction,
+    selectedDonors,
+  ]);
 
   const emailListViewerEmails = useMemo(() => {
     return emailState.allGeneratedEmails

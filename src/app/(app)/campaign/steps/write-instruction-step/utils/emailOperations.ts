@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { GeneratedEmail, GenerateEmailsResponse, AgenticFlowResponse, EmailGenerationResult } from "../types";
+import { GeneratedEmail, GenerateEmailsResponse, AgenticFlowResponse, EmailGenerationResult, EmailOperationResult } from "../types";
 import { GENERATE_MORE_COUNT } from "../constants";
 
 export async function handleEmailGeneration(
@@ -24,7 +24,7 @@ export async function handleEmailGeneration(
     sessionId?: number;
     saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
   }
-) {
+): Promise<EmailOperationResult | null> {
   const {
     finalInstruction,
     organization,
@@ -79,7 +79,11 @@ export async function handleEmailGeneration(
   if (result) {
     // Check if this is an agentic flow response
     if ("isAgenticFlow" in result && result.isAgenticFlow) {
-      return { type: "agentic", result: result as AgenticFlowResponse, updatedChatMessages };
+      return { 
+        type: "agentic" as const, 
+        result: result as AgenticFlowResponse, 
+        updatedChatMessages 
+      };
     } else {
       // Handle traditional email generation response
       const emailResult = result as GenerateEmailsResponse;
@@ -91,7 +95,12 @@ export async function handleEmailGeneration(
 
       const responseMessage = "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
 
-      return { type: "traditional", result: emailResult, updatedChatMessages, responseMessage };
+      return { 
+        type: "traditional" as const, 
+        result: emailResult, 
+        updatedChatMessages, 
+        responseMessage 
+      };
     }
   } else {
     throw new Error("Failed to generate emails");

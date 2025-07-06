@@ -1,11 +1,10 @@
 import { toast } from "sonner";
-import { handleEmailGeneration } from "../utils/emailOperations";
+import type { EmailGenerationResult, EmailOperationResult, GeneratedEmail } from "../types";
+import {
+  handleEmailGeneration,
+  handleGenerateMoreEmails,
+} from "../utils/emailOperations";
 import { handleEmailResult } from "./emailResultHandler";
-import { handleGenerateMoreEmails } from "../utils/emailOperations";
-import type { Organization, TokenUsage } from "@/app/lib/utils/email-generator/types";
-import type { InferSelectModel } from "drizzle-orm";
-import type { Donor } from "@/app/lib/data/donors";
-import type { EmailGenerationResult, GeneratedEmail } from "../types";
 
 interface EmailGenerationState {
   setIsGenerating: (generating: boolean) => void;
@@ -15,7 +14,12 @@ interface EmailGenerationState {
   isRegenerating: boolean;
   generateEmailsForDonors: (params: {
     instruction: string;
-    donors: Array<{ id: number; firstName: string; lastName: string; email: string }>;
+    donors: Array<{
+      id: number;
+      firstName: string;
+      lastName: string;
+      email: string;
+    }>;
     organizationName: string;
     organizationWritingInstructions?: string;
     previousInstruction?: string;
@@ -23,14 +27,25 @@ interface EmailGenerationState {
     chatHistory?: ConversationMessage[];
     signature?: string;
   }) => Promise<EmailGenerationResult | null>;
-  saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
+  saveEmailsToSession: (
+    emails: GeneratedEmail[],
+    sessionId: number
+  ) => Promise<void>;
 }
 
 interface EmailState {
   setGeneratedEmails: (emails: GeneratedEmail[]) => void;
   setAllGeneratedEmails: (emails: GeneratedEmail[]) => void;
-  setReferenceContexts: (contexts: Record<number, Record<string, string>>) => void;
-  setEmailStatuses: (statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> | ((prev: Record<number, "PENDING_APPROVAL" | "APPROVED">) => Record<number, "PENDING_APPROVAL" | "APPROVED">)) => void;
+  setReferenceContexts: (
+    contexts: Record<number, Record<string, string>>
+  ) => void;
+  setEmailStatuses: (
+    statuses:
+      | Record<number, "PENDING_APPROVAL" | "APPROVED">
+      | ((
+          prev: Record<number, "PENDING_APPROVAL" | "APPROVED">
+        ) => Record<number, "PENDING_APPROVAL" | "APPROVED">)
+  ) => void;
   setIsUpdatingStatus: (updating: boolean) => void;
   allGeneratedEmails: GeneratedEmail[];
   referenceContexts: Record<number, Record<string, string>>;
@@ -44,8 +59,15 @@ interface ConversationMessage {
 
 interface ChatState {
   setSuggestedMemories: (memories: string[]) => void;
-  setChatMessages: (messages: ConversationMessage[] | ((prev: ConversationMessage[]) => ConversationMessage[])) => void;
-  saveChatHistory: (messages: ConversationMessage[], instruction?: string) => void;
+  setChatMessages: (
+    messages:
+      | ConversationMessage[]
+      | ((prev: ConversationMessage[]) => ConversationMessage[])
+  ) => void;
+  saveChatHistory: (
+    messages: ConversationMessage[],
+    instruction?: string
+  ) => void;
   chatMessages: ConversationMessage[];
 }
 
@@ -60,8 +82,15 @@ interface InstructionInput {
 }
 
 interface BaseEmailOperationParams {
-  organization: { name: string; writingInstructions?: string | null } | undefined;
-  donorsData: Array<{ id: number; firstName: string; lastName: string; email: string }>;
+  organization:
+    | { name: string; writingInstructions?: string | null }
+    | undefined;
+  donorsData: Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
   currentSignature?: string;
   sessionId?: number;
   previousInstruction?: string;
@@ -91,28 +120,34 @@ interface EmailStatusChangeParams {
 }
 
 interface UpdateEmailStatusMutation {
-  mutateAsync: (params: { emailId: number; status: "PENDING_APPROVAL" | "APPROVED" }) => Promise<{ 
-    email: { 
-      status: string; 
-      id: number; 
-      createdAt: string; 
-      updatedAt: string; 
-      donorId: number; 
-      subject: string; 
-      sessionId: number; 
-      emailContent: string | null; 
-      reasoning: string | null; 
-      response: string | null; 
-    }; 
-    message: string; 
-    success: boolean; 
+  mutateAsync: (params: {
+    emailId: number;
+    status: "PENDING_APPROVAL" | "APPROVED";
+  }) => Promise<{
+    email: {
+      status: string;
+      id: number;
+      createdAt: string;
+      updatedAt: string;
+      donorId: number;
+      subject: string;
+      sessionId: number;
+      emailContent: string | null;
+      reasoning: string | null;
+      response: string | null;
+    };
+    message: string;
+    success: boolean;
   }>;
 }
 
 interface RegenerateEmailsMutation {
-  mutateAsync: (params: { sessionId: number; chatHistory: ConversationMessage[] }) => Promise<{ 
-    message: string; 
-    success: boolean; 
+  mutateAsync: (params: {
+    sessionId: number;
+    chatHistory: ConversationMessage[];
+  }) => Promise<{
+    message: string;
+    success: boolean;
   }>;
 }
 
@@ -126,7 +161,7 @@ interface RegenerateEmailsParams {
 export async function handleSubmitInstruction(
   params: SubmitInstructionParams,
   instructionToSubmit?: string
-) {
+): Promise<{ success: boolean; result?: EmailOperationResult; error?: string }> {
   const {
     emailGeneration,
     emailState,
@@ -143,16 +178,12 @@ export async function handleSubmitInstruction(
 
   const finalInstruction =
     instructionToSubmit || instructionInput.localInstructionRef.current;
-  if (!finalInstruction.trim() || !organization) return;
+  
+  if (!finalInstruction.trim() || !organization) {
+    return { success: false, error: "Missing instruction or organization" };
+  }
 
   onInstructionChange?.(finalInstruction);
-  emailGeneration.setIsGenerating(true);
-
-  // Clear existing state
-  emailState.setGeneratedEmails([]);
-  emailState.setAllGeneratedEmails([]);
-  emailState.setReferenceContexts({});
-  chatState.setSuggestedMemories([]);
 
   try {
     const result = await handleEmailGeneration({
@@ -169,17 +200,21 @@ export async function handleSubmitInstruction(
     });
 
     if (result) {
-      await handleEmailResult(result, emailState, chatState, instructionInput);
+      return { success: true, result };
     }
+    
+    return { success: false, error: "No result returned from email generation" };
   } catch (error) {
     console.error("Error generating emails:", error);
-    toast.error("Failed to generate emails. Please try again.");
-  } finally {
-    emailGeneration.setIsGenerating(false);
+    return { success: false, error: "Failed to generate emails. Please try again." };
   }
 }
 
-export async function handleGenerateMore(params: GenerateMoreParams) {
+export async function handleGenerateMore(params: GenerateMoreParams): Promise<{
+  success: boolean;
+  result?: { emails: GeneratedEmail[]; responseMessage: string };
+  error?: string;
+}> {
   const {
     emailGeneration,
     emailState,
@@ -194,9 +229,10 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
     selectedDonors,
   } = params;
 
-  if (emailGeneration.isGeneratingMore || !organization) return;
+  if (emailGeneration.isGeneratingMore || !organization) {
+    return { success: false, error: "Already generating or missing organization" };
+  }
 
-  emailGeneration.setIsGeneratingMore(true);
   try {
     const result = await handleGenerateMoreEmails({
       organization,
@@ -215,33 +251,13 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
     });
 
     if (result) {
-      const newEmails = [...emailState.allGeneratedEmails, ...result.emails];
-      emailState.setAllGeneratedEmails(newEmails);
-      emailState.setGeneratedEmails(newEmails);
-
-      const newReferenceContexts = { ...emailState.referenceContexts };
-      const newStatuses = { ...emailState.emailStatuses };
-      result.emails.forEach((email) => {
-        newReferenceContexts[email.donorId] = email.referenceContexts || {};
-        newStatuses[email.donorId] = "PENDING_APPROVAL";
-      });
-      emailState.setReferenceContexts(newReferenceContexts);
-      emailState.setEmailStatuses(newStatuses);
-
-      chatState.setChatMessages((prev) => {
-        const newMessages: ConversationMessage[] = [
-          ...prev,
-          { role: "assistant" as const, content: result.responseMessage },
-        ];
-        setTimeout(() => chatState.saveChatHistory(newMessages), 100);
-        return newMessages;
-      });
+      return { success: true, result };
     }
+    
+    return { success: false, error: "No result returned from email generation" };
   } catch (error) {
     console.error("Error generating more emails:", error);
-    toast.error("Failed to generate more emails. Please try again.");
-  } finally {
-    emailGeneration.setIsGeneratingMore(false);
+    return { success: false, error: "Failed to generate more emails. Please try again." };
   }
 }
 
@@ -250,7 +266,12 @@ export async function handleEmailStatusChange(
   emailId: number,
   status: "PENDING_APPROVAL" | "APPROVED",
   updateEmailStatus: UpdateEmailStatusMutation
-) {
+): Promise<{
+  success: boolean;
+  isPreviewMode: boolean;
+  donorId?: number;
+  error?: string;
+}> {
   const { emailState, sessionId } = params;
 
   const isPreviewMode = !emailState.allGeneratedEmails.some(
@@ -258,38 +279,27 @@ export async function handleEmailStatusChange(
   );
 
   if (isPreviewMode) {
-    emailState.setEmailStatuses((prev) => ({
-      ...prev,
-      [emailId]: status,
-    }));
-    toast.success(
-      status === "APPROVED" ? "Email approved" : "Email marked as pending"
-    );
-    return;
+    return { success: true, isPreviewMode: true, donorId: emailId };
   }
 
-  if (!sessionId) return;
+  if (!sessionId) {
+    return { success: false, isPreviewMode: false, error: "Missing session ID" };
+  }
 
-  emailState.setIsUpdatingStatus(true);
   try {
     await updateEmailStatus.mutateAsync({ emailId, status });
     const email = emailState.allGeneratedEmails.find(
       (email) => (email as GeneratedEmail & { id: number }).id === emailId
     ) as (GeneratedEmail & { id: number }) | undefined;
+    
     if (email) {
-      emailState.setEmailStatuses((prev) => ({
-        ...prev,
-        [email.donorId]: status,
-      }));
+      return { success: true, isPreviewMode: false, donorId: email.donorId };
     }
-    toast.success(
-      status === "APPROVED" ? "Email approved" : "Email marked as pending"
-    );
+    
+    return { success: false, isPreviewMode: false, error: "Email not found" };
   } catch (error) {
     console.error("Error updating email status:", error);
-    toast.error("Failed to update email status");
-  } finally {
-    emailState.setIsUpdatingStatus(false);
+    return { success: false, isPreviewMode: false, error: "Failed to update email status" };
   }
 }
 
@@ -297,82 +307,68 @@ export async function handleRegenerateEmails(
   params: RegenerateEmailsParams,
   onlyUnapproved: boolean,
   regenerateAllEmails: RegenerateEmailsMutation
-) {
+): Promise<{
+  success: boolean;
+  donorIdsToRegenerate: number[];
+  onlyUnapproved: boolean;
+  error?: string;
+}> {
   const { emailGeneration, emailState, chatState, sessionId } = params;
 
-  if (!sessionId || emailGeneration.isRegenerating) return;
+  if (!sessionId || emailGeneration.isRegenerating) {
+    return { 
+      success: false, 
+      donorIdsToRegenerate: [], 
+      onlyUnapproved, 
+      error: "Missing session ID or already regenerating" 
+    };
+  }
 
-  emailGeneration.setIsRegenerating(true);
+  // Get the list of donor IDs to regenerate
+  let donorIdsToRegenerate: number[] = [];
+
+  if (onlyUnapproved) {
+    // Only regenerate emails that are pending approval
+    donorIdsToRegenerate = emailState.allGeneratedEmails
+      .filter(
+        (email) => emailState.emailStatuses[email.donorId] !== "APPROVED"
+      )
+      .map((email) => email.donorId);
+  } else {
+    // Regenerate all previously generated emails
+    donorIdsToRegenerate = emailState.allGeneratedEmails.map(
+      (email) => email.donorId
+    );
+  }
+
+  if (donorIdsToRegenerate.length === 0) {
+    return { 
+      success: false, 
+      donorIdsToRegenerate: [], 
+      onlyUnapproved, 
+      error: "No emails to regenerate" 
+    };
+  }
 
   try {
-    // Get the list of donor IDs to regenerate
-    let donorIdsToRegenerate: number[] = [];
-
-    if (onlyUnapproved) {
-      // Only regenerate emails that are pending approval
-      donorIdsToRegenerate = emailState.allGeneratedEmails
-        .filter(
-          (email) => emailState.emailStatuses[email.donorId] !== "APPROVED"
-        )
-        .map((email) => email.donorId);
-    } else {
-      // Regenerate all previously generated emails
-      donorIdsToRegenerate = emailState.allGeneratedEmails.map(
-        (email) => email.donorId
-      );
-    }
-
-    if (donorIdsToRegenerate.length === 0) {
-      toast.info("No emails to regenerate");
-      return;
-    }
-
     // Call the regenerate API
     const result = await regenerateAllEmails.mutateAsync({
       sessionId,
       chatHistory: chatState.chatMessages,
     });
 
-    // Clear local state and wait for refetch
-    if (!onlyUnapproved) {
-      // If regenerating all, clear everything
-      emailState.setGeneratedEmails([]);
-      emailState.setAllGeneratedEmails([]);
-      emailState.setReferenceContexts({});
-      emailState.setEmailStatuses({});
-    } else {
-      // If only unapproved, keep approved emails in state
-      const approvedEmails = emailState.allGeneratedEmails.filter(
-        (email) => emailState.emailStatuses[email.donorId] === "APPROVED"
-      );
-      emailState.setGeneratedEmails(approvedEmails);
-      emailState.setAllGeneratedEmails(approvedEmails);
-
-      // Keep only approved email contexts and statuses
-      const newContexts: Record<number, Record<string, string>> = {};
-      const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
-      approvedEmails.forEach((email) => {
-        if (emailState.referenceContexts[email.donorId]) {
-          newContexts[email.donorId] =
-            emailState.referenceContexts[email.donorId];
-        }
-        newStatuses[email.donorId] = "APPROVED";
-      });
-      emailState.setReferenceContexts(newContexts);
-      emailState.setEmailStatuses(newStatuses);
-    }
-
-    toast.success(
-      onlyUnapproved
-        ? `Regenerating ${donorIdsToRegenerate.length} unapproved emails...`
-        : `Regenerating all ${donorIdsToRegenerate.length} emails...`
-    );
-
-    // The UI will update when the session data is refetched
+    return { 
+      success: true, 
+      donorIdsToRegenerate, 
+      onlyUnapproved 
+    };
   } catch (error) {
     console.error("Error regenerating emails:", error);
-    toast.error("Failed to regenerate emails. Please try again.");
-  } finally {
-    emailGeneration.setIsRegenerating(false);
+    return { 
+      success: false, 
+      donorIdsToRegenerate, 
+      onlyUnapproved, 
+      error: "Failed to regenerate emails. Please try again." 
+    };
   }
 }
