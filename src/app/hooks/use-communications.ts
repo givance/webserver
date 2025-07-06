@@ -108,6 +108,7 @@ export function useCommunications() {
     onSuccess: () => {
       // Invalidate campaign sessions since emails are generated/regenerated
       utils.communications.campaigns.listCampaigns.invalidate();
+      utils.communications.campaigns.getSession.invalidate();
     },
   });
 
