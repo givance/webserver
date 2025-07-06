@@ -1,13 +1,6 @@
 import { toast } from "sonner";
-import type {
-  EmailGenerationResult,
-  EmailOperationResult,
-  GeneratedEmail,
-} from "../types";
-import {
-  handleEmailGeneration,
-  handleGenerateMoreEmails,
-} from "../utils/emailOperations";
+import type { EmailGenerationResult, EmailOperationResult, GeneratedEmail } from "../types";
+import { handleEmailGeneration, handleGenerateMoreEmails } from "../utils/emailOperations";
 import { handleEmailResult } from "./emailResultHandler";
 
 interface EmailGenerationState {
@@ -16,39 +9,27 @@ interface EmailGenerationState {
   setIsRegenerating: (regenerating: boolean) => void;
   isGeneratingMore: boolean;
   isRegenerating: boolean;
-  generateEmailsForDonors: (params: {
-    instruction: string;
-    donors: Array<{
-      id: number;
-      firstName: string;
-      lastName: string;
-      email: string;
-    }>;
-    organizationName: string;
-    organizationWritingInstructions?: string;
-    previousInstruction?: string;
-    currentDate?: string;
-    chatHistory?: ConversationMessage[];
-    signature?: string;
-  }) => Promise<EmailGenerationResult | null>;
-  saveEmailsToSession: (
-    emails: GeneratedEmail[],
-    sessionId: number
-  ) => Promise<void>;
+  regenerateAllEmails: (params: {
+    sessionId: number;
+    chatHistory: ConversationMessage[];
+  }) => Promise<{ message: string; success: boolean }>;
+  smartEmailGeneration: (params: {
+    sessionId: number;
+    mode: "generate_more" | "regenerate_all" | "generate_with_new_message";
+    newDonorIds?: number[];
+    newMessage?: string;
+  }) => Promise<{ message: string; success: boolean; chatHistory: ConversationMessage[] }>;
+  saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
 }
 
 interface EmailState {
   setGeneratedEmails: (emails: GeneratedEmail[]) => void;
   setAllGeneratedEmails: (emails: GeneratedEmail[]) => void;
-  setReferenceContexts: (
-    contexts: Record<number, Record<string, string>>
-  ) => void;
+  setReferenceContexts: (contexts: Record<number, Record<string, string>>) => void;
   setEmailStatuses: (
     statuses:
       | Record<number, "PENDING_APPROVAL" | "APPROVED">
-      | ((
-          prev: Record<number, "PENDING_APPROVAL" | "APPROVED">
-        ) => Record<number, "PENDING_APPROVAL" | "APPROVED">)
+      | ((prev: Record<number, "PENDING_APPROVAL" | "APPROVED">) => Record<number, "PENDING_APPROVAL" | "APPROVED">)
   ) => void;
   setIsUpdatingStatus: (updating: boolean) => void;
   allGeneratedEmails: GeneratedEmail[];
@@ -63,15 +44,8 @@ interface ConversationMessage {
 
 interface ChatState {
   setSuggestedMemories: (memories: string[]) => void;
-  setChatMessages: (
-    messages:
-      | ConversationMessage[]
-      | ((prev: ConversationMessage[]) => ConversationMessage[])
-  ) => void;
-  saveChatHistory: (
-    messages: ConversationMessage[],
-    instruction?: string
-  ) => void;
+  setChatMessages: (messages: ConversationMessage[] | ((prev: ConversationMessage[]) => ConversationMessage[])) => void;
+  saveChatHistory: (messages: ConversationMessage[], instruction?: string) => void;
   chatMessages: ConversationMessage[];
 }
 
@@ -86,9 +60,7 @@ interface InstructionInput {
 }
 
 interface BaseEmailOperationParams {
-  organization:
-    | { name: string; writingInstructions?: string | null }
-    | undefined;
+  organization: { name: string; writingInstructions?: string | null } | undefined;
   donorsData: Array<{
     id: number;
     firstName: string;
@@ -124,10 +96,7 @@ interface EmailStatusChangeParams {
 }
 
 interface UpdateEmailStatusMutation {
-  mutateAsync: (params: {
-    emailId: number;
-    status: "PENDING_APPROVAL" | "APPROVED";
-  }) => Promise<{
+  mutateAsync: (params: { emailId: number; status: "PENDING_APPROVAL" | "APPROVED" }) => Promise<{
     email: {
       status: string;
       id: number;
@@ -146,10 +115,7 @@ interface UpdateEmailStatusMutation {
 }
 
 interface RegenerateEmailsMutation {
-  mutateAsync: (params: {
-    sessionId: number;
-    chatHistory: ConversationMessage[];
-  }) => Promise<{
+  mutateAsync: (params: { sessionId: number; chatHistory: ConversationMessage[] }) => Promise<{
     message: string;
     success: boolean;
   }>;
@@ -184,8 +150,7 @@ export async function handleSubmitInstruction(
     onInstructionChange,
   } = params;
 
-  const finalInstruction =
-    instructionToSubmit || instructionInput.localInstructionRef.current;
+  const finalInstruction = instructionToSubmit || instructionInput.localInstructionRef.current;
 
   if (!finalInstruction.trim() || !organization) {
     return { success: false, error: "Missing instruction or organization" };
@@ -202,7 +167,7 @@ export async function handleSubmitInstruction(
       chatMessages: chatState.chatMessages,
       previousInstruction,
       currentSignature,
-      generateEmailsForDonors: emailGeneration.generateEmailsForDonors,
+      smartEmailGeneration: emailGeneration.smartEmailGeneration,
       sessionId,
       saveEmailsToSession: emailGeneration.saveEmailsToSession,
     });
@@ -262,7 +227,7 @@ export async function handleGenerateMore(params: GenerateMoreParams): Promise<{
       donorsData,
       chatMessages: chatState.chatMessages,
       currentSignature,
-      generateEmailsForDonors: emailGeneration.generateEmailsForDonors,
+      smartEmailGeneration: emailGeneration.smartEmailGeneration,
       sessionId,
       saveEmailsToSession: emailGeneration.saveEmailsToSession,
     });
@@ -365,9 +330,7 @@ export async function handleRegenerateEmails(
       .map((email) => email.donorId);
   } else {
     // Regenerate all previously generated emails
-    donorIdsToRegenerate = emailState.allGeneratedEmails.map(
-      (email) => email.donorId
-    );
+    donorIdsToRegenerate = emailState.allGeneratedEmails.map((email) => email.donorId);
   }
 
   if (donorIdsToRegenerate.length === 0) {
@@ -380,10 +343,11 @@ export async function handleRegenerateEmails(
   }
 
   try {
-    // Call the regenerate API
-    const result = await regenerateAllEmails.mutateAsync({
+    // Use the regenerateAllEmails endpoint with existing chat history (no new message)
+    // The key difference from regular generate is we don't append a new message
+    await regenerateAllEmails.mutateAsync({
       sessionId,
-      chatHistory: chatState.chatMessages,
+      chatHistory: chatState.chatMessages, // Use existing chat history without adding new message
     });
 
     return {

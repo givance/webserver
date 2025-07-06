@@ -155,8 +155,9 @@ describe("generateBulkEmailsTask", () => {
     });
 
     it("should handle existing emails and only generate missing ones", async () => {
-      // Mock existing emails query to return one existing email
-      mockWhere.mockResolvedValueOnce([{ donorId: 1 }]);
+      // First mockWhere call is for the update query, second is for the select query
+      mockWhere.mockResolvedValueOnce(undefined); // For update query
+      mockWhere.mockResolvedValueOnce([{ donorId: 1 }]); // For select query
 
       // Mock unified service response for remaining donors
       mockGenerateSmartEmailsForCampaign.mockResolvedValue({
@@ -206,12 +207,13 @@ describe("generateBulkEmailsTask", () => {
     });
 
     it("should handle all emails already existing", async () => {
-      // Mock existing emails query to return all donors
+      // First mockWhere call is for the update query, second is for the select query
+      mockWhere.mockResolvedValueOnce(undefined); // For update query
       mockWhere.mockResolvedValueOnce([
         { donorId: 1 },
         { donorId: 2 },
         { donorId: 3 },
-      ]);
+      ]); // For select query
 
       const runFunction = (generateBulkEmailsTask as any).run;
       const result = await runFunction(mockPayload, mockContext);
@@ -236,6 +238,10 @@ describe("generateBulkEmailsTask", () => {
     });
 
     it("should handle errors from unified service", async () => {
+      // Ensure mockWhere returns empty array for existing emails check
+      mockWhere.mockResolvedValueOnce(undefined); // For update query
+      mockWhere.mockResolvedValueOnce([]); // For select query - no existing emails
+
       // Mock unified service to throw error
       mockGenerateSmartEmailsForCampaign.mockRejectedValue(new Error("AI service error"));
 

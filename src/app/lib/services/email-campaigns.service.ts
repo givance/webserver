@@ -72,6 +72,27 @@ export interface RegenerateAllEmailsInput {
   }>;
 }
 
+export interface SmartEmailGenerationInput {
+  sessionId: number;
+  mode: "generate_more" | "regenerate_all" | "generate_with_new_message";
+  // For generate_more: specify which new donors to generate for
+  newDonorIds?: number[];
+  // For generate_with_new_message: the new message to add to chat history
+  newMessage?: string;
+}
+
+export interface SmartEmailGenerationResponse {
+  success: boolean;
+  sessionId: number;
+  // Always return the updated chat history to keep frontend in sync
+  chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+  // Stats about what was done
+  generatedEmailsCount?: number;
+  deletedEmailsCount?: number;
+  failedEmailsCount?: number;
+  message: string;
+}
+
 export interface SaveDraftInput {
   sessionId?: number;
   campaignName: string;
@@ -411,7 +432,6 @@ export class EmailCampaignsService {
       // Get generated emails for this session
       const emails = await db.select().from(generatedEmails).where(eq(generatedEmails.sessionId, sessionId));
 
-
       // Append signatures to each email for display
       const emailsWithSignatures = await Promise.all(
         emails.map(async (email) => {
@@ -534,23 +554,24 @@ export class EmailCampaignsService {
 
     // Check and fix stuck campaigns in batch
     const campaignsToCheck = campaigns
-      .filter(campaign => 
-        campaign.status === EmailGenerationSessionStatus.GENERATING ||
-        campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
+      .filter(
+        (campaign) =>
+          campaign.status === EmailGenerationSessionStatus.GENERATING ||
+          campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
       )
-      .map(campaign => campaign.id);
+      .map((campaign) => campaign.id);
 
     let batchResults = new Map();
     if (campaignsToCheck.length > 0) {
       try {
         batchResults = await this.checkAndUpdateMultipleCampaignCompletion(campaignsToCheck, organizationId);
       } catch (error) {
-        logger.warn(`Failed to check completion for campaigns ${campaignsToCheck.join(', ')}: ${error}`);
+        logger.warn(`Failed to check completion for campaigns ${campaignsToCheck.join(", ")}: ${error}`);
       }
     }
 
     // Get email counts for all campaigns in batch
-    const allSessionIds = campaigns.map(c => c.id);
+    const allSessionIds = campaigns.map((c) => c.id);
     const emailCounts = await db
       .select({
         sessionId: generatedEmails.sessionId,
@@ -563,7 +584,7 @@ export class EmailCampaignsService {
 
     // Create lookup map for email counts
     const emailCountsMap = new Map();
-    emailCounts.forEach(count => {
+    emailCounts.forEach((count) => {
       emailCountsMap.set(count.sessionId, count);
     });
 
@@ -578,15 +599,15 @@ export class EmailCampaignsService {
       .where(inArray(emailGenerationSessions.id, allSessionIds));
 
     const updatedCampaignsMap = new Map();
-    updatedCampaigns.forEach(campaign => {
+    updatedCampaigns.forEach((campaign) => {
       updatedCampaignsMap.set(campaign.id, campaign);
     });
 
     // Combine all data
-    const campaignsWithCounts = campaigns.map(campaign => {
+    const campaignsWithCounts = campaigns.map((campaign) => {
       const emailCount = emailCountsMap.get(campaign.id) || { totalEmails: 0, sentEmails: 0 };
       const updatedData = updatedCampaignsMap.get(campaign.id);
-      
+
       return {
         ...campaign,
         status: updatedData?.status ?? campaign.status,
@@ -816,7 +837,6 @@ export class EmailCampaignsService {
         });
       }
 
-
       // Remove signature from content before saving
       const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
 
@@ -971,47 +991,45 @@ export class EmailCampaignsService {
 
       // Get preview donor IDs from the session
       const previewDonorIds = (existingSession.previewDonorIds as number[]) || [];
-      
+
       logger.info(
         `[regenerateAllEmails] Session ${input.sessionId} has previewDonorIds: ${JSON.stringify(previewDonorIds)}`
       );
 
       // Get all emails for this session to understand what's happening
       const allSessionEmails = await db
-        .select({ 
+        .select({
           donorId: generatedEmails.donorId,
           isPreview: generatedEmails.isPreview,
-          status: generatedEmails.status
+          status: generatedEmails.status,
         })
         .from(generatedEmails)
         .where(eq(generatedEmails.sessionId, input.sessionId));
-      
-      logger.info(
-        `[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`
-      );
-      
+
+      logger.info(`[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`);
+
       // Get all donors that have preview emails in this session
-      const existingPreviewEmails = allSessionEmails.filter(e => e.isPreview === true);
-      const allPreviewDonorIds = [...new Set(existingPreviewEmails.map(e => e.donorId))];
-      
+      const existingPreviewEmails = allSessionEmails.filter((e) => e.isPreview === true);
+      const allPreviewDonorIds = [...new Set(existingPreviewEmails.map((e) => e.donorId))];
+
       // Also check if there are any emails with PENDING_APPROVAL status (these might be preview emails too)
-      const pendingApprovalEmails = allSessionEmails.filter(e => e.status === "PENDING_APPROVAL");
-      const pendingApprovalDonorIds = [...new Set(pendingApprovalEmails.map(e => e.donorId))];
-      
+      const pendingApprovalEmails = allSessionEmails.filter((e) => e.status === "PENDING_APPROVAL");
+      const pendingApprovalDonorIds = [...new Set(pendingApprovalEmails.map((e) => e.donorId))];
+
       logger.info(
         `[regenerateAllEmails] Found ${allPreviewDonorIds.length} donors with isPreview=true, ${pendingApprovalDonorIds.length} with PENDING_APPROVAL status`
       );
-      
+
       // Combine all potential preview donors
       const combinedDonorIds = [...new Set([...allPreviewDonorIds, ...pendingApprovalDonorIds, ...previewDonorIds])];
-      
+
       logger.info(
         `[regenerateAllEmails] Combined donor IDs (preview + pending + stored): ${JSON.stringify(combinedDonorIds)}`
       );
-      
+
       // Use combined list for regeneration
-      let donorsToRegenerate = combinedDonorIds;
-      
+      const donorsToRegenerate = combinedDonorIds;
+
       if (donorsToRegenerate.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -1020,17 +1038,16 @@ export class EmailCampaignsService {
       }
 
       logger.info(
-        `[regenerateAllEmails] Regenerating emails for ${donorsToRegenerate.length} preview donors in session ${input.sessionId}: ${JSON.stringify(donorsToRegenerate)}`
+        `[regenerateAllEmails] Regenerating emails for ${donorsToRegenerate.length} preview donors in session ${
+          input.sessionId
+        }: ${JSON.stringify(donorsToRegenerate)}`
       );
 
       // Delete only preview emails (emails for preview donors)
       const deleteResult = await db
         .delete(generatedEmails)
         .where(
-          and(
-            eq(generatedEmails.sessionId, input.sessionId),
-            inArray(generatedEmails.donorId, donorsToRegenerate)
-          )
+          and(eq(generatedEmails.sessionId, input.sessionId), inArray(generatedEmails.donorId, donorsToRegenerate))
         )
         .returning({ id: generatedEmails.id });
 
@@ -1040,33 +1057,25 @@ export class EmailCampaignsService {
       // Use the chat history from input
       const finalChatHistory = input.chatHistory;
 
-      // Update the session chat history and previewDonorIds if we found more
-      const updateData: any = {
-        chatHistory: finalChatHistory,
-        updatedAt: new Date(),
-      };
-      
-      // If we found more preview donors than what was stored, update the session
-      if (donorsToRegenerate.length > previewDonorIds.length) {
-        updateData.previewDonorIds = donorsToRegenerate;
-        logger.info(`Updating session ${input.sessionId} with ${donorsToRegenerate.length} preview donor IDs`);
-      }
-      
+      // Update the session chat history ONLY - do not modify donor lists
       await db
         .update(emailGenerationSessions)
-        .set(updateData)
+        .set({
+          chatHistory: finalChatHistory,
+          updatedAt: new Date(),
+        })
         .where(eq(emailGenerationSessions.id, input.sessionId));
 
       // Now regenerate emails for preview donors using the same service as preview generation
       const emailGenerationService = new UnifiedSmartEmailGenerationService();
-      
+
       logger.info(`Starting email regeneration for ${donorsToRegenerate.length} preview donors`);
-      
+
       const generationResult = await emailGenerationService.generateSmartEmailsForCampaign({
         organizationId,
         sessionId: String(input.sessionId),
         chatHistory: finalChatHistory,
-        donorIds: donorsToRegenerate.map(id => String(id))
+        donorIds: donorsToRegenerate.map((id) => String(id)),
       });
 
       logger.info(
@@ -1074,8 +1083,8 @@ export class EmailCampaignsService {
       );
 
       // Count successful regenerations
-      const successfulCount = generationResult.results.filter(r => r.email !== null).length;
-      const failedCount = generationResult.results.filter(r => r.email === null).length;
+      const successfulCount = generationResult.results.filter((r) => r.email !== null).length;
+      const failedCount = generationResult.results.filter((r) => r.email === null).length;
 
       return {
         success: true,
@@ -1091,6 +1100,176 @@ export class EmailCampaignsService {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to regenerate emails",
+      });
+    }
+  }
+
+  /**
+   * Unified smart email generation - handles generate more, regenerate all, and generate with new message
+   * @param input - Generation parameters
+   * @param organizationId - The organization ID
+   * @param userId - The user ID
+   * @returns Generation result with updated chat history
+   */
+  async smartEmailGeneration(
+    input: SmartEmailGenerationInput,
+    organizationId: string,
+    userId: string
+  ): Promise<SmartEmailGenerationResponse> {
+    try {
+      // First verify the session exists and belongs to the user's organization
+      const [existingSession] = await db
+        .select()
+        .from(emailGenerationSessions)
+        .where(
+          and(
+            eq(emailGenerationSessions.id, input.sessionId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!existingSession) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign session not found",
+        });
+      }
+
+      // Get existing chat history from database (source of truth)
+      const existingChatHistory =
+        (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || [];
+      let finalChatHistory = existingChatHistory;
+
+      // Handle generate_with_new_message mode
+      if (input.mode === "generate_with_new_message") {
+        if (!input.newMessage?.trim()) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "New message is required for generate_with_new_message mode",
+          });
+        }
+
+        // Append new message to chat history
+        finalChatHistory = [...existingChatHistory, { role: "user" as const, content: input.newMessage.trim() }];
+
+        // Update chat history in database
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            chatHistory: finalChatHistory,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, input.sessionId));
+
+        logger.info(`[smartEmailGeneration] Updated chat history for session ${input.sessionId} with new message`);
+      }
+
+      // Get preview donor IDs from the session
+      const previewDonorIds = (existingSession.previewDonorIds as number[]) || [];
+
+      logger.info(
+        `[smartEmailGeneration] Session ${input.sessionId} mode: ${input.mode}, previewDonorIds: ${JSON.stringify(
+          previewDonorIds
+        )}`
+      );
+
+      let donorsToProcess: number[] = [];
+      let shouldDeleteExisting = false;
+
+      if (input.mode === "generate_more") {
+        // Generate emails for new donors
+        if (!input.newDonorIds || input.newDonorIds.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "newDonorIds are required for generate_more mode",
+          });
+        }
+
+        donorsToProcess = input.newDonorIds;
+        shouldDeleteExisting = false;
+
+        // Add new donors to preview set permanently
+        const updatedPreviewDonorIds = [...new Set([...previewDonorIds, ...input.newDonorIds])];
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            previewDonorIds: updatedPreviewDonorIds,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, input.sessionId));
+
+        logger.info(`[smartEmailGeneration] Added ${input.newDonorIds.length} new donors to preview set`);
+      } else if (input.mode === "regenerate_all" || input.mode === "generate_with_new_message") {
+        // Regenerate emails for existing preview donors
+        if (previewDonorIds.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No preview donors found for regeneration",
+          });
+        }
+
+        donorsToProcess = previewDonorIds;
+        shouldDeleteExisting = true;
+      }
+
+      // Delete existing emails if needed
+      let deletedCount = 0;
+      if (shouldDeleteExisting) {
+        const deleteResult = await db
+          .delete(generatedEmails)
+          .where(and(eq(generatedEmails.sessionId, input.sessionId), inArray(generatedEmails.donorId, donorsToProcess)))
+          .returning({ id: generatedEmails.id });
+
+        deletedCount = deleteResult.length;
+        logger.info(`[smartEmailGeneration] Deleted ${deletedCount} existing emails for session ${input.sessionId}`);
+      }
+
+      // Generate emails using the unified service
+      const emailGenerationService = new UnifiedSmartEmailGenerationService();
+
+      logger.info(`[smartEmailGeneration] Starting email generation for ${donorsToProcess.length} donors`);
+
+      const generationResult = await emailGenerationService.generateSmartEmailsForCampaign({
+        organizationId,
+        sessionId: String(input.sessionId),
+        chatHistory: finalChatHistory,
+        donorIds: donorsToProcess.map((id) => String(id)),
+      });
+
+      logger.info(
+        `[smartEmailGeneration] Generated ${generationResult.results.length} emails for session ${input.sessionId}, tokens used: ${generationResult.totalTokensUsed}`
+      );
+
+      // Count successful and failed generations
+      const successfulCount = generationResult.results.filter((r) => r.email !== null).length;
+      const failedCount = generationResult.results.filter((r) => r.email === null).length;
+
+      // Create response message based on mode
+      let message = "";
+      if (input.mode === "generate_more") {
+        message = `Generated ${successfulCount} emails for ${donorsToProcess.length} new donors`;
+      } else if (input.mode === "regenerate_all") {
+        message = `Regenerated ${successfulCount} emails for ${donorsToProcess.length} preview donors`;
+      } else if (input.mode === "generate_with_new_message") {
+        message = `Generated ${successfulCount} emails with new instructions for ${donorsToProcess.length} preview donors`;
+      }
+
+      return {
+        success: true,
+        sessionId: existingSession.id,
+        chatHistory: finalChatHistory,
+        generatedEmailsCount: successfulCount,
+        deletedEmailsCount: deletedCount,
+        failedEmailsCount: failedCount,
+        message,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(`[smartEmailGeneration] Failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to generate emails",
       });
     }
   }
@@ -1279,7 +1458,7 @@ export class EmailCampaignsService {
 
       // Create lookup map for email stats
       const emailStatsMap = new Map();
-      emailStats.forEach(stats => {
+      emailStats.forEach((stats) => {
         emailStatsMap.set(stats.sessionId, stats);
       });
 
@@ -1318,9 +1497,7 @@ export class EmailCampaignsService {
           stats.totalEmails > 0 &&
           stats.totalEmails === stats.sentEmails
         ) {
-          logger.info(
-            `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} completed - all emails sent`
-          );
+          logger.info(`[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} completed - all emails sent`);
           newStatus = EmailGenerationSessionStatus.COMPLETED;
           newCompletedDonors = totalDonors;
           shouldUpdate = true;
@@ -1376,13 +1553,15 @@ export class EmailCampaignsService {
         }
 
         logger.info(
-          `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate.map(u => `${u.id}->${u.status}`).join(', ')}`
+          `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate
+            .map((u) => `${u.id}->${u.status}`)
+            .join(", ")}`
         );
       }
 
       return results;
     } catch (error) {
-      logger.error(`Failed to check campaign completion for sessions ${sessionIds.join(', ')}: ${error}`);
+      logger.error(`Failed to check campaign completion for sessions ${sessionIds.join(", ")}: ${error}`);
       return new Map();
     }
   }
@@ -1424,7 +1603,6 @@ export class EmailCampaignsService {
         where: and(eq(generatedEmails.sessionId, input.sessionId), eq(generatedEmails.donorId, input.donorId)),
         columns: { id: true },
       });
-
 
       // Remove signature from content before saving (only if structuredContent exists)
       const contentWithoutSignature = input.structuredContent

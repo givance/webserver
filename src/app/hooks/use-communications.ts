@@ -97,7 +97,6 @@ export function useCommunications() {
     },
   });
 
-
   // Delete campaign mutation hook
   const deleteCampaign = trpc.communications.campaigns.deleteCampaign.useMutation({
     onSuccess: () => {
@@ -107,6 +106,17 @@ export function useCommunications() {
 
   // Regenerate all emails mutation hook
   const regenerateAllEmails = trpc.communications.campaigns.regenerateAllEmails.useMutation({
+    onSuccess: async (data) => {
+      // Invalidate the session query to refetch updated status
+      if (data.sessionId) {
+        await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+        await utils.communications.campaigns.listCampaigns.invalidate();
+      }
+    },
+  });
+
+  // Smart email generation mutation hook
+  const smartEmailGeneration = trpc.communications.campaigns.smartEmailGeneration.useMutation({
     onSuccess: async (data) => {
       // Invalidate the session query to refetch updated status
       if (data.sessionId) {
@@ -204,6 +214,7 @@ export function useCommunications() {
     updateEmailStatus,
     updateCampaign,
     regenerateAllEmails,
+    smartEmailGeneration,
     saveDraft,
     saveGeneratedEmail,
     retryCampaign,

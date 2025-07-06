@@ -36,7 +36,7 @@ export function processEmailResult(result: EmailOperationResult): EmailResultDat
       type: "email",
       emailResult: {
         emails: emailResult.emails,
-        refinedInstruction: emailResult.refinedInstruction,
+        refinedInstruction: emailResult.refinedInstruction || "",
         updatedChatMessages: result.updatedChatMessages.map(msg => ({
           role: msg.role as "user" | "assistant",
           content: msg.content

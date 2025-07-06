@@ -1,9 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { db } from "@/app/lib/db";
-import { emailGenerationSessions, EmailGenerationSessionStatus, generatedEmails } from "@/app/lib/db/schema";
+import { emailGenerationSessions, EmailGenerationSessionStatus, generatedEmails, organizations, staff, donors } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
 import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-generation.service";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import { generateSingleEmail } from "@/app/lib/utils/email-generator/single-email-generator";
+import { getComprehensiveDonorStats } from "@/app/lib/data/donations";
+import { getUserMemories } from "@/app/lib/data/users";
+import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
 
 /**
  * Input types for email generation
@@ -26,6 +30,7 @@ export interface GenerateEmailsInput {
     content: string;
   }>;
   signature?: string;
+  sessionId?: number; // Use existing session if provided
 }
 
 /**
@@ -47,9 +52,14 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { donors, chatHistory } = input;
+    const { donors, chatHistory, sessionId } = input;
 
-    logger.info(`[EmailGenerationService] Chat history received: ${chatHistory ? chatHistory.length : 0} messages`);
+    if (sessionId) {
+      logger.info(`[EmailGenerationService] Generating emails for ${donors.length} donors using existing session ${sessionId}`);
+    } else {
+      logger.info(`[EmailGenerationService] Generating emails for ${donors.length} donors WITHOUT a session`);
+    }
+
     if (chatHistory && chatHistory.length > 0) {
       logger.info(
         `[EmailGenerationService] Latest message: ${chatHistory[chatHistory.length - 1]?.role}: "${
@@ -59,67 +69,62 @@ export class EmailGenerationService {
     }
 
     try {
-      // Create a temporary session for immediate generation
-      const tempSession = await db.insert(emailGenerationSessions).values({
-        organizationId,
-        userId,
-        jobName: "Direct Generation",
-        chatHistory: chatHistory || [],
-        selectedDonorIds: donors.map(d => d.id),
-        previewDonorIds: [],
-        status: EmailGenerationSessionStatus.GENERATING,
-        totalDonors: donors.length,
-        completedDonors: 0,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }).returning();
+      // If sessionId is provided, use it. Otherwise generate without saving to DB
+      if (sessionId) {
+        // First, delete existing preview emails for these donors to avoid duplicates
+        const donorIds = donors.map(d => d.id);
+        await db.delete(generatedEmails).where(
+          and(
+            eq(generatedEmails.sessionId, sessionId),
+            inArray(generatedEmails.donorId, donorIds),
+            eq(generatedEmails.isPreview, true)
+          )
+        );
+        logger.info(`[EmailGenerationService] Deleted existing preview emails for ${donorIds.length} donors in session ${sessionId}`);
 
-      const sessionId = tempSession[0].id;
+        // Use the unified service with the existing session
+        const result = await this.unifiedService.generateSmartEmailsForCampaign({
+          organizationId,
+          sessionId: String(sessionId),
+          chatHistory: chatHistory || [],
+          donorIds: donors.map(d => String(d.id))
+        });
 
-      // Use the unified service to generate emails
-      const result = await this.unifiedService.generateSmartEmailsForCampaign({
-        organizationId,
-        sessionId: String(sessionId),
-        chatHistory: chatHistory || [],
-        donorIds: donors.map(d => String(d.id))
-      });
+        // Format response to match expected structure
+        const emails = result.results
+          .filter(r => r.email !== null)
+          .map(r => ({
+            donorId: r.donor.id,
+            subject: r.email!.subject,
+            emailContent: r.email!.content,
+            reasoning: r.email!.reasoning,
+            response: r.email!.response,
+            structuredContent: [{
+              piece: r.email!.content,
+              references: ['email-content'],
+              addNewlineAfter: false
+            }],
+            referenceContexts: { 'email-content': 'Generated email content' },
+            tokenUsage: {
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: r.tokensUsed || 0
+            }
+          }));
 
-      // Update session status
-      await db.update(emailGenerationSessions)
-        .set({
-          status: EmailGenerationSessionStatus.READY_TO_SEND,
-          completedDonors: result.results.length,
-          updatedAt: new Date()
-        })
-        .where(eq(emailGenerationSessions.id, sessionId));
-
-      // Format response to match expected structure
-      const emails = result.results
-        .filter(r => r.email !== null)
-        .map(r => ({
-          donorId: r.donor.id,
-          subject: r.email!.subject,
-          emailContent: r.email!.content,
-          reasoning: r.email!.reasoning,
-          response: r.email!.response,
-          structuredContent: [{
-            piece: r.email!.content,
-            references: ['email-content'],
-            addNewlineAfter: false
-          }],
-          referenceContexts: { 'email-content': 'Generated email content' },
-          tokenUsage: {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: r.tokensUsed || 0
-          }
-        }));
-
-      return {
-        emails,
-        sessionId,
-        tokensUsed: result.totalTokensUsed
-      };
+        return {
+          emails,
+          sessionId, // Return the existing sessionId
+          tokensUsed: result.totalTokensUsed
+        };
+      } else {
+        // Generate emails without saving to database (for non-campaign use cases)
+        // This would need a different implementation that doesn't save to DB
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Email generation requires a sessionId. Please create a campaign session first."
+        });
+      }
 
     } catch (error) {
       logger.error("Error generating smart emails:", error);

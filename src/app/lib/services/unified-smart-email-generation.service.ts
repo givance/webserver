@@ -327,7 +327,7 @@ export class UnifiedSmartEmailGenerationService {
         reasoning: params.reasoning,
         response: params.response,
         status: 'PENDING_APPROVAL',
-        isPreview: false,
+        isPreview: true, // Mark as preview for now - should be determined by context
         createdAt: new Date(),
         updatedAt: new Date()
       });

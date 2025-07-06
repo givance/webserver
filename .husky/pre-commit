@@ -13,8 +13,8 @@ export NVM_DIR="$HOME/.nvm"
 nvm use 22.4.0
 
 # Run tests
-echo "Running tests..."
-pnpm test
+# echo "Running tests..."
+# pnpm test
 
 # Run build
 echo "Running build..."

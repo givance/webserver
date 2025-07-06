@@ -14,6 +14,8 @@ jest.mock("@/app/lib/services/unified-smart-email-generation.service");
 jest.mock("@/app/lib/logger");
 jest.mock("drizzle-orm", () => ({
   eq: jest.fn((a, b) => ({ type: "eq", a, b })),
+  and: jest.fn((...conditions) => ({ type: "and", conditions })),
+  inArray: jest.fn((column, values) => ({ type: "inArray", column, values })),
   sql: jest.fn((strings, ...values) => ({
     type: "sql",
     strings,
@@ -53,22 +55,15 @@ describe("EmailGenerationService", () => {
     chatHistory: [
       { role: "user", content: "Write a thank you email" },
     ],
+    sessionId: 123,
   };
 
   describe("generateSmartEmails", () => {
-    it("should create a temporary session and use UnifiedSmartEmailGenerationService", async () => {
+    it("should use existing session and UnifiedSmartEmailGenerationService", async () => {
       // Mock database operations
       const mockSessionId = 123;
-      mockDb.insert = jest.fn().mockReturnValue({
-        values: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([{ id: mockSessionId }]),
-        }),
-      });
-      
-      mockDb.update = jest.fn().mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue(undefined),
-        }),
+      mockDb.delete = jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue(undefined),
       });
 
       // Mock unified service response
@@ -103,8 +98,8 @@ describe("EmailGenerationService", () => {
       // Call the service
       const result = await service.generateSmartEmails(mockInput, "org-123", "user-456");
 
-      // Verify session was created
-      expect(mockDb.insert).toHaveBeenCalled();
+      // Verify existing preview emails were deleted
+      expect(mockDb.delete).toHaveBeenCalled();
       
       // Verify unified service was called with correct params
       expect(mockUnifiedServiceInstance.generateSmartEmailsForCampaign).toHaveBeenCalledWith({
@@ -158,16 +153,14 @@ describe("EmailGenerationService", () => {
         tokensUsed: 210,
       });
 
-      // Verify session was updated
-      expect(mockDb.update).toHaveBeenCalled();
+      // Verify response includes sessionId
+      expect(result.sessionId).toBe(mockSessionId);
     });
 
     it("should handle errors from unified service", async () => {
       // Mock database operations
-      mockDb.insert = jest.fn().mockReturnValue({
-        values: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([{ id: 123 }]),
-        }),
+      mockDb.delete = jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue(undefined),
       });
 
       // Mock unified service to throw error
@@ -183,16 +176,8 @@ describe("EmailGenerationService", () => {
 
     it("should filter out null emails from results", async () => {
       // Mock database operations
-      mockDb.insert = jest.fn().mockReturnValue({
-        values: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([{ id: 123 }]),
-        }),
-      });
-      
-      mockDb.update = jest.fn().mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue(undefined),
-        }),
+      mockDb.delete = jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue(undefined),
       });
 
       // Mock unified service response with one null email

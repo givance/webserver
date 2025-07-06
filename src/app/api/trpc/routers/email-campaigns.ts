@@ -28,6 +28,7 @@ const generateEmailsSchema = z.object({
     )
     .optional(),
   signature: z.string().optional(),
+  sessionId: z.number().optional(), // Add sessionId to use existing session
 });
 
 const createSessionSchema = z.object({
@@ -116,7 +117,6 @@ const updateCampaignSchema = z.object({
   templateId: z.number().optional(),
 });
 
-
 const regenerateAllEmailsSchema = z.object({
   sessionId: z.number(),
   chatHistory: z.array(
@@ -125,6 +125,13 @@ const regenerateAllEmailsSchema = z.object({
       content: z.string(),
     })
   ),
+});
+
+const smartEmailGenerationSchema = z.object({
+  sessionId: z.number(),
+  mode: z.enum(["generate_more", "regenerate_all", "generate_with_new_message"]),
+  newDonorIds: z.array(z.number()).optional(),
+  newMessage: z.string().optional(),
 });
 
 const saveDraftSchema = z.object({
@@ -230,7 +237,11 @@ export const emailCampaignsRouter = router({
         }
       } else {
         // Use traditional direct flow
-        return await ctx.services.emailGeneration.generateSmartEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+        return await ctx.services.emailGeneration.generateSmartEmails(
+          input,
+          ctx.auth.user.organizationId,
+          ctx.auth.user.id
+        );
       }
     }),
 
@@ -294,7 +305,11 @@ export const emailCampaignsRouter = router({
    * Update email approval status
    */
   updateEmailStatus: protectedProcedure.input(updateEmailStatusSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.updateEmailStatus(input.emailId, input.status, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.updateEmailStatus(
+      input.emailId,
+      input.status,
+      ctx.auth.user.organizationId
+    );
   }),
 
   /**
@@ -304,13 +319,23 @@ export const emailCampaignsRouter = router({
     return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
   }),
 
-
   /**
    * Regenerate all emails for a campaign with new instructions
    * This will delete all existing emails and regenerate them
    */
   regenerateAllEmails: protectedProcedure.input(regenerateAllEmailsSchema).mutation(async ({ ctx, input }) => {
     return await ctx.services.emailCampaigns.regenerateAllEmails(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+  }),
+
+  /**
+   * Unified smart email generation - handles generate more, regenerate all, and generate with new message
+   */
+  smartEmailGeneration: protectedProcedure.input(smartEmailGenerationSchema).mutation(async ({ ctx, input }) => {
+    return await ctx.services.emailCampaigns.smartEmailGeneration(
+      input,
+      ctx.auth.user.organizationId,
+      ctx.auth.user.id
+    );
   }),
 
   /**
@@ -331,7 +356,11 @@ export const emailCampaignsRouter = router({
    * Retry a campaign that is stuck in PENDING status
    */
   retryCampaign: protectedProcedure.input(retryCampaignSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.retryCampaign(input.campaignId, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.retryCampaign(
+      input.campaignId,
+      ctx.auth.user.organizationId,
+      ctx.auth.user.id
+    );
   }),
 
   /**
@@ -387,7 +416,11 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.services.emailScheduling.resumeCampaign(input.sessionId, ctx.auth.user.organizationId, ctx.auth.user.id);
+      return await ctx.services.emailScheduling.resumeCampaign(
+        input.sessionId,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
     }),
 
   /**

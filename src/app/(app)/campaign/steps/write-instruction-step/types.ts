@@ -61,8 +61,10 @@ export interface ReferenceContext {
 
 export interface GenerateEmailsResponse {
   emails: GeneratedEmail[];
-  refinedInstruction: string;
+  refinedInstruction?: string;
   suggestedMemories?: string[];
+  sessionId?: number;
+  tokensUsed?: number;
 }
 
 export interface AgenticFlowResponse {
