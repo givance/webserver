@@ -143,12 +143,7 @@ export function createEmailGenerationHandlers(
     emailGeneration.setIsRegenerating(true);
     
     try {
-      const currentInstruction = instructionInput.localInstructionRef.current || previousInstruction || "";
-      
-      if (!currentInstruction.trim()) {
-        toast.error("No instruction available for regeneration");
-        return;
-      }
+      // Use chat history for regeneration
 
       // Get the list of donor IDs to regenerate
       let donorIdsToRegenerate: number[] = [];
@@ -171,7 +166,6 @@ export function createEmailGenerationHandlers(
       // Call the regenerate API
       const result = await regenerateAllEmails.mutateAsync({
         sessionId,
-        instruction: currentInstruction,
         chatHistory: chatState.chatMessages,
       });
 

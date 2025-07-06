@@ -242,7 +242,6 @@ export function useWriteInstructionStep(
           campaignName,
           selectedDonorIds: selectedDonors,
           templateId,
-          instruction,
           chatHistory: messagesToSave,
           previewDonorIds,
         });
@@ -251,7 +250,7 @@ export function useWriteInstructionStep(
         console.error("[useWriteInstructionStep] Failed to save chat history:", error);
       }
     },
-    [sessionId, campaignName, saveDraft, chatMessages, instruction, previewDonorIds, selectedDonors, templateId]
+    [sessionId, campaignName, saveDraft, chatMessages, previewDonorIds, selectedDonors, templateId]
   );
 
   const handleInstructionValueChange = useCallback((value: string) => {

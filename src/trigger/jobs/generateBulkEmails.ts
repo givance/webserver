@@ -50,7 +50,6 @@ const generateBulkEmailsPayloadSchema = z.object({
   sessionId: z.number(),
   organizationId: z.string(),
   userId: z.string(),
-  instruction: z.string(),
   selectedDonorIds: z.array(z.number()),
   previewDonorIds: z.array(z.number()),
   chatHistory: z.array(
@@ -76,7 +75,6 @@ export const generateBulkEmailsTask = task({
       sessionId,
       organizationId,
       userId,
-      instruction,
       selectedDonorIds,
       previewDonorIds,
       chatHistory,
@@ -323,7 +321,6 @@ export const generateBulkEmailsTask = task({
           // Generate email for single donor using generateSmartDonorEmails directly
           const singleDonorResult = await generateSmartDonorEmails(
             [donorInfo], // Single donor
-            "", // Empty instruction - chat history will be used instead
             organization.name,
             emailGeneratorOrg,
             organizationWritingInstructions,
@@ -335,7 +332,6 @@ export const generateBulkEmailsTask = task({
             userMemories,
             organizationMemories,
             undefined, // currentDate - will use default
-            undefined, // previousInstruction - not needed with chat history
             chatHistory, // Pass the chat history to handle conversation context
             staffName // Pass the staff name
           );

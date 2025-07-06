@@ -24,7 +24,6 @@ interface CampaignStepsProps {
     campaignName: string;
     selectedDonorIds: number[];
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    instruction: string;
     templateId?: number;
     existingGeneratedEmails?: any[];
     previewDonorIds?: number[]; // Add the missing previewDonorIds field
@@ -51,12 +50,12 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
 
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
-  // - If instruction exists, go to Write Instructions (step 2)
+  // - If chatHistory exists, go to Write Instructions (step 2)
   // - If templateId exists, go to Write Instructions (step 2)
   // - Otherwise, go to Template Selection (step 1)
   const getInitialStep = () => {
     if (editMode) {
-      if (existingCampaignData?.instruction) {
+      if (existingCampaignData?.chatHistory?.length) {
         return 2; // Go to Write Instructions step
       } else {
         return 1; // Go to Template Selection step
@@ -71,9 +70,7 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
     existingCampaignData?.templateId || undefined
   );
   const [templatePrompt, setTemplatePrompt] = useState<string>("");
-  const [instruction, setInstruction] = useState(
-    existingCampaignData?.chatHistory.length ? "" : existingCampaignData?.instruction || ""
-  );
+  const [instruction, setInstruction] = useState("");
 
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{

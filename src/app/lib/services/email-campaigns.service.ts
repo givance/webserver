@@ -18,7 +18,6 @@ import { runs } from "@trigger.dev/sdk/v3";
  */
 export interface CreateSessionInput {
   campaignName: string;
-  instruction: string;
   chatHistory: Array<{
     role: "user" | "assistant";
     content: string;
@@ -52,7 +51,6 @@ export interface UpdateEmailInput {
 export interface UpdateCampaignInput {
   campaignId: number;
   campaignName?: string;
-  instruction?: string;
   chatHistory?: Array<{
     role: "user" | "assistant";
     content: string;
@@ -64,7 +62,6 @@ export interface UpdateCampaignInput {
 
 export interface RegenerateAllEmailsInput {
   sessionId: number;
-  instruction: string; // Empty string means use existing instruction
   chatHistory: Array<{
     role: "user" | "assistant";
     content: string;
@@ -76,7 +73,6 @@ export interface SaveDraftInput {
   campaignName: string;
   selectedDonorIds: number[];
   templateId?: number;
-  instruction?: string;
   chatHistory?: Array<{
     role: "user" | "assistant";
     content: string;
@@ -185,7 +181,6 @@ export class EmailCampaignsService {
         .update(emailGenerationSessions)
         .set({
           status: newStatus,
-          instruction: input.instruction ?? existingCampaign[0].instruction,
           chatHistory: input.chatHistory ?? existingCampaign[0].chatHistory,
           selectedDonorIds: input.selectedDonorIds,
           previewDonorIds: input.previewDonorIds ?? [],
@@ -234,7 +229,6 @@ export class EmailCampaignsService {
             sessionId,
             organizationId,
             userId,
-            instruction: input.instruction ?? existingCampaign[0].instruction,
             selectedDonorIds: donorsToGenerate,
             previewDonorIds: input.previewDonorIds ?? [],
             chatHistory:
@@ -346,7 +340,6 @@ export class EmailCampaignsService {
         const [updatedSession] = await db
           .update(emailGenerationSessions)
           .set({
-            instruction: input.instruction,
             chatHistory: input.chatHistory,
             selectedDonorIds: input.selectedDonorIds,
             previewDonorIds: input.previewDonorIds,
@@ -368,7 +361,6 @@ export class EmailCampaignsService {
             userId,
             templateId: input.templateId,
             jobName: input.campaignName,
-            instruction: input.instruction,
             chatHistory: input.chatHistory,
             selectedDonorIds: input.selectedDonorIds,
             previewDonorIds: input.previewDonorIds,
@@ -888,9 +880,6 @@ export class EmailCampaignsService {
       if (input.campaignName) {
         updateData.jobName = input.campaignName;
       }
-      if (input.instruction) {
-        updateData.instruction = input.instruction;
-      }
 
       if (input.chatHistory) {
         updateData.chatHistory = input.chatHistory;
@@ -985,18 +974,13 @@ export class EmailCampaignsService {
       const deletedCount = deleteResult.length;
       logger.info(`Deleted ${deletedCount} existing emails for session ${input.sessionId}`);
 
-      // If instruction is empty, use the existing instruction from the session
-      const useExistingInstruction = !input.instruction || input.instruction.trim() === "";
-      const finalInstruction = useExistingInstruction ? existingSession.instruction : input.instruction;
-      const finalChatHistory = useExistingInstruction
-        ? (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || []
-        : input.chatHistory;
+      // Use the chat history from input
+      const finalChatHistory = input.chatHistory;
 
-      // Update the session with instruction and reset status
+      // Update the session and reset status
       await db
         .update(emailGenerationSessions)
         .set({
-          instruction: finalInstruction,
           chatHistory: finalChatHistory,
           status: EmailGenerationSessionStatus.GENERATING,
           completedDonors: 0,
@@ -1011,7 +995,6 @@ export class EmailCampaignsService {
         sessionId: existingSession.id,
         organizationId,
         userId,
-        instruction: "", // Empty instruction - chat history will be used instead
         selectedDonorIds: existingSession.selectedDonorIds as number[],
         previewDonorIds: existingSession.previewDonorIds as number[],
         chatHistory: finalChatHistory,
@@ -1021,9 +1004,7 @@ export class EmailCampaignsService {
       });
 
       logger.info(
-        `Started regeneration for session ${input.sessionId} with ${
-          useExistingInstruction ? "existing" : "new"
-        } instruction and current writing instructions`
+        `Started regeneration for session ${input.sessionId} with chat history and current writing instructions`
       );
 
       return {
@@ -1101,7 +1082,6 @@ export class EmailCampaignsService {
           selectedDonorIds: input.selectedDonorIds,
           totalDonors: input.selectedDonorIds.length,
           templateId: input.templateId,
-          instruction: input.instruction || "",
           chatHistory: input.chatHistory || [],
           previewDonorIds: input.previewDonorIds || [],
           updatedAt: new Date(),
@@ -1147,7 +1127,6 @@ export class EmailCampaignsService {
           userId,
           templateId: input.templateId,
           jobName: input.campaignName,
-          instruction: input.instruction || "",
           chatHistory: input.chatHistory || [],
           selectedDonorIds: input.selectedDonorIds,
           previewDonorIds: [], // Will be populated when generating preview
@@ -1473,7 +1452,6 @@ export class EmailCampaignsService {
             sessionId,
             organizationId,
             userId,
-            instruction: session.instruction,
             selectedDonorIds: donorsToGenerate,
             previewDonorIds: session.previewDonorIds as number[],
             chatHistory: session.chatHistory as Array<{ role: "user" | "assistant"; content: string }>,

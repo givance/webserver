@@ -5,12 +5,10 @@
  *
  * The module exports:
  * - EmailGenerationService: Service class for generating emails
- * - InstructionRefinementAgent: Agent for refining email generation instructions
- * - generateSmartDonorEmails: High-level function combining both agents
+ * - generateSmartDonorEmails: High-level function for email generation
  */
 
 export { EmailGenerationService } from "./service";
-export { InstructionRefinementAgent } from "./instruction-agent";
 
 // Export types that are part of the public API
 export type {
@@ -22,8 +20,6 @@ export type {
   Organization,
   RawCommunicationThread,
   RawCommunicationHistory,
-  InstructionRefinementInput,
-  InstructionRefinementResult,
   EmailGeneratorTool,
 } from "./types";
 

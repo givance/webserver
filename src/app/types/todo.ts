@@ -12,7 +12,6 @@ export interface Todo {
   staffId: number | null;
   organizationId: string;
   explanation: string | null;
-  instruction: string | null;
   createdAt: string;
   updatedAt: string;
   donorName: string | null;

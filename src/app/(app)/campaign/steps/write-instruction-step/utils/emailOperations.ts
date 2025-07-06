@@ -56,7 +56,6 @@ export async function handleEmailGeneration(
   });
 
   const result = await generateEmailsForDonors({
-    instruction: finalInstruction,
     donors: donorData,
     organizationName: organization.name,
     organizationWritingInstructions: organization.writingInstructions ?? undefined,
@@ -124,11 +123,7 @@ export async function handleGenerateMoreEmails(
 
   if (!organization) return null;
 
-  const finalInstruction = previousInstruction || localInstructionRef.current;
-  if (!finalInstruction.trim()) {
-    toast.error("No instruction available to generate more emails");
-    return null;
-  }
+  // Continue generating emails using chat history
 
   // Get donors that haven't been generated yet
   const alreadyGeneratedDonorIds = new Set(allGeneratedEmails.map((email) => email.donorId));
@@ -178,9 +173,8 @@ export async function handleGenerateMoreEmails(
     day: "numeric",
   });
 
-  // Generate emails using the same instruction
+  // Generate emails using the same chat history
   const result = await generateEmailsForDonors({
-    instruction: finalInstruction,
     donors: donorData,
     organizationName: organization.name,
     organizationWritingInstructions: organization.writingInstructions ?? undefined,

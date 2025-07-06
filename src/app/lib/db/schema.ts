@@ -476,7 +476,6 @@ export const todos = pgTable("todos", {
 
   // Additional fields for predicted actions
   explanation: text("explanation"), // Reasoning behind the predicted action
-  instruction: text("instruction"), // Specific instructions for staff
 });
 
 // Add relations to existing tables if needed
@@ -566,7 +565,6 @@ export const emailGenerationSessions = pgTable("email_generation_sessions", {
     .notNull(),
   templateId: integer("template_id").references(() => templates.id), // Optional reference to template used
   jobName: varchar("job_name", { length: 255 }).notNull(), // Name for the campaign
-  instruction: text("instruction").notNull(),
   chatHistory: jsonb("chat_history").notNull(), // Array of chat messages
   selectedDonorIds: jsonb("selected_donor_ids").notNull(), // Array of donor IDs
   previewDonorIds: jsonb("preview_donor_ids").notNull(), // Array of donor IDs used for preview

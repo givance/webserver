@@ -16,7 +16,6 @@ export interface CreateTodoInput {
   staffId?: number | null;
   organizationId: string;
   explanation?: string;
-  instruction?: string;
 }
 
 export interface UpdateTodoInput extends Partial<CreateTodoInput> {
@@ -58,7 +57,6 @@ export class TodoService {
       organizationId,
       scheduledDate: action.scheduledDate ? new Date(action.scheduledDate) : undefined,
       explanation: action.explanation,
-      instruction: action.instruction,
     }));
 
     return await db.insert(todos).values(todoInputs).returning();
@@ -143,7 +141,6 @@ export class TodoService {
         staffId: todos.staffId,
         organizationId: todos.organizationId,
         explanation: todos.explanation,
-        instruction: todos.instruction,
         createdAt: sql<string>`${todos.createdAt}::text`,
         updatedAt: sql<string>`${todos.updatedAt}::text`,
         donorFirstName: donors.firstName,

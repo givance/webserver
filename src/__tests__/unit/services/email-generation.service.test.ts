@@ -280,7 +280,6 @@ describe("EmailGenerationService", () => {
             notes: "VIP donor",
           }),
         ]),
-        "Write a thank you email",
         "Test Foundation",
         expect.objectContaining({
           id: "org123",
@@ -295,7 +294,6 @@ describe("EmailGenerationService", () => {
         ["User memory 1"],
         ["Org memory 1"],
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         expect.any(String)              // staffName
       );
@@ -320,7 +318,6 @@ describe("EmailGenerationService", () => {
       // The service should still determine appropriate staff names
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
         expect.any(Array),              // donors
-        expect.any(String),             // userInstruction
         expect.any(String),             // organizationName
         expect.any(Object),             // organization
         expect.any(String),             // organizationWritingInstructions
@@ -332,7 +329,6 @@ describe("EmailGenerationService", () => {
         expect.any(Array),              // userMemories
         expect.any(Array),              // organizationMemories
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         expect.any(String)              // staffName
       );
@@ -349,7 +345,6 @@ describe("EmailGenerationService", () => {
       expect(generateSmartDonorEmails).toHaveBeenNthCalledWith(
         1,
         expect.any(Array),              // donors
-        expect.any(String),             // userInstruction
         expect.any(String),             // organizationName
         expect.any(Object),             // organization
         expect.any(String),             // organizationWritingInstructions
@@ -361,7 +356,6 @@ describe("EmailGenerationService", () => {
         expect.any(Array),              // userMemories
         expect.any(Array),              // organizationMemories
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         expect.any(String)              // staffName
       );
@@ -369,7 +363,6 @@ describe("EmailGenerationService", () => {
       expect(generateSmartDonorEmails).toHaveBeenNthCalledWith(
         2,
         expect.any(Array),              // donors
-        expect.any(String),             // userInstruction
         expect.any(String),             // organizationName
         expect.any(Object),             // organization
         expect.any(String),             // organizationWritingInstructions
@@ -381,7 +374,6 @@ describe("EmailGenerationService", () => {
         expect.any(Array),              // userMemories
         expect.any(Array),              // organizationMemories
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         "Primary Staff"                 // staffName
       );
@@ -397,7 +389,6 @@ describe("EmailGenerationService", () => {
       // Both calls should have undefined staff name
       expect(generateSmartDonorEmails).toHaveBeenCalledWith(
         expect.any(Array),              // donors
-        expect.any(String),             // userInstruction
         expect.any(String),             // organizationName
         expect.any(Object),             // organization
         expect.any(String),             // organizationWritingInstructions
@@ -409,49 +400,11 @@ describe("EmailGenerationService", () => {
         expect.any(Array),              // userMemories
         expect.any(Array),              // organizationMemories
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         undefined                       // No staff name
       );
     });
 
-    it("should process project mentions in instruction", async () => {
-      (processProjectMentions as jest.Mock).mockResolvedValue("Processed instruction with project details");
-
-      await service.generateSmartEmails(input, "org123", "user123");
-
-      expect(processProjectMentions).toHaveBeenCalledWith("Write a thank you email", "org123");
-      expect(generateSmartDonorEmails).toHaveBeenCalledTimes(2);
-      
-      // Verify that both calls used the processed instruction
-      expect(generateSmartDonorEmails).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: 1,
-            email: "john@example.com",
-            notes: "VIP donor",
-          }),
-        ]),
-        "Processed instruction with project details",
-        "Test Foundation",
-        expect.objectContaining({
-          id: "org123",
-          rawWebsiteSummary: "We help communities",
-        }),
-        "Be warm and personal",        // organizationWritingInstructions
-        undefined,                      // staffWritingInstructions
-        expect.any(Object),             // communicationHistories
-        expect.any(Object),             // donationHistories
-        expect.any(Object),             // donorStatistics
-        expect.any(Object),             // personResearchResults
-        ["User memory 1"],
-        ["Org memory 1"],
-        expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
-        undefined,                      // chatHistory
-        expect.any(String)              // staffName
-      );
-    });
 
     it("should throw error if organization not found", async () => {
       (db.select as jest.Mock).mockReturnValue({
@@ -492,37 +445,6 @@ describe("EmailGenerationService", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch person research for donor 2"));
     });
 
-    it("should pass chat history and previous instruction when provided", async () => {
-      const inputWithHistory: GenerateEmailsInput = {
-        ...input,
-        previousInstruction: "Previous instruction",
-        chatHistory: [
-          { role: "user", content: "Make it shorter" },
-          { role: "assistant", content: "I will make it shorter" },
-        ],
-      };
-
-      await service.generateSmartEmails(inputWithHistory, "org123", "user123");
-
-      expect(generateSmartDonorEmails).toHaveBeenCalledWith(
-        expect.any(Array),              // donors
-        expect.any(String),             // userInstruction
-        expect.any(String),             // organizationName
-        expect.any(Object),             // organization
-        expect.any(String),             // organizationWritingInstructions
-        undefined,                      // staffWritingInstructions
-        expect.any(Object),             // communicationHistories
-        expect.any(Object),             // donationHistories
-        expect.any(Object),             // donorStatistics
-        expect.any(Object),             // personResearchResults
-        expect.any(Array),              // userMemories
-        expect.any(Array),              // organizationMemories
-        expect.any(String),             // currentDate
-        "Previous instruction",
-        inputWithHistory.chatHistory,
-        expect.any(String)              // staffName
-      );
-    });
 
     it("should handle couple donors appropriately", async () => {
       const coupleDonor = {
@@ -549,7 +471,6 @@ describe("EmailGenerationService", () => {
             herFirstName: "Mary",
           }),
         ]),
-        "Write a thank you email",
         "Test Foundation",
         expect.objectContaining({
           id: "org123",
@@ -564,7 +485,6 @@ describe("EmailGenerationService", () => {
         ["User memory 1"],
         ["Org memory 1"],
         expect.any(String),             // currentDate
-        undefined,                      // previousInstruction
         undefined,                      // chatHistory
         expect.any(String)              // staffName
       );
@@ -761,7 +681,6 @@ describe("EmailGenerationService", () => {
             email: "john@example.com",
           }),
         ]),
-        expect.stringContaining("Original instruction"),
         "Test Foundation",
         expect.objectContaining({
           id: "org123",
@@ -776,7 +695,6 @@ describe("EmailGenerationService", () => {
         expect.any(Array),              // userMemories
         expect.any(Array),              // organizationMemories
         expect.any(String),             // currentDate
-        "Original instruction",         // previousInstruction
         undefined                       // chatHistory
         // No staffName parameter in enhancement
       );

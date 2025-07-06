@@ -43,7 +43,6 @@ export default function EditCampaignPage() {
       console.log("[EditCampaignPage] Session data updated:", {
         campaignId,
         campaignName: sessionData.session.jobName,
-        instruction: sessionData.session.instruction,
         status: sessionData.session.status,
         totalDonors: sessionData.session.totalDonors,
         completedDonors: sessionData.session.completedDonors,
@@ -93,7 +92,6 @@ export default function EditCampaignPage() {
                 content: string;
               }>)
             : [], // Ensure chatHistory is always an array
-          instruction: sessionData.session.instruction || "", // Pass the original instruction for fallback
           templateId: sessionData.session.templateId ?? undefined,
           // Include any existing generated emails for reference
           existingGeneratedEmails: sessionData.emails || [],

@@ -48,8 +48,6 @@ export function createTestCampaign(suffix?: string) {
   const unique = suffix || Math.random().toString(36).substr(2, 9);
   return {
     name: `TestCampaign${unique}`,
-    instruction: `Test campaign instruction - ${unique}`,
-    refinedInstruction: `Refined test campaign instruction - ${unique}`,
     jobName: `Test Campaign ${unique}`,
   };
 }
