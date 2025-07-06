@@ -1081,7 +1081,8 @@ export class EmailCampaignsService {
               eq(generatedEmails.isSent, false),
               or(
                 eq(generatedEmails.sendStatus, 'scheduled'),
-                eq(generatedEmails.sendStatus, 'pending')
+                eq(generatedEmails.sendStatus, 'pending'),
+                eq(generatedEmails.sendStatus, 'paused')
               )
             )
           );
@@ -1090,8 +1091,18 @@ export class EmailCampaignsService {
           `Reset send status for ${resetCount.rowCount} unsent emails in campaign ${input.campaignId} for rescheduling`
         );
 
-        // Automatically reschedule the emails with the new configuration
-        if (resetCount.rowCount > 0) {
+        // Check if there are any unsent emails at all (including those that might have been reset or are in null status)
+        const unsentEmails = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(generatedEmails)
+          .where(
+            and(eq(generatedEmails.sessionId, input.campaignId), eq(generatedEmails.isSent, false))
+          );
+
+        const unsentCount = Number(unsentEmails[0]?.count || 0);
+
+        // Automatically reschedule the emails with the new configuration if there are unsent emails
+        if (unsentCount > 0) {
           try {
             const schedulingService = new EmailSchedulingService();
             const rescheduleResult = await schedulingService.scheduleEmailSend(

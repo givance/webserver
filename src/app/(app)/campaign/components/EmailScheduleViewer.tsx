@@ -30,11 +30,6 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
     }
   );
 
-  // Debug log the schedule data
-  if (schedule?.scheduledEmails?.length > 0) {
-    console.log('[EmailScheduleViewer] Schedule data:', schedule.scheduledEmails[0]);
-  }
-
   // Get donor IDs from scheduled emails
   const donorIds = schedule?.scheduledEmails.map((email) => email.donorId) || [];
   const { data: donors } = getDonorsQuery(donorIds);
@@ -114,49 +109,21 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
   const formatScheduledTime = (date: Date | string | null) => {
     if (!date) return 'Not scheduled';
 
-    // Handle the specific malformed format "Jul 8 AM1751976000 5:00 AM"
-    if (typeof date === 'string') {
-      // Check for the malformed pattern with embedded timestamp
-      const malformedPattern = /^(\w+\s+\d+)\s+AM(\d{10,})\s+(\d{1,2}:\d{2}\s+[AP]M)$/;
-      const match = date.match(malformedPattern);
-
-      if (match) {
-        console.error('[EmailScheduleViewer] Malformed date detected:', date);
-        // Extract the timestamp from the middle
-        const timestamp = parseInt(match[2]);
-        // Convert to milliseconds if needed
-        const dateObj = new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000);
-        if (!isNaN(dateObj.getTime())) {
-          console.log('[EmailScheduleViewer] Recovered date from malformed string:', dateObj);
-          date = dateObj;
-        }
-      }
-
-      // Also check for any string with large numbers that might be timestamps
-      const timestampMatch = date.match(/(\d{10,})/);
-      if (timestampMatch && typeof date === 'string' && date.includes('AM')) {
-        const timestamp = parseInt(timestampMatch[1]);
-        const dateObj = new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000);
-        if (!isNaN(dateObj.getTime())) {
-          date = dateObj;
-        }
-      }
-    }
-
     const dateObj = new Date(date);
 
     // Validate the date
     if (isNaN(dateObj.getTime())) {
-      console.error('[EmailScheduleViewer] Invalid date:', date);
       return 'Invalid date';
     }
 
+    // Much cleaner, human-readable format
     if (isToday(dateObj)) {
       return `Today at ${format(dateObj, 'h:mm a')}`;
     } else if (isTomorrow(dateObj)) {
       return `Tomorrow at ${format(dateObj, 'h:mm a')}`;
     } else {
-      return format(dateObj, 'MMM d at h:mm a');
+      // Use a cleaner format: "Dec 25, 3:30 PM" instead of "Dec 25 at 3:30 PM"
+      return format(dateObj, 'MMM d, h:mm a');
     }
   };
 

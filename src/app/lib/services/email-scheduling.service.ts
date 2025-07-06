@@ -666,8 +666,8 @@ export class EmailSchedulingService {
         })
         .where(and(eq(emailSendJobs.sessionId, sessionId), eq(emailSendJobs.status, 'scheduled')));
 
-      // Update email statuses
-      await db
+      // Update email statuses and get count
+      const pausedEmailsResult = await db
         .update(generatedEmails)
         .set({
           sendStatus: 'paused',
@@ -675,11 +675,16 @@ export class EmailSchedulingService {
         })
         .where(
           and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.sendStatus, 'scheduled'))
-        );
+        )
+        .returning({ id: generatedEmails.id });
 
-      logger.info(`Paused campaign ${sessionId}, cancelled ${scheduledJobs.length} jobs`);
+      const actualPausedCount = pausedEmailsResult.length;
 
-      return { cancelledJobs: scheduledJobs.length };
+      logger.info(
+        `Paused campaign ${sessionId}, cancelled ${scheduledJobs.length} jobs, paused ${actualPausedCount} emails`
+      );
+
+      return { cancelledJobs: actualPausedCount };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
       logger.error(
