@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Pre-commit hook to run tests and build
+# Pre-commit hook to run prettier and other checks
 # Exit on any error
 set -e
 
@@ -11,6 +11,10 @@ echo "Setting Node.js version..."
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 nvm use 22.4.0
+
+# Run lint-staged (prettier and other checks)
+echo "Running lint-staged (prettier formatting)..."
+pnpm lint-staged
 
 # Run tests
 # echo "Running tests..."
