@@ -69,14 +69,8 @@ const baseDonorSchema = z.object({
   email: emailSchema,
   phone: phoneSchema.nullable(),
   address: addressSchema.nullable(),
-  city: z.string().nullable().optional(),
   state: z.string().nullable(),
-  postalCode: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
   gender: z.enum(["male", "female"]).nullable(),
-  isAnonymous: z.boolean().nullable().optional(),
-  isOrganization: z.boolean().nullable().optional(),
-  organizationName: z.string().nullable().optional(),
   notes: z.union([
     z.string().nullable(),
     z.array(donorNoteSchema)
@@ -158,14 +152,8 @@ const createDonorSchema = z.object({
   lastName: nameSchema,
   phone: phoneSchema.optional(),
   address: addressSchema.optional(),
-  city: z.string().optional(),
   state: z.string().optional(),
-  postalCode: z.string().optional(),
-  country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  isAnonymous: z.boolean().optional().default(false),
-  isOrganization: z.boolean().optional().default(false),
-  organizationName: z.string().optional(),
 });
 
 const updateDonorSchema = z.object({
@@ -176,21 +164,28 @@ const updateDonorSchema = z.object({
   lastName: nameSchema.optional(),
   phone: phoneSchema.optional(),
   address: addressSchema.optional(),
-  city: z.string().optional(),
   state: z.string().optional(),
-  postalCode: z.string().optional(),
-  country: z.string().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
-  isAnonymous: z.boolean().optional(),
-  isOrganization: z.boolean().optional(),
-  organizationName: z.string().optional(),
+  // Couple fields
+  hisTitle: z.string().nullable().optional(),
+  hisFirstName: z.string().nullable().optional(),
+  hisInitial: z.string().nullable().optional(),
+  hisLastName: z.string().nullable().optional(),
+  herTitle: z.string().nullable().optional(),
+  herFirstName: z.string().nullable().optional(),
+  herInitial: z.string().nullable().optional(),
+  herLastName: z.string().nullable().optional(),
+  // Additional fields
+  displayName: z.string().nullable().optional(),
+  isCouple: z.boolean().nullable().optional(),
+  assignedToStaffId: idSchema.nullable().optional(),
+  currentStageName: z.string().nullable().optional(),
+  highPotentialDonor: z.boolean().nullable().optional(),
 });
 
 const listDonorsSchema = z.object({
   searchTerm: z.string().optional(),
   state: z.string().optional(),
-  isAnonymous: z.boolean().optional(),
-  isOrganization: z.boolean().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
   assignedToStaffId: idSchema.nullable().optional(),
   listId: idSchema.optional(),

@@ -3,8 +3,6 @@
 import { useCommunications } from "@/app/hooks/use-communications";
 import { useDonations } from "@/app/hooks/use-donations";
 import { useDonors } from "@/app/hooks/use-donors";
-import { useStaff } from "@/app/hooks/use-staff";
-import { useDonorJourneyStages } from "@/app/hooks/use-donor-journey-stages";
 import { usePagination, PAGE_SIZE_OPTIONS } from "@/app/hooks/use-pagination";
 import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
 import { formatCurrency } from "@/app/lib/utils/format";
@@ -75,13 +73,6 @@ export default function DonorProfilePage() {
   const donorQuery = getDonorQuery(donorId);
   const { data: donor, isLoading: isDonorLoading, error: donorError } = donorQuery;
 
-  // Fetch staff members for assignment dropdown
-  const { getStaffMembers } = useStaff();
-  const { staffMembers = [] } = getStaffMembers();
-
-  // Fetch donor journey stages
-  const { donorJourneyStagesQuery } = useDonorJourneyStages();
-  const { data: donorJourneyStages = [] } = donorJourneyStagesQuery;
 
   // Fetch donor stats for summary cards
   const { data: donorStats } = getDonorStats(donorId);
@@ -441,23 +432,25 @@ export default function DonorProfilePage() {
                 className="flex-1"
               />
             </div>
-            <div className="flex items-start gap-2 md:col-span-2">
-              <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <InlineTextEdit
-                  value={donor.address || ""}
-                  onSave={(value) => handleUpdateField("address", value)}
-                  placeholder="Enter address"
-                  emptyText="Add address"
-                  className="mb-2"
-                />
-                <InlineTextEdit
-                  value={donor.state || ""}
-                  onSave={(value) => handleUpdateField("state", value)}
-                  placeholder="State"
-                  emptyText="Add state"
-                />
-              </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <InlineTextEdit
+                value={donor.address || ""}
+                onSave={(value) => handleUpdateField("address", value)}
+                placeholder="Street address"
+                emptyText="Add address"
+                className="flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 flex-shrink-0" /> {/* Spacer for alignment */}
+              <InlineTextEdit
+                value={donor.state || ""}
+                onSave={(value) => handleUpdateField("state", value)}
+                placeholder="State"
+                emptyText="Add state"
+                className="flex-1"
+              />
             </div>
           </div>
           <div className="mt-4">
@@ -545,15 +538,15 @@ export default function DonorProfilePage() {
                   validation={validateName}
                 />
               </div>
-              {donor.displayName && (
-                <div className="md:col-span-2">
-                  <label className="text-sm text-muted-foreground">Display Name</label>
-                  <InlineTextEdit
-                    value={donor.displayName}
-                    onSave={(value) => handleUpdateField("displayName", value)}
-                  />
-                </div>
-              )}
+              <div className="md:col-span-2">
+                <label className="text-sm text-muted-foreground">Display Name</label>
+                <InlineTextEdit
+                  value={donor.displayName || ""}
+                  onSave={(value) => handleUpdateField("displayName", value)}
+                  placeholder="Enter display name"
+                  emptyText="Add display name"
+                />
+              </div>
             </div>
           </div>
 
@@ -622,40 +615,41 @@ export default function DonorProfilePage() {
             </div>
           )}
 
-          {/* Management */}
+
+          {/* Additional Information */}
           <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Management</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">Additional Information</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-muted-foreground">Assigned Staff</label>
-                <InlineSelectEdit
-                  value={donor.assignedToStaffId ? String(donor.assignedToStaffId) : null}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...staffMembers.map((staff) => ({
-                      value: String(staff.id),
-                      label: `${staff.firstName} ${staff.lastName}`,
-                    })),
-                  ]}
-                  onSave={async (value) => {
-                    await handleUpdateField("assignedToStaffId", value ? Number(value) : null);
-                  }}
-                  emptyText="Unassigned"
+                <label className="text-sm text-muted-foreground">External ID</label>
+                <InlineTextEdit
+                  value={donor.externalId || ""}
+                  onSave={(value) => handleUpdateField("externalId", value)}
+                  placeholder="External system ID"
+                  emptyText="Add external ID"
                 />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Donor Journey Stage</label>
+                <label className="text-sm text-muted-foreground">Gender</label>
                 <InlineSelectEdit
-                  value={donor.currentStageName || null}
-                  options={donorJourneyStages.map((stage) => ({
-                    value: stage.name,
-                    label: stage.name,
-                  }))}
-                  onSave={(value) => handleUpdateField("currentStageName", value)}
-                  emptyText="No stage set"
+                  value={donor.gender || null}
+                  options={[
+                    { value: "male", label: "Male" },
+                    { value: "female", label: "Female" },
+                  ]}
+                  onSave={(value) => handleUpdateField("gender", value)}
+                  emptyText="Not specified"
                 />
               </div>
-              {/* High potential donor toggle hidden
+              <div>
+                <label className="text-sm text-muted-foreground">Is Couple</label>
+                <InlineToggleEdit
+                  value={donor.isCouple || false}
+                  onSave={(value) => handleUpdateField("isCouple", value)}
+                  trueText="Yes"
+                  falseText="No"
+                />
+              </div>
               <div>
                 <label className="text-sm text-muted-foreground">High Potential Donor</label>
                 <InlineToggleEdit
@@ -665,7 +659,6 @@ export default function DonorProfilePage() {
                   falseText="Standard"
                 />
               </div>
-              */}
             </div>
           </div>
         </CardContent>
