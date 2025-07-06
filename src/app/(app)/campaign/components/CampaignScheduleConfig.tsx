@@ -447,8 +447,7 @@ export function CampaignScheduleConfig({
               <span>Using organization default schedule settings</span>
             ) : (
               <span>
-                Emails will be sent between {allowedStartTime}-{allowedEndTime} with {minGap}-
-                {maxGap} minute gaps
+                Emails will be sent within the available time with {minGap}-{maxGap} minute gaps
               </span>
             )}
           </AlertDescription>

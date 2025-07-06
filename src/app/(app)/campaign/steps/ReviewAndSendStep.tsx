@@ -162,7 +162,7 @@ export function ReviewAndSendStep({
                 {campaignScheduleConfig?.dailyLimit || scheduleConfig?.dailyLimit || 150} emails
               </p>
               <p>
-                • Emails will be sent with{' '}
+                • Emails will be sent within the available time with{' '}
                 {campaignScheduleConfig?.minGapMinutes || scheduleConfig?.minGapMinutes || 1}-
                 {campaignScheduleConfig?.maxGapMinutes || scheduleConfig?.maxGapMinutes || 3} minute
                 gaps
