@@ -249,9 +249,6 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
       {
         organizationId: testOrgId,
         userId: testUserId,
-        instruction: "Create a thank you email for recent donors focusing on impact",
-        refinedInstruction:
-          "Create personalized thank you emails highlighting the specific impact of each donor's contribution",
         chatHistory: JSON.stringify([
           { role: "user", content: "I want to thank recent donors" },
           { role: "assistant", content: "I'll help you create personalized thank you emails" },
@@ -270,8 +267,6 @@ async function createTestData(db: ReturnType<typeof drizzle>) {
       {
         organizationId: testOrgId,
         userId: testUserId,
-        instruction: "Send year-end appeal to all donors with giving summary",
-        refinedInstruction: "Create year-end appeal emails with personalized giving summaries and impact stories",
         chatHistory: JSON.stringify([
           { role: "user", content: "I need to send year-end appeals" },
           { role: "assistant", content: "I'll create personalized year-end appeals with giving summaries" },

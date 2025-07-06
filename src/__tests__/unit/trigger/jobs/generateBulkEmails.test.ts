@@ -155,8 +155,6 @@ describe("generateBulkEmailsTask", () => {
     sessionId: 1,
     organizationId: "org123",
     userId: "user123",
-    instruction: "Write thank you emails",
-    refinedInstruction: "Write personalized thank you emails",
     selectedDonorIds: [1, 2, 3],
     previewDonorIds: [1],
     chatHistory: [
