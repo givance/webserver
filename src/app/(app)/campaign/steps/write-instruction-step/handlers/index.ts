@@ -96,12 +96,13 @@ export async function handleSubmitInstruction(
     onInstructionChange,
   } = params;
 
-  const finalInstruction = instructionToSubmit || instructionInput.localInstructionRef.current;
+  const finalInstruction =
+    instructionToSubmit || instructionInput.localInstructionRef.current;
   if (!finalInstruction.trim() || !organization) return;
 
   onInstructionChange?.(finalInstruction);
   emailGeneration.setIsGenerating(true);
-  
+
   // Clear existing state
   emailState.setGeneratedEmails([]);
   emailState.setAllGeneratedEmails([]);
@@ -182,7 +183,10 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
       emailState.setEmailStatuses(newStatuses);
 
       chatState.setChatMessages((prev: any) => {
-        const newMessages = [...prev, { role: "assistant" as const, content: result.responseMessage }];
+        const newMessages = [
+          ...prev,
+          { role: "assistant" as const, content: result.responseMessage },
+        ];
         setTimeout(() => chatState.saveChatHistory(newMessages), 100);
         return newMessages;
       });
@@ -203,11 +207,18 @@ export async function handleEmailStatusChange(
 ) {
   const { emailState, sessionId } = params;
 
-  const isPreviewMode = !emailState.allGeneratedEmails.some((e: any) => e.id === emailId);
+  const isPreviewMode = !emailState.allGeneratedEmails.some(
+    (e: any) => e.id === emailId
+  );
 
   if (isPreviewMode) {
-    emailState.setEmailStatuses((prev: any) => ({ ...prev, [emailId]: status }));
-    toast.success(status === "APPROVED" ? "Email approved" : "Email marked as pending");
+    emailState.setEmailStatuses((prev: any) => ({
+      ...prev,
+      [emailId]: status,
+    }));
+    toast.success(
+      status === "APPROVED" ? "Email approved" : "Email marked as pending"
+    );
     return;
   }
 
@@ -216,11 +227,18 @@ export async function handleEmailStatusChange(
   emailState.setIsUpdatingStatus(true);
   try {
     await updateEmailStatus.mutateAsync({ emailId, status });
-    const email = emailState.allGeneratedEmails.find((e: any) => e.id === emailId);
+    const email = emailState.allGeneratedEmails.find(
+      (e: any) => e.id === emailId
+    );
     if (email) {
-      emailState.setEmailStatuses((prev: any) => ({ ...prev, [email.donorId]: status }));
+      emailState.setEmailStatuses((prev: any) => ({
+        ...prev,
+        [email.donorId]: status,
+      }));
     }
-    toast.success(status === "APPROVED" ? "Email approved" : "Email marked as pending");
+    toast.success(
+      status === "APPROVED" ? "Email approved" : "Email marked as pending"
+    );
   } catch (error) {
     console.error("Error updating email status:", error);
     toast.error("Failed to update email status");
@@ -239,19 +257,23 @@ export async function handleRegenerateEmails(
   if (!sessionId || emailGeneration.isRegenerating) return;
 
   emailGeneration.setIsRegenerating(true);
-  
+
   try {
     // Get the list of donor IDs to regenerate
     let donorIdsToRegenerate: number[] = [];
-    
+
     if (onlyUnapproved) {
       // Only regenerate emails that are pending approval
       donorIdsToRegenerate = emailState.allGeneratedEmails
-        .filter((email: any) => emailState.emailStatuses[email.donorId] !== "APPROVED")
+        .filter(
+          (email: any) => emailState.emailStatuses[email.donorId] !== "APPROVED"
+        )
         .map((email: any) => email.donorId);
     } else {
       // Regenerate all previously generated emails
-      donorIdsToRegenerate = emailState.allGeneratedEmails.map((email: any) => email.donorId);
+      donorIdsToRegenerate = emailState.allGeneratedEmails.map(
+        (email: any) => email.donorId
+      );
     }
 
     if (donorIdsToRegenerate.length === 0) {
@@ -279,13 +301,14 @@ export async function handleRegenerateEmails(
       );
       emailState.setGeneratedEmails(approvedEmails);
       emailState.setAllGeneratedEmails(approvedEmails);
-      
+
       // Keep only approved email contexts and statuses
       const newContexts: Record<number, any> = {};
       const newStatuses: Record<number, string> = {};
       approvedEmails.forEach((email: any) => {
         if (emailState.referenceContexts[email.donorId]) {
-          newContexts[email.donorId] = emailState.referenceContexts[email.donorId];
+          newContexts[email.donorId] =
+            emailState.referenceContexts[email.donorId];
         }
         newStatuses[email.donorId] = "APPROVED";
       });
@@ -294,8 +317,8 @@ export async function handleRegenerateEmails(
     }
 
     toast.success(
-      onlyUnapproved 
-        ? `Regenerating ${donorIdsToRegenerate.length} unapproved emails...` 
+      onlyUnapproved
+        ? `Regenerating ${donorIdsToRegenerate.length} unapproved emails...`
         : `Regenerating all ${donorIdsToRegenerate.length} emails...`
     );
 
@@ -306,56 +329,4 @@ export async function handleRegenerateEmails(
   } finally {
     emailGeneration.setIsRegenerating(false);
   }
-}
-
-// Legacy support - keep the old factory function for backward compatibility during transition
-export function createEmailGenerationHandlers(
-  emailGeneration: any,
-  emailState: any,
-  chatState: any,
-  previewDonors: any,
-  instructionInput: any,
-  donorsData: any[],
-  organization: any,
-  previousInstruction?: string,
-  currentSignature = "",
-  sessionId?: number,
-  onInstructionChange?: (instruction: string) => void
-) {
-  const baseParams = {
-    organization,
-    donorsData,
-    currentSignature,
-    sessionId,
-    previousInstruction,
-  };
-
-  return {
-    handleSubmitInstruction: (instructionToSubmit?: string) =>
-      handleSubmitInstruction(
-        {
-          ...baseParams,
-          emailGeneration,
-          emailState,
-          chatState,
-          previewDonors,
-          instructionInput,
-          onInstructionChange,
-        },
-        instructionToSubmit
-      ),
-    handleGenerateMore: () =>
-      handleGenerateMore({
-        ...baseParams,
-        emailGeneration,
-        emailState,
-        chatState,
-        previewDonors,
-        instructionInput,
-      }),
-    handleEmailStatusChange: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED", updateEmailStatus: any) =>
-      handleEmailStatusChange({ emailState, sessionId }, emailId, status, updateEmailStatus),
-    handleRegenerateEmails: (onlyUnapproved: boolean, regenerateAllEmails: any) =>
-      handleRegenerateEmails({ emailGeneration, emailState, chatState, sessionId }, onlyUnapproved, regenerateAllEmails),
-  };
 }

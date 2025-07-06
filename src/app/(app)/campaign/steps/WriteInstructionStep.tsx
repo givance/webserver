@@ -8,28 +8,32 @@ import { useStaff } from "@/app/hooks/use-staff";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, ArrowRight, RefreshCw, MessageSquare, X } from "lucide-react";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  MessageSquare,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import "../styles.css";
-import { 
-  handleSubmitInstruction,
-  handleGenerateMore,
+import {
   handleEmailStatusChange,
-  handleRegenerateEmails
+  handleRegenerateEmails,
+  handleSubmitInstruction,
 } from "./write-instruction-step/handlers";
-import { handleEmailResult } from "./write-instruction-step/handlers/emailResultHandler";
 
 // Import extracted components, hooks, and types
 import {
-  WriteInstructionStepProps,
-  IsolatedMentionsInput,
   BulkGenerationDialog,
-  RegenerateDialog,
   ChatInterface,
   EmailPreviewPanel,
-  useWriteInstructionStep,
+  IsolatedMentionsInput,
+  RegenerateDialog,
   useDonorUtils,
+  useWriteInstructionStep,
+  WriteInstructionStepProps,
 } from "./write-instruction-step";
 
 function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
@@ -52,14 +56,21 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   } = props;
 
   // UI State
-  const [showBulkGenerationDialog, setShowBulkGenerationDialog] = useState(false);
-  const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
+  const [showBulkGenerationDialog, setShowBulkGenerationDialog] =
+    useState(false);
+  const [isStartingBulkGeneration, setIsStartingBulkGeneration] =
+    useState(false);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
-  const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+  const [regenerateOption, setRegenerateOption] = useState<
+    "all" | "unapproved"
+  >("all");
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isEmailListExpanded, setIsEmailListExpanded] = useState(false);
-  const [previousInstruction, setPreviousInstruction] = useState<string | undefined>(
-    initialRefinedInstruction || (editMode && instruction ? instruction : undefined)
+  const [previousInstruction, setPreviousInstruction] = useState<
+    string | undefined
+  >(
+    initialRefinedInstruction ||
+      (editMode && instruction ? instruction : undefined)
   );
 
   // Signature state (simplified)
@@ -67,7 +78,13 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
 
   // Consolidated hook
-  const { emailGeneration, emailState, chatState, instructionInput, previewDonors } = useWriteInstructionStep(
+  const {
+    emailGeneration,
+    emailState,
+    chatState,
+    instructionInput,
+    previewDonors,
+  } = useWriteInstructionStep(
     initialGeneratedEmails,
     editMode,
     initialChatHistory,
@@ -83,14 +100,18 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // Data hooks
   const { getOrganization } = useOrganization();
-  const { launchCampaign, updateEmailStatus, regenerateAllEmails } = useCommunications();
+  const { launchCampaign, updateEmailStatus, regenerateAllEmails } =
+    useCommunications();
   const { listProjects } = useProjects();
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
   const { getDonorsQuery } = useDonors();
 
   // Data fetching
-  const memoizedSelectedDonors = useMemo(() => selectedDonors, [selectedDonors]);
+  const memoizedSelectedDonors = useMemo(
+    () => selectedDonors,
+    [selectedDonors]
+  );
   const { data: donorsData } = getDonorsQuery(memoizedSelectedDonors);
   const { data: organization } = getOrganization();
   const { data: staffData } = listStaff({ limit: 100, isRealPerson: true });
@@ -111,11 +132,16 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const selectedStaff = useMemo(() => {
     if (!selectedStaffId || !staffData?.staff) return null;
-    return staffData.staff.find((staff) => staff.id === selectedStaffId) || null;
+    return (
+      staffData.staff.find((staff) => staff.id === selectedStaffId) || null
+    );
   }, [selectedStaffId, staffData]);
 
   const currentSignature = useMemo(() => {
-    return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || "Staff"}`;
+    return (
+      selectedStaff?.signature ||
+      `Best,\n${selectedStaff?.firstName || "Staff"}`
+    );
   }, [customSignature, selectedStaff]);
 
   const donorUtils = useDonorUtils(donorsData || []);
@@ -135,7 +161,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       generatedEmails: emailState.allGeneratedEmails,
       referenceContexts: emailState.referenceContexts,
     }),
-    [chatState.chatMessages, previewDonors.previewDonorIds, emailState.allGeneratedEmails, emailState.referenceContexts]
+    [
+      chatState.chatMessages,
+      previewDonors.previewDonorIds,
+      emailState.allGeneratedEmails,
+      emailState.referenceContexts,
+    ]
   );
 
   // Handlers (refactored to use individual stateless functions)
@@ -177,8 +208,13 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleBulkGeneration = async () => {
     if (isStartingBulkGeneration || !userId) return;
-    if (emailState.allGeneratedEmails.length === 0 && chatState.chatMessages.length === 0) {
-      toast.error("Please generate emails first before launching the campaign.");
+    if (
+      emailState.allGeneratedEmails.length === 0 &&
+      chatState.chatMessages.length === 0
+    ) {
+      toast.error(
+        "Please generate emails first before launching the campaign."
+      );
       return;
     }
 
@@ -196,7 +232,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
       if (!response?.sessionId) throw new Error("Failed to launch campaign");
 
-      toast.success(editMode ? "Campaign updated and launched!" : "Campaign launched!");
+      toast.success(
+        editMode ? "Campaign updated and launched!" : "Campaign launched!"
+      );
       setShowBulkGenerationDialog(false);
       setTimeout(() => onBulkGenerationComplete(response.sessionId), 1000);
     } catch (error) {
@@ -262,7 +300,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
+          <Button
+            variant="outline"
+            onClick={onBack}
+            size="sm"
+            className="h-7 text-xs"
+          >
             <ArrowLeft className="w-3 h-3 mr-1" />
             Back
           </Button>
@@ -293,7 +336,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         </div>
         <Button
           onClick={handleNextClick}
-          disabled={emailState.generatedEmails.length === 0 || emailGeneration.isGenerating}
+          disabled={
+            emailState.generatedEmails.length === 0 ||
+            emailGeneration.isGenerating
+          }
           size="sm"
           className="h-7 text-xs"
         >
@@ -353,12 +399,17 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 </Button>
                 <Button
                   onClick={() => handleSubmitInstructionCallback()}
-                  disabled={emailGeneration.isGenerating || !instructionInput.hasInputContent}
+                  disabled={
+                    emailGeneration.isGenerating ||
+                    !instructionInput.hasInputContent
+                  }
                   variant="default"
                   size="sm"
                   className="h-7 text-xs"
                 >
-                  {emailGeneration.isGenerating ? "Generating..." : "Generate Emails"}
+                  {emailGeneration.isGenerating
+                    ? "Generating..."
+                    : "Generate Emails"}
                 </Button>
               </div>
             </div>
@@ -427,7 +478,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   );
 }
 
-const arePropsEqual = (prevProps: WriteInstructionStepProps, nextProps: WriteInstructionStepProps): boolean => {
+const arePropsEqual = (
+  prevProps: WriteInstructionStepProps,
+  nextProps: WriteInstructionStepProps
+): boolean => {
   return (
     prevProps.sessionId === nextProps.sessionId &&
     prevProps.editMode === nextProps.editMode &&
@@ -436,4 +490,7 @@ const arePropsEqual = (prevProps: WriteInstructionStepProps, nextProps: WriteIns
   );
 };
 
-export const WriteInstructionStep = React.memo(WriteInstructionStepComponent, arePropsEqual);
+export const WriteInstructionStep = React.memo(
+  WriteInstructionStepComponent,
+  arePropsEqual
+);

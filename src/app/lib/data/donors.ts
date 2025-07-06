@@ -16,6 +16,7 @@ import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArr
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
 import type { DonorJourney } from "./organizations";
+import { removeFromAllLists } from "./donor-lists";
 
 export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
@@ -221,7 +222,6 @@ export async function deleteDonor(
       }
     } else if (deleteMode === "fromAllLists") {
       // Remove from all lists but keep donor record
-      const { removeFromAllLists } = await import("./donor-lists");
       await removeFromAllLists(id, organizationId);
     } else {
       // Delete entirely - original behavior

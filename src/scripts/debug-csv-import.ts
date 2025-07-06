@@ -1,6 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import { processCSVFiles } from "../app/lib/utils/csv-import";
+import { db } from "../app/lib/db";
+import { donorLists } from "../app/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 
 async function debugCSVImport() {
   console.log("🔍 Starting CSV import debug...");
@@ -72,9 +75,6 @@ async function debugCSVImport() {
     }
 
     // First create or find a test list
-    const { db } = await import("../app/lib/db");
-    const { donorLists } = await import("../app/lib/db/schema");
-    const { eq, and } = await import("drizzle-orm");
 
     // Try to find existing test list first
     const existingLists = await db

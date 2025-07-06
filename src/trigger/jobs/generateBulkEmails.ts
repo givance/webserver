@@ -17,6 +17,8 @@ import { listDonations, getMultipleComprehensiveDonorStats } from "@/app/lib/dat
 import { getOrganizationMemories } from "@/app/lib/data/organizations";
 import { getUserMemories, getDismissedMemories } from "@/app/lib/data/users";
 import type { RawCommunicationThread, GeneratedEmail } from "@/app/lib/utils/email-generator/types";
+import { PersonResearchService } from "@/app/lib/services/person-research.service";
+import { generateSmartDonorEmails } from "@/app/lib/utils/email-generator";
 
 // Maximum number of concurrent operations
 const MAX_CONCURRENCY = 50;
@@ -214,7 +216,6 @@ export const generateBulkEmailsTask = task({
 
       // Fetch person research results for donors
       triggerLogger.info(`Fetching person research results for ${donorIds.length} donors`);
-      const { PersonResearchService } = await import("@/app/lib/services/person-research.service");
       const personResearchService = new PersonResearchService();
       const personResearchResults: Record<number, any> = {};
 
@@ -276,7 +277,6 @@ export const generateBulkEmailsTask = task({
       });
 
       // Generate emails in batches with concurrency limiting
-      const { generateSmartDonorEmails } = await import("@/app/lib/utils/email-generator");
       const allEmailResults: GeneratedEmail[] = [];
 
       // Process donors in batches for email generation

@@ -12,6 +12,8 @@ import {
 import { logger } from "@/app/lib/logger";
 import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
 import { runs } from "@trigger.dev/sdk/v3";
+import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
+import { removeSignatureFromContent } from "@/app/lib/utils/email-with-signature";
 
 /**
  * Input types for campaign management
@@ -407,8 +409,6 @@ export class EmailCampaignsService {
       // Get generated emails for this session
       const emails = await db.select().from(generatedEmails).where(eq(generatedEmails.sessionId, sessionId));
 
-      // Import the signature helper
-      const { appendSignatureToEmail } = await import("@/app/lib/utils/email-with-signature");
 
       // Append signatures to each email for display
       const emailsWithSignatures = await Promise.all(
@@ -814,8 +814,6 @@ export class EmailCampaignsService {
         });
       }
 
-      // Import the signature helper
-      const { removeSignatureFromContent } = await import("@/app/lib/utils/email-with-signature");
 
       // Remove signature from content before saving
       const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
@@ -1374,8 +1372,6 @@ export class EmailCampaignsService {
         columns: { id: true },
       });
 
-      // Import the signature helper
-      const { removeSignatureFromContent } = await import("@/app/lib/utils/email-with-signature");
 
       // Remove signature from content before saving (only if structuredContent exists)
       const contentWithoutSignature = input.structuredContent

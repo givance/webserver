@@ -14,6 +14,9 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import type { crawlAndSummarizeWebsiteTask } from "@/trigger/jobs/crawlAndSummarizeWebsite";
 import { logger } from "@/app/lib/logger";
 import { ErrorHandler, wrapDatabaseOperation } from "@/app/lib/utils/error-handler";
+import { env } from "@/app/lib/env";
+import { createAzure } from "@ai-sdk/azure";
+import { generateText } from "ai";
 
 /**
  * Input types for organization operations
@@ -321,9 +324,6 @@ export class OrganizationsService {
           });
         }
 
-        const { env } = await import("@/app/lib/env");
-        const { createAzure } = await import("@ai-sdk/azure");
-        const { generateText } = await import("ai");
 
         const azure = createAzure({
           resourceName: env.AZURE_OPENAI_RESOURCE_NAME,

@@ -9,6 +9,14 @@ import {
 import { EmailGenerationService, GenerateEmailsInput } from "./email-generation.service";
 import fs from "fs/promises";
 import path from "path";
+import { db } from "@/app/lib/db";
+import { organizations, donors } from "@/app/lib/db/schema";
+import { eq, inArray, and } from "drizzle-orm";
+import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
+import { listDonations } from "@/app/lib/data/donations";
+import { getOrganizationMemories } from "@/app/lib/data/organizations";
+import { getUserMemories } from "@/app/lib/data/users";
+import { PersonResearchService } from "@/app/lib/services/person-research.service";
 
 export interface AgenticEmailGenerationInput {
   donors: Array<{
@@ -294,16 +302,11 @@ export class AgenticEmailGenerationService {
     const bestPractices = await this.loadBestPractices();
 
     // Get organization data
-    const { db } = await import("@/app/lib/db");
-    const { organizations } = await import("@/app/lib/db/schema");
-    const { eq } = await import("drizzle-orm");
 
     const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
 
     // Get full donor data from database
-    const { donors } = await import("@/app/lib/db/schema");
     const donorIds = input.donors.map((d) => d.id);
-    const { inArray, and } = await import("drizzle-orm");
 
     const fullDonorData = await db.query.donors.findMany({
       where: and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)),
@@ -329,8 +332,6 @@ export class AgenticEmailGenerationService {
     }));
 
     // Fetch donor histories (same as generateBulkEmails.ts)
-    const { getDonorCommunicationHistory } = await import("@/app/lib/data/communications");
-    const { listDonations } = await import("@/app/lib/data/donations");
 
     logger.info(`Fetching communication and donation histories for ${donorInfos.length} donors`);
 
@@ -358,8 +359,6 @@ export class AgenticEmailGenerationService {
     const donorHistories = await Promise.all(donorHistoriesPromises);
 
     // Get organization and user memories
-    const { getOrganizationMemories } = await import("@/app/lib/data/organizations");
-    const { getUserMemories } = await import("@/app/lib/data/users");
 
     const [organizationMemories, userMemories] = await Promise.all([
       getOrganizationMemories(organizationId),
@@ -368,7 +367,6 @@ export class AgenticEmailGenerationService {
 
     // Fetch person research results for donors (same as generateBulkEmails.ts)
     logger.info(`Fetching person research results for ${donorIds.length} donors`);
-    const { PersonResearchService } = await import("@/app/lib/services/person-research.service");
     const personResearchService = new PersonResearchService();
     const personResearchResults: Record<number, any> = {};
 

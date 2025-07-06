@@ -1,7 +1,7 @@
 import { task, logger as triggerLogger } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
-import { emailSendJobs, generatedEmails, emailGenerationSessions, donors } from "@/app/lib/db/schema";
+import { emailSendJobs, generatedEmails, emailGenerationSessions, donors, gmailOAuthTokens, staff, users } from "@/app/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
 import {
@@ -13,6 +13,7 @@ import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
 import { google } from "googleapis";
 import { env } from "@/app/lib/env";
 import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
+import { EmailCampaignsService } from "@/app/lib/services/email-campaigns.service";
 
 // Gmail OAuth configuration
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
@@ -54,7 +55,6 @@ function convertPlainTextToStructuredContent(
  * Helper to get Gmail client (reused from gmail router logic)
  */
 async function getGmailClientForDonor(donorId: number, organizationId: string, fallbackUserId: string) {
-  const { gmailOAuthTokens, staff, users } = await import("@/app/lib/db/schema");
 
   // Get donor with staff assignment
   const donorInfo = await db.query.donors.findFirst({
@@ -366,7 +366,6 @@ export const sendSingleEmailTask = task({
         .where(eq(emailSendJobs.id, jobId));
 
       // Check if campaign is complete
-      const { EmailCampaignsService } = await import("@/app/lib/services/email-campaigns.service");
       const campaignsService = new EmailCampaignsService();
       await campaignsService.checkAndUpdateCampaignCompletion(sessionId, organizationId);
 

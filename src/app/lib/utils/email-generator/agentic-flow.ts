@@ -1,6 +1,8 @@
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { logger } from "@/app/lib/logger";
+import { env } from "@/app/lib/env";
+import { createAzure } from "@ai-sdk/azure";
 import { DonorInfo, Organization } from "./types";
 import { DonationWithDetails } from "../../data/donations";
 import { PersonResearchResult } from "../../services/person-research/types";
@@ -87,8 +89,6 @@ export class AgenticEmailGenerationOrchestrator {
 
     try {
       // Set up Azure OpenAI client
-      const { env } = await import("@/app/lib/env");
-      const { createAzure } = await import("@ai-sdk/azure");
 
       const azure = createAzure({
         resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
@@ -167,8 +167,6 @@ export class AgenticEmailGenerationOrchestrator {
 
     try {
       // Set up Azure OpenAI client
-      const { env } = await import("@/app/lib/env");
-      const { createAzure } = await import("@ai-sdk/azure");
 
       const azure = createAzure({
         resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
@@ -245,8 +243,6 @@ export class AgenticEmailGenerationOrchestrator {
 
     try {
       // Set up Azure OpenAI client
-      const { env } = await import("@/app/lib/env");
-      const { createAzure } = await import("@ai-sdk/azure");
 
       const azure = createAzure({
         resourceName: env.AZURE_OPENAI_RESOURCE_NAME,

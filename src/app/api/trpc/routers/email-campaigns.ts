@@ -2,6 +2,8 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import type { GenerateEmailsInput } from "@/app/lib/services/email-generation.service";
 import { env } from "@/app/lib/env";
+import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
+import { appendSignatureToPlainText } from "@/app/lib/utils/email-with-signature";
 
 // Input validation schemas
 const generateEmailsSchema = z.object({
@@ -465,7 +467,6 @@ export const emailCampaignsRouter = router({
    * Get email content with signature appended for display
    */
   getEmailWithSignature: protectedProcedure.input(getEmailWithSignatureSchema).query(async ({ ctx, input }) => {
-    const { appendSignatureToEmail } = await import("@/app/lib/utils/email-with-signature");
     const contentWithSignature = await appendSignatureToEmail(input.structuredContent, {
       donorId: input.donorId,
       organizationId: ctx.auth.user.organizationId,
@@ -480,7 +481,6 @@ export const emailCampaignsRouter = router({
   getPlainTextEmailWithSignature: protectedProcedure
     .input(getPlainTextEmailWithSignatureSchema)
     .query(async ({ ctx, input }) => {
-      const { appendSignatureToPlainText } = await import("@/app/lib/utils/email-with-signature");
       const contentWithSignature = await appendSignatureToPlainText(input.emailContent, {
         donorId: input.donorId,
         organizationId: ctx.auth.user.organizationId,

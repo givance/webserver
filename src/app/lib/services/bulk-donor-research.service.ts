@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { eq, and, notExists, count } from "drizzle-orm";
+import { eq, and, notExists, count, inArray } from "drizzle-orm";
 import { db } from "@/app/lib/db";
 import { donors, personResearch } from "@/app/lib/db/schema";
 import { logger } from "@/app/lib/logger";
@@ -98,7 +98,6 @@ export class BulkDonorResearchService {
 
       // If specific donor IDs are provided, filter by them
       if (donorIds && donorIds.length > 0) {
-        const { inArray } = await import("drizzle-orm");
 
         totalDonorsQuery = db
           .select({ count: count() })

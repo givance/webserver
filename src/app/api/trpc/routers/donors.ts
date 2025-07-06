@@ -29,6 +29,9 @@ import {
   paginationSchema,
   orderingSchema,
 } from "@/app/lib/validation/schemas";
+import { db } from "@/app/lib/db";
+import { staff, staffGmailTokens, donors } from "@/app/lib/db/schema";
+import { and, inArray, eq, sql } from "drizzle-orm";
 
 // ============================================================================
 // Schema Definitions
@@ -696,11 +699,7 @@ export const donorsRouter = router({
       }
 
       // Import schemas and db for this specific validation query
-      const { db } = await import("@/app/lib/db");
-      const schema = await import("@/app/lib/db/schema");
-      const { staff, staffGmailTokens } = schema;
-      const donorSchema = schema.donors;
-      const { and, inArray, eq, sql } = await import("drizzle-orm");
+      const donorSchema = donors;
 
       const donorsWithStaff = await handleAsync(
         async () => db
