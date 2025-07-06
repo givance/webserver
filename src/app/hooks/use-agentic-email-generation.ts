@@ -40,27 +40,30 @@ export function useAgenticEmailGeneration() {
     },
   });
   const continueFlowMutation = trpc.communications.agenticCampaigns.continueFlow.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // Invalidate campaign session to reflect conversation updates
-      if (data.sessionId) {
-        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
       }
     },
   });
   const generateFinalPromptMutation = trpc.communications.agenticCampaigns.generateFinalPrompt.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // Invalidate campaign session to reflect prompt generation
-      if (data.sessionId) {
-        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
       }
     },
   });
   const executeGenerationMutation = trpc.communications.agenticCampaigns.executeGeneration.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // Invalidate campaign sessions since generation is complete
       utils.communications.campaigns.listCampaigns.invalidate();
-      if (data.sessionId) {
-        utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
       }
     },
   });
