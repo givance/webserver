@@ -32,7 +32,7 @@ const azure = createAzure({
  */
 export class EmailGenerationService implements EmailGeneratorTool {
   /**
-   * Generates personalized emails for multiple donors using refined instructions.
+   * Generates personalized emails for multiple donors.
    */
   async generateEmails(
     donors: DonorInfo[],
@@ -48,7 +48,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     userMemories: string[] = [],
     organizationMemories: string[] = [],
     currentDate?: string,
-    originalInstruction?: string,
     staffName?: string
   ): Promise<GeneratedEmail[]> {
     logger.info(
@@ -66,7 +65,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
       return this.generateDonorEmail({
         donor,
-        instruction: originalInstruction || refinedInstruction, // Use original instruction if available, otherwise use refined
         organizationName,
         organization,
         organizationWritingInstructions,
@@ -78,7 +76,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
         personalMemories: userMemories,
         organizationalMemories: organizationMemories,
         currentDate,
-        originalInstruction,
         staffName,
       });
     });
@@ -114,7 +111,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
   private async generateDonorEmail(options: GenerateEmailOptions): Promise<GeneratedEmail> {
     const {
       donor,
-      instruction,
       organizationName,
       organization,
       organizationWritingInstructions,
@@ -126,7 +122,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
       personalMemories,
       organizationalMemories,
       currentDate,
-      originalInstruction,
       staffName,
     } = options;
 
@@ -192,7 +187,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     // Build a new prompt for the new format (subject, reasoning, emailContent)
     const newFormatPrompt = await this.buildNewFormatPrompt(
       donor,
-      instruction,
       organizationName,
       organization,
       organizationWritingInstructions,
@@ -205,7 +199,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
       organizationalMemories,
       donationContexts,
       currentDate,
-      originalInstruction,
       staffName
     );
 
@@ -392,7 +385,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
 
   private async buildNewFormatPrompt(
     donor: DonorInfo,
-    instruction: string,
     organizationName: string,
     organization: Organization | null,
     organizationWritingInstructions?: string,
@@ -405,7 +397,6 @@ export class EmailGenerationService implements EmailGeneratorTool {
     organizationalMemories: string[] = [],
     donationContexts: Record<string, string> = {},
     currentDate?: string,
-    originalInstruction?: string,
     staffName?: string
   ): Promise<string> {
     // Build system prompt for new format
@@ -449,12 +440,8 @@ Wher writing, if there are conflicts in the instructions, you should prioritize 
     // Build donor context
     let donorContext = "";
 
-    // Task section
-    if (originalInstruction && originalInstruction.trim() !== instruction.trim()) {
-      donorContext += `ORIGINAL USER INSTRUCTION: ${originalInstruction}\nREFINED INSTRUCTION: ${instruction}\n\n`;
-    } else {
-      donorContext += `TASK: ${instruction}\n\n`;
-    }
+    // Task section - using chat history based approach
+    donorContext += `TASK: Generate a personalized donor reengagement email\n\n`;
 
     // Donor basic info
     donorContext += `DONOR: ${formatDonorName(donor)} (${donor.email})\n`;

@@ -313,7 +313,6 @@ describe("generateBulkEmailsTask", () => {
             lastName: "Doe",
           }),
         ]),
-        "", // empty instruction - chat history is used
         "Test Foundation",
         expect.objectContaining({
           id: "org123",
@@ -328,7 +327,6 @@ describe("generateBulkEmailsTask", () => {
         [], // personalMemories
         [], // organizationalMemories
         undefined, // currentDate
-        undefined, // previousInstruction
         expect.any(Array), // chatHistory
         expect.any(String) // staffName
       );
@@ -724,9 +722,8 @@ describe("generateBulkEmailsTask", () => {
       // Check that all calls have the expected structure
       const calls = mockGenerateSmartDonorEmails.mock.calls;
       calls.forEach((call, index) => {
-        expect(call[1]).toBe(""); // empty instruction
-        expect(call[2]).toBe("Test Foundation"); // organizationName
-        expect(call[8]).toEqual(mockStats); // donorStatistics
+        expect(call[1]).toBe("Test Foundation"); // organizationName (now parameter 1)
+        expect(call[7]).toEqual(mockStats); // donorStatistics (now parameter 7)
       });
     });
   });

@@ -23,6 +23,7 @@ export interface AgenticFlowState {
  * React hook for managing agentic email generation flow
  */
 export function useAgenticEmailGeneration() {
+  const utils = trpc.useUtils();
   const [flowState, setFlowState] = useState<AgenticFlowState>({
     isActive: false,
     needsUserInput: false,
@@ -32,10 +33,40 @@ export function useAgenticEmailGeneration() {
   });
 
   // tRPC mutations
-  const startFlowMutation = trpc.communications.agenticCampaigns.startFlow.useMutation();
-  const continueFlowMutation = trpc.communications.agenticCampaigns.continueFlow.useMutation();
-  const generateFinalPromptMutation = trpc.communications.agenticCampaigns.generateFinalPrompt.useMutation();
-  const executeGenerationMutation = trpc.communications.agenticCampaigns.executeGeneration.useMutation();
+  const startFlowMutation = trpc.communications.agenticCampaigns.startFlow.useMutation({
+    onSuccess: () => {
+      // Invalidate campaign sessions since a new agentic session is created
+      utils.communications.campaigns.listCampaigns.invalidate();
+    },
+  });
+  const continueFlowMutation = trpc.communications.agenticCampaigns.continueFlow.useMutation({
+    onSuccess: (data, variables) => {
+      // Invalidate campaign session to reflect conversation updates
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
+      }
+    },
+  });
+  const generateFinalPromptMutation = trpc.communications.agenticCampaigns.generateFinalPrompt.useMutation({
+    onSuccess: (data, variables) => {
+      // Invalidate campaign session to reflect prompt generation
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
+      }
+    },
+  });
+  const executeGenerationMutation = trpc.communications.agenticCampaigns.executeGeneration.useMutation({
+    onSuccess: (data, variables) => {
+      // Invalidate campaign sessions since generation is complete
+      utils.communications.campaigns.listCampaigns.invalidate();
+      const sessionId = parseInt(variables.sessionId, 10);
+      if (!isNaN(sessionId)) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId });
+      }
+    },
+  });
 
   // tRPC queries
   const sessionStateQuery = trpc.communications.agenticCampaigns.getSessionState.useQuery(

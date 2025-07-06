@@ -50,8 +50,6 @@ interface GeneratedEmailData {
 interface SessionData {
   session: {
     id: number;
-    instruction: string;
-    refinedInstruction?: string;
     chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
     selectedDonorIds: number[];
     previewDonorIds: number[];
@@ -424,21 +422,6 @@ export default function EmailGenerationResultsPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Original Instruction</p>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-sm">{sessionData.session.instruction}</p>
-                      </div>
-                    </div>
-
-                    {sessionData.session.refinedInstruction && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Refined Instruction</p>
-                        <div className="p-3 bg-muted rounded-lg">
-                          <p className="text-sm">{sessionData.session.refinedInstruction}</p>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">

@@ -181,7 +181,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       const response = await launchCampaign.mutateAsync({
         campaignId: sessionId!,
         campaignName,
-        instruction: "",
         chatHistory: chatState.chatMessages,
         selectedDonorIds: selectedDonors,
         previewDonorIds: previewDonors.previewDonorIds,

@@ -384,39 +384,6 @@ describe("EmailGenerationService", () => {
       expect(result).toHaveLength(0);
     });
 
-    it("should use template when templateId is provided", async () => {
-      mockGenerateObject.mockResolvedValue({
-        object: mockGeneratedEmail,
-        finishReason: "stop",
-        usage: { promptTokens: 400, completionTokens: 150, totalTokens: 550 },
-      });
-
-      await service.generateEmails(
-        [mockDonor],
-        "Use template for year-end appeal: Dear {firstName}, Year-end appeal template...",
-        "Test Foundation",
-        mockOrganization,
-        "Be warm and personal",
-        undefined, // personalWritingInstructions
-        { 1: [] },
-        { 1: [] },
-        {
-          1: {
-            totalAmount: 0,
-            totalDonations: 0,
-            firstDonation: null,
-            lastDonation: null,
-            donationsByProject: [],
-          },
-        },
-        {},
-        [],
-        []
-      );
-
-      const callArgs = mockGenerateObject.mock.calls[0][0];
-      expect(callArgs.prompt).toContain("Year-end appeal template");
-    });
 
     it("should handle couple donors appropriately", async () => {
       const coupleDonor = {
@@ -466,7 +433,6 @@ describe("EmailGenerationService", () => {
       const callArgs = mockGenerateObject.mock.calls[0][0];
       expect(callArgs.prompt).toContain("John");
       expect(callArgs.prompt).toContain("Jane");
-      expect(callArgs.prompt).toContain("couple");
     });
   });
 });

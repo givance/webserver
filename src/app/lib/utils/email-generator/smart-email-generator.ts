@@ -15,12 +15,9 @@ import {
 } from "./types";
 
 /**
- * Generates personalized donor emails using a two-agent system:
- * 1. An instruction refinement agent that improves the user's instructions
- * 2. An email generation service that uses the refined instructions to create emails
+ * Generates personalized donor emails using chat history context
  *
  * @param donors - List of donors to generate emails for
- * @param userInstruction - Original instruction from the user
  * @param organizationName - Name of the organization
  * @param organization - Organization details
  * @param organizationWritingInstructions - Optional writing guidelines
@@ -31,18 +28,16 @@ import {
  * @param userMemories - User's personal memories
  * @param organizationMemories - Organization-wide memories
  * @param currentDate - Current date for time-sensitive content
- * @param previousInstruction - Previous refined instruction to build upon
  * @param chatHistory - Optional chat history
  * @param staffName - Optional staff name
- * @returns Object containing refined instruction, reasoning, and generated emails
+ * @returns Object containing generated emails
  */
 export async function generateSmartDonorEmails(
   donors: DonorInfo[],
-  userInstruction: string,
   organizationName: string,
   organization: Organization | null,
   organizationWritingInstructions?: string,
-  staffWritingInstructions?: string, // New parameter for staff-specific instructions
+  staffWritingInstructions?: string,
   communicationHistories: Record<number, RawCommunicationThread[]> = {},
   donationHistories: Record<number, DonationWithDetails[]> = {},
   donorStatistics: Record<number, DonorStatistics> = {},
@@ -50,44 +45,24 @@ export async function generateSmartDonorEmails(
   userMemories: string[] = [],
   organizationMemories: string[] = [],
   currentDate?: string,
-  previousInstruction?: string,
   chatHistory?: Array<{ role: "user" | "assistant"; content: string }>,
   staffName?: string
 ): Promise<{
-  refinedInstruction: string;
   reasoning: string;
   emails: GeneratedEmail[];
   suggestedMemories?: string[];
   tokenUsage: EmailGenerationTokenUsage;
 }> {
-  // Extract and concatenate all user messages from chat history to form the complete user instruction
-  let completeUserInstruction = userInstruction;
-
   // Ensure chatHistory is an array
   const validChatHistory = Array.isArray(chatHistory) ? chatHistory : [];
 
   logger.info(`[generateSmartDonorEmails] ENTRY POINT - Starting NEW FORMAT generation for ${donors.length} donors`);
   logger.info(
-    `[generateSmartDonorEmails] chatHistory type: ${typeof chatHistory}, isArray: ${Array.isArray(chatHistory)}`
+    `[generateSmartDonorEmails] chatHistory type: ${typeof chatHistory}, isArray: ${Array.isArray(chatHistory)}, chatHistoryLength: ${validChatHistory.length}`
   );
-  logger.info(`[generateSmartDonorEmails] userInstruction: "${userInstruction}"`);
-
-  if (validChatHistory.length > 0) {
-    const userMessages = validChatHistory.filter((msg) => msg.role === "user").map((msg) => msg.content);
-    if (userMessages.length > 0) {
-      completeUserInstruction = userMessages.join(" ");
-      logger.info(
-        `[generateSmartDonorEmails] Concatenated ${userMessages.length} user messages from chat history to form complete instruction`
-      );
-    }
-  }
 
   logger.info(
-    `[generateSmartDonorEmails] Starting smart donor email generation for ${
-      donors.length
-    } donors with instruction: "${completeUserInstruction}" (previousInstruction: ${
-      previousInstruction ? `"${previousInstruction}"` : "none"
-    }, chatHistoryLength: ${validChatHistory.length})`
+    `[generateSmartDonorEmails] Starting smart donor email generation for ${donors.length} donors using chat history context`
   );
 
   // Initialize token usage tracking
@@ -96,28 +71,23 @@ export async function generateSmartDonorEmails(
   // Create the email generation service
   const emailGenerator = new EmailGenerationService();
 
-  // Then, use the refined instruction to generate emails using the second agent
+  // Generate emails using the email generation service
   logger.info(`[generateSmartDonorEmails] Starting email generation stage for ${donors.length} donors`);
-  // Determine which writing instructions to use - staff overrides organizational
-
-  logger.info(`[generateSmartDonorEmails] completeUserInstruction: "${completeUserInstruction}"`);
-  logger.info(`[generateSmartDonorEmails] previousInstruction: "${previousInstruction}"`);
 
   const emails = await emailGenerator.generateEmails(
     donors,
-    "",
+    "", // No longer using refined instruction
     organizationName,
     organization,
-    organizationWritingInstructions, // Use effective writing instructions
+    organizationWritingInstructions,
     staffWritingInstructions,
     communicationHistories,
     donationHistories,
-    donorStatistics, // Pass donor statistics
-    personResearchResults, // Pass person research results
+    donorStatistics,
+    personResearchResults,
     userMemories,
     organizationMemories,
     currentDate,
-    completeUserInstruction, // Pass the complete user instruction
     staffName
   );
 
@@ -140,21 +110,20 @@ export async function generateSmartDonorEmails(
     tokenUsage.emailGeneration = addTokenUsage(tokenUsage.emailGeneration, email.tokenUsage);
   });
 
-  // Calculate total tokens
-  tokenUsage.total = addTokenUsage(tokenUsage.instructionRefinement, tokenUsage.emailGeneration);
+  // Calculate total tokens (only email generation now)
+  tokenUsage.total = tokenUsage.emailGeneration;
 
   // Log comprehensive token usage summary
   logger.info(
-    `[generateSmartDonorEmails] Smart donor email generation completed successfully - Donors: ${donors.length}, Instruction: "${completeUserInstruction}"`
+    `[generateSmartDonorEmails] Smart donor email generation completed successfully - Donors: ${donors.length}`
   );
 
   logger.info(
-    `[generateSmartDonorEmails] Token usage summary for email generation: Instruction Refinement: ${tokenUsage.instructionRefinement.totalTokens} tokens (${tokenUsage.instructionRefinement.promptTokens} input, ${tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${tokenUsage.emailGeneration.totalTokens} tokens (${tokenUsage.emailGeneration.promptTokens} input, ${tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
+    `[generateSmartDonorEmails] Token usage summary for email generation: Email Generation: ${tokenUsage.emailGeneration.totalTokens} tokens (${tokenUsage.emailGeneration.promptTokens} input, ${tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
   );
 
-  // Return both the refinement information and the generated emails
+  // Return the generated emails
   return {
-    refinedInstruction: "",
     reasoning: "",
     emails,
     suggestedMemories: [],

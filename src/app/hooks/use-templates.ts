@@ -24,12 +24,16 @@ export function useTemplates() {
     onSuccess: () => {
       utils.templates.list.invalidate();
       utils.templates.get.invalidate();
+      // Invalidate campaign sessions since templates may be used in campaigns
+      utils.communications.campaigns.listCampaigns.invalidate();
     },
   });
 
   const deleteTemplateMutation = trpc.templates.delete.useMutation({
     onSuccess: () => {
       utils.templates.list.invalidate();
+      // Invalidate campaign sessions since templates may be used in campaigns
+      utils.communications.campaigns.listCampaigns.invalidate();
     },
   });
 

@@ -41,7 +41,6 @@ describe("AgenticEmailGenerationService", () => {
   let mockPersonResearchService: jest.Mocked<PersonResearchService>;
 
   const mockInput: AgenticEmailGenerationInput = {
-    instruction: "Write a thank you email",
     donors: [
       { id: 1, firstName: "John", lastName: "Doe", email: "john@example.com" },
       { id: 2, firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
@@ -52,7 +51,7 @@ describe("AgenticEmailGenerationService", () => {
   };
 
   const mockContext = {
-    userInstruction: mockInput.instruction,
+    userInstruction: "",
     donors: expect.any(Array),
     organizationName: mockInput.organizationName,
     organization: expect.any(Object),
@@ -217,7 +216,7 @@ describe("AgenticEmailGenerationService", () => {
 
       expect(mockOrchestrator.startFlow).toHaveBeenCalledWith(
         expect.objectContaining({
-          userInstruction: mockInput.instruction,
+          userInstruction: "",
           organizationName: mockInput.organizationName,
           bestPractices: expect.any(String),
         })
@@ -452,7 +451,6 @@ describe("AgenticEmailGenerationService", () => {
 
       expect(mockEmailService.generateSmartEmails).toHaveBeenCalledWith(
         expect.objectContaining({
-          instruction: confirmedPrompt,
           donors: expect.arrayContaining([
             expect.objectContaining({
               id: 1,

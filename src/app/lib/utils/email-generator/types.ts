@@ -13,10 +13,9 @@ export interface TokenUsage {
 }
 
 /**
- * Aggregated token usage for different stages of email generation
+ * Aggregated token usage for email generation
  */
 export interface EmailGenerationTokenUsage {
-  instructionRefinement: TokenUsage;
   emailGeneration: TokenUsage;
   total: TokenUsage;
 }
@@ -73,7 +72,6 @@ export interface FormattedCommunicationMessage {
 
 export interface GenerateEmailOptions {
   donor: DonorInfo;
-  instruction: string;
   organizationName: string;
   organization: Organization | null;
   organizationWritingInstructions?: string;
@@ -86,7 +84,6 @@ export interface GenerateEmailOptions {
   organizationalMemories?: string[];
   currentDate?: string; // Added for today's date
   emailSignature?: string; // User's email signature
-  originalInstruction?: string; // Original user instruction before refinement
   staffName?: string; // Name of the staff member sending the email
 }
 
@@ -149,27 +146,7 @@ export interface RawCommunicationThread {
   // Potentially other fields like 'id', 'date', 'type' from the original CommunicationHistory
 }
 
-export interface InstructionRefinementInput {
-  userInstruction: string;
-  previousInstruction?: string;
-  organizationWritingInstructions?: string;
-  staffWritingInstructions?: string; // Staff-specific writing instructions
-  userFeedback?: string;
-  userMemories: string[];
-  organizationMemories: string[];
-  dismissedMemories: string[];
-  chatHistory?: Array<{
-    role: "user" | "assistant";
-    content: string;
-  }>;
-}
 
-export interface InstructionRefinementResult {
-  refinedInstruction: string;
-  reasoning: string;
-  suggestedMemories?: string[];
-  tokenUsage: TokenUsage; // Add token usage tracking for instruction refinement
-}
 
 export interface EmailGeneratorTool {
   generateEmails: (
@@ -181,13 +158,12 @@ export interface EmailGeneratorTool {
     personalWritingInstructions?: string,
     communicationHistories?: Record<number, RawCommunicationThread[]>,
     donationHistories?: Record<number, DonationWithDetails[]>,
-    donorStatistics?: Record<number, DonorStatistics>, // Comprehensive donor statistics
-    personResearchResults?: Record<number, PersonResearchResult>, // Person research results by donor ID
+    donorStatistics?: Record<number, DonorStatistics>,
+    personResearchResults?: Record<number, PersonResearchResult>,
     personalMemories?: string[],
     organizationalMemories?: string[],
-    currentDate?: string, // Added for today's date
-    emailSignature?: string, // User's email signature
-    originalInstruction?: string // Original user instruction before refinement
+    currentDate?: string,
+    staffName?: string
   ) => Promise<GeneratedEmail[]>;
 }
 
@@ -218,7 +194,6 @@ export function addTokenUsage(usage1: TokenUsage, usage2: TokenUsage): TokenUsag
  */
 export function createEmptyEmailGenerationTokenUsage(): EmailGenerationTokenUsage {
   return {
-    instructionRefinement: createEmptyTokenUsage(),
     emailGeneration: createEmptyTokenUsage(),
     total: createEmptyTokenUsage(),
   };

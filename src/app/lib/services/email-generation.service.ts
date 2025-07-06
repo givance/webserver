@@ -28,7 +28,6 @@ export interface DonorInput {
 }
 
 export interface GenerateEmailsInput {
-  instruction: string;
   donors: DonorInput[];
   organizationName: string;
   organizationWritingInstructions?: string;
@@ -53,7 +52,7 @@ export class EmailGenerationService {
    * @returns Generated emails for each donor
    */
   async generateSmartEmails(input: GenerateEmailsInput, organizationId: string, userId: string) {
-    const { instruction, donors, organizationWritingInstructions, previousInstruction, chatHistory, signature } = input;
+    const { donors, organizationWritingInstructions, previousInstruction, chatHistory, signature } = input;
     const currentDate = new Date().toDateString();
 
     // Debug logging for chat history
@@ -73,14 +72,7 @@ export class EmailGenerationService {
       logger.info(`[EmailGenerationService] No custom signature provided, will use assigned staff signatures`);
     }
 
-    // Process project mentions in the instruction
-    const processedInstruction = await processProjectMentions(instruction, organizationId);
-
-    if (processedInstruction !== instruction) {
-      logger.info(
-        `Processed project mentions in instruction for organization ${organizationId} (original: "${instruction}", processed: "${processedInstruction}")`
-      );
-    }
+    // Using chat history instead of instructions for email generation
 
     // Get organization data
     const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
@@ -195,7 +187,7 @@ export class EmailGenerationService {
     ]);
 
     logger.info(
-      `Generating emails for ${donorInfos.length} donors in organization ${organizationId} with instruction: "${processedInstruction}"`
+      `Generating emails for ${donorInfos.length} donors in organization ${organizationId} using chat history`
     );
 
     // Convert donor histories to the format expected by the email generator
@@ -253,7 +245,6 @@ export class EmailGenerationService {
       // Generate email for this single donor with their specific staff writing instructions
       return await generateSmartDonorEmails(
         [donorInfo], // Single donor
-        processedInstruction,
         input.organizationName,
         emailGeneratorOrg,
         organization.writingInstructions || undefined, // Use database value instead of input parameter
@@ -265,8 +256,7 @@ export class EmailGenerationService {
         userMemories,
         organizationMemories,
         currentDate,
-        previousInstruction, // Pass the previous instruction to enable stateful refinement
-        chatHistory, // Pass the chat history to the refinement agent
+        chatHistory, // Pass the chat history
         staffName // Pass the staff name
       );
     });
@@ -276,22 +266,12 @@ export class EmailGenerationService {
 
     // Combine all results into a single result
     const result = {
-      refinedInstruction: individualResults[0]?.refinedInstruction || processedInstruction,
       reasoning: individualResults[0]?.reasoning || "",
       emails: individualResults.flatMap((result) => result.emails),
       suggestedMemories: individualResults[0]?.suggestedMemories || [],
       tokenUsage: individualResults.reduce(
         (totalUsage, result) => {
           return {
-            instructionRefinement: {
-              promptTokens:
-                totalUsage.instructionRefinement.promptTokens + result.tokenUsage.instructionRefinement.promptTokens,
-              completionTokens:
-                totalUsage.instructionRefinement.completionTokens +
-                result.tokenUsage.instructionRefinement.completionTokens,
-              totalTokens:
-                totalUsage.instructionRefinement.totalTokens + result.tokenUsage.instructionRefinement.totalTokens,
-            },
             emailGeneration: {
               promptTokens: totalUsage.emailGeneration.promptTokens + result.tokenUsage.emailGeneration.promptTokens,
               completionTokens:
@@ -306,7 +286,6 @@ export class EmailGenerationService {
           };
         },
         {
-          instructionRefinement: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           emailGeneration: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           total: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         }
@@ -320,7 +299,7 @@ export class EmailGenerationService {
     logger.info(`Successfully generated ${emailsWithoutSignatures.length} emails for organization ${organizationId}`);
 
     logger.info(
-      `Token usage summary for organization ${organizationId} email generation: Instruction Refinement: ${result.tokenUsage.instructionRefinement.totalTokens} tokens (${result.tokenUsage.instructionRefinement.promptTokens} input, ${result.tokenUsage.instructionRefinement.completionTokens} output), Email Generation: ${result.tokenUsage.emailGeneration.totalTokens} tokens (${result.tokenUsage.emailGeneration.promptTokens} input, ${result.tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${result.tokenUsage.total.totalTokens} tokens (${result.tokenUsage.total.promptTokens} input, ${result.tokenUsage.total.completionTokens} output)`
+      `Token usage summary for organization ${organizationId} email generation: Email Generation: ${result.tokenUsage.emailGeneration.totalTokens} tokens (${result.tokenUsage.emailGeneration.promptTokens} input, ${result.tokenUsage.emailGeneration.completionTokens} output), TOTAL: ${result.tokenUsage.total.totalTokens} tokens (${result.tokenUsage.total.promptTokens} input, ${result.tokenUsage.total.completionTokens} output)`
     );
 
     return {
@@ -458,7 +437,7 @@ export class EmailGenerationService {
       personResearch,
       userMemories,
       organizationMemories,
-      originalInstruction: emailData.session.instruction,
+      // No longer using original instruction parameter
     });
 
     // Don't append signature - it will be added at display/send time
@@ -509,7 +488,6 @@ export class EmailGenerationService {
     personResearch?: PersonResearchResult;
     userMemories: string[];
     organizationMemories: string[];
-    originalInstruction: string;
   }) {
     const {
       emailId,
@@ -528,7 +506,6 @@ export class EmailGenerationService {
       personResearch,
       userMemories,
       organizationMemories,
-      originalInstruction,
     } = options;
 
     // Filter out signature from current content before sending to AI
@@ -542,22 +519,19 @@ export class EmailGenerationService {
       .join("")
       .trim();
 
-    // Create an enhanced instruction that includes both the original instruction, current email, and enhancement request
-    const combinedInstruction = `${originalInstruction}
-
-CURRENT EMAIL TO ENHANCE:
+    // Create an enhanced instruction that includes the current email and enhancement request
+    const combinedInstruction = `CURRENT EMAIL TO ENHANCE:
 Subject: ${currentSubject}
 Content:
 ${currentEmailContent}
 
 ENHANCEMENT REQUEST: ${enhancementInstruction}
 
-Please regenerate this email following the original instruction while incorporating the enhancement request above. Maintain the same tone and style but apply the requested changes.`;
+Please regenerate this email while incorporating the enhancement request above. Maintain the same tone and style but apply the requested changes.`;
 
     // Use the smart generation flow with a single donor
     const result = await generateSmartDonorEmails(
       [{ id: donorId, firstName: donor.firstName, lastName: donor.lastName, email: donor.email }],
-      combinedInstruction,
       organizationName,
       organization,
       organizationWritingInstructions,
@@ -569,7 +543,6 @@ Please regenerate this email following the original instruction while incorporat
       userMemories,
       organizationMemories,
       new Date().toDateString(),
-      originalInstruction, // Use original instruction as previous for context
       undefined // No chat history available in enhancement context
     );
 

@@ -5,7 +5,6 @@ import { env } from "@/app/lib/env";
 
 // Input validation schemas for agentic flow
 const startAgenticFlowSchema = z.object({
-  instruction: z.string().min(1),
   donors: z.array(
     z.object({
       id: z.number(),

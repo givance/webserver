@@ -70,18 +70,25 @@ export function useProjects() {
   const createMutation = trpc.projects.create.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
+      utils.projects.getByIds.invalidate();
     },
   });
 
   const updateMutation = trpc.projects.update.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
+      utils.projects.getByIds.invalidate();
+      // Invalidate donation stats since donations reference projects
+      utils.donations.list.invalidate();
     },
   });
 
   const deleteMutation = trpc.projects.delete.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
+      utils.projects.getByIds.invalidate();
+      // Invalidate donation stats since donations reference projects
+      utils.donations.list.invalidate();
     },
   });
 

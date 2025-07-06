@@ -11,7 +11,6 @@ import fs from "fs/promises";
 import path from "path";
 
 export interface AgenticEmailGenerationInput {
-  instruction: string;
   donors: Array<{
     id: number;
     firstName: string;
@@ -72,7 +71,6 @@ export class AgenticEmailGenerationService {
 
     logger.info(`[AGENTIC SERVICE] Starting agentic email generation flow`);
     logger.info(`[AGENTIC SERVICE] Organization: ${organizationId}, User: ${userId}, Session: ${sessionId}`);
-    logger.info(`[AGENTIC SERVICE] Instruction: ${input.instruction}`);
     logger.info(`[AGENTIC SERVICE] Donors count: ${input.donors.length}`);
     logger.info(`[AGENTIC SERVICE] Has writing instructions: ${!!input.organizationWritingInstructions}`);
 
@@ -239,7 +237,6 @@ export class AgenticEmailGenerationService {
     try {
       // Convert context back to the format expected by the regular email generation service
       const generateEmailsInput: GenerateEmailsInput = {
-        instruction: confirmedPrompt,
         donors: flowState.context.donors.map((donor) => ({
           id: donor.id,
           firstName: donor.firstName || "",
@@ -408,7 +405,7 @@ export class AgenticEmailGenerationService {
       : null;
 
     const context: AgenticFlowContext = {
-      userInstruction: input.instruction,
+      userInstruction: "",
       donors: donorInfos,
       organizationName: input.organizationName,
       organization: emailGeneratorOrg,

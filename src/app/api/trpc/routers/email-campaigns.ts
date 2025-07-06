@@ -5,7 +5,6 @@ import { env } from "@/app/lib/env";
 
 // Input validation schemas
 const generateEmailsSchema = z.object({
-  instruction: z.string(),
   donors: z.array(
     z.object({
       id: z.number(),
@@ -31,7 +30,6 @@ const generateEmailsSchema = z.object({
 
 const createSessionSchema = z.object({
   campaignName: z.string().min(1).max(255),
-  instruction: z.string().min(1),
   chatHistory: z.array(
     z.object({
       role: z.enum(["user", "assistant"]),
@@ -46,7 +44,6 @@ const createSessionSchema = z.object({
 const launchCampaignSchema = z.object({
   campaignId: z.number(),
   campaignName: z.string().min(1).max(255).optional(),
-  instruction: z.string().optional(),
   chatHistory: z
     .array(
       z.object({
@@ -104,7 +101,6 @@ const updateEmailSchema = z.object({
 const updateCampaignSchema = z.object({
   campaignId: z.number(),
   campaignName: z.string().min(1).max(255).optional(),
-  instruction: z.string().min(1).optional(),
   chatHistory: z
     .array(
       z.object({
@@ -134,7 +130,6 @@ const enhanceEmailSchema = z.object({
 
 const regenerateAllEmailsSchema = z.object({
   sessionId: z.number(),
-  instruction: z.string(), // Allow empty string to use existing instruction
   chatHistory: z.array(
     z.object({
       role: z.enum(["user", "assistant"]),
@@ -148,7 +143,6 @@ const saveDraftSchema = z.object({
   campaignName: z.string().min(1).max(255),
   selectedDonorIds: z.array(z.number()),
   templateId: z.number().optional(),
-  instruction: z.string().optional(),
   chatHistory: z
     .array(
       z.object({
@@ -220,7 +214,6 @@ export const emailCampaignsRouter = router({
         // Use agentic flow - start conversation
         const agenticResult = await ctx.services.agenticEmailGeneration.startAgenticFlow(
           {
-            instruction: input.instruction,
             donors: input.donors,
             organizationName: input.organizationName,
             organizationWritingInstructions: input.organizationWritingInstructions,
