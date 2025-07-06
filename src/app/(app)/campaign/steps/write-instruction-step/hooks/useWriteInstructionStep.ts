@@ -102,12 +102,11 @@ export function useWriteInstructionStep(
   }, [chatMessages]);
 
   // Instruction Input Effects
+  const instructionValue = instruction || "";
   useEffect(() => {
-    if (instruction !== localInstruction) {
-      setLocalInstruction(instruction || "");
-      setHasInputContent(!!instruction?.trim());
-    }
-  }, [instruction, localInstruction]);
+    setLocalInstruction(instructionValue);
+    setHasInputContent(!!instructionValue.trim());
+  }, [instructionValue]);
 
   useEffect(() => {
     if (
@@ -254,6 +253,7 @@ export function useWriteInstructionStep(
   );
 
   const handleInstructionValueChange = useCallback((value: string) => {
+    setLocalInstruction(value);
     localInstructionRef.current = value;
     setHasInputContent(!!value.trim());
   }, []);

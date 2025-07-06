@@ -55,6 +55,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     initialRefinedInstruction,
   } = props;
 
+
   // UI State
   const [showBulkGenerationDialog, setShowBulkGenerationDialog] =
     useState(false);
@@ -142,7 +143,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       selectedStaff?.signature ||
       `Best,\n${selectedStaff?.firstName || "Staff"}`
     );
-  }, [customSignature, selectedStaff]);
+  }, [selectedStaff]);
 
   const donorUtils = useDonorUtils(donorsData || []);
 

@@ -206,7 +206,7 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
     setSelectedTemplateId(templateId ?? undefined);
     if (templatePrompt) {
       // In create mode and no chat history, set instruction immediately
-      if (!editMode && !existingCampaignData?.chatHistory.length) {
+      if (!editMode && (!existingCampaignData?.chatHistory || existingCampaignData.chatHistory.length === 0)) {
         setInstruction(templatePrompt);
       }
       setTemplatePrompt(templatePrompt); // Always set the templatePrompt state so it can be passed to WriteInstructionStep
