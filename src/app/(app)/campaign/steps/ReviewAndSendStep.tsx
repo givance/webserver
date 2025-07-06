@@ -1,17 +1,18 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useDonorStaffEmailValidation } from "@/app/hooks/use-donor-validation";
-import { useDonors } from "@/app/hooks/use-donors";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { EmailPiece } from "@/app/lib/utils/email-generator/types";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, AlertTriangle, ArrowLeft, Clock } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { EmailDisplay } from "../components/EmailDisplay";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { useDonorStaffEmailValidation } from '@/app/hooks/use-donor-validation';
+import { useDonors } from '@/app/hooks/use-donors';
+import { formatDonorName } from '@/app/lib/utils/donor-name-formatter';
+import { EmailPiece } from '@/app/lib/utils/email-generator/types';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertCircle, AlertTriangle, ArrowLeft, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { EmailDisplay } from '../components/EmailDisplay';
+import { CampaignScheduleConfig } from '../components/CampaignScheduleConfig';
 
 interface GeneratedEmail {
   donorId: number;
@@ -26,8 +27,15 @@ interface ReviewAndSendStepProps {
   onFinish: () => void;
 }
 
-export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish }: ReviewAndSendStepProps) {
+export function ReviewAndSendStep({
+  generatedEmails,
+  sessionId,
+  onBack,
+  onFinish,
+}: ReviewAndSendStepProps) {
   const [isScheduling, setIsScheduling] = useState(false);
+  const [campaignScheduleConfig, setCampaignScheduleConfig] = useState<any>(null);
+  const [showScheduleConfig, setShowScheduleConfig] = useState(true); // Show by default
   const { getDonorQuery } = useDonors();
   const { scheduleEmailSend, getScheduleConfig } = useCommunications();
 
@@ -36,12 +44,16 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
 
   // Use the validation hook
   const donorIds = generatedEmails.map((email) => email.donorId);
-  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(donorIds);
+  const { data: validationResult, isLoading: isValidating } =
+    useDonorStaffEmailValidation(donorIds);
 
   const handleScheduleSend = async () => {
     setIsScheduling(true);
     try {
-      const result = await scheduleEmailSend.mutateAsync({ sessionId });
+      const result = await scheduleEmailSend.mutateAsync({
+        sessionId,
+        scheduleConfig: campaignScheduleConfig,
+      });
 
       toast.success(
         `Successfully scheduled ${result.scheduled} emails. ${result.scheduledForToday} will be sent today, ${result.scheduledForLater} scheduled for later.`,
@@ -52,8 +64,8 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
 
       onFinish();
     } catch (error) {
-      console.error("Error scheduling emails:", error);
-      toast.error("Failed to schedule emails. Please try again.");
+      console.error('Error scheduling emails:', error);
+      toast.error('Failed to schedule emails. Please try again.');
     } finally {
       setIsScheduling(false);
     }
@@ -70,8 +82,17 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
             {generatedEmails.length} email(s) ready
-            {validationResult && !validationResult.isValid ? " (setup issues)" : ""}
+            {validationResult && !validationResult.isValid ? ' (setup issues)' : ''}
           </span>
+          <Button
+            variant="outline"
+            onClick={() => setShowScheduleConfig(!showScheduleConfig)}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Clock className="h-3 w-3" />
+            {showScheduleConfig ? 'Hide' : 'Show'} Schedule Settings
+          </Button>
           <Button
             onClick={handleScheduleSend}
             disabled={
@@ -107,21 +128,48 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Review and Schedule Emails</h3>
           <p className="text-sm text-muted-foreground">
-            Review all generated emails before scheduling. Emails will be sent with a{" "}
-            {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minute gap between each email.
+            Configure how your emails will be scheduled and review all generated emails before
+            sending.
           </p>
         </div>
 
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+        {/* Schedule Configuration */}
+        {showScheduleConfig && (
+          <div className="p-4 border rounded-lg bg-muted/5">
+            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Campaign Schedule Settings
+            </h4>
+            <CampaignScheduleConfig
+              scheduleConfig={campaignScheduleConfig}
+              onChange={setCampaignScheduleConfig}
+              compact={true}
+            />
+          </div>
+        )}
+
+        <Alert className={campaignScheduleConfig ? 'border-blue-200 bg-blue-50/50' : ''}>
+          <AlertCircle className={campaignScheduleConfig ? 'h-4 w-4 text-blue-600' : 'h-4 w-4'} />
           <AlertDescription>
             <div className="space-y-1">
-              <p>Daily sending limit: {scheduleConfig?.dailyLimit || 150} emails</p>
-              <p>
-                Emails will be scheduled with random gaps between {scheduleConfig?.minGapMinutes || 1}-
-                {scheduleConfig?.maxGapMinutes || 3} minutes
+              <p className="font-medium">
+                {campaignScheduleConfig
+                  ? 'Custom Schedule Settings:'
+                  : 'Default Schedule Settings:'}
               </p>
-              <p>You can pause, resume, or cancel the sending at any time from the campaign page</p>
+              <p>
+                • Daily sending limit:{' '}
+                {campaignScheduleConfig?.dailyLimit || scheduleConfig?.dailyLimit || 150} emails
+              </p>
+              <p>
+                • Emails will be sent with{' '}
+                {campaignScheduleConfig?.minGapMinutes || scheduleConfig?.minGapMinutes || 1}-
+                {campaignScheduleConfig?.maxGapMinutes || scheduleConfig?.maxGapMinutes || 3} minute
+                gaps
+              </p>
+              <p>
+                • You can pause, resume, or cancel the sending at any time from the campaign page
+              </p>
             </div>
           </AlertDescription>
         </Alert>
@@ -143,19 +191,20 @@ export function ReviewAndSendStep({ generatedEmails, sessionId, onBack, onFinish
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validationResult.donorsWithoutStaff.length > 0 && (
                     <li>
-                      {validationResult.donorsWithoutStaff.length} donor(s) don&apos;t have assigned staff members
+                      {validationResult.donorsWithoutStaff.length} donor(s) don&apos;t have assigned
+                      staff members
                     </li>
                   )}
                   {validationResult.donorsWithStaffButNoEmail.length > 0 && (
                     <li>
-                      {validationResult.donorsWithStaffButNoEmail.length} donor(s) have staff members without connected
-                      Gmail accounts
+                      {validationResult.donorsWithStaffButNoEmail.length} donor(s) have staff
+                      members without connected Gmail accounts
                     </li>
                   )}
                 </ul>
                 <p className="text-sm">
-                  Please assign staff to all donors and ensure all staff have connected their Gmail accounts in
-                  Settings.
+                  Please assign staff to all donors and ensure all staff have connected their Gmail
+                  accounts in Settings.
                 </p>
               </div>
             </AlertDescription>

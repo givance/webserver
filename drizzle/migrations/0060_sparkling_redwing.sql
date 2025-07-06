@@ -1,0 +1,1 @@
+ALTER TABLE "email_generation_sessions" ADD COLUMN "schedule_config" jsonb;

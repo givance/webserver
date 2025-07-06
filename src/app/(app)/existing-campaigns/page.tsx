@@ -1,12 +1,16 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useSessionTrackingStats, useMultipleSessionTrackingStats } from "@/app/hooks/use-email-tracking";
+import { useCommunications } from '@/app/hooks/use-communications';
+import {
+  useSessionTrackingStats,
+  useMultipleSessionTrackingStats,
+} from '@/app/hooks/use-email-tracking';
 
-import { trpc } from "@/app/lib/trpc/client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table/DataTable";
+import { trpc } from '@/app/lib/trpc/client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/ui/data-table/DataTable';
+import { CampaignScheduleConfig } from '../campaign/components/CampaignScheduleConfig';
 import {
   Dialog,
   DialogContent,
@@ -14,16 +18,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ColumnDef } from "@tanstack/react-table";
-import { Edit, Eye, FileText, HelpCircle, RefreshCw, Send, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { Suspense, useState } from "react";
-import { toast } from "sonner";
+} from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ColumnDef } from '@tanstack/react-table';
+import { Edit, Eye, FileText, HelpCircle, RefreshCw, Send, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import React, { Suspense, useState } from 'react';
+import { toast } from 'sonner';
 
 // Enhanced status badge function
 function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any) {
@@ -39,12 +43,12 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   });
 
   // If the campaign failed, show failed status
-  if (status === "FAILED") {
+  if (status === 'FAILED') {
     return <Badge variant="destructive">Failed</Badge>;
   }
 
   // If it's a draft, show draft status
-  if (status === "DRAFT") {
+  if (status === 'DRAFT') {
     return (
       <Badge variant="outline" className="border-gray-500 text-gray-700 bg-gray-50">
         Draft
@@ -53,7 +57,7 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   }
 
   // If it's pending (queued for generation but not yet started)
-  if (status === "PENDING") {
+  if (status === 'PENDING') {
     return (
       <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
         Pending
@@ -62,7 +66,7 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   }
 
   // If still generating emails (actively generating or in progress)
-  if (completedDonors < totalDonors && status !== "COMPLETED" && status !== "FAILED") {
+  if (completedDonors < totalDonors && status !== 'COMPLETED' && status !== 'FAILED') {
     return (
       <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">
         Generating ({completedDonors}/{totalDonors})
@@ -71,7 +75,11 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   }
 
   // If status shows as generating but all donors are completed, treat as ready
-  if ((status === "GENERATING" || status === "IN_PROGRESS") && completedDonors >= totalDonors && totalDonors > 0) {
+  if (
+    (status === 'GENERATING' || status === 'IN_PROGRESS') &&
+    completedDonors >= totalDonors &&
+    totalDonors > 0
+  ) {
     // No emails sent yet, but all generated
     return (
       <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50">
@@ -109,7 +117,7 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
   }
 
   // Fallback cases
-  if (status === "COMPLETED") {
+  if (status === 'COMPLETED') {
     return (
       <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
         Completed
@@ -121,7 +129,13 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
 }
 
 // Enhanced status component that gets tracking stats from batch data
-function CampaignStatus({ campaign, trackingStatsMap }: { campaign: ExistingCampaign; trackingStatsMap: Map<number, any> }) {
+function CampaignStatus({
+  campaign,
+  trackingStatsMap,
+}: {
+  campaign: ExistingCampaign;
+  trackingStatsMap: Map<number, any>;
+}) {
   const trackingStats = trackingStatsMap.get(campaign.id);
   return getEnhancedStatusBadge(campaign, trackingStats);
 }
@@ -130,7 +144,15 @@ function CampaignStatus({ campaign, trackingStatsMap }: { campaign: ExistingCamp
 // Removed ScheduledEmailsButton - schedule functionality moved to main campaign page
 
 // Enhanced progress component for individual campaigns using batch data
-function CampaignProgress({ campaign, trackingStatsMap, isLoading }: { campaign: ExistingCampaign; trackingStatsMap: Map<number, any>; isLoading?: boolean }) {
+function CampaignProgress({
+  campaign,
+  trackingStatsMap,
+  isLoading,
+}: {
+  campaign: ExistingCampaign;
+  trackingStatsMap: Map<number, any>;
+  isLoading?: boolean;
+}) {
   const trackingStats = trackingStatsMap.get(campaign.id);
   const generated = campaign.totalEmails;
   const sent = campaign.sentEmails;
@@ -151,9 +173,9 @@ function CampaignProgress({ campaign, trackingStatsMap, isLoading }: { campaign:
           <div className="text-xs text-muted-foreground">Sent ({sentPercentage.toFixed(0)}%)</div>
         </div>
         <div>
-          <div className="text-lg font-semibold text-purple-600">{isLoading ? "..." : opened}</div>
+          <div className="text-lg font-semibold text-purple-600">{isLoading ? '...' : opened}</div>
           <div className="text-xs text-muted-foreground">
-            Opened {sent > 0 ? `(${openedPercentage.toFixed(0)}%)` : "(0%)"}
+            Opened {sent > 0 ? `(${openedPercentage.toFixed(0)}%)` : '(0%)'}
           </div>
         </div>
       </div>
@@ -167,7 +189,9 @@ function CampaignProgress({ campaign, trackingStatsMap, isLoading }: { campaign:
           <div className="flex items-center gap-2">
             <span className="text-xs w-14 text-purple-600">Opened</span>
             <Progress value={openedPercentage} className="flex-1 h-2" />
-            <span className="text-xs text-muted-foreground w-8">{openedPercentage.toFixed(0)}%</span>
+            <span className="text-xs text-muted-foreground w-8">
+              {openedPercentage.toFixed(0)}%
+            </span>
           </div>
         )}
       </div>
@@ -194,8 +218,8 @@ interface ConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaign: ExistingCampaign | null;
-  action: "draft" | "send" | "delete";
-  onConfirm: (sendType?: "all" | "unsent") => void;
+  action: 'draft' | 'send' | 'delete';
+  onConfirm: (sendType?: 'all' | 'unsent') => void;
   isLoading: boolean;
   userEmail: string | null;
   scheduleConfig?: {
@@ -204,6 +228,8 @@ interface ConfirmationDialogProps {
     maxGapMinutes: number;
   } | null;
   trackingStats?: any;
+  customScheduleConfig?: any;
+  onScheduleConfigChange?: (config: any) => void;
 }
 
 function ConfirmationDialog({
@@ -216,13 +242,16 @@ function ConfirmationDialog({
   userEmail,
   scheduleConfig,
   trackingStats,
+  customScheduleConfig,
+  onScheduleConfigChange,
 }: ConfirmationDialogProps) {
-  const [sendType, setSendType] = useState<"all" | "unsent">("unsent");
+  const [sendType, setSendType] = useState<'all' | 'unsent'>('unsent');
 
   if (!campaign) return null;
 
-  const actionText = action === "draft" ? "save as drafts" : action === "send" ? "send" : "delete";
-  const actionTitle = action === "draft" ? "Save to Draft" : action === "send" ? "Schedule Send" : "Delete Campaign";
+  const actionText = action === 'draft' ? 'save as drafts' : action === 'send' ? 'send' : 'delete';
+  const actionTitle =
+    action === 'draft' ? 'Save to Draft' : action === 'send' ? 'Schedule Send' : 'Delete Campaign';
 
   const unsentCount = campaign.totalEmails - campaign.sentEmails;
   const openedCount = trackingStats?.uniqueOpens || 0;
@@ -241,7 +270,7 @@ function ConfirmationDialog({
               <span className="font-medium">Campaign:</span>
               <span>{campaign.campaignName}</span>
             </div>
-            {action !== "delete" && (
+            {action !== 'delete' && (
               <>
                 <div className="flex justify-between">
                   <span className="font-medium">Generated emails:</span>
@@ -259,53 +288,48 @@ function ConfirmationDialog({
                   <span className="font-medium">Opened emails:</span>
                   <span>
                     {openedCount}
-                    {campaign.sentEmails > 0 ? ` (${((openedCount / campaign.sentEmails) * 100).toFixed(0)}%)` : ""}
+                    {campaign.sentEmails > 0
+                      ? ` (${((openedCount / campaign.sentEmails) * 100).toFixed(0)}%)`
+                      : ''}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Gmail account:</span>
-                  <span className="text-sm text-muted-foreground">{userEmail || "Not connected"}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {userEmail || 'Not connected'}
+                  </span>
                 </div>
 
-                {action === "send" && (
+                {action === 'send' && (
                   <div className="space-y-3">
-                    <div className="font-medium">Scheduling Information:</div>
-                    <div className="space-y-2 text-sm">
+                    <div className="font-medium">Schedule Configuration:</div>
+                    <CampaignScheduleConfig
+                      scheduleConfig={customScheduleConfig}
+                      onChange={onScheduleConfigChange!}
+                      compact={true}
+                    />
+                    <div className="space-y-2 text-sm border-t pt-3">
                       <div className="flex justify-between">
                         <span className="font-medium">Emails to schedule:</span>
-                        <span>{unsentCount} emails (includes failed emails for retry)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Daily limit:</span>
-                        <span>{scheduleConfig?.dailyLimit || 150} emails/day</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Time between emails:</span>
-                        <span>
-                          {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minutes
-                        </span>
+                        <span>{unsentCount} emails</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="font-medium">Estimated duration:</span>
-                        <span>{Math.ceil(unsentCount / (scheduleConfig?.dailyLimit || 150))} days</span>
+                        <span>
+                          {Math.ceil(
+                            unsentCount /
+                              (customScheduleConfig?.dailyLimit ||
+                                scheduleConfig?.dailyLimit ||
+                                150)
+                          )}{' '}
+                          days
+                        </span>
                       </div>
-                    </div>
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-sm text-blue-800">
-                        ℹ️ Emails will be sent automatically with random delays between{" "}
-                        {scheduleConfig?.minGapMinutes || 1}-{scheduleConfig?.maxGapMinutes || 3} minutes. Failed emails
-                        will be retried automatically. You can pause, resume, or cancel at any time from the campaign
-                        page.
-                      </p>
-                      <p className="text-sm text-blue-800">
-                        To change the gap and daily limit, go to the{" "}
-                        <a href="/settings/email-schedule">Settings &gt; Email Schedule</a> page.
-                      </p>
                     </div>
                   </div>
                 )}
 
-                {action === "draft" && (
+                {action === 'draft' && (
                   <div className="flex justify-between">
                     <span className="font-medium">Action:</span>
                     <span>Will save {campaign.totalEmails} emails as drafts</span>
@@ -313,7 +337,7 @@ function ConfirmationDialog({
                 )}
               </>
             )}
-            {action === "delete" && (
+            {action === 'delete' && (
               <div className="flex justify-between">
                 <span className="font-medium">Action:</span>
                 <span>Will permanently delete this campaign and all associated emails</span>
@@ -321,20 +345,23 @@ function ConfirmationDialog({
             )}
           </div>
 
-          {action === "send" && (
+          {action === 'send' && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
               <p className="text-sm text-orange-800">
-                ⚠️ <strong>Note:</strong> This will schedule {unsentCount} emails to be sent automatically. The sending
-                will start immediately and continue based on your configured limits.
+                ⚠️ <strong>Note:</strong> This will schedule {unsentCount} emails to be sent
+                automatically. The sending will start immediately and continue based on your
+                configured limits.
               </p>
             </div>
           )}
 
-          {action === "delete" && (
+          {action === 'delete' && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-sm text-red-800">
-                ⚠️ <strong>Warning:</strong> This will permanently delete the campaign &quot;{campaign.campaignName}
-                &quot; and all {campaign.totalEmails} associated generated emails. This action cannot be undone.
+                ⚠️ <strong>Warning:</strong> This will permanently delete the campaign &quot;
+                {campaign.campaignName}
+                &quot; and all {campaign.totalEmails} associated generated emails. This action
+                cannot be undone.
               </p>
             </div>
           )}
@@ -345,10 +372,10 @@ function ConfirmationDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => onConfirm(action === "send" ? sendType : undefined)}
-            disabled={isLoading || (action === "send" && unsentCount === 0)}
+            onClick={() => onConfirm(action === 'send' ? sendType : undefined)}
+            disabled={isLoading || (action === 'send' && unsentCount === 0)}
           >
-            {isLoading ? "Processing..." : actionTitle}
+            {isLoading ? 'Processing...' : actionTitle}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -365,8 +392,10 @@ function ExistingCampaignsContent() {
   const [confirmationDialog, setConfirmationDialog] = useState<{
     open: boolean;
     campaign: ExistingCampaign | null;
-    action: "draft" | "send" | "delete";
-  }>({ open: false, campaign: null, action: "draft" });
+    action: 'draft' | 'send' | 'delete';
+  }>({ open: false, campaign: null, action: 'draft' });
+
+  const [customScheduleConfig, setCustomScheduleConfig] = useState<any>(null);
 
   const {
     listCampaigns,
@@ -398,20 +427,21 @@ function ExistingCampaignsContent() {
   const pageCount = Math.ceil(totalCount / pageSize);
 
   // Get tracking stats for all campaigns in batch
-  const sessionIds = campaigns.map(c => c.id);
-  const { data: batchTrackingStats, isLoading: isLoadingStats } = useMultipleSessionTrackingStats(sessionIds);
+  const sessionIds = campaigns.map((c) => c.id);
+  const { data: batchTrackingStats, isLoading: isLoadingStats } =
+    useMultipleSessionTrackingStats(sessionIds);
 
   // Create a lookup map for quick access
   const trackingStatsMap = new Map();
   if (batchTrackingStats) {
-    batchTrackingStats.forEach(stats => {
+    batchTrackingStats.forEach((stats) => {
       trackingStatsMap.set(stats.sessionId, stats);
     });
   }
 
   // Debug logging
   console.log(
-    "[ExistingCampaigns] Campaigns data:",
+    '[ExistingCampaigns] Campaigns data:',
     campaigns.map((c) => ({
       id: c.id,
       name: c.campaignName,
@@ -436,7 +466,7 @@ function ExistingCampaignsContent() {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className={`flex items-center ${className || ""}`}>
+            <div className={`flex items-center ${className || ''}`}>
               {children}
               <HelpCircle className="ml-1 h-4 w-4 text-muted-foreground" />
             </div>
@@ -455,9 +485,9 @@ function ExistingCampaignsContent() {
     try {
       const promise = retryCampaign.mutateAsync({ campaignId });
       toast.promise(promise, {
-        loading: "Retrying campaign...",
-        success: (data: any) => data?.message || "Campaign retry initiated successfully!",
-        error: "Failed to retry campaign. Please check your Trigger.dev configuration.",
+        loading: 'Retrying campaign...',
+        success: (data: any) => data?.message || 'Campaign retry initiated successfully!',
+        error: 'Failed to retry campaign. Please check your Trigger.dev configuration.',
       });
       await promise;
     } catch (error) {
@@ -466,45 +496,46 @@ function ExistingCampaignsContent() {
   };
 
   const handleDeleteCampaign = (campaign: ExistingCampaign) => {
-    setConfirmationDialog({ open: true, campaign, action: "delete" });
+    setConfirmationDialog({ open: true, campaign, action: 'delete' });
   };
 
   const handleSaveToDraft = (campaign: ExistingCampaign) => {
     if (!gmailStatus?.isConnected) {
-      toast.error("Please connect your Gmail account first in Settings");
+      toast.error('Please connect your Gmail account first in Settings');
       return;
     }
-    setConfirmationDialog({ open: true, campaign, action: "draft" });
+    setConfirmationDialog({ open: true, campaign, action: 'draft' });
   };
 
   const handleSendEmails = (campaign: ExistingCampaign) => {
     if (!gmailStatus?.isConnected) {
-      toast.error("Please connect your Gmail account first in Settings");
+      toast.error('Please connect your Gmail account first in Settings');
       return;
     }
-    setConfirmationDialog({ open: true, campaign, action: "send" });
+    setConfirmationDialog({ open: true, campaign, action: 'send' });
   };
 
-  const handleConfirmAction = async (sendType?: "all" | "unsent") => {
+  const handleConfirmAction = async (sendType?: 'all' | 'unsent') => {
     if (!confirmationDialog.campaign) return;
 
     const { campaign, action } = confirmationDialog;
 
     try {
       let promise: Promise<any> | undefined;
-      if (action === "draft") {
+      if (action === 'draft') {
         promise = saveToDraft.mutateAsync({ sessionId: campaign.id });
         toast.promise(promise, {
-          loading: "Saving to drafts...",
-          success: "Emails saved to drafts successfully!",
-          error: (err) => err?.message || "Failed to save to drafts.",
+          loading: 'Saving to drafts...',
+          success: 'Emails saved to drafts successfully!',
+          error: (err) => err?.message || 'Failed to save to drafts.',
         });
-      } else if (action === "send") {
+      } else if (action === 'send') {
         promise = scheduleEmailSend.mutateAsync({
           sessionId: campaign.id,
+          scheduleConfig: customScheduleConfig,
         });
         toast.promise(promise, {
-          loading: "Scheduling emails...",
+          loading: 'Scheduling emails...',
           success: (data) => {
             // Navigate to campaign view after successful scheduling
             setTimeout(() => {
@@ -514,33 +545,36 @@ function ExistingCampaignsContent() {
           },
           error: (err) => {
             // Extract the actual error message from tRPC error
-            const message = err?.message || err?.data?.message || "Failed to schedule emails.";
+            const message = err?.message || err?.data?.message || 'Failed to schedule emails.';
             return message;
           },
         });
-      } else if (action === "delete") {
+      } else if (action === 'delete') {
         promise = deleteCampaign.mutateAsync({ campaignId: campaign.id });
         toast.promise(promise, {
-          loading: "Deleting campaign...",
-          success: "Campaign deleted successfully!",
-          error: (err) => err?.message || "Failed to delete campaign.",
+          loading: 'Deleting campaign...',
+          success: 'Campaign deleted successfully!',
+          error: (err) => err?.message || 'Failed to delete campaign.',
         });
       }
       await promise;
     } catch (error) {
       // Toast will show the error
     } finally {
-      setConfirmationDialog({ open: false, campaign: null, action: "draft" });
+      setConfirmationDialog({ open: false, campaign: null, action: 'draft' });
     }
   };
 
   const isLoadingAction =
-    saveToDraft.isPending || scheduleEmailSend.isPending || deleteCampaign.isPending || retryCampaign.isPending;
+    saveToDraft.isPending ||
+    scheduleEmailSend.isPending ||
+    deleteCampaign.isPending ||
+    retryCampaign.isPending;
 
   const columns: ColumnDef<ExistingCampaign>[] = [
     {
-      accessorKey: "campaignName",
-      header: "Campaign Name",
+      accessorKey: 'campaignName',
+      header: 'Campaign Name',
       cell: ({ row }) => {
         const campaign = row.original;
         return (
@@ -548,14 +582,14 @@ function ExistingCampaignsContent() {
             href={`/campaign/${campaign.id}`}
             className="font-medium hover:text-primary hover:underline cursor-pointer"
           >
-            {row.getValue("campaignName")}
+            {row.getValue('campaignName')}
           </Link>
         );
       },
     },
     {
-      accessorKey: "donors",
-      header: "Donors",
+      accessorKey: 'donors',
+      header: 'Donors',
       cell: ({ row }) => {
         const campaign = row.original;
         const { totalDonors, completedDonors } = campaign;
@@ -570,49 +604,57 @@ function ExistingCampaignsContent() {
       },
     },
     {
-      accessorKey: "status",
-      header: "Status",
+      accessorKey: 'status',
+      header: 'Status',
       cell: ({ row }) => {
         const campaign = row.original;
         return <CampaignStatus campaign={campaign} trackingStatsMap={trackingStatsMap} />;
       },
     },
     {
-      accessorKey: "progress",
-      header: "Progress",
+      accessorKey: 'progress',
+      header: 'Progress',
       cell: ({ row }) => {
         const campaign = row.original;
-        return <CampaignProgress campaign={campaign} trackingStatsMap={trackingStatsMap} isLoading={isLoadingStats} />;
+        return (
+          <CampaignProgress
+            campaign={campaign}
+            trackingStatsMap={trackingStatsMap}
+            isLoading={isLoadingStats}
+          />
+        );
       },
     },
     {
-      accessorKey: "createdAt",
-      header: "Created At",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleDateString(),
+      accessorKey: 'createdAt',
+      header: 'Created At',
+      cell: ({ row }) => new Date(row.getValue('createdAt')).toLocaleDateString(),
     },
     {
-      id: "actions",
-      header: "Actions",
+      id: 'actions',
+      header: 'Actions',
       cell: ({ row }) => {
         const campaign = row.original;
-        const allEmailsGenerated = campaign.completedDonors >= campaign.totalDonors && campaign.totalDonors > 0;
+        const allEmailsGenerated =
+          campaign.completedDonors >= campaign.totalDonors && campaign.totalDonors > 0;
         const isProcessing =
-          (campaign.status === "IN_PROGRESS" || campaign.status === "GENERATING") && !allEmailsGenerated;
-        const isCompleted = campaign.status === "COMPLETED" || allEmailsGenerated;
-        const hasFailed = campaign.status === "FAILED";
+          (campaign.status === 'IN_PROGRESS' || campaign.status === 'GENERATING') &&
+          !allEmailsGenerated;
+        const isCompleted = campaign.status === 'COMPLETED' || allEmailsGenerated;
+        const hasFailed = campaign.status === 'FAILED';
         const isGmailConnected = gmailStatus?.isConnected ?? false;
         const isDisabled = isProcessing || !isGmailConnected;
 
-        let tooltipContent = "";
+        let tooltipContent = '';
         if (isProcessing) {
-          tooltipContent = "Campaign is currently processing and cannot be modified.";
+          tooltipContent = 'Campaign is currently processing and cannot be modified.';
         } else if (!isGmailConnected) {
-          tooltipContent = "Please connect your Gmail account in Settings to enable this action.";
+          tooltipContent = 'Please connect your Gmail account in Settings to enable this action.';
         }
 
         const showSaveToDraft = isCompleted || isProcessing;
         const showScheduleSend = isCompleted || isProcessing;
-        const showRetry = hasFailed || campaign.status === "PENDING";
+        const showRetry = hasFailed || campaign.status === 'PENDING';
 
         // Determine disabled states and tooltips for each button
         const saveToDraftDisabled = isDisabled || !showSaveToDraft;
@@ -620,22 +662,24 @@ function ExistingCampaignsContent() {
         const retryDisabled = !showRetry;
 
         const getSaveToDraftTooltip = () => {
-          if (!showSaveToDraft) return "Campaign must be completed or processing to save to drafts";
-          if (isProcessing) return "Campaign is currently processing and cannot be modified";
-          if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
-          return "Save to drafts";
+          if (!showSaveToDraft) return 'Campaign must be completed or processing to save to drafts';
+          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (!isGmailConnected)
+            return 'Please connect your Gmail account in Settings to enable this action';
+          return 'Save to drafts';
         };
 
         const getScheduleSendTooltip = () => {
-          if (!showScheduleSend) return "Campaign must be completed or processing to schedule send";
-          if (isProcessing) return "Campaign is currently processing and cannot be modified";
-          if (!isGmailConnected) return "Please connect your Gmail account in Settings to enable this action";
-          return "Schedule send";
+          if (!showScheduleSend) return 'Campaign must be completed or processing to schedule send';
+          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (!isGmailConnected)
+            return 'Please connect your Gmail account in Settings to enable this action';
+          return 'Schedule send';
         };
 
         const getRetryTooltip = () => {
-          if (!showRetry) return "Retry is only available for failed or pending campaigns";
-          return "Retry campaign";
+          if (!showRetry) return 'Retry is only available for failed or pending campaigns';
+          return 'Retry campaign';
         };
 
         return (
@@ -657,12 +701,17 @@ function ExistingCampaignsContent() {
               {/* Edit button */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={isProcessing ? "cursor-not-allowed" : ""}>
+                  <span className={isProcessing ? 'cursor-not-allowed' : ''}>
                     <Link
-                      href={isProcessing ? "#" : `/campaign/edit/${campaign.id}`}
+                      href={isProcessing ? '#' : `/campaign/edit/${campaign.id}`}
                       onClick={isProcessing ? (e) => e.preventDefault() : undefined}
                     >
-                      <Button variant="ghost" size="icon" disabled={isProcessing} className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={isProcessing}
+                        className="h-8 w-8"
+                      >
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit campaign</span>
                       </Button>
@@ -670,14 +719,14 @@ function ExistingCampaignsContent() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isProcessing ? "Cannot edit campaign while it's processing" : "Edit campaign"}
+                  {isProcessing ? "Cannot edit campaign while it's processing" : 'Edit campaign'}
                 </TooltipContent>
               </Tooltip>
 
               {/* Save to drafts button - always show, disable when not applicable */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={saveToDraftDisabled ? "cursor-not-allowed" : ""}>
+                  <span className={saveToDraftDisabled ? 'cursor-not-allowed' : ''}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -696,7 +745,7 @@ function ExistingCampaignsContent() {
               {/* Schedule send button - always show, disable when not applicable */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={scheduleSendDisabled ? "cursor-not-allowed" : ""}>
+                  <span className={scheduleSendDisabled ? 'cursor-not-allowed' : ''}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -715,7 +764,7 @@ function ExistingCampaignsContent() {
               {/* Retry button - always show, disable when not applicable */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={retryDisabled ? "cursor-not-allowed" : ""}>
+                  <span className={retryDisabled ? 'cursor-not-allowed' : ''}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -783,12 +832,24 @@ function ExistingCampaignsContent() {
     <div className="p-6">
       <ConfirmationDialog
         {...confirmationDialog}
-        onOpenChange={(open) => setConfirmationDialog({ ...confirmationDialog, open })}
+        onOpenChange={(open) => {
+          setConfirmationDialog({ ...confirmationDialog, open });
+          if (!open) {
+            // Reset custom schedule config when closing
+            setCustomScheduleConfig(null);
+          }
+        }}
         onConfirm={handleConfirmAction}
         isLoading={isLoadingAction}
         userEmail={gmailStatus?.email || null}
         scheduleConfig={scheduleConfig}
-        trackingStats={confirmationDialog.campaign ? trackingStatsMap.get(confirmationDialog.campaign.id) : undefined}
+        trackingStats={
+          confirmationDialog.campaign
+            ? trackingStatsMap.get(confirmationDialog.campaign.id)
+            : undefined
+        }
+        customScheduleConfig={customScheduleConfig}
+        onScheduleConfigChange={setCustomScheduleConfig}
       />
       <DataTable
         columns={columns}

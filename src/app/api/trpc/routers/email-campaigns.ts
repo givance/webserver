@@ -1,15 +1,15 @@
-import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
-import { env } from "@/app/lib/env";
-import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
-import { appendSignatureToPlainText } from "@/app/lib/utils/email-with-signature";
+import { z } from 'zod';
+import { protectedProcedure, router } from '../trpc';
+import { env } from '@/app/lib/env';
+import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
+import { appendSignatureToPlainText } from '@/app/lib/utils/email-with-signature';
 
 // Input validation schemas
 const createSessionSchema = z.object({
   campaignName: z.string().min(1).max(255),
   chatHistory: z.array(
     z.object({
-      role: z.enum(["user", "assistant"]),
+      role: z.enum(['user', 'assistant']),
       content: z.string(),
     })
   ),
@@ -24,7 +24,7 @@ const launchCampaignSchema = z.object({
   chatHistory: z
     .array(
       z.object({
-        role: z.enum(["user", "assistant"]),
+        role: z.enum(['user', 'assistant']),
         content: z.string(),
       })
     )
@@ -47,7 +47,7 @@ const getSessionStatusSchema = z.object({
 const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  status: z.enum(["DRAFT", "GENERATING", "READY_TO_SEND", "COMPLETED"]).optional(),
+  status: z.enum(['DRAFT', 'GENERATING', 'READY_TO_SEND', 'COMPLETED']).optional(),
 });
 
 const deleteCampaignSchema = z.object({
@@ -81,10 +81,31 @@ const updateCampaignSchema = z.object({
   chatHistory: z
     .array(
       z.object({
-        role: z.enum(["user", "assistant"]),
+        role: z.enum(['user', 'assistant']),
         content: z.string(),
       })
     )
+    .optional(),
+  scheduleConfig: z
+    .object({
+      dailyLimit: z.number().optional(),
+      minGapMinutes: z.number().optional(),
+      maxGapMinutes: z.number().optional(),
+      timezone: z.string().optional(),
+      allowedDays: z.array(z.number()).optional(),
+      allowedStartTime: z.string().optional(),
+      allowedEndTime: z.string().optional(),
+      allowedTimezone: z.string().optional(),
+      dailySchedules: z
+        .record(
+          z.object({
+            startTime: z.string(),
+            endTime: z.string(),
+            enabled: z.boolean(),
+          })
+        )
+        .optional(),
+    })
     .optional(),
   selectedDonorIds: z.array(z.number()).optional(),
   previewDonorIds: z.array(z.number()).optional(),
@@ -93,7 +114,7 @@ const updateCampaignSchema = z.object({
 
 const smartEmailGenerationSchema = z.object({
   sessionId: z.number(),
-  mode: z.enum(["generate_more", "regenerate_all", "generate_with_new_message"]),
+  mode: z.enum(['generate_more', 'regenerate_all', 'generate_with_new_message']),
   newDonorIds: z.array(z.number()).optional(),
   newMessage: z.string().optional(),
 });
@@ -106,7 +127,7 @@ const saveDraftSchema = z.object({
   chatHistory: z
     .array(
       z.object({
-        role: z.enum(["user", "assistant"]),
+        role: z.enum(['user', 'assistant']),
         content: z.string(),
       })
     )
@@ -138,7 +159,7 @@ const saveGeneratedEmailSchema = z.object({
 
 const updateEmailStatusSchema = z.object({
   emailId: z.number(),
-  status: z.enum(["PENDING_APPROVAL", "APPROVED"]),
+  status: z.enum(['PENDING_APPROVAL', 'APPROVED']),
 });
 
 const getEmailWithSignatureSchema = z.object({
@@ -166,29 +187,48 @@ export const emailCampaignsRouter = router({
    * Creates a new draft email generation session (does not trigger generation)
    */
   createSession: protectedProcedure.input(createSessionSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.createSession(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+    return await ctx.services.emailCampaigns.createSession(
+      input,
+      ctx.auth.user.organizationId,
+      ctx.auth.user.id
+    );
   }),
 
   /**
    * Launch a draft campaign (transition from DRAFT to GENERATING/READY_TO_SEND)
    */
-  launchCampaign: protectedProcedure.input(launchCampaignSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.launchCampaign(input, ctx.auth.user.organizationId, ctx.auth.user.id);
-  }),
+  launchCampaign: protectedProcedure
+    .input(launchCampaignSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.launchCampaign(
+        input,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
+    }),
 
   /**
    * Gets an email generation session with generated emails
    */
   getSession: protectedProcedure.input(getSessionSchema).query(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.getSession(input.sessionId, ctx.auth.user.organizationId, input.signature);
+    return await ctx.services.emailCampaigns.getSession(
+      input.sessionId,
+      ctx.auth.user.organizationId,
+      input.signature
+    );
   }),
 
   /**
    * Gets the status of an email generation session
    */
-  getSessionStatus: protectedProcedure.input(getSessionStatusSchema).query(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.getSessionStatus(input.sessionId, ctx.auth.user.organizationId);
-  }),
+  getSessionStatus: protectedProcedure
+    .input(getSessionStatusSchema)
+    .query(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.getSessionStatus(
+        input.sessionId,
+        ctx.auth.user.organizationId
+      );
+    }),
 
   /**
    * Lists campaigns with filtering and pagination
@@ -200,15 +240,23 @@ export const emailCampaignsRouter = router({
   /**
    * Deletes a campaign and its associated emails
    */
-  deleteCampaign: protectedProcedure.input(deleteCampaignSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.deleteCampaign(input.campaignId, ctx.auth.user.organizationId);
-  }),
+  deleteCampaign: protectedProcedure
+    .input(deleteCampaignSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.deleteCampaign(
+        input.campaignId,
+        ctx.auth.user.organizationId
+      );
+    }),
 
   /**
    * Get email sending status
    */
   getEmailStatus: protectedProcedure.input(getEmailStatusSchema).query(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.getEmailStatus(input.emailId, ctx.auth.user.organizationId);
+    return await ctx.services.emailCampaigns.getEmailStatus(
+      input.emailId,
+      ctx.auth.user.organizationId
+    );
   }),
 
   /**
@@ -221,26 +269,43 @@ export const emailCampaignsRouter = router({
   /**
    * Update email approval status
    */
-  updateEmailStatus: protectedProcedure.input(updateEmailStatusSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.updateEmailStatus(
-      input.emailId,
-      input.status,
-      ctx.auth.user.organizationId
-    );
-  }),
+  updateEmailStatus: protectedProcedure
+    .input(updateEmailStatusSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.updateEmailStatus(
+        input.emailId,
+        input.status,
+        ctx.auth.user.organizationId
+      );
+    }),
 
   /**
    * Update campaign data (for editing campaigns)
    */
-  updateCampaign: protectedProcedure.input(updateCampaignSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
-  }),
+  updateCampaign: protectedProcedure
+    .input(updateCampaignSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.updateCampaign(input, ctx.auth.user.organizationId);
+    }),
 
   /**
    * Unified smart email generation - handles generate more, regenerate all, and generate with new message
    */
-  smartEmailGeneration: protectedProcedure.input(smartEmailGenerationSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.smartEmailGeneration(
+  smartEmailGeneration: protectedProcedure
+    .input(smartEmailGenerationSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.smartEmailGeneration(
+        input,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
+    }),
+
+  /**
+   * Save campaign as draft - auto-saves campaign data without triggering generation
+   */
+  saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {
+    return await ctx.services.emailCampaigns.saveDraft(
       input,
       ctx.auth.user.organizationId,
       ctx.auth.user.id
@@ -248,18 +313,16 @@ export const emailCampaignsRouter = router({
   }),
 
   /**
-   * Save campaign as draft - auto-saves campaign data without triggering generation
-   */
-  saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.saveDraft(input, ctx.auth.user.organizationId, ctx.auth.user.id);
-  }),
-
-  /**
    * Save a generated email incrementally with PENDING_APPROVAL status
    */
-  saveGeneratedEmail: protectedProcedure.input(saveGeneratedEmailSchema).mutation(async ({ ctx, input }) => {
-    return await ctx.services.emailCampaigns.saveGeneratedEmail(input, ctx.auth.user.organizationId);
-  }),
+  saveGeneratedEmail: protectedProcedure
+    .input(saveGeneratedEmailSchema)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.saveGeneratedEmail(
+        input,
+        ctx.auth.user.organizationId
+      );
+    }),
 
   /**
    * Retry a campaign that is stuck in PENDING status
@@ -279,13 +342,35 @@ export const emailCampaignsRouter = router({
     .input(
       z.object({
         sessionId: z.number(),
+        scheduleConfig: z
+          .object({
+            dailyLimit: z.number().optional(),
+            minGapMinutes: z.number().optional(),
+            maxGapMinutes: z.number().optional(),
+            timezone: z.string().optional(),
+            allowedDays: z.array(z.number()).optional(),
+            allowedStartTime: z.string().optional(),
+            allowedEndTime: z.string().optional(),
+            allowedTimezone: z.string().optional(),
+            dailySchedules: z
+              .record(
+                z.object({
+                  startTime: z.string(),
+                  endTime: z.string(),
+                  enabled: z.boolean(),
+                })
+              )
+              .optional(),
+          })
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       return await ctx.services.emailScheduling.scheduleEmailCampaign(
         input.sessionId,
         ctx.auth.user.organizationId,
-        ctx.auth.user.id
+        ctx.auth.user.id,
+        input.scheduleConfig
       );
     }),
 
@@ -299,7 +384,10 @@ export const emailCampaignsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      return await ctx.services.emailScheduling.getCampaignSchedule(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.getCampaignSchedule(
+        input.sessionId,
+        ctx.auth.user.organizationId
+      );
     }),
 
   /**
@@ -312,7 +400,10 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.services.emailScheduling.pauseCampaign(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.pauseCampaign(
+        input.sessionId,
+        ctx.auth.user.organizationId
+      );
     }),
 
   /**
@@ -342,14 +433,19 @@ export const emailCampaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.services.emailScheduling.cancelCampaign(input.sessionId, ctx.auth.user.organizationId);
+      return await ctx.services.emailScheduling.cancelCampaign(
+        input.sessionId,
+        ctx.auth.user.organizationId
+      );
     }),
 
   /**
    * Get or create email schedule configuration
    */
   getScheduleConfig: protectedProcedure.query(async ({ ctx }) => {
-    return await ctx.services.emailScheduling.getOrCreateScheduleConfig(ctx.auth.user.organizationId);
+    return await ctx.services.emailScheduling.getOrCreateScheduleConfig(
+      ctx.auth.user.organizationId
+    );
   }),
 
   /**
@@ -372,11 +468,23 @@ export const emailCampaignsRouter = router({
           .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
           .optional(),
         allowedTimezone: z.string().optional(),
+        dailySchedules: z
+          .record(
+            z.object({
+              startTime: z.string(),
+              endTime: z.string(),
+              enabled: z.boolean(),
+            })
+          )
+          .optional(),
         rescheduleExisting: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.services.emailScheduling.updateScheduleConfig(ctx.auth.user.organizationId, input);
+      return await ctx.services.emailScheduling.updateScheduleConfig(
+        ctx.auth.user.organizationId,
+        input
+      );
     }),
 
   /**
@@ -389,14 +497,16 @@ export const emailCampaignsRouter = router({
   /**
    * Get email content with signature appended for display
    */
-  getEmailWithSignature: protectedProcedure.input(getEmailWithSignatureSchema).query(async ({ ctx, input }) => {
-    const contentWithSignature = await appendSignatureToEmail(input.structuredContent, {
-      donorId: input.donorId,
-      organizationId: ctx.auth.user.organizationId,
-      userId: ctx.auth.user.id,
-    });
-    return { structuredContent: contentWithSignature };
-  }),
+  getEmailWithSignature: protectedProcedure
+    .input(getEmailWithSignatureSchema)
+    .query(async ({ ctx, input }) => {
+      const contentWithSignature = await appendSignatureToEmail(input.structuredContent, {
+        donorId: input.donorId,
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+      });
+      return { structuredContent: contentWithSignature };
+    }),
 
   /**
    * Get plain text email content with signature appended for display

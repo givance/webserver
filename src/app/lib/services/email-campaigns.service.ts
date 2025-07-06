@@ -1,6 +1,6 @@
-import { TRPCError } from "@trpc/server";
-import { and, desc, eq, count, sql, or, inArray } from "drizzle-orm";
-import { db } from "@/app/lib/db";
+import { TRPCError } from '@trpc/server';
+import { and, desc, eq, count, sql, or, inArray } from 'drizzle-orm';
+import { db } from '@/app/lib/db';
 import {
   emailGenerationSessions,
   generatedEmails,
@@ -9,13 +9,14 @@ import {
   organizations,
   staff,
   donors,
-} from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
-import { generateBulkEmailsTask } from "@/trigger/jobs/generateBulkEmails";
-import { runs } from "@trigger.dev/sdk/v3";
-import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
-import { removeSignatureFromContent } from "@/app/lib/utils/email-with-signature";
-import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-generation.service";
+} from '@/app/lib/db/schema';
+import { logger } from '@/app/lib/logger';
+import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
+import { runs } from '@trigger.dev/sdk/v3';
+import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
+import { removeSignatureFromContent } from '@/app/lib/utils/email-with-signature';
+import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
 
 /**
  * Input types for campaign management
@@ -23,14 +24,14 @@ import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-genera
 export interface CreateSessionInput {
   campaignName: string;
   chatHistory: Array<{
-    role: "user" | "assistant";
+    role: 'user' | 'assistant';
     content: string;
   }>;
   selectedDonorIds: number[];
   previewDonorIds: number[];
   templateId?: number;
   // Signature configuration
-  signatureType?: "none" | "custom" | "staff";
+  signatureType?: 'none' | 'custom' | 'staff';
   customSignature?: string;
   selectedStaffId?: number;
 }
@@ -56,25 +57,42 @@ export interface UpdateCampaignInput {
   campaignId: number;
   campaignName?: string;
   chatHistory?: Array<{
-    role: "user" | "assistant";
+    role: 'user' | 'assistant';
     content: string;
   }>;
   selectedDonorIds?: number[];
   previewDonorIds?: number[];
   templateId?: number;
+  scheduleConfig?: {
+    dailyLimit?: number;
+    minGapMinutes?: number;
+    maxGapMinutes?: number;
+    timezone?: string;
+    allowedDays?: number[];
+    allowedStartTime?: string;
+    allowedEndTime?: string;
+    allowedTimezone?: string;
+    dailySchedules?: {
+      [key: number]: {
+        startTime: string;
+        endTime: string;
+        enabled: boolean;
+      };
+    };
+  };
 }
 
 export interface RegenerateAllEmailsInput {
   sessionId: number;
   chatHistory: Array<{
-    role: "user" | "assistant";
+    role: 'user' | 'assistant';
     content: string;
   }>;
 }
 
 export interface SmartEmailGenerationInput {
   sessionId: number;
-  mode: "generate_more" | "regenerate_all" | "generate_with_new_message";
+  mode: 'generate_more' | 'regenerate_all' | 'generate_with_new_message';
   // For generate_more: specify which new donors to generate for
   newDonorIds?: number[];
   // For generate_with_new_message: the new message to add to chat history
@@ -85,7 +103,7 @@ export interface SmartEmailGenerationResponse {
   success: boolean;
   sessionId: number;
   // Always return the updated chat history to keep frontend in sync
-  chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+  chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   // Stats about what was done
   generatedEmailsCount?: number;
   deletedEmailsCount?: number;
@@ -99,12 +117,12 @@ export interface SaveDraftInput {
   selectedDonorIds: number[];
   templateId?: number;
   chatHistory?: Array<{
-    role: "user" | "assistant";
+    role: 'user' | 'assistant';
     content: string;
   }>;
   previewDonorIds?: number[];
   // Signature configuration
-  signatureType?: "none" | "custom" | "staff";
+  signatureType?: 'none' | 'custom' | 'staff';
   customSignature?: string;
   selectedStaffId?: number;
 }
@@ -143,8 +161,8 @@ export class EmailCampaignsService {
       // Validate required fields
       if (!input.selectedDonorIds || input.selectedDonorIds.length === 0) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Selected donor IDs are required to launch a campaign",
+          code: 'BAD_REQUEST',
+          message: 'Selected donor IDs are required to launch a campaign',
         });
       }
 
@@ -162,8 +180,8 @@ export class EmailCampaignsService {
 
       if (!existingCampaign[0]) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Campaign not found",
+          code: 'NOT_FOUND',
+          message: 'Campaign not found',
         });
       }
 
@@ -176,13 +194,18 @@ export class EmailCampaignsService {
         .where(
           and(
             eq(generatedEmails.sessionId, existingCampaign[0].id),
-            or(eq(generatedEmails.status, "PENDING_APPROVAL"), eq(generatedEmails.status, "APPROVED"))
+            or(
+              eq(generatedEmails.status, 'PENDING_APPROVAL'),
+              eq(generatedEmails.status, 'APPROVED')
+            )
           )
         );
 
       // Count how many of the selected donors already have emails
       const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
-      const currentCompletedCount = input.selectedDonorIds.filter((id) => existingDonorIds.includes(id)).length;
+      const currentCompletedCount = input.selectedDonorIds.filter((id) =>
+        existingDonorIds.includes(id)
+      ).length;
 
       // Determine the appropriate status based on whether emails need to be generated
       const allEmailsExist = currentCompletedCount === input.selectedDonorIds.length;
@@ -191,16 +214,19 @@ export class EmailCampaignsService {
         : EmailGenerationSessionStatus.GENERATING;
 
       // Update existing campaign with appropriate status
-      logger.info(`[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`, {
-        campaignId: existingCampaign[0].id,
-        oldStatus: existingCampaign[0].status,
-        newStatus,
-        totalDonors: input.selectedDonorIds.length,
-        currentCompletedCount,
-        allEmailsExist,
-        organizationId,
-        userId,
-      });
+      logger.info(
+        `[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`,
+        {
+          campaignId: existingCampaign[0].id,
+          oldStatus: existingCampaign[0].status,
+          newStatus,
+          totalDonors: input.selectedDonorIds.length,
+          currentCompletedCount,
+          allEmailsExist,
+          organizationId,
+          userId,
+        }
+      );
 
       const [updatedSession] = await db
         .update(emailGenerationSessions)
@@ -222,13 +248,18 @@ export class EmailCampaignsService {
       await db
         .update(generatedEmails)
         .set({
-          status: "APPROVED",
+          status: 'APPROVED',
           isPreview: false,
           isSent: false,
-          sendStatus: "pending",
+          sendStatus: 'pending',
           updatedAt: new Date(),
         })
-        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "PENDING_APPROVAL")));
+        .where(
+          and(
+            eq(generatedEmails.sessionId, sessionId),
+            eq(generatedEmails.status, 'PENDING_APPROVAL')
+          )
+        );
 
       logger.info(
         `Updated existing campaign session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
@@ -238,10 +269,14 @@ export class EmailCampaignsService {
       const existingEmails = await db
         .select({ donorId: generatedEmails.donorId })
         .from(generatedEmails)
-        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "APPROVED")));
+        .where(
+          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, 'APPROVED'))
+        );
 
       const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
-      const donorsToGenerate = input.selectedDonorIds.filter((id) => !alreadyGeneratedDonorIds.includes(id));
+      const donorsToGenerate = input.selectedDonorIds.filter(
+        (id) => !alreadyGeneratedDonorIds.includes(id)
+      );
 
       // Only trigger background job if there are donors without emails
       if (donorsToGenerate.length > 0) {
@@ -258,7 +293,10 @@ export class EmailCampaignsService {
             previewDonorIds: input.previewDonorIds ?? [],
             chatHistory:
               input.chatHistory ??
-              (existingCampaign[0].chatHistory as Array<{ role: "user" | "assistant"; content: string }>) ??
+              (existingCampaign[0].chatHistory as Array<{
+                role: 'user' | 'assistant';
+                content: string;
+              }>) ??
               [],
             templateId: input.templateId ?? existingCampaign[0].templateId ?? undefined,
           });
@@ -285,8 +323,9 @@ export class EmailCampaignsService {
             .where(eq(emailGenerationSessions.id, sessionId));
 
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to start email generation job. Please check your Trigger.dev configuration.",
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              'Failed to start email generation job. Please check your Trigger.dev configuration.',
           });
         }
       } else {
@@ -332,8 +371,8 @@ export class EmailCampaignsService {
       }
 
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to launch email generation campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to launch email generation campaign',
       });
     }
   }
@@ -399,10 +438,10 @@ export class EmailCampaignsService {
         return { sessionId: session.id };
       }
     } catch (error) {
-      logger.error("Error in createSession:", error);
+      logger.error('Error in createSession:', error);
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to create session",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to create session',
       });
     }
   }
@@ -424,13 +463,16 @@ export class EmailCampaignsService {
 
       if (!session || session.organizationId !== organizationId) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Session not found",
+          code: 'NOT_FOUND',
+          message: 'Session not found',
         });
       }
 
       // Get generated emails for this session
-      const emails = await db.select().from(generatedEmails).where(eq(generatedEmails.sessionId, sessionId));
+      const emails = await db
+        .select()
+        .from(generatedEmails)
+        .where(eq(generatedEmails.sessionId, sessionId));
 
       // Append signatures to each email for display
       const emailsWithSignatures = await Promise.all(
@@ -461,10 +503,12 @@ export class EmailCampaignsService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to get email generation session: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get email generation session: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get email generation session",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get email generation session',
       });
     }
   }
@@ -477,7 +521,10 @@ export class EmailCampaignsService {
    */
   async getSessionStatus(sessionId: number, organizationId: string) {
     const session = await db.query.emailGenerationSessions.findFirst({
-      where: and(eq(emailGenerationSessions.id, sessionId), eq(emailGenerationSessions.organizationId, organizationId)),
+      where: and(
+        eq(emailGenerationSessions.id, sessionId),
+        eq(emailGenerationSessions.organizationId, organizationId)
+      ),
       columns: {
         status: true,
         totalDonors: true,
@@ -487,7 +534,7 @@ export class EmailCampaignsService {
     });
 
     if (!session) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
     }
 
     // Failsafe: If status is GENERATING or READY_TO_SEND but all donors are completed, update to COMPLETED
@@ -564,9 +611,14 @@ export class EmailCampaignsService {
     let batchResults = new Map();
     if (campaignsToCheck.length > 0) {
       try {
-        batchResults = await this.checkAndUpdateMultipleCampaignCompletion(campaignsToCheck, organizationId);
+        batchResults = await this.checkAndUpdateMultipleCampaignCompletion(
+          campaignsToCheck,
+          organizationId
+        );
       } catch (error) {
-        logger.warn(`Failed to check completion for campaigns ${campaignsToCheck.join(", ")}: ${error}`);
+        logger.warn(
+          `Failed to check completion for campaigns ${campaignsToCheck.join(', ')}: ${error}`
+        );
       }
     }
 
@@ -644,7 +696,7 @@ export class EmailCampaignsService {
     });
 
     if (!campaign) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign not found' });
     }
 
     // Get all scheduled jobs that need to be cancelled
@@ -655,7 +707,7 @@ export class EmailCampaignsService {
         and(
           eq(emailSendJobs.sessionId, campaignId),
           eq(emailSendJobs.organizationId, organizationId),
-          eq(emailSendJobs.status, "scheduled")
+          eq(emailSendJobs.status, 'scheduled')
         )
       );
 
@@ -682,7 +734,9 @@ export class EmailCampaignsService {
       await tx.delete(emailGenerationSessions).where(eq(emailGenerationSessions.id, campaignId));
     });
 
-    logger.info(`Campaign ${campaignId} and associated emails deleted for organization ${organizationId}`);
+    logger.info(
+      `Campaign ${campaignId} and associated emails deleted for organization ${organizationId}`
+    );
     return { campaignId };
   }
 
@@ -693,7 +747,11 @@ export class EmailCampaignsService {
    * @param organizationId - The organization ID for authorization
    * @returns The updated email
    */
-  async updateEmailStatus(emailId: number, status: "PENDING_APPROVAL" | "APPROVED", organizationId: string) {
+  async updateEmailStatus(
+    emailId: number,
+    status: 'PENDING_APPROVAL' | 'APPROVED',
+    organizationId: string
+  ) {
     try {
       // First verify the email exists and belongs to the user's organization
       const [existingEmail] = await db
@@ -704,21 +762,29 @@ export class EmailCampaignsService {
           currentStatus: generatedEmails.status,
         })
         .from(generatedEmails)
-        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
-        .where(and(eq(generatedEmails.id, emailId), eq(emailGenerationSessions.organizationId, organizationId)))
+        .innerJoin(
+          emailGenerationSessions,
+          eq(generatedEmails.sessionId, emailGenerationSessions.id)
+        )
+        .where(
+          and(
+            eq(generatedEmails.id, emailId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
         .limit(1);
 
       if (!existingEmail) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Email not found",
+          code: 'NOT_FOUND',
+          message: 'Email not found',
         });
       }
 
       if (existingEmail.isSent) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cannot change status of an email that has already been sent",
+          code: 'BAD_REQUEST',
+          message: 'Cannot change status of an email that has already been sent',
         });
       }
 
@@ -739,14 +805,16 @@ export class EmailCampaignsService {
       return {
         success: true,
         email: updatedEmail,
-        message: `Email ${status === "APPROVED" ? "approved" : "marked as pending"}`,
+        message: `Email ${status === 'APPROVED' ? 'approved' : 'marked as pending'}`,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to update email status: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to update email status: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update email status",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update email status',
       });
     }
   }
@@ -759,14 +827,16 @@ export class EmailCampaignsService {
    */
   async getEmailStatus(emailId: number, organizationId: string) {
     try {
-      logger.info(`Getting email status for emailId: ${emailId}, organizationId: ${organizationId}`);
+      logger.info(
+        `Getting email status for emailId: ${emailId}, organizationId: ${organizationId}`
+      );
 
       // Validate emailId
       if (!emailId || emailId <= 0) {
         logger.warn(`Invalid emailId provided: ${emailId}`);
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid email ID provided",
+          code: 'BAD_REQUEST',
+          message: 'Invalid email ID provided',
         });
       }
 
@@ -777,19 +847,29 @@ export class EmailCampaignsService {
           sentAt: generatedEmails.sentAt,
         })
         .from(generatedEmails)
-        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
-        .where(and(eq(generatedEmails.id, emailId), eq(emailGenerationSessions.organizationId, organizationId)))
+        .innerJoin(
+          emailGenerationSessions,
+          eq(generatedEmails.sessionId, emailGenerationSessions.id)
+        )
+        .where(
+          and(
+            eq(generatedEmails.id, emailId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
         .limit(1);
 
       if (!email) {
         logger.warn(`Email not found for emailId: ${emailId}, organizationId: ${organizationId}`);
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Email not found",
+          code: 'NOT_FOUND',
+          message: 'Email not found',
         });
       }
 
-      logger.info(`Successfully retrieved email status for emailId: ${emailId}, isSent: ${email.isSent}`);
+      logger.info(
+        `Successfully retrieved email status for emailId: ${emailId}, isSent: ${email.isSent}`
+      );
       return email;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
@@ -797,8 +877,8 @@ export class EmailCampaignsService {
         `Failed to get email status for emailId: ${emailId}: ${error instanceof Error ? error.message : String(error)}`
       );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get email status",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get email status',
       });
     }
   }
@@ -819,21 +899,29 @@ export class EmailCampaignsService {
           isSent: generatedEmails.isSent,
         })
         .from(generatedEmails)
-        .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
-        .where(and(eq(generatedEmails.id, input.emailId), eq(emailGenerationSessions.organizationId, organizationId)))
+        .innerJoin(
+          emailGenerationSessions,
+          eq(generatedEmails.sessionId, emailGenerationSessions.id)
+        )
+        .where(
+          and(
+            eq(generatedEmails.id, input.emailId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
+        )
         .limit(1);
 
       if (!existingEmail) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Email not found",
+          code: 'NOT_FOUND',
+          message: 'Email not found',
         });
       }
 
       if (existingEmail.isSent) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cannot edit an email that has already been sent",
+          code: 'BAD_REQUEST',
+          message: 'Cannot edit an email that has already been sent',
         });
       }
 
@@ -847,7 +935,7 @@ export class EmailCampaignsService {
           subject: input.subject,
           structuredContent: contentWithoutSignature, // Save without signature
           referenceContexts: input.referenceContexts,
-          status: "PENDING_APPROVAL", // Reset status when email is edited
+          status: 'PENDING_APPROVAL', // Reset status when email is edited
           updatedAt: new Date(),
         })
         .where(eq(generatedEmails.id, input.emailId))
@@ -860,15 +948,17 @@ export class EmailCampaignsService {
       return {
         success: true,
         email: updatedEmail,
-        message: "Email updated successfully and marked for review",
+        message: 'Email updated successfully and marked for review',
         sessionId: existingEmail.sessionId,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to update email: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to update email: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update email",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update email',
       });
     }
   }
@@ -898,8 +988,8 @@ export class EmailCampaignsService {
 
       if (!existingCampaign) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Campaign not found",
+          code: 'NOT_FOUND',
+          message: 'Campaign not found',
         });
       }
 
@@ -908,8 +998,8 @@ export class EmailCampaignsService {
         existingCampaign.status === EmailGenerationSessionStatus.READY_TO_SEND
       ) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cannot edit a campaign that is currently processing",
+          code: 'BAD_REQUEST',
+          message: 'Cannot edit a campaign that is currently processing',
         });
       }
 
@@ -935,6 +1025,9 @@ export class EmailCampaignsService {
       if (input.templateId !== undefined) {
         updateData.templateId = input.templateId;
       }
+      if (input.scheduleConfig !== undefined) {
+        updateData.scheduleConfig = input.scheduleConfig;
+      }
 
       // Update the campaign
       const [updatedCampaign] = await db
@@ -948,14 +1041,16 @@ export class EmailCampaignsService {
       return {
         success: true,
         campaign: updatedCampaign,
-        message: "Campaign updated successfully",
+        message: 'Campaign updated successfully',
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to update campaign: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to update campaign: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update campaign',
       });
     }
   }
@@ -968,7 +1063,11 @@ export class EmailCampaignsService {
    * @param userId - The user ID
    * @returns The result of the regeneration
    */
-  async regenerateAllEmails(input: RegenerateAllEmailsInput, organizationId: string, userId: string) {
+  async regenerateAllEmails(
+    input: RegenerateAllEmailsInput,
+    organizationId: string,
+    userId: string
+  ) {
     try {
       // First verify the session exists and belongs to the user's organization
       const [existingSession] = await db
@@ -984,8 +1083,8 @@ export class EmailCampaignsService {
 
       if (!existingSession) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Campaign session not found",
+          code: 'NOT_FOUND',
+          message: 'Campaign session not found',
         });
       }
 
@@ -1006,14 +1105,16 @@ export class EmailCampaignsService {
         .from(generatedEmails)
         .where(eq(generatedEmails.sessionId, input.sessionId));
 
-      logger.info(`[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`);
+      logger.info(
+        `[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`
+      );
 
       // Get all donors that have preview emails in this session
       const existingPreviewEmails = allSessionEmails.filter((e) => e.isPreview === true);
       const allPreviewDonorIds = [...new Set(existingPreviewEmails.map((e) => e.donorId))];
 
       // Also check if there are any emails with PENDING_APPROVAL status (these might be preview emails too)
-      const pendingApprovalEmails = allSessionEmails.filter((e) => e.status === "PENDING_APPROVAL");
+      const pendingApprovalEmails = allSessionEmails.filter((e) => e.status === 'PENDING_APPROVAL');
       const pendingApprovalDonorIds = [...new Set(pendingApprovalEmails.map((e) => e.donorId))];
 
       logger.info(
@@ -1021,20 +1122,46 @@ export class EmailCampaignsService {
       );
 
       // Combine all potential preview donors
-      const combinedDonorIds = [...new Set([...allPreviewDonorIds, ...pendingApprovalDonorIds, ...previewDonorIds])];
+      const combinedDonorIds = [
+        ...new Set([...allPreviewDonorIds, ...pendingApprovalDonorIds, ...previewDonorIds]),
+      ];
 
       logger.info(
         `[regenerateAllEmails] Combined donor IDs (preview + pending + stored): ${JSON.stringify(combinedDonorIds)}`
       );
 
       // Use combined list for regeneration
-      const donorsToRegenerate = combinedDonorIds;
+      let donorsToRegenerate = combinedDonorIds;
 
       if (donorsToRegenerate.length === 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No preview donors found for regeneration",
-        });
+        // If no preview donors exist, randomly select from selectedDonorIds
+        const selectedDonorIds = (existingSession.selectedDonorIds as number[]) || [];
+        if (selectedDonorIds.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'No donors available for preview generation',
+          });
+        }
+
+        // Use the same preview donor count as frontend
+        const numToSelect = Math.min(selectedDonorIds.length, PREVIEW_DONOR_COUNT);
+        const shuffled = [...selectedDonorIds].sort(() => Math.random() - 0.5);
+        donorsToRegenerate = shuffled.slice(0, numToSelect);
+
+        // Update the session with the new preview donor IDs
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            previewDonorIds: donorsToRegenerate,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, input.sessionId));
+
+        logger.info(
+          `[regenerateAllEmails] No preview donors found, randomly selected ${donorsToRegenerate.length} donors: ${JSON.stringify(
+            donorsToRegenerate
+          )}`
+        );
       }
 
       logger.info(
@@ -1047,7 +1174,10 @@ export class EmailCampaignsService {
       const deleteResult = await db
         .delete(generatedEmails)
         .where(
-          and(eq(generatedEmails.sessionId, input.sessionId), inArray(generatedEmails.donorId, donorsToRegenerate))
+          and(
+            eq(generatedEmails.sessionId, input.sessionId),
+            inArray(generatedEmails.donorId, donorsToRegenerate)
+          )
         )
         .returning({ id: generatedEmails.id });
 
@@ -1096,10 +1226,12 @@ export class EmailCampaignsService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to regenerate emails: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to regenerate emails: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to regenerate emails",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to regenerate emails',
       });
     }
   }
@@ -1131,27 +1263,31 @@ export class EmailCampaignsService {
 
       if (!existingSession) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Campaign session not found",
+          code: 'NOT_FOUND',
+          message: 'Campaign session not found',
         });
       }
 
       // Get existing chat history from database (source of truth)
       const existingChatHistory =
-        (existingSession.chatHistory as Array<{ role: "user" | "assistant"; content: string }>) || [];
+        (existingSession.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) ||
+        [];
       let finalChatHistory = existingChatHistory;
 
       // Handle generate_with_new_message mode
-      if (input.mode === "generate_with_new_message") {
+      if (input.mode === 'generate_with_new_message') {
         if (!input.newMessage?.trim()) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "New message is required for generate_with_new_message mode",
+            code: 'BAD_REQUEST',
+            message: 'New message is required for generate_with_new_message mode',
           });
         }
 
         // Append new message to chat history
-        finalChatHistory = [...existingChatHistory, { role: "user" as const, content: input.newMessage.trim() }];
+        finalChatHistory = [
+          ...existingChatHistory,
+          { role: 'user' as const, content: input.newMessage.trim() },
+        ];
 
         // Update chat history in database
         await db
@@ -1162,7 +1298,9 @@ export class EmailCampaignsService {
           })
           .where(eq(emailGenerationSessions.id, input.sessionId));
 
-        logger.info(`[smartEmailGeneration] Updated chat history for session ${input.sessionId} with new message`);
+        logger.info(
+          `[smartEmailGeneration] Updated chat history for session ${input.sessionId} with new message`
+        );
       }
 
       // Get preview donor IDs from the session
@@ -1177,12 +1315,12 @@ export class EmailCampaignsService {
       let donorsToProcess: number[] = [];
       let shouldDeleteExisting = false;
 
-      if (input.mode === "generate_more") {
+      if (input.mode === 'generate_more') {
         // Generate emails for new donors
         if (!input.newDonorIds || input.newDonorIds.length === 0) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "newDonorIds are required for generate_more mode",
+            code: 'BAD_REQUEST',
+            message: 'newDonorIds are required for generate_more mode',
           });
         }
 
@@ -1199,17 +1337,45 @@ export class EmailCampaignsService {
           })
           .where(eq(emailGenerationSessions.id, input.sessionId));
 
-        logger.info(`[smartEmailGeneration] Added ${input.newDonorIds.length} new donors to preview set`);
-      } else if (input.mode === "regenerate_all" || input.mode === "generate_with_new_message") {
+        logger.info(
+          `[smartEmailGeneration] Added ${input.newDonorIds.length} new donors to preview set`
+        );
+      } else if (input.mode === 'regenerate_all' || input.mode === 'generate_with_new_message') {
         // Regenerate emails for existing preview donors
         if (previewDonorIds.length === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "No preview donors found for regeneration",
-          });
-        }
+          // If no preview donors exist, randomly select 3-5 donors from selectedDonorIds
+          const selectedDonorIds = (existingSession.selectedDonorIds as number[]) || [];
+          if (selectedDonorIds.length === 0) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'No donors available for preview generation',
+            });
+          }
 
-        donorsToProcess = previewDonorIds;
+          // Use the same preview donor count as frontend
+          const numToSelect = Math.min(selectedDonorIds.length, PREVIEW_DONOR_COUNT);
+          const shuffled = [...selectedDonorIds].sort(() => Math.random() - 0.5);
+          const randomPreviewDonorIds = shuffled.slice(0, numToSelect);
+
+          // Update the session with the new preview donor IDs
+          await db
+            .update(emailGenerationSessions)
+            .set({
+              previewDonorIds: randomPreviewDonorIds,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailGenerationSessions.id, input.sessionId));
+
+          logger.info(
+            `[smartEmailGeneration] No preview donors found, randomly selected ${randomPreviewDonorIds.length} donors: ${JSON.stringify(
+              randomPreviewDonorIds
+            )}`
+          );
+
+          donorsToProcess = randomPreviewDonorIds;
+        } else {
+          donorsToProcess = previewDonorIds;
+        }
         shouldDeleteExisting = true;
       }
 
@@ -1218,17 +1384,26 @@ export class EmailCampaignsService {
       if (shouldDeleteExisting) {
         const deleteResult = await db
           .delete(generatedEmails)
-          .where(and(eq(generatedEmails.sessionId, input.sessionId), inArray(generatedEmails.donorId, donorsToProcess)))
+          .where(
+            and(
+              eq(generatedEmails.sessionId, input.sessionId),
+              inArray(generatedEmails.donorId, donorsToProcess)
+            )
+          )
           .returning({ id: generatedEmails.id });
 
         deletedCount = deleteResult.length;
-        logger.info(`[smartEmailGeneration] Deleted ${deletedCount} existing emails for session ${input.sessionId}`);
+        logger.info(
+          `[smartEmailGeneration] Deleted ${deletedCount} existing emails for session ${input.sessionId}`
+        );
       }
 
       // Generate emails using the unified service
       const emailGenerationService = new UnifiedSmartEmailGenerationService();
 
-      logger.info(`[smartEmailGeneration] Starting email generation for ${donorsToProcess.length} donors`);
+      logger.info(
+        `[smartEmailGeneration] Starting email generation for ${donorsToProcess.length} donors`
+      );
 
       const generationResult = await emailGenerationService.generateSmartEmailsForCampaign({
         organizationId,
@@ -1246,12 +1421,12 @@ export class EmailCampaignsService {
       const failedCount = generationResult.results.filter((r) => r.email === null).length;
 
       // Create response message based on mode
-      let message = "";
-      if (input.mode === "generate_more") {
+      let message = '';
+      if (input.mode === 'generate_more') {
         message = `Generated ${successfulCount} emails for ${donorsToProcess.length} new donors`;
-      } else if (input.mode === "regenerate_all") {
+      } else if (input.mode === 'regenerate_all') {
         message = `Regenerated ${successfulCount} emails for ${donorsToProcess.length} preview donors`;
-      } else if (input.mode === "generate_with_new_message") {
+      } else if (input.mode === 'generate_with_new_message') {
         message = `Generated ${successfulCount} emails with new instructions for ${donorsToProcess.length} preview donors`;
       }
 
@@ -1266,10 +1441,12 @@ export class EmailCampaignsService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`[smartEmailGeneration] Failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `[smartEmailGeneration] Failed: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to generate emails",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to generate emails',
       });
     }
   }
@@ -1300,8 +1477,8 @@ export class EmailCampaignsService {
         selectedDonorCount: input.selectedDonorIds?.length || 0,
       });
       throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Campaign name and selected donors are required",
+        code: 'BAD_REQUEST',
+        message: 'Campaign name and selected donors are required',
       });
     }
 
@@ -1344,7 +1521,7 @@ export class EmailCampaignsService {
           existingStatus: existingSession[0]?.status,
           lastTwoMessages: updateData.chatHistory.slice(-2).map((m) => ({
             role: m.role,
-            contentPreview: m.content.substring(0, 50) + "...",
+            contentPreview: m.content.substring(0, 50) + '...',
           })),
         });
 
@@ -1361,10 +1538,12 @@ export class EmailCampaignsService {
           .returning();
 
         if (!updatedSession) {
-          logger.error(`[saveDraft] Failed to update session ${input.sessionId} - session not found`);
+          logger.error(
+            `[saveDraft] Failed to update session ${input.sessionId} - session not found`
+          );
           throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Session not found",
+            code: 'NOT_FOUND',
+            message: 'Session not found',
           });
         }
 
@@ -1383,7 +1562,7 @@ export class EmailCampaignsService {
           previewDonorIds: [], // Will be populated when generating preview
           totalDonors: input.selectedDonorIds.length,
           completedDonors: 0,
-          status: "DRAFT" as const,
+          status: 'DRAFT' as const,
         };
 
         logger.info(`[saveDraft] Creating session with data:`, {
@@ -1394,13 +1573,18 @@ export class EmailCampaignsService {
               ? {
                   role: newSessionData.chatHistory[newSessionData.chatHistory.length - 1].role,
                   contentPreview:
-                    newSessionData.chatHistory[newSessionData.chatHistory.length - 1].content.substring(0, 50) + "...",
+                    newSessionData.chatHistory[
+                      newSessionData.chatHistory.length - 1
+                    ].content.substring(0, 50) + '...',
                 }
               : null,
         });
 
         // Create new draft
-        const [newSession] = await db.insert(emailGenerationSessions).values(newSessionData).returning();
+        const [newSession] = await db
+          .insert(emailGenerationSessions)
+          .values(newSessionData)
+          .returning();
 
         logger.info(`[saveDraft] Successfully created new draft session ${newSession.id}`);
         return { sessionId: newSession.id };
@@ -1415,8 +1599,8 @@ export class EmailCampaignsService {
         stack: error instanceof Error ? error.stack : undefined,
       });
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to save draft",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to save draft',
       });
     }
   }
@@ -1465,14 +1649,21 @@ export class EmailCampaignsService {
       const results = new Map();
       const sessionsToUpdate = [];
 
-      logger.info(`[checkAndUpdateMultipleCampaignCompletion] Checking ${sessions.length} campaigns in batch`, {
-        sessionIds,
-        organizationId,
-      });
+      logger.info(
+        `[checkAndUpdateMultipleCampaignCompletion] Checking ${sessions.length} campaigns in batch`,
+        {
+          sessionIds,
+          organizationId,
+        }
+      );
 
       // Process each session
       for (const session of sessions) {
-        const stats = emailStatsMap.get(session.id) || { totalEmails: 0, sentEmails: 0, approvedEmails: 0 };
+        const stats = emailStatsMap.get(session.id) || {
+          totalEmails: 0,
+          sentEmails: 0,
+          approvedEmails: 0,
+        };
         const selectedDonorIds = (session.selectedDonorIds as number[]) || [];
         const totalDonors = selectedDonorIds.length;
 
@@ -1481,7 +1672,10 @@ export class EmailCampaignsService {
         let newCompletedDonors = session.completedDonors;
 
         // Same logic as individual function but collected for batch update
-        if (session.status === EmailGenerationSessionStatus.GENERATING && stats.approvedEmails > 0) {
+        if (
+          session.status === EmailGenerationSessionStatus.GENERATING &&
+          stats.approvedEmails > 0
+        ) {
           logger.info(
             `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} moving from GENERATING to READY_TO_SEND`
           );
@@ -1493,11 +1687,14 @@ export class EmailCampaignsService {
         // Check for completion (works for both IN_PROGRESS and campaigns that were just updated)
         if (
           (session.status === EmailGenerationSessionStatus.READY_TO_SEND ||
-            (session.status === EmailGenerationSessionStatus.GENERATING && stats.approvedEmails > 0)) &&
+            (session.status === EmailGenerationSessionStatus.GENERATING &&
+              stats.approvedEmails > 0)) &&
           stats.totalEmails > 0 &&
           stats.totalEmails === stats.sentEmails
         ) {
-          logger.info(`[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} completed - all emails sent`);
+          logger.info(
+            `[checkAndUpdateMultipleCampaignCompletion] Campaign ${session.id} completed - all emails sent`
+          );
           newStatus = EmailGenerationSessionStatus.COMPLETED;
           newCompletedDonors = totalDonors;
           shouldUpdate = true;
@@ -1555,13 +1752,15 @@ export class EmailCampaignsService {
         logger.info(
           `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate
             .map((u) => `${u.id}->${u.status}`)
-            .join(", ")}`
+            .join(', ')}`
         );
       }
 
       return results;
     } catch (error) {
-      logger.error(`Failed to check campaign completion for sessions ${sessionIds.join(", ")}: ${error}`);
+      logger.error(
+        `Failed to check campaign completion for sessions ${sessionIds.join(', ')}: ${error}`
+      );
       return new Map();
     }
   }
@@ -1595,12 +1794,15 @@ export class EmailCampaignsService {
       });
 
       if (!session) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
       }
 
       // Check if email already exists for this donor in this session
       const existingEmail = await db.query.generatedEmails.findFirst({
-        where: and(eq(generatedEmails.sessionId, input.sessionId), eq(generatedEmails.donorId, input.donorId)),
+        where: and(
+          eq(generatedEmails.sessionId, input.sessionId),
+          eq(generatedEmails.donorId, input.donorId)
+        ),
         columns: { id: true },
       });
 
@@ -1613,7 +1815,7 @@ export class EmailCampaignsService {
         // Update existing email
         const updateData: any = {
           subject: input.subject,
-          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+          status: input.isPreview ? 'PENDING_APPROVAL' : 'APPROVED',
           isPreview: input.isPreview || false,
           updatedAt: new Date(),
         };
@@ -1649,7 +1851,7 @@ export class EmailCampaignsService {
           sessionId: input.sessionId,
           donorId: input.donorId,
           subject: input.subject,
-          status: input.isPreview ? "PENDING_APPROVAL" : "APPROVED",
+          status: input.isPreview ? 'PENDING_APPROVAL' : 'APPROVED',
           isPreview: input.isPreview || false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -1679,10 +1881,12 @@ export class EmailCampaignsService {
       }
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to save generated email: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to save generated email: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to save generated email",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to save generated email',
       });
     }
   }
@@ -1705,13 +1909,13 @@ export class EmailCampaignsService {
       });
 
       if (!session) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
       }
 
       // Only retry if status is PENDING or FAILED
       if (session.status !== EmailGenerationSessionStatus.GENERATING && true) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: 'BAD_REQUEST',
           message: `Cannot retry campaign with status: ${session.status}`,
         });
       }
@@ -1732,15 +1936,21 @@ export class EmailCampaignsService {
       const existingEmails = await db
         .select({ donorId: generatedEmails.donorId })
         .from(generatedEmails)
-        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, "APPROVED")));
+        .where(
+          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, 'APPROVED'))
+        );
 
       const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
       const selectedDonorIds = session.selectedDonorIds as number[];
-      const donorsToGenerate = selectedDonorIds.filter((id) => !alreadyGeneratedDonorIds.includes(id));
+      const donorsToGenerate = selectedDonorIds.filter(
+        (id) => !alreadyGeneratedDonorIds.includes(id)
+      );
 
       if (donorsToGenerate.length > 0) {
         try {
-          logger.info(`Retrying trigger for session ${sessionId} with ${donorsToGenerate.length} donors`);
+          logger.info(
+            `Retrying trigger for session ${sessionId} with ${donorsToGenerate.length} donors`
+          );
 
           await generateBulkEmailsTask.trigger({
             sessionId,
@@ -1748,12 +1958,18 @@ export class EmailCampaignsService {
             userId,
             selectedDonorIds: donorsToGenerate,
             previewDonorIds: session.previewDonorIds as number[],
-            chatHistory: session.chatHistory as Array<{ role: "user" | "assistant"; content: string }>,
+            chatHistory: session.chatHistory as Array<{
+              role: 'user' | 'assistant';
+              content: string;
+            }>,
             templateId: session.templateId || undefined,
           });
 
           logger.info(`Successfully retried campaign ${sessionId}`);
-          return { success: true, message: `Retried campaign with ${donorsToGenerate.length} donors` };
+          return {
+            success: true,
+            message: `Retried campaign with ${donorsToGenerate.length} donors`,
+          };
         } catch (triggerError) {
           logger.error(
             `Failed to retry trigger for session ${sessionId}: ${
@@ -1774,8 +1990,8 @@ export class EmailCampaignsService {
             .where(eq(emailGenerationSessions.id, sessionId));
 
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to retry campaign. Please check your Trigger.dev configuration.",
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retry campaign. Please check your Trigger.dev configuration.',
           });
         }
       } else {
@@ -1783,7 +1999,7 @@ export class EmailCampaignsService {
         await db
           .update(emailGenerationSessions)
           .set({
-            status: "COMPLETED",
+            status: 'COMPLETED',
             completedDonors: selectedDonorIds.length,
             completedAt: new Date(),
             updatedAt: new Date(),
@@ -1791,14 +2007,16 @@ export class EmailCampaignsService {
           .where(eq(emailGenerationSessions.id, sessionId));
 
         logger.info(`Campaign ${sessionId} marked as completed - all donors already have emails`);
-        return { success: true, message: "Campaign completed - all emails already generated" };
+        return { success: true, message: 'Campaign completed - all emails already generated' };
       }
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to retry campaign ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to retry campaign ${sessionId}: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to retry campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to retry campaign',
       });
     }
   }
@@ -1843,7 +2061,9 @@ export class EmailCampaignsService {
 
           if (updatedCampaign && updatedCampaign.status !== originalStatus) {
             fixedCount++;
-            logger.info(`Fixed campaign ${campaign.id}: ${originalStatus} → ${updatedCampaign.status}`);
+            logger.info(
+              `Fixed campaign ${campaign.id}: ${originalStatus} → ${updatedCampaign.status}`
+            );
           }
         } catch (error) {
           logger.warn(`Failed to fix campaign ${campaign.id}: ${error}`);
@@ -1867,8 +2087,8 @@ export class EmailCampaignsService {
         }`
       );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to fix stuck campaigns",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to fix stuck campaigns',
       });
     }
   }

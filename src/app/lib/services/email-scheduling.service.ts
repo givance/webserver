@@ -1,4 +1,4 @@
-import { db } from "@/app/lib/db";
+import { db } from '@/app/lib/db';
 import {
   emailGenerationSessions,
   emailScheduleConfig,
@@ -7,13 +7,13 @@ import {
   donors,
   staff,
   staffGmailTokens,
-} from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
-import { sendSingleEmailTask } from "@/trigger/jobs/sendSingleEmail";
-import { runs } from "@trigger.dev/sdk/v3";
-import { TRPCError } from "@trpc/server";
-import type { InferSelectModel } from "drizzle-orm";
-import { and, eq, gte, isNull, lt, or, sql, inArray } from "drizzle-orm";
+} from '@/app/lib/db/schema';
+import { logger } from '@/app/lib/logger';
+import { sendSingleEmailTask } from '@/trigger/jobs/sendSingleEmail';
+import { runs } from '@trigger.dev/sdk/v3';
+import { TRPCError } from '@trpc/server';
+import type { InferSelectModel } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, or, sql, inArray } from 'drizzle-orm';
 
 type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
 type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
@@ -47,21 +47,23 @@ export class EmailSchedulingService {
           maxDailyLimit: 500,
           minGapMinutes: 1,
           maxGapMinutes: 3,
-          timezone: "America/New_York",
+          timezone: 'America/New_York',
           allowedDays: [1, 2, 3, 4, 5], // Monday to Friday
-          allowedStartTime: "09:00",
-          allowedEndTime: "17:00",
-          allowedTimezone: "America/New_York",
+          allowedStartTime: '09:00',
+          allowedEndTime: '17:00',
+          allowedTimezone: 'America/New_York',
         })
         .returning();
 
       logger.info(`Created default email schedule config for organization ${organizationId}`);
       return newConfig[0];
     } catch (error) {
-      logger.error(`Failed to get/create schedule config: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get/create schedule config: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get schedule configuration",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get schedule configuration',
       });
     }
   }
@@ -80,30 +82,44 @@ export class EmailSchedulingService {
       allowedStartTime: string;
       allowedEndTime: string;
       allowedTimezone: string;
+      dailySchedules?: {
+        [key: number]: {
+          startTime: string;
+          endTime: string;
+          enabled: boolean;
+        };
+      };
       rescheduleExisting?: boolean;
     }>
   ) {
     try {
       // Validate daily limit
-      if (updates.dailyLimit !== undefined && (updates.dailyLimit < 1 || updates.dailyLimit > 500)) {
+      if (
+        updates.dailyLimit !== undefined &&
+        (updates.dailyLimit < 1 || updates.dailyLimit > 500)
+      ) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Daily limit must be between 1 and 500",
+          code: 'BAD_REQUEST',
+          message: 'Daily limit must be between 1 and 500',
         });
       }
 
       // Validate gap minutes
       if (updates.minGapMinutes !== undefined && updates.minGapMinutes < 0) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Minimum gap must be at least 0 minutes",
+          code: 'BAD_REQUEST',
+          message: 'Minimum gap must be at least 0 minutes',
         });
       }
 
-      if (updates.maxGapMinutes && updates.minGapMinutes && updates.maxGapMinutes < updates.minGapMinutes) {
+      if (
+        updates.maxGapMinutes &&
+        updates.minGapMinutes &&
+        updates.maxGapMinutes < updates.minGapMinutes
+      ) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Maximum gap must be greater than or equal to minimum gap",
+          code: 'BAD_REQUEST',
+          message: 'Maximum gap must be greater than or equal to minimum gap',
         });
       }
 
@@ -111,30 +127,36 @@ export class EmailSchedulingService {
       if (updates.allowedDays !== undefined) {
         if (!Array.isArray(updates.allowedDays) || updates.allowedDays.length === 0) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "At least one day must be allowed",
+            code: 'BAD_REQUEST',
+            message: 'At least one day must be allowed',
           });
         }
         if (updates.allowedDays.some((day) => day < 0 || day > 6)) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Days must be between 0 (Sunday) and 6 (Saturday)",
+            code: 'BAD_REQUEST',
+            message: 'Days must be between 0 (Sunday) and 6 (Saturday)',
           });
         }
       }
 
       // Validate time format and range
-      if (updates.allowedStartTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedStartTime)) {
+      if (
+        updates.allowedStartTime &&
+        !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedStartTime)
+      ) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Start time must be in HH:MM format",
+          code: 'BAD_REQUEST',
+          message: 'Start time must be in HH:MM format',
         });
       }
 
-      if (updates.allowedEndTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedEndTime)) {
+      if (
+        updates.allowedEndTime &&
+        !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(updates.allowedEndTime)
+      ) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "End time must be in HH:MM format",
+          code: 'BAD_REQUEST',
+          message: 'End time must be in HH:MM format',
         });
       }
 
@@ -143,8 +165,8 @@ export class EmailSchedulingService {
         const endMinutes = this.timeToMinutes(updates.allowedEndTime);
         if (startMinutes >= endMinutes) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "End time must be after start time",
+            code: 'BAD_REQUEST',
+            message: 'End time must be after start time',
           });
         }
       }
@@ -160,8 +182,8 @@ export class EmailSchedulingService {
 
       if (!updatedConfig || updatedConfig.length === 0) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Schedule configuration not found",
+          code: 'NOT_FOUND',
+          message: 'Schedule configuration not found',
         });
       }
 
@@ -177,10 +199,12 @@ export class EmailSchedulingService {
       return updatedConfig[0];
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to update schedule config: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to update schedule config: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update schedule configuration",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update schedule configuration',
       });
     }
   }
@@ -188,17 +212,36 @@ export class EmailSchedulingService {
   /**
    * Get the number of emails sent today for an organization
    */
-  async getEmailsSentToday(organizationId: string, timezone: string = "America/New_York"): Promise<number> {
+  async getEmailsSentToday(
+    organizationId: string,
+    timezone: string = 'America/New_York'
+  ): Promise<number> {
     try {
       // Get current date components in the organization's timezone
       const now = new Date();
       const tzNow = this.getDateInTimezone(now, timezone);
 
       // Create start of day in the timezone
-      const startOfDay = this.createDateInTimezone(tzNow.year, tzNow.month, tzNow.day, 0, 0, 0, timezone);
+      const startOfDay = this.createDateInTimezone(
+        tzNow.year,
+        tzNow.month,
+        tzNow.day,
+        0,
+        0,
+        0,
+        timezone
+      );
 
       // Create end of day (start of next day)
-      const endOfDay = this.createDateInTimezone(tzNow.year, tzNow.month, tzNow.day + 1, 0, 0, 0, timezone);
+      const endOfDay = this.createDateInTimezone(
+        tzNow.year,
+        tzNow.month,
+        tzNow.day + 1,
+        0,
+        0,
+        0,
+        timezone
+      );
 
       // Count emails sent today
       const [result] = await db
@@ -207,7 +250,7 @@ export class EmailSchedulingService {
         .where(
           and(
             eq(emailSendJobs.organizationId, organizationId),
-            eq(emailSendJobs.status, "completed"),
+            eq(emailSendJobs.status, 'completed'),
             gte(emailSendJobs.actualSendTime, startOfDay),
             lt(emailSendJobs.actualSendTime, endOfDay)
           )
@@ -215,7 +258,9 @@ export class EmailSchedulingService {
 
       return result?.count || 0;
     } catch (error) {
-      logger.error(`Failed to get emails sent today: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get emails sent today: ${error instanceof Error ? error.message : String(error)}`
+      );
       return 0;
     }
   }
@@ -226,7 +271,17 @@ export class EmailSchedulingService {
   async scheduleEmailCampaign(
     sessionId: number,
     organizationId: string,
-    userId: string
+    userId: string,
+    campaignScheduleConfig?: {
+      dailyLimit?: number;
+      minGapMinutes?: number;
+      maxGapMinutes?: number;
+      timezone?: string;
+      allowedDays?: number[];
+      allowedStartTime?: string;
+      allowedEndTime?: string;
+      allowedTimezone?: string;
+    }
   ): Promise<{
     scheduled: number;
     scheduledForToday: number;
@@ -234,8 +289,14 @@ export class EmailSchedulingService {
     estimatedCompletionTime: Date;
   }> {
     try {
-      // Get schedule config
-      const config = await this.getOrCreateScheduleConfig(organizationId);
+      // Get schedule config - use campaign-specific config if provided, otherwise use org defaults
+      const orgConfig = await this.getOrCreateScheduleConfig(organizationId);
+      const config = campaignScheduleConfig
+        ? {
+            ...orgConfig,
+            ...campaignScheduleConfig,
+          }
+        : orgConfig;
 
       // First, check if there are any emails at all for this session
       const allEmails = await db
@@ -250,16 +311,22 @@ export class EmailSchedulingService {
 
       logger.info(
         `Found ${allEmails.length} total emails for session ${sessionId}. Status breakdown: ${JSON.stringify(
-          allEmails.reduce((acc, email) => {
-            acc[email.status] = (acc[email.status] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>)
+          allEmails.reduce(
+            (acc, email) => {
+              acc[email.status] = (acc[email.status] || 0) + 1;
+              return acc;
+            },
+            {} as Record<string, number>
+          )
         )}, Send status: ${JSON.stringify(
-          allEmails.reduce((acc, email) => {
-            const status = email.sendStatus || "null";
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>)
+          allEmails.reduce(
+            (acc, email) => {
+              const status = email.sendStatus || 'null';
+              acc[status] = (acc[status] || 0) + 1;
+              return acc;
+            },
+            {} as Record<string, number>
+          )
         )}`
       );
 
@@ -278,38 +345,40 @@ export class EmailSchedulingService {
             eq(generatedEmails.isSent, false),
             or(
               isNull(generatedEmails.sendStatus),
-              eq(generatedEmails.sendStatus, "pending"),
-              eq(generatedEmails.sendStatus, "paused"),
-              eq(generatedEmails.sendStatus, "failed"),
-              eq(generatedEmails.sendStatus, "cancelled")
+              eq(generatedEmails.sendStatus, 'pending'),
+              eq(generatedEmails.sendStatus, 'paused'),
+              eq(generatedEmails.sendStatus, 'failed'),
+              eq(generatedEmails.sendStatus, 'cancelled')
             )
           )
         );
 
       logger.info(
         `Found ${emails.length} emails ready to schedule for session ${sessionId} (including ${
-          allEmails.filter((e) => e.sendStatus === "failed").length
-        } failed emails and ${allEmails.filter((e) => e.sendStatus === "cancelled").length} cancelled emails for retry)`
+          allEmails.filter((e) => e.sendStatus === 'failed').length
+        } failed emails and ${allEmails.filter((e) => e.sendStatus === 'cancelled').length} cancelled emails for retry)`
       );
 
       if (emails.length === 0) {
         // Provide more detailed error message
-        let errorDetails = "No emails are ready to be scheduled. ";
+        let errorDetails = 'No emails are ready to be scheduled. ';
 
         if (allEmails.length === 0) {
-          errorDetails += "No emails found for this campaign.";
+          errorDetails += 'No emails found for this campaign.';
         } else {
           const sentCount = allEmails.filter((e) => e.isSent).length;
           const scheduledCount = allEmails.filter(
-            (e) => e.sendStatus === "scheduled" || e.sendStatus === "running"
+            (e) => e.sendStatus === 'scheduled' || e.sendStatus === 'running'
           ).length;
-          const failedCount = allEmails.filter((e) => e.sendStatus === "failed").length;
-          const pendingCount = allEmails.filter((e) => !e.sendStatus || e.sendStatus === "pending").length;
-          const pausedCount = allEmails.filter((e) => e.sendStatus === "paused").length;
-          const cancelledCount = allEmails.filter((e) => e.sendStatus === "cancelled").length;
+          const failedCount = allEmails.filter((e) => e.sendStatus === 'failed').length;
+          const pendingCount = allEmails.filter(
+            (e) => !e.sendStatus || e.sendStatus === 'pending'
+          ).length;
+          const pausedCount = allEmails.filter((e) => e.sendStatus === 'paused').length;
+          const cancelledCount = allEmails.filter((e) => e.sendStatus === 'cancelled').length;
 
           if (sentCount === allEmails.length) {
-            errorDetails += "All emails have already been sent.";
+            errorDetails += 'All emails have already been sent.';
           } else if (scheduledCount > 0) {
             errorDetails += `${scheduledCount} emails are already scheduled or being sent.`;
           } else {
@@ -318,7 +387,7 @@ export class EmailSchedulingService {
         }
 
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: 'BAD_REQUEST',
           message: errorDetails,
         });
       }
@@ -359,16 +428,18 @@ export class EmailSchedulingService {
             errors.push(`${donorsWithoutStaff.length} donor(s) don't have assigned staff`);
           }
           if (donorsWithStaffButNoEmail.length > 0) {
-            errors.push(`${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`);
+            errors.push(
+              `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`
+            );
           }
-          const errorMessage = errors.join(" and ");
+          const errorMessage = errors.join(' and ');
 
           logger.error(
             `Email scheduling validation failed for session ${sessionId}: ${donorsWithoutStaff.length} donors without staff, ${donorsWithStaffButNoEmail.length} donors with staff but no Gmail`
           );
 
           throw new TRPCError({
-            code: "BAD_REQUEST",
+            code: 'BAD_REQUEST',
             message: `Cannot schedule emails. ${errorMessage}`,
           });
         }
@@ -397,12 +468,14 @@ export class EmailSchedulingService {
       let emailsScheduledToday = 0;
 
       // Find the next allowed time to start scheduling
-      currentTime = this.findNextAllowedTime(currentTime, config);
+      currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
 
-      logger.info(`Starting email scheduling at ${currentTime.toISOString()} (${config.allowedTimezone})`);
+      logger.info(
+        `Starting email scheduling at ${currentTime.toISOString()} (${config.allowedTimezone})`
+      );
       const startTz = this.getDateInTimezone(currentTime, config.allowedTimezone);
       logger.info(
-        `Local time in ${config.allowedTimezone}: ${startTz.hour}:${String(startTz.minute).padStart(2, "0")} on day ${
+        `Local time in ${config.allowedTimezone}: ${startTz.hour}:${String(startTz.minute).padStart(2, '0')} on day ${
           startTz.dayOfWeek
         }`
       );
@@ -416,12 +489,13 @@ export class EmailSchedulingService {
           currentTime = new Date(currentTime);
           currentTime.setDate(currentTime.getDate() + 1);
           // Find next allowed time (could be multiple days ahead)
-          currentTime = this.findNextAllowedTime(currentTime, config);
+          currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
           emailsScheduledToday = 0; // Reset counter for new day
         }
 
         // Calculate random gap between min and max
-        const gapMinutes = Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
+        const gapMinutes =
+          Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
         const delayMs = i === 0 ? 0 : gapMinutes * 60 * 1000;
 
         if (i > 0) {
@@ -430,8 +504,8 @@ export class EmailSchedulingService {
 
         // Ensure the scheduled time is still within allowed hours
         // If not, move to next allowed time
-        if (!this.isTimeAllowed(currentTime, config)) {
-          currentTime = this.findNextAllowedTime(currentTime, config);
+        if (!this.isTimeAllowed(currentTime, config, campaignScheduleConfig)) {
+          currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
           emailsScheduledToday = 0; // Reset counter as we've moved to a new allowed period
         }
 
@@ -453,7 +527,7 @@ export class EmailSchedulingService {
             sessionId: sessionId,
             organizationId: organizationId,
             scheduledTime: job.scheduledTime,
-            status: "scheduled" as const,
+            status: 'scheduled' as const,
           }))
         )
         .returning();
@@ -466,7 +540,7 @@ export class EmailSchedulingService {
             .set({
               sendJobId: jobRecords[index].id,
               scheduledSendTime: job.scheduledTime,
-              sendStatus: "scheduled",
+              sendStatus: 'scheduled',
               updatedAt: new Date(),
             })
             .where(eq(generatedEmails.id, job.emailId))
@@ -516,6 +590,17 @@ export class EmailSchedulingService {
         `Scheduled ${scheduledJobs.length} emails for session ${sessionId}. Today: ${scheduledForToday}, Later: ${scheduledForLater}`
       );
 
+      // Save campaign-specific schedule config if provided
+      if (campaignScheduleConfig) {
+        await db
+          .update(emailGenerationSessions)
+          .set({
+            scheduleConfig: campaignScheduleConfig,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, sessionId));
+      }
+
       return {
         scheduled: scheduledJobs.length,
         scheduledForToday,
@@ -524,10 +609,12 @@ export class EmailSchedulingService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to schedule email campaign: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to schedule email campaign: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to schedule email campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to schedule email campaign',
       });
     }
   }
@@ -535,7 +622,10 @@ export class EmailSchedulingService {
   /**
    * Pause a campaign by cancelling all pending jobs
    */
-  async pauseCampaign(sessionId: number, organizationId: string): Promise<{ cancelledJobs: number }> {
+  async pauseCampaign(
+    sessionId: number,
+    organizationId: string
+  ): Promise<{ cancelledJobs: number }> {
     try {
       // Get all scheduled jobs
       const scheduledJobs = await db
@@ -545,14 +635,14 @@ export class EmailSchedulingService {
           and(
             eq(emailSendJobs.sessionId, sessionId),
             eq(emailSendJobs.organizationId, organizationId),
-            eq(emailSendJobs.status, "scheduled")
+            eq(emailSendJobs.status, 'scheduled')
           )
         );
 
       if (scheduledJobs.length === 0) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No scheduled emails to pause",
+          code: 'BAD_REQUEST',
+          message: 'No scheduled emails to pause',
         });
       }
 
@@ -571,29 +661,33 @@ export class EmailSchedulingService {
       await db
         .update(emailSendJobs)
         .set({
-          status: "cancelled",
+          status: 'cancelled',
           updatedAt: new Date(),
         })
-        .where(and(eq(emailSendJobs.sessionId, sessionId), eq(emailSendJobs.status, "scheduled")));
+        .where(and(eq(emailSendJobs.sessionId, sessionId), eq(emailSendJobs.status, 'scheduled')));
 
       // Update email statuses
       await db
         .update(generatedEmails)
         .set({
-          sendStatus: "paused",
+          sendStatus: 'paused',
           updatedAt: new Date(),
         })
-        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.sendStatus, "scheduled")));
+        .where(
+          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.sendStatus, 'scheduled'))
+        );
 
       logger.info(`Paused campaign ${sessionId}, cancelled ${scheduledJobs.length} jobs`);
 
       return { cancelledJobs: scheduledJobs.length };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to pause campaign: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to pause campaign: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to pause campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to pause campaign',
       });
     }
   }
@@ -621,15 +715,15 @@ export class EmailSchedulingService {
         .where(
           and(
             eq(generatedEmails.sessionId, sessionId),
-            eq(generatedEmails.sendStatus, "paused"),
+            eq(generatedEmails.sendStatus, 'paused'),
             eq(generatedEmails.isSent, false)
           )
         );
 
       if (pausedEmails.length === 0) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No paused emails to resume",
+          code: 'BAD_REQUEST',
+          message: 'No paused emails to resume',
         });
       }
 
@@ -637,15 +731,29 @@ export class EmailSchedulingService {
       await db
         .update(generatedEmails)
         .set({
-          sendStatus: "pending",
+          sendStatus: 'pending',
           sendJobId: null,
           scheduledSendTime: null,
           updatedAt: new Date(),
         })
-        .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.sendStatus, "paused")));
+        .where(
+          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.sendStatus, 'paused'))
+        );
 
-      // Reschedule the campaign
-      const result = await this.scheduleEmailCampaign(sessionId, organizationId, userId);
+      // Get the campaign's schedule config
+      const campaign = await db
+        .select({ scheduleConfig: emailGenerationSessions.scheduleConfig })
+        .from(emailGenerationSessions)
+        .where(eq(emailGenerationSessions.id, sessionId))
+        .limit(1);
+
+      // Reschedule the campaign with its saved config
+      const result = await this.scheduleEmailCampaign(
+        sessionId,
+        organizationId,
+        userId,
+        campaign[0]?.scheduleConfig as any
+      );
 
       logger.info(`Resumed campaign ${sessionId}, rescheduled ${result.scheduled} emails`);
 
@@ -657,10 +765,12 @@ export class EmailSchedulingService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to resume campaign: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to resume campaign: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to resume campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to resume campaign',
       });
     }
   }
@@ -668,7 +778,10 @@ export class EmailSchedulingService {
   /**
    * Cancel all remaining emails in a campaign
    */
-  async cancelCampaign(sessionId: number, organizationId: string): Promise<{ cancelledEmails: number }> {
+  async cancelCampaign(
+    sessionId: number,
+    organizationId: string
+  ): Promise<{ cancelledEmails: number }> {
     try {
       // First pause to cancel jobs
       await this.pauseCampaign(sessionId, organizationId);
@@ -677,16 +790,16 @@ export class EmailSchedulingService {
       const result = await db
         .update(generatedEmails)
         .set({
-          sendStatus: "cancelled",
+          sendStatus: 'cancelled',
           updatedAt: new Date(),
         })
         .where(
           and(
             eq(generatedEmails.sessionId, sessionId),
             or(
-              eq(generatedEmails.sendStatus, "paused"),
-              eq(generatedEmails.sendStatus, "pending"),
-              eq(generatedEmails.sendStatus, "scheduled")
+              eq(generatedEmails.sendStatus, 'paused'),
+              eq(generatedEmails.sendStatus, 'pending'),
+              eq(generatedEmails.sendStatus, 'scheduled')
             ),
             eq(generatedEmails.isSent, false)
           )
@@ -698,10 +811,12 @@ export class EmailSchedulingService {
       return { cancelledEmails: result.length };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to cancel campaign: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to cancel campaign: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to cancel campaign",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to cancel campaign',
       });
     }
   }
@@ -716,14 +831,17 @@ export class EmailSchedulingService {
         .select()
         .from(emailGenerationSessions)
         .where(
-          and(eq(emailGenerationSessions.id, sessionId), eq(emailGenerationSessions.organizationId, organizationId))
+          and(
+            eq(emailGenerationSessions.id, sessionId),
+            eq(emailGenerationSessions.organizationId, organizationId)
+          )
         )
         .limit(1);
 
       if (!session) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Campaign not found",
+          code: 'NOT_FOUND',
+          message: 'Campaign not found',
         });
       }
 
@@ -753,9 +871,9 @@ export class EmailSchedulingService {
           and(
             eq(generatedEmails.sessionId, sessionId),
             or(
-              eq(generatedEmails.sendStatus, "scheduled"),
-              eq(generatedEmails.sendStatus, "sent"),
-              eq(generatedEmails.sendStatus, "failed")
+              eq(generatedEmails.sendStatus, 'scheduled'),
+              eq(generatedEmails.sendStatus, 'sent'),
+              eq(generatedEmails.sendStatus, 'failed')
             )
           )
         )
@@ -775,22 +893,23 @@ export class EmailSchedulingService {
       emailStatuses.forEach(({ status, count }) => {
         const numCount = Number(count); // Ensure count is a number
         stats.total += numCount;
-        if (status === "pending") stats.pending = numCount;
-        else if (status === "scheduled") stats.scheduled = numCount;
-        else if (status === "sent") stats.sent = numCount;
-        else if (status === "failed") stats.failed = numCount;
-        else if (status === "cancelled") stats.cancelled = numCount;
-        else if (status === "paused") stats.paused = numCount;
+        if (status === 'pending') stats.pending = numCount;
+        else if (status === 'scheduled') stats.scheduled = numCount;
+        else if (status === 'sent') stats.sent = numCount;
+        else if (status === 'failed') stats.failed = numCount;
+        else if (status === 'cancelled') stats.cancelled = numCount;
+        else if (status === 'paused') stats.paused = numCount;
       });
 
       // Get next scheduled email
       const nextScheduled = scheduledEmails.find(
-        (email) => email.status === "scheduled" && email.scheduledTime && email.scheduledTime > new Date()
+        (email) =>
+          email.status === 'scheduled' && email.scheduledTime && email.scheduledTime > new Date()
       );
 
       // Get last sent email
       const lastSent = scheduledEmails
-        .filter((email) => email.status === "sent" && email.actualSendTime)
+        .filter((email) => email.status === 'sent' && email.actualSendTime)
         .sort((a, b) => (b.actualSendTime?.getTime() || 0) - (a.actualSendTime?.getTime() || 0))[0];
 
       return {
@@ -819,10 +938,12 @@ export class EmailSchedulingService {
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to get campaign schedule: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get campaign schedule: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get campaign schedule",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get campaign schedule',
       });
     }
   }
@@ -831,7 +952,7 @@ export class EmailSchedulingService {
    * Convert time string (HH:MM) to minutes since midnight
    */
   private timeToMinutes(timeStr: string): number {
-    const [hours, minutes] = timeStr.split(":").map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
     return hours * 60 + minutes;
   }
 
@@ -853,23 +974,23 @@ export class EmailSchedulingService {
     // Use toLocaleString with specific options to get components
     const options: Intl.DateTimeFormatOptions = {
       timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     };
 
-    const dateStr = date.toLocaleString("en-US", options);
+    const dateStr = date.toLocaleString('en-US', options);
     // Format: MM/DD/YYYY, HH:MM:SS
-    const [datePart, timePart] = dateStr.split(", ");
-    const [month, day, year] = datePart.split("/").map(Number);
-    const [hour, minute, second] = timePart.split(":").map(Number);
+    const [datePart, timePart] = dateStr.split(', ');
+    const [month, day, year] = datePart.split('/').map(Number);
+    const [hour, minute, second] = timePart.split(':').map(Number);
 
     // Get day of week separately
-    const dayOfWeek = new Date(date.toLocaleString("en-US", { timeZone: timezone })).getDay();
+    const dayOfWeek = new Date(date.toLocaleString('en-US', { timeZone: timezone })).getDay();
 
     return {
       year,
@@ -895,27 +1016,26 @@ export class EmailSchedulingService {
     timezone: string
   ): Date {
     // Create a localized date string
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(
-      2,
-      "0"
-    )}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(
+      hour
+    ).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
 
     // Use toLocaleString to format a reference date and extract timezone offset
     const refDate = new Date(dateStr);
-    const tzString = refDate.toLocaleString("en-US", {
+    const tzString = refDate.toLocaleString('en-US', {
       timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     });
 
     // Now we need to find what UTC time corresponds to our desired local time
     // Start with an approximation
-    let utcDate = new Date(dateStr + "Z"); // Assume it's UTC
+    let utcDate = new Date(dateStr + 'Z'); // Assume it's UTC
 
     // Adjust based on the difference
     for (let i = 0; i < 5; i++) {
@@ -923,7 +1043,8 @@ export class EmailSchedulingService {
       const currentTz = this.getDateInTimezone(utcDate, timezone);
 
       // Calculate the difference in minutes
-      const currentMinutes = (currentTz.day - day) * 24 * 60 + currentTz.hour * 60 + currentTz.minute;
+      const currentMinutes =
+        (currentTz.day - day) * 24 * 60 + currentTz.hour * 60 + currentTz.minute;
       const targetMinutes = hour * 60 + minute;
       const diffMinutes = targetMinutes - currentMinutes;
 
@@ -939,7 +1060,7 @@ export class EmailSchedulingService {
   /**
    * Check if a given date/time is within the allowed time window
    */
-  private isTimeAllowed(date: Date, config: EmailScheduleConfig): boolean {
+  private isTimeAllowed(date: Date, config: EmailScheduleConfig, campaignConfig?: any): boolean {
     // Get date components in the allowed timezone
     const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
 
@@ -950,6 +1071,18 @@ export class EmailSchedulingService {
 
     // Check if time is within allowed hours
     const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
+
+    // Use campaign-specific daily schedules if available
+    if (campaignConfig?.dailySchedules && campaignConfig.dailySchedules[tzDate.dayOfWeek]) {
+      const daySchedule = campaignConfig.dailySchedules[tzDate.dayOfWeek];
+      if (!daySchedule.enabled) return false;
+
+      const startMinutes = this.timeToMinutes(daySchedule.startTime);
+      const endMinutes = this.timeToMinutes(daySchedule.endTime);
+      return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
+    }
+
+    // Otherwise use default schedule for all days
     const startMinutes = this.timeToMinutes(config.allowedStartTime);
     const endMinutes = this.timeToMinutes(config.allowedEndTime);
 
@@ -959,9 +1092,9 @@ export class EmailSchedulingService {
   /**
    * Find the next allowed time after the given date
    */
-  private findNextAllowedTime(date: Date, config: EmailScheduleConfig): Date {
+  private findNextAllowedTime(date: Date, config: EmailScheduleConfig, campaignConfig?: any): Date {
     // If we're already in an allowed time, return immediately
-    if (this.isTimeAllowed(date, config)) {
+    if (this.isTimeAllowed(date, config, campaignConfig)) {
       return date;
     }
 
@@ -969,11 +1102,65 @@ export class EmailSchedulingService {
     const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
     const currentDay = tzDate.dayOfWeek;
     const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
-    const startMinutes = this.timeToMinutes(config.allowedStartTime);
-    const endMinutes = this.timeToMinutes(config.allowedEndTime);
-    const [startHours, startMins] = config.allowedStartTime.split(":").map(Number);
 
     let targetDate: Date;
+
+    // Check if we're using daily schedules
+    if (campaignConfig?.dailySchedules) {
+      // If today is an allowed day, check the schedule for today
+      if (config.allowedDays.includes(currentDay) && campaignConfig.dailySchedules[currentDay]) {
+        const daySchedule = campaignConfig.dailySchedules[currentDay];
+        if (daySchedule.enabled) {
+          const endMinutes = this.timeToMinutes(daySchedule.endTime);
+          const [startHours, startMins] = daySchedule.startTime.split(':').map(Number);
+
+          // If we're before start time today, go to start time
+          if (currentTimeMinutes < this.timeToMinutes(daySchedule.startTime)) {
+            targetDate = this.createDateInTimezone(
+              tzDate.year,
+              tzDate.month,
+              tzDate.day,
+              startHours,
+              startMins,
+              0,
+              config.allowedTimezone
+            );
+            return targetDate;
+          }
+        }
+      }
+
+      // Find next allowed day with a schedule
+      let daysToAdd = 0;
+      for (let i = 1; i <= 7; i++) {
+        const checkDay = (currentDay + i) % 7;
+        if (
+          config.allowedDays.includes(checkDay) &&
+          campaignConfig.dailySchedules[checkDay] &&
+          campaignConfig.dailySchedules[checkDay].enabled
+        ) {
+          daysToAdd = i;
+          const daySchedule = campaignConfig.dailySchedules[checkDay];
+          const [startHours, startMins] = daySchedule.startTime.split(':').map(Number);
+
+          targetDate = this.createDateInTimezone(
+            tzDate.year,
+            tzDate.month,
+            tzDate.day + daysToAdd,
+            startHours,
+            startMins,
+            0,
+            config.allowedTimezone
+          );
+          return targetDate;
+        }
+      }
+    }
+
+    // Fall back to default schedule logic
+    const startMinutes = this.timeToMinutes(config.allowedStartTime);
+    const endMinutes = this.timeToMinutes(config.allowedEndTime);
+    const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
 
     // If today is an allowed day but we're past the end time, move to next allowed day
     if (config.allowedDays.includes(currentDay) && currentTimeMinutes > endMinutes) {
@@ -1037,7 +1224,7 @@ export class EmailSchedulingService {
     if (targetDate <= date) {
       // Something went wrong, add one day and try again
       const tomorrow = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      return this.findNextAllowedTime(tomorrow, config);
+      return this.findNextAllowedTime(tomorrow, config, campaignConfig);
     }
 
     return targetDate;
@@ -1064,7 +1251,7 @@ export class EmailSchedulingService {
         .where(
           and(
             eq(emailSendJobs.organizationId, organizationId),
-            eq(emailSendJobs.status, "scheduled"),
+            eq(emailSendJobs.status, 'scheduled'),
             isNull(emailSendJobs.actualSendTime)
           )
         )
@@ -1090,7 +1277,9 @@ export class EmailSchedulingService {
 
       // Process each session's jobs
       for (const [sessionId, jobs] of jobsBySession) {
-        const needsReschedule = jobs.filter((job) => !this.isTimeAllowed(job.scheduledTime, config));
+        const needsReschedule = jobs.filter(
+          (job) => !this.isTimeAllowed(job.scheduledTime, config)
+        );
 
         if (needsReschedule.length === 0) {
           continue; // All jobs in this session are already in allowed times
@@ -1112,7 +1301,8 @@ export class EmailSchedulingService {
           const job = needsReschedule[i];
 
           // Calculate gap for spacing
-          const gapMinutes = Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
+          const gapMinutes =
+            Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
           const delayMs = i === 0 ? 0 : gapMinutes * 60 * 1000;
 
           if (i > 0) {
@@ -1209,15 +1399,17 @@ export class EmailSchedulingService {
         totalRescheduled += updatedJobs.length;
       }
 
-      logger.info(`Successfully rescheduled ${totalRescheduled} email jobs for organization ${organizationId}`);
+      logger.info(
+        `Successfully rescheduled ${totalRescheduled} email jobs for organization ${organizationId}`
+      );
       return { rescheduled: totalRescheduled };
     } catch (error) {
       logger.error(
         `Failed to reschedule existing campaigns: ${error instanceof Error ? error.message : String(error)}`
       );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to reschedule existing campaigns",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to reschedule existing campaigns',
       });
     }
   }

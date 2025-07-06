@@ -421,6 +421,20 @@
       "when": 1751819000000,
       "tag": "0059_convert_donors_notes_to_jsonb",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1751825913316,
+      "tag": "0060_sparkling_redwing",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1751841932751,
+      "tag": "0061_serious_marvex",
+      "breakpoints": true
     }
   ]
 }

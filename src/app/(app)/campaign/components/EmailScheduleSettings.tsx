@@ -1,14 +1,20 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useCommunications } from "@/app/hooks/use-communications";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useEffect } from 'react';
+import { useCommunications } from '@/app/hooks/use-communications';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,10 +24,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import { Settings, Info, Clock } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+import { Settings, Info, Clock } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function EmailScheduleSettings() {
   const { getScheduleConfig, updateScheduleConfig, listCampaigns } = useCommunications();
@@ -30,17 +36,26 @@ export function EmailScheduleSettings() {
 
   // Filter for active campaigns (those with scheduled or running status)
   const activeCampaigns =
-    campaigns?.campaigns?.filter((campaign: any) => campaign.status === "running" || campaign.status === "scheduled") ||
-    [];
+    campaigns?.campaigns?.filter(
+      (campaign: any) => campaign.status === 'running' || campaign.status === 'scheduled'
+    ) || [];
 
   const [dailyLimit, setDailyLimit] = useState(150);
   const [minGap, setMinGap] = useState(1);
   const [maxGap, setMaxGap] = useState(3);
-  const [timezone, setTimezone] = useState("America/New_York");
+  const [timezone, setTimezone] = useState('America/New_York');
   const [allowedDays, setAllowedDays] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [allowedStartTime, setAllowedStartTime] = useState("09:00");
-  const [allowedEndTime, setAllowedEndTime] = useState("17:00");
-  const [allowedTimezone, setAllowedTimezone] = useState("America/New_York");
+  const [allowedStartTime, setAllowedStartTime] = useState('09:00');
+  const [allowedEndTime, setAllowedEndTime] = useState('17:00');
+  const [allowedTimezone, setAllowedTimezone] = useState('America/New_York');
+  const [useDailySchedules, setUseDailySchedules] = useState(false);
+  const [dailySchedules, setDailySchedules] = useState<{
+    [key: number]: {
+      startTime: string;
+      endTime: string;
+      enabled: boolean;
+    };
+  }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -49,28 +64,28 @@ export function EmailScheduleSettings() {
 
   // Common timezones
   const timezones = [
-    { value: "America/New_York", label: "Eastern Time (ET)" },
-    { value: "America/Chicago", label: "Central Time (CT)" },
-    { value: "America/Denver", label: "Mountain Time (MT)" },
-    { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
-    { value: "America/Phoenix", label: "Arizona Time" },
-    { value: "Pacific/Honolulu", label: "Hawaii Time" },
-    { value: "America/Anchorage", label: "Alaska Time" },
-    { value: "Europe/London", label: "London (GMT)" },
-    { value: "Europe/Paris", label: "Paris (CET)" },
-    { value: "Asia/Tokyo", label: "Tokyo (JST)" },
-    { value: "Australia/Sydney", label: "Sydney (AEDT)" },
+    { value: 'America/New_York', label: 'Eastern Time (ET)' },
+    { value: 'America/Chicago', label: 'Central Time (CT)' },
+    { value: 'America/Denver', label: 'Mountain Time (MT)' },
+    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+    { value: 'America/Phoenix', label: 'Arizona Time' },
+    { value: 'Pacific/Honolulu', label: 'Hawaii Time' },
+    { value: 'America/Anchorage', label: 'Alaska Time' },
+    { value: 'Europe/London', label: 'London (GMT)' },
+    { value: 'Europe/Paris', label: 'Paris (CET)' },
+    { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+    { value: 'Australia/Sydney', label: 'Sydney (AEDT)' },
   ];
 
   // Days of the week
   const daysOfWeek = [
-    { value: 0, label: "Sunday", short: "Sun" },
-    { value: 1, label: "Monday", short: "Mon" },
-    { value: 2, label: "Tuesday", short: "Tue" },
-    { value: 3, label: "Wednesday", short: "Wed" },
-    { value: 4, label: "Thursday", short: "Thu" },
-    { value: 5, label: "Friday", short: "Fri" },
-    { value: 6, label: "Saturday", short: "Sat" },
+    { value: 0, label: 'Sunday', short: 'Sun' },
+    { value: 1, label: 'Monday', short: 'Mon' },
+    { value: 2, label: 'Tuesday', short: 'Tue' },
+    { value: 3, label: 'Wednesday', short: 'Wed' },
+    { value: 4, label: 'Thursday', short: 'Thu' },
+    { value: 5, label: 'Friday', short: 'Fri' },
+    { value: 6, label: 'Saturday', short: 'Sat' },
   ];
 
   // Load config values
@@ -81,9 +96,11 @@ export function EmailScheduleSettings() {
       setMaxGap(config.maxGapMinutes);
       setTimezone(config.timezone);
       setAllowedDays(config.allowedDays || [1, 2, 3, 4, 5]);
-      setAllowedStartTime(config.allowedStartTime || "09:00");
-      setAllowedEndTime(config.allowedEndTime || "17:00");
-      setAllowedTimezone(config.allowedTimezone || "America/New_York");
+      setAllowedStartTime(config.allowedStartTime || '09:00');
+      setAllowedEndTime(config.allowedEndTime || '17:00');
+      setAllowedTimezone(config.allowedTimezone || 'America/New_York');
+      setUseDailySchedules(!!config.dailySchedules);
+      setDailySchedules(config.dailySchedules || {});
     }
   }, [config]);
 
@@ -96,12 +113,26 @@ export function EmailScheduleSettings() {
         maxGap !== config.maxGapMinutes ||
         timezone !== config.timezone ||
         JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
-        allowedStartTime !== (config.allowedStartTime || "09:00") ||
-        allowedEndTime !== (config.allowedEndTime || "17:00") ||
-        allowedTimezone !== (config.allowedTimezone || "America/New_York");
+        allowedStartTime !== (config.allowedStartTime || '09:00') ||
+        allowedEndTime !== (config.allowedEndTime || '17:00') ||
+        allowedTimezone !== (config.allowedTimezone || 'America/New_York') ||
+        useDailySchedules !== !!config.dailySchedules ||
+        JSON.stringify(dailySchedules) !== JSON.stringify(config.dailySchedules || {});
       setHasChanges(changed);
     }
-  }, [config, dailyLimit, minGap, maxGap, timezone, allowedDays, allowedStartTime, allowedEndTime, allowedTimezone]);
+  }, [
+    config,
+    dailyLimit,
+    minGap,
+    maxGap,
+    timezone,
+    allowedDays,
+    allowedStartTime,
+    allowedEndTime,
+    allowedTimezone,
+    useDailySchedules,
+    dailySchedules,
+  ]);
 
   // Update current time every minute
   useEffect(() => {
@@ -115,19 +146,19 @@ export function EmailScheduleSettings() {
   const handleSave = async (rescheduleExisting = false) => {
     // Validate
     if (minGap > maxGap) {
-      toast.error("Minimum gap cannot be greater than maximum gap");
+      toast.error('Minimum gap cannot be greater than maximum gap');
       return;
     }
 
     if (allowedDays.length === 0) {
-      toast.error("At least one day must be selected");
+      toast.error('At least one day must be selected');
       return;
     }
 
     const startMinutes = timeToMinutes(allowedStartTime);
     const endMinutes = timeToMinutes(allowedEndTime);
     if (startMinutes >= endMinutes) {
-      toast.error("End time must be after start time");
+      toast.error('End time must be after start time');
       return;
     }
 
@@ -140,15 +171,16 @@ export function EmailScheduleSettings() {
       allowedStartTime,
       allowedEndTime,
       allowedTimezone,
+      dailySchedules: useDailySchedules ? dailySchedules : undefined,
     };
 
     // Check if allowed time settings have changed and there are active campaigns
     const allowedTimeChanged =
       config &&
       (JSON.stringify(allowedDays) !== JSON.stringify(config.allowedDays || [1, 2, 3, 4, 5]) ||
-        allowedStartTime !== (config.allowedStartTime || "09:00") ||
-        allowedEndTime !== (config.allowedEndTime || "17:00") ||
-        allowedTimezone !== (config.allowedTimezone || "America/New_York"));
+        allowedStartTime !== (config.allowedStartTime || '09:00') ||
+        allowedEndTime !== (config.allowedEndTime || '17:00') ||
+        allowedTimezone !== (config.allowedTimezone || 'America/New_York'));
 
     if (allowedTimeChanged && activeCampaigns.length > 0 && !rescheduleExisting) {
       setPendingUpdate(updateData);
@@ -162,13 +194,13 @@ export function EmailScheduleSettings() {
         ...updateData,
         rescheduleExisting,
       });
-      toast.success("Schedule settings updated successfully");
+      toast.success('Schedule settings updated successfully');
       setHasChanges(false);
       setPendingUpdate(null);
       setShowConfirmDialog(false);
     } catch (error) {
-      console.error("Failed to update settings:", error);
-      toast.error("Failed to update settings. Please try again.");
+      console.error('Failed to update settings:', error);
+      toast.error('Failed to update settings. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -181,16 +213,36 @@ export function EmailScheduleSettings() {
       setMaxGap(config.maxGapMinutes);
       setTimezone(config.timezone);
       setAllowedDays(config.allowedDays || [1, 2, 3, 4, 5]);
-      setAllowedStartTime(config.allowedStartTime || "09:00");
-      setAllowedEndTime(config.allowedEndTime || "17:00");
-      setAllowedTimezone(config.allowedTimezone || "America/New_York");
+      setAllowedStartTime(config.allowedStartTime || '09:00');
+      setAllowedEndTime(config.allowedEndTime || '17:00');
+      setAllowedTimezone(config.allowedTimezone || 'America/New_York');
+      setUseDailySchedules(!!config.dailySchedules);
+      setDailySchedules(config.dailySchedules || {});
     }
   };
 
   // Utility function to convert time to minutes
   const timeToMinutes = (timeStr: string): number => {
-    const [hours, minutes] = timeStr.split(":").map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
     return hours * 60 + minutes;
+  };
+
+  // Initialize daily schedules when toggling the feature
+  const handleUseDailySchedulesChange = (checked: boolean) => {
+    setUseDailySchedules(checked);
+
+    if (checked) {
+      // Initialize daily schedules for all allowed days
+      const newSchedules: any = {};
+      allowedDays.forEach((day) => {
+        newSchedules[day] = dailySchedules[day] || {
+          startTime: allowedStartTime,
+          endTime: allowedEndTime,
+          enabled: true,
+        };
+      });
+      setDailySchedules(newSchedules);
+    }
   };
 
   // Handle day selection
@@ -199,10 +251,40 @@ export function EmailScheduleSettings() {
       if (allowedDays.length > 1) {
         // Prevent removing all days
         setAllowedDays(allowedDays.filter((d) => d !== day));
+        // Remove daily schedule for this day
+        const newSchedules = { ...dailySchedules };
+        delete newSchedules[day];
+        setDailySchedules(newSchedules);
       }
     } else {
       setAllowedDays([...allowedDays, day].sort());
+      // Add default schedule for this day if using daily schedules
+      if (useDailySchedules) {
+        setDailySchedules({
+          ...dailySchedules,
+          [day]: {
+            startTime: allowedStartTime,
+            endTime: allowedEndTime,
+            enabled: true,
+          },
+        });
+      }
     }
+  };
+
+  // Update daily schedule for a specific day
+  const updateDaySchedule = (day: number, field: 'startTime' | 'endTime', value: string) => {
+    setDailySchedules({
+      ...dailySchedules,
+      [day]: {
+        ...(dailySchedules[day] || {
+          startTime: allowedStartTime,
+          endTime: allowedEndTime,
+          enabled: true,
+        }),
+        [field]: value,
+      },
+    });
   };
 
   // Calculate estimated sending time
@@ -270,13 +352,17 @@ export function EmailScheduleSettings() {
               <Input
                 type="number"
                 value={dailyLimit}
-                onChange={(e) => setDailyLimit(Math.min(500, Math.max(1, parseInt(e.target.value) || 1)))}
+                onChange={(e) =>
+                  setDailyLimit(Math.min(500, Math.max(1, parseInt(e.target.value) || 1)))
+                }
                 className="w-20"
                 min={1}
                 max={500}
               />
             </div>
-            <p className="text-xs text-muted-foreground">Maximum number of emails to send per day (1-500)</p>
+            <p className="text-xs text-muted-foreground">
+              Maximum number of emails to send per day (1-500)
+            </p>
           </div>
 
           {/* Gap Settings */}
@@ -304,7 +390,9 @@ export function EmailScheduleSettings() {
                     id="max-gap"
                     type="number"
                     value={maxGap}
-                    onChange={(e) => setMaxGap(Math.max(minGap, parseInt(e.target.value) || minGap))}
+                    onChange={(e) =>
+                      setMaxGap(Math.max(minGap, parseInt(e.target.value) || minGap))
+                    }
                     min={minGap}
                   />
                 </div>
@@ -330,7 +418,9 @@ export function EmailScheduleSettings() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Daily limits reset at midnight in this timezone</p>
+            <p className="text-xs text-muted-foreground">
+              Daily limits reset at midnight in this timezone
+            </p>
           </div>
 
           {/* Allowed Time Settings */}
@@ -351,40 +441,90 @@ export function EmailScheduleSettings() {
                       checked={allowedDays.includes(day.value)}
                       onCheckedChange={() => toggleDay(day.value)}
                     />
-                    <Label htmlFor={`day-${day.value}`} className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor={`day-${day.value}`}
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       {day.short}
                     </Label>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">Emails will only be sent on selected days</p>
+              <p className="text-xs text-muted-foreground">
+                Emails will only be sent on selected days
+              </p>
             </div>
 
-            {/* Allowed Time Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="start-time" className="text-xs">
-                  Start Time
-                </Label>
-                <Input
-                  id="start-time"
-                  type="time"
-                  value={allowedStartTime}
-                  onChange={(e) => setAllowedStartTime(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="end-time" className="text-xs">
-                  End Time
-                </Label>
-                <Input
-                  id="end-time"
-                  type="time"
-                  value={allowedEndTime}
-                  onChange={(e) => setAllowedEndTime(e.target.value)}
-                />
-              </div>
+            {/* Per-day schedules toggle */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="use-daily-schedules"
+                checked={useDailySchedules}
+                onCheckedChange={(checked) => handleUseDailySchedulesChange(checked as boolean)}
+              />
+              <Label htmlFor="use-daily-schedules" className="text-sm font-normal cursor-pointer">
+                Use different times for each day
+              </Label>
             </div>
+
+            {/* Time Range - either default or per-day */}
+            {!useDailySchedules ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="start-time" className="text-xs">
+                    Start Time
+                  </Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    value={allowedStartTime}
+                    onChange={(e) => setAllowedStartTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="end-time" className="text-xs">
+                    End Time
+                  </Label>
+                  <Input
+                    id="end-time"
+                    type="time"
+                    value={allowedEndTime}
+                    onChange={(e) => setAllowedEndTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-sm">Daily Schedules</Label>
+                <div className="space-y-2">
+                  {allowedDays.sort().map((day) => {
+                    const dayName = daysOfWeek.find((d) => d.value === day)?.label || '';
+                    const schedule = dailySchedules[day] || {
+                      startTime: allowedStartTime,
+                      endTime: allowedEndTime,
+                      enabled: true,
+                    };
+                    return (
+                      <div key={day} className="grid grid-cols-3 gap-2 items-center">
+                        <Label className="text-xs">{dayName}</Label>
+                        <Input
+                          type="time"
+                          value={schedule.startTime}
+                          onChange={(e) => updateDaySchedule(day, 'startTime', e.target.value)}
+                          className="text-xs"
+                        />
+                        <Input
+                          type="time"
+                          value={schedule.endTime}
+                          onChange={(e) => updateDaySchedule(day, 'endTime', e.target.value)}
+                          className="text-xs"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Allowed Timezone */}
             <div className="space-y-2">
@@ -406,18 +546,18 @@ export function EmailScheduleSettings() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Emails will only be sent between {allowedStartTime} - {allowedEndTime} ({allowedTimezone}) on selected
-              days
+              Emails will only be sent between {allowedStartTime} - {allowedEndTime} (
+              {allowedTimezone}) on selected days
             </p>
 
             {/* Current Time Display */}
             <div className="text-xs text-muted-foreground p-2 bg-muted/10 rounded">
-              Current time in {allowedTimezone}:{" "}
-              {currentTime.toLocaleString("en-US", {
+              Current time in {allowedTimezone}:{' '}
+              {currentTime.toLocaleString('en-US', {
                 timeZone: allowedTimezone,
-                weekday: "short",
-                hour: "2-digit",
-                minute: "2-digit",
+                weekday: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
                 hour12: false,
               })}
             </div>
@@ -436,8 +576,12 @@ export function EmailScheduleSettings() {
 
           {/* Actions */}
           <div className="flex gap-2">
-            <Button onClick={() => handleSave()} disabled={!hasChanges || isSaving} className="flex-1">
-              {isSaving ? "Saving..." : "Save Settings"}
+            <Button
+              onClick={() => handleSave()}
+              disabled={!hasChanges || isSaving}
+              className="flex-1"
+            >
+              {isSaving ? 'Saving...' : 'Save Settings'}
             </Button>
             <Button variant="outline" onClick={handleReset} disabled={!hasChanges || isSaving}>
               Reset
@@ -452,8 +596,9 @@ export function EmailScheduleSettings() {
           <AlertDialogHeader>
             <AlertDialogTitle>Update Existing Campaigns?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have {activeCampaigns.length} active email campaign(s) with scheduled emails. Would you like to
-              reschedule existing campaign emails to respect the new allowed time settings?
+              You have {activeCampaigns.length} active email campaign(s) with scheduled emails.
+              Would you like to reschedule existing campaign emails to respect the new allowed time
+              settings?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -469,7 +614,7 @@ export function EmailScheduleSettings() {
               Save Without Rescheduling
             </Button>
             <AlertDialogAction onClick={() => handleSave(true)} disabled={isSaving}>
-              {isSaving ? "Updating..." : "Save & Reschedule"}
+              {isSaving ? 'Updating...' : 'Save & Reschedule'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

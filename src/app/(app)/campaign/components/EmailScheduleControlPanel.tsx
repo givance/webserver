@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,36 +12,52 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import React, { useState } from "react";
-import { Pause, Play, XCircle, Settings } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+import React, { useState } from 'react';
+import { Pause, Play, XCircle, Settings } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { CampaignScheduleConfig } from './CampaignScheduleConfig';
 
 interface EmailScheduleControlPanelProps {
   sessionId: number;
   className?: string;
 }
 
-export function EmailScheduleControlPanel({ sessionId, className }: EmailScheduleControlPanelProps) {
-  const { 
-    getEmailSchedule, 
-    pauseEmailSending, 
-    resumeEmailSending, 
-    cancelEmailSending 
+export function EmailScheduleControlPanel({
+  sessionId,
+  className,
+}: EmailScheduleControlPanelProps) {
+  const {
+    getEmailSchedule,
+    pauseEmailSending,
+    resumeEmailSending,
+    cancelEmailSending,
+    getSession,
+    updateCampaign,
   } = useCommunications();
-  
+
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showScheduleConfig, setShowScheduleConfig] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [scheduleConfig, setScheduleConfig] = useState<any>(null);
 
   // Get schedule data
   const { data: schedule, isLoading } = getEmailSchedule(
     { sessionId },
-    { 
-      enabled: !!sessionId 
+    {
+      enabled: !!sessionId,
+    }
+  );
+
+  // Get campaign data to access schedule config
+  const { data: campaign } = getSession(
+    { sessionId },
+    {
+      enabled: !!sessionId,
     }
   );
 
@@ -52,8 +68,8 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
       toast.success(`Paused campaign. ${result.cancelledJobs} emails were stopped.`);
       setShowPauseDialog(false);
     } catch (error) {
-      console.error("Failed to pause campaign:", error);
-      toast.error("Failed to pause campaign. Please try again.");
+      console.error('Failed to pause campaign:', error);
+      toast.error('Failed to pause campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -69,8 +85,8 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
       );
       setShowResumeDialog(false);
     } catch (error) {
-      console.error("Failed to resume campaign:", error);
-      toast.error("Failed to resume campaign. Please try again.");
+      console.error('Failed to resume campaign:', error);
+      toast.error('Failed to resume campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -83,8 +99,27 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
       toast.success(`Campaign cancelled. ${result.cancelledEmails} emails were cancelled.`);
       setShowCancelDialog(false);
     } catch (error) {
-      console.error("Failed to cancel campaign:", error);
-      toast.error("Failed to cancel campaign. Please try again.");
+      console.error('Failed to cancel campaign:', error);
+      toast.error('Failed to cancel campaign. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleScheduleConfigSave = async () => {
+    if (!scheduleConfig) return;
+
+    setIsProcessing(true);
+    try {
+      await updateCampaign.mutateAsync({
+        campaignId: sessionId,
+        scheduleConfig,
+      });
+      toast.success('Campaign schedule settings updated successfully');
+      setShowScheduleConfig(false);
+    } catch (error) {
+      console.error('Failed to update schedule config:', error);
+      toast.error('Failed to update schedule settings. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -120,18 +155,18 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
   // Determine campaign state
   const getCampaignState = () => {
     if (stats.sent === stats.total && stats.total > 0) {
-      return { label: "Completed", variant: "default" as const };
+      return { label: 'Completed', variant: 'default' as const };
     }
     if (hasScheduledEmails) {
-      return { label: "Active", variant: "default" as const };
+      return { label: 'Active', variant: 'default' as const };
     }
     if (hasPausedEmails) {
-      return { label: "Paused", variant: "secondary" as const };
+      return { label: 'Paused', variant: 'secondary' as const };
     }
     if (stats.cancelled > 0) {
-      return { label: "Cancelled", variant: "outline" as const };
+      return { label: 'Cancelled', variant: 'outline' as const };
     }
-    return { label: "Not Started", variant: "outline" as const };
+    return { label: 'Not Started', variant: 'outline' as const };
   };
 
   const campaignState = getCampaignState();
@@ -190,6 +225,17 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
                 Cancel Remaining Emails
               </Button>
             )}
+
+            {/* Schedule Settings Button */}
+            <Button
+              variant="outline"
+              onClick={() => setShowScheduleConfig(true)}
+              disabled={isProcessing}
+              className="w-full"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Schedule Settings
+            </Button>
           </div>
 
           {/* Status Info */}
@@ -212,18 +258,18 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
           <AlertDialogHeader>
             <AlertDialogTitle>Pause Campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will stop all scheduled emails from being sent. You can resume the campaign at any time, 
-              and emails will be rescheduled with the same delays between them.
+              This will stop all scheduled emails from being sent. You can resume the campaign at
+              any time, and emails will be rescheduled with the same delays between them.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handlePause} 
+            <AlertDialogAction
+              onClick={handlePause}
               disabled={isProcessing}
               className="bg-yellow-600 hover:bg-yellow-700"
             >
-              {isProcessing ? "Pausing..." : "Pause Campaign"}
+              {isProcessing ? 'Pausing...' : 'Pause Campaign'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -235,14 +281,14 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
           <AlertDialogHeader>
             <AlertDialogTitle>Resume Campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reschedule all remaining emails with fresh delays starting from now. 
-              The same gap settings (1-3 minutes between emails) will be maintained.
+              This will reschedule all remaining emails with fresh delays starting from now. The
+              same gap settings (1-3 minutes between emails) will be maintained.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleResume} disabled={isProcessing}>
-              {isProcessing ? "Resuming..." : "Resume Campaign"}
+              {isProcessing ? 'Resuming...' : 'Resume Campaign'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -254,19 +300,49 @@ export function EmailScheduleControlPanel({ sessionId, className }: EmailSchedul
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently cancel all remaining unsent emails. This action cannot be undone. 
+              This will permanently cancel all remaining unsent emails. This action cannot be
+              undone.
               {stats.scheduled > 0 && ` ${stats.scheduled} scheduled emails will be cancelled.`}
               {stats.paused > 0 && ` ${stats.paused} paused emails will be cancelled.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing}>Keep Campaign</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleCancel} 
+            <AlertDialogAction
+              onClick={handleCancel}
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700"
             >
-              {isProcessing ? "Cancelling..." : "Cancel Campaign"}
+              {isProcessing ? 'Cancelling...' : 'Cancel Campaign'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Schedule Configuration Dialog */}
+      <AlertDialog open={showScheduleConfig} onOpenChange={setShowScheduleConfig}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Campaign Schedule Settings</AlertDialogTitle>
+            <AlertDialogDescription>
+              Configure schedule settings for this campaign. Changes will apply to any remaining
+              emails that haven&apos;t been sent yet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <CampaignScheduleConfig
+              scheduleConfig={campaign?.session?.scheduleConfig as any}
+              onChange={setScheduleConfig}
+              compact={true}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleScheduleConfigSave}
+              disabled={isProcessing || !scheduleConfig}
+            >
+              {isProcessing ? 'Saving...' : 'Save Settings'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
