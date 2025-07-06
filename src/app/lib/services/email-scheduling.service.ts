@@ -927,14 +927,22 @@ export class EmailSchedulingService {
         scheduledEmails: scheduledEmails.map((email) => ({
           emailId: email.emailId,
           donorId: email.donorId,
-          scheduledTime: email.scheduledTime,
-          actualSendTime: email.actualSendTime,
+          scheduledTime: email.scheduledTime ? new Date(email.scheduledTime).toISOString() : null,
+          actualSendTime: email.actualSendTime
+            ? new Date(email.actualSendTime).toISOString()
+            : null,
           status: email.status,
           jobStatus: email.jobStatus,
         })),
-        nextScheduledTime: nextScheduled?.scheduledTime,
-        lastSentTime: lastSent?.actualSendTime,
-        estimatedCompletionTime: scheduledEmails[scheduledEmails.length - 1]?.scheduledTime,
+        nextScheduledTime: nextScheduled?.scheduledTime
+          ? new Date(nextScheduled.scheduledTime).toISOString()
+          : null,
+        lastSentTime: lastSent?.actualSendTime
+          ? new Date(lastSent.actualSendTime).toISOString()
+          : null,
+        estimatedCompletionTime: scheduledEmails[scheduledEmails.length - 1]?.scheduledTime
+          ? new Date(scheduledEmails[scheduledEmails.length - 1].scheduledTime).toISOString()
+          : null,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;

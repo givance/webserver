@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useDonors } from "@/app/hooks/use-donors";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
-import { AlertCircle, Calendar, CheckCircle2, Clock, Send, Timer, XCircle } from "lucide-react";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { useDonors } from '@/app/hooks/use-donors';
+import { formatDonorName } from '@/app/lib/utils/donor-name-formatter';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { format, formatDistanceToNow, isToday, isTomorrow } from 'date-fns';
+import { AlertCircle, Calendar, CheckCircle2, Clock, Send, Timer, XCircle } from 'lucide-react';
 
 interface EmailScheduleViewerProps {
   sessionId: number;
@@ -57,25 +57,26 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
     return null;
   }
 
-  const { stats, scheduledEmails, nextScheduledTime, lastSentTime, estimatedCompletionTime } = schedule;
+  const { stats, scheduledEmails, nextScheduledTime, lastSentTime, estimatedCompletionTime } =
+    schedule;
   const totalEmails = Number(stats.total) || 0;
   const sentEmails = Number(stats.sent) || 0;
   const progressPercentage = totalEmails > 0 ? (sentEmails / totalEmails) * 100 : 0;
 
   // Group emails by status for timeline
-  const pendingEmails = scheduledEmails.filter((e) => e.status === "scheduled");
-  const sentEmailsList = scheduledEmails.filter((e) => e.status === "sent");
-  const failedEmails = scheduledEmails.filter((e) => e.status === "failed");
+  const pendingEmails = scheduledEmails.filter((e) => e.status === 'scheduled');
+  const sentEmailsList = scheduledEmails.filter((e) => e.status === 'sent');
+  const failedEmails = scheduledEmails.filter((e) => e.status === 'failed');
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
-      case "sent":
+      case 'sent':
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "scheduled":
+      case 'scheduled':
         return <Clock className="h-4 w-4 text-blue-500" />;
-      case "failed":
+      case 'failed':
         return <XCircle className="h-4 w-4 text-red-500" />;
-      case "sending":
+      case 'sending':
         return <Send className="h-4 w-4 text-yellow-500 animate-pulse" />;
       default:
         return <AlertCircle className="h-4 w-4 text-gray-400" />;
@@ -84,17 +85,17 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case "sent":
+      case 'sent':
         return (
           <Badge variant="default" className="bg-green-500">
             Sent
           </Badge>
         );
-      case "scheduled":
+      case 'scheduled':
         return <Badge variant="secondary">Scheduled</Badge>;
-      case "failed":
+      case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
-      case "sending":
+      case 'sending':
         return (
           <Badge variant="outline" className="animate-pulse">
             Sending
@@ -106,15 +107,38 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
   };
 
   const formatScheduledTime = (date: Date | string | null) => {
-    if (!date) return "Not scheduled";
+    if (!date) return 'Not scheduled';
+
+    // Debug logging to identify the issue
+    if (typeof date === 'string' && date.includes('AM') && date.match(/\d{10,}/)) {
+      console.error('[EmailScheduleViewer] Invalid date format detected:', date);
+      // Try to extract a valid date from malformed string
+      const timestampMatch = date.match(/(\d{10,})/);
+      if (timestampMatch) {
+        const timestamp = parseInt(timestampMatch[1]);
+        // Check if it's milliseconds or seconds
+        const dateObj = new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000);
+        if (!isNaN(dateObj.getTime())) {
+          console.log('[EmailScheduleViewer] Recovered date from timestamp:', dateObj);
+          date = dateObj;
+        }
+      }
+    }
+
     const dateObj = new Date(date);
 
+    // Validate the date
+    if (isNaN(dateObj.getTime())) {
+      console.error('[EmailScheduleViewer] Invalid date:', date);
+      return 'Invalid date';
+    }
+
     if (isToday(dateObj)) {
-      return `Today at ${format(dateObj, "h:mm a")}`;
+      return `Today at ${format(dateObj, 'h:mm a')}`;
     } else if (isTomorrow(dateObj)) {
-      return `Tomorrow at ${format(dateObj, "h:mm a")}`;
+      return `Tomorrow at ${format(dateObj, 'h:mm a')}`;
     } else {
-      return format(dateObj, "MMM d at h:mm a");
+      return format(dateObj, 'MMM d at h:mm a');
     }
   };
 
@@ -163,7 +187,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                     </span>
                   </>
                 ) : (
-                  "No emails scheduled"
+                  'No emails scheduled'
                 )}
               </p>
             </div>
@@ -172,7 +196,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
               <p className="text-sm text-muted-foreground">Estimated Completion</p>
               <p className="text-sm font-medium flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                {estimatedCompletionTime ? formatScheduledTime(estimatedCompletionTime) : "N/A"}
+                {estimatedCompletionTime ? formatScheduledTime(estimatedCompletionTime) : 'N/A'}
               </p>
             </div>
           </div>
@@ -185,7 +209,10 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
               {sentEmailsList.map((email) => {
                 const donor = donorMap.get(email.donorId);
                 return (
-                  <div key={email.emailId} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                  <div
+                    key={email.emailId}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                  >
                     <div className="flex items-center gap-2">
                       {getStatusIcon(email.status)}
                       <Tooltip>
@@ -195,13 +222,14 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{donor?.email || "Email not available"}</p>
+                          <p>{donor?.email || 'Email not available'}</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      Sent{" "}
-                      {email.actualSendTime && formatDistanceToNow(new Date(email.actualSendTime), { addSuffix: true })}
+                      Sent{' '}
+                      {email.actualSendTime &&
+                        formatDistanceToNow(new Date(email.actualSendTime), { addSuffix: true })}
                     </span>
                   </div>
                 );
@@ -225,7 +253,10 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                 return (
                   <div
                     key={email.emailId}
-                    className={cn("flex items-center justify-between p-2 rounded-lg", "bg-blue-50 dark:bg-blue-950/20")}
+                    className={cn(
+                      'flex items-center justify-between p-2 rounded-lg',
+                      'bg-blue-50 dark:bg-blue-950/20'
+                    )}
                   >
                     <div className="flex items-center gap-2">
                       {getStatusIcon(email.status)}
@@ -236,11 +267,13 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{donor?.email || "Email not available"}</p>
+                          <p>{donor?.email || 'Email not available'}</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="text-xs text-muted-foreground">{formatScheduledTime(email.scheduledTime)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatScheduledTime(email.scheduledTime)}
+                    </span>
                   </div>
                 );
               })}
@@ -253,7 +286,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
               <div className="flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-red-500" />
                 <span className="text-sm font-medium text-red-900 dark:text-red-100">
-                  {failedEmails.length} email{failedEmails.length > 1 ? "s" : ""} failed to send
+                  {failedEmails.length} email{failedEmails.length > 1 ? 's' : ''} failed to send
                 </span>
               </div>
             </div>
