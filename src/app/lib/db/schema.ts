@@ -257,21 +257,28 @@ export const donations = pgTable("donations", {
 /**
  * Staff table to track organization staff members
  */
-export const staff = pgTable("staff", {
-  id: serial("id").primaryKey(),
-  organizationId: text("organization_id")
-    .references(() => organizations.id, { onDelete: "cascade" })
-    .notNull(),
-  firstName: varchar("first_name", { length: 255 }).notNull(),
-  lastName: varchar("last_name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  isRealPerson: boolean("is_real_person").default(true).notNull(),
-  isPrimary: boolean("is_primary").default(false).notNull(), // Only one staff member per organization can be primary
-  signature: text("signature"), // Rich text signature for emails
-  writingInstructions: text("writing_instructions"), // Staff-specific writing instructions that override organizational defaults
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const staff = pgTable(
+  "staff",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: text("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    firstName: varchar("first_name", { length: 255 }).notNull(),
+    lastName: varchar("last_name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    isRealPerson: boolean("is_real_person").default(true).notNull(),
+    isPrimary: boolean("is_primary").default(false).notNull(), // Only one staff member per organization can be primary
+    signature: text("signature"), // Rich text signature for emails
+    writingInstructions: text("writing_instructions"), // Staff-specific writing instructions that override organizational defaults
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Email should be unique within each organization, not globally
+    uniqueEmailPerOrg: unique("staff_email_organization_unique").on(table.email, table.organizationId),
+  })
+);
 
 /**
  * Communication threads table to group related communications
