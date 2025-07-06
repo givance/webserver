@@ -2,6 +2,10 @@ import { toast } from "sonner";
 import { handleEmailGeneration } from "../utils/emailOperations";
 import { handleEmailResult } from "./emailResultHandler";
 import { handleGenerateMoreEmails } from "../utils/emailOperations";
+import type { Organization, TokenUsage } from "@/app/lib/utils/email-generator/types";
+import type { InferSelectModel } from "drizzle-orm";
+import type { Donor } from "@/app/lib/data/donors";
+import type { EmailGenerationResult, GeneratedEmail } from "../types";
 
 interface EmailGenerationState {
   setIsGenerating: (generating: boolean) => void;
@@ -9,26 +13,40 @@ interface EmailGenerationState {
   setIsRegenerating: (regenerating: boolean) => void;
   isGeneratingMore: boolean;
   isRegenerating: boolean;
-  generateEmailsForDonors: any;
-  saveEmailsToSession: any;
+  generateEmailsForDonors: (params: {
+    instruction: string;
+    donors: Array<{ id: number; firstName: string; lastName: string; email: string }>;
+    organizationName: string;
+    organizationWritingInstructions?: string;
+    previousInstruction?: string;
+    currentDate?: string;
+    chatHistory?: ConversationMessage[];
+    signature?: string;
+  }) => Promise<EmailGenerationResult | null>;
+  saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
 }
 
 interface EmailState {
-  setGeneratedEmails: (emails: any[]) => void;
-  setAllGeneratedEmails: (emails: any[]) => void;
-  setReferenceContexts: (contexts: Record<number, any>) => void;
-  setEmailStatuses: (statuses: any) => void;
+  setGeneratedEmails: (emails: GeneratedEmail[]) => void;
+  setAllGeneratedEmails: (emails: GeneratedEmail[]) => void;
+  setReferenceContexts: (contexts: Record<number, Record<string, string>>) => void;
+  setEmailStatuses: (statuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> | ((prev: Record<number, "PENDING_APPROVAL" | "APPROVED">) => Record<number, "PENDING_APPROVAL" | "APPROVED">)) => void;
   setIsUpdatingStatus: (updating: boolean) => void;
-  allGeneratedEmails: any[];
-  referenceContexts: Record<number, any>;
-  emailStatuses: Record<number, string>;
+  allGeneratedEmails: GeneratedEmail[];
+  referenceContexts: Record<number, Record<string, string>>;
+  emailStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED">;
+}
+
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 interface ChatState {
-  setSuggestedMemories: (memories: any[]) => void;
-  setChatMessages: (messages: any) => void;
-  saveChatHistory: (messages: any[], instruction?: string) => void;
-  chatMessages: any[];
+  setSuggestedMemories: (memories: string[]) => void;
+  setChatMessages: (messages: ConversationMessage[] | ((prev: ConversationMessage[]) => ConversationMessage[])) => void;
+  saveChatHistory: (messages: ConversationMessage[], instruction?: string) => void;
+  chatMessages: ConversationMessage[];
 }
 
 interface PreviewDonors {
@@ -42,8 +60,8 @@ interface InstructionInput {
 }
 
 interface BaseEmailOperationParams {
-  organization: any;
-  donorsData: any[];
+  organization: { name: string; writingInstructions?: string | null } | undefined;
+  donorsData: Array<{ id: number; firstName: string; lastName: string; email: string }>;
   currentSignature?: string;
   sessionId?: number;
   previousInstruction?: string;
@@ -64,11 +82,38 @@ interface GenerateMoreParams extends BaseEmailOperationParams {
   chatState: ChatState;
   previewDonors: PreviewDonors;
   instructionInput: InstructionInput;
+  selectedDonors: number[];
 }
 
 interface EmailStatusChangeParams {
   emailState: EmailState;
   sessionId?: number;
+}
+
+interface UpdateEmailStatusMutation {
+  mutateAsync: (params: { emailId: number; status: "PENDING_APPROVAL" | "APPROVED" }) => Promise<{ 
+    email: { 
+      status: string; 
+      id: number; 
+      createdAt: string; 
+      updatedAt: string; 
+      donorId: number; 
+      subject: string; 
+      sessionId: number; 
+      emailContent: string | null; 
+      reasoning: string | null; 
+      response: string | null; 
+    }; 
+    message: string; 
+    success: boolean; 
+  }>;
+}
+
+interface RegenerateEmailsMutation {
+  mutateAsync: (params: { sessionId: number; chatHistory: ConversationMessage[] }) => Promise<{ 
+    message: string; 
+    success: boolean; 
+  }>;
 }
 
 interface RegenerateEmailsParams {
@@ -146,6 +191,7 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
     currentSignature = "",
     sessionId,
     previousInstruction,
+    selectedDonors,
   } = params;
 
   if (emailGeneration.isGeneratingMore || !organization) return;
@@ -158,7 +204,7 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
       localInstructionRef: instructionInput.localInstructionRef,
       allGeneratedEmails: emailState.allGeneratedEmails,
       previewDonorIds: previewDonors.previewDonorIds,
-      selectedDonors: [],
+      selectedDonors: selectedDonors || [],
       setPreviewDonorIds: previewDonors.setPreviewDonorIds,
       donorsData,
       chatMessages: chatState.chatMessages,
@@ -175,15 +221,15 @@ export async function handleGenerateMore(params: GenerateMoreParams) {
 
       const newReferenceContexts = { ...emailState.referenceContexts };
       const newStatuses = { ...emailState.emailStatuses };
-      result.emails.forEach((email: any) => {
+      result.emails.forEach((email) => {
         newReferenceContexts[email.donorId] = email.referenceContexts || {};
         newStatuses[email.donorId] = "PENDING_APPROVAL";
       });
       emailState.setReferenceContexts(newReferenceContexts);
       emailState.setEmailStatuses(newStatuses);
 
-      chatState.setChatMessages((prev: any) => {
-        const newMessages = [
+      chatState.setChatMessages((prev) => {
+        const newMessages: ConversationMessage[] = [
           ...prev,
           { role: "assistant" as const, content: result.responseMessage },
         ];
@@ -203,16 +249,16 @@ export async function handleEmailStatusChange(
   params: EmailStatusChangeParams,
   emailId: number,
   status: "PENDING_APPROVAL" | "APPROVED",
-  updateEmailStatus: any
+  updateEmailStatus: UpdateEmailStatusMutation
 ) {
   const { emailState, sessionId } = params;
 
   const isPreviewMode = !emailState.allGeneratedEmails.some(
-    (e: any) => e.id === emailId
+    (email) => (email as GeneratedEmail & { id: number }).id === emailId
   );
 
   if (isPreviewMode) {
-    emailState.setEmailStatuses((prev: any) => ({
+    emailState.setEmailStatuses((prev) => ({
       ...prev,
       [emailId]: status,
     }));
@@ -228,10 +274,10 @@ export async function handleEmailStatusChange(
   try {
     await updateEmailStatus.mutateAsync({ emailId, status });
     const email = emailState.allGeneratedEmails.find(
-      (e: any) => e.id === emailId
-    );
+      (email) => (email as GeneratedEmail & { id: number }).id === emailId
+    ) as (GeneratedEmail & { id: number }) | undefined;
     if (email) {
-      emailState.setEmailStatuses((prev: any) => ({
+      emailState.setEmailStatuses((prev) => ({
         ...prev,
         [email.donorId]: status,
       }));
@@ -250,7 +296,7 @@ export async function handleEmailStatusChange(
 export async function handleRegenerateEmails(
   params: RegenerateEmailsParams,
   onlyUnapproved: boolean,
-  regenerateAllEmails: any
+  regenerateAllEmails: RegenerateEmailsMutation
 ) {
   const { emailGeneration, emailState, chatState, sessionId } = params;
 
@@ -266,13 +312,13 @@ export async function handleRegenerateEmails(
       // Only regenerate emails that are pending approval
       donorIdsToRegenerate = emailState.allGeneratedEmails
         .filter(
-          (email: any) => emailState.emailStatuses[email.donorId] !== "APPROVED"
+          (email) => emailState.emailStatuses[email.donorId] !== "APPROVED"
         )
-        .map((email: any) => email.donorId);
+        .map((email) => email.donorId);
     } else {
       // Regenerate all previously generated emails
       donorIdsToRegenerate = emailState.allGeneratedEmails.map(
-        (email: any) => email.donorId
+        (email) => email.donorId
       );
     }
 
@@ -297,15 +343,15 @@ export async function handleRegenerateEmails(
     } else {
       // If only unapproved, keep approved emails in state
       const approvedEmails = emailState.allGeneratedEmails.filter(
-        (email: any) => emailState.emailStatuses[email.donorId] === "APPROVED"
+        (email) => emailState.emailStatuses[email.donorId] === "APPROVED"
       );
       emailState.setGeneratedEmails(approvedEmails);
       emailState.setAllGeneratedEmails(approvedEmails);
 
       // Keep only approved email contexts and statuses
-      const newContexts: Record<number, any> = {};
-      const newStatuses: Record<number, string> = {};
-      approvedEmails.forEach((email: any) => {
+      const newContexts: Record<number, Record<string, string>> = {};
+      const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+      approvedEmails.forEach((email) => {
         if (emailState.referenceContexts[email.donorId]) {
           newContexts[email.donorId] =
             emailState.referenceContexts[email.donorId];

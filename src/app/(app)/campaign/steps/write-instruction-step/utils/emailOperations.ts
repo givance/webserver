@@ -5,13 +5,22 @@ import { GENERATE_MORE_COUNT } from "../constants";
 export async function handleEmailGeneration(
   params: {
     finalInstruction: string;
-    organization: any;
+    organization: { name: string; writingInstructions?: string | null };
     previewDonorIds: number[];
-    donorsData: any[];
+    donorsData: Array<{ id: number; firstName: string; lastName: string; email: string }>;
     chatMessages: Array<{ role: "user" | "assistant"; content: string }>;
     previousInstruction?: string;
     currentSignature: string;
-    generateEmailsForDonors: (params: any) => Promise<EmailGenerationResult | null>;
+    generateEmailsForDonors: (params: {
+      instruction: string;
+      donors: Array<{ id: number; firstName: string; lastName: string; email: string }>;
+      organizationName: string;
+      organizationWritingInstructions?: string;
+      previousInstruction?: string;
+      currentDate?: string;
+      chatHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+      signature?: string;
+    }) => Promise<EmailGenerationResult | null>;
     sessionId?: number;
     saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
   }
@@ -56,6 +65,7 @@ export async function handleEmailGeneration(
   });
 
   const result = await generateEmailsForDonors({
+    instruction: finalInstruction,
     donors: donorData,
     organizationName: organization.name,
     organizationWritingInstructions: organization.writingInstructions ?? undefined,
@@ -90,17 +100,26 @@ export async function handleEmailGeneration(
 
 export async function handleGenerateMoreEmails(
   params: {
-    organization: any;
+    organization: { name: string; writingInstructions?: string | null };
     previousInstruction?: string;
     localInstructionRef: React.MutableRefObject<string>;
     allGeneratedEmails: GeneratedEmail[];
     previewDonorIds: number[];
     selectedDonors: number[];
     setPreviewDonorIds: (ids: number[]) => void;
-    donorsData: any[];
+    donorsData: Array<{ id: number; firstName: string; lastName: string; email: string }>;
     chatMessages: Array<{ role: "user" | "assistant"; content: string }>;
     currentSignature: string;
-    generateEmailsForDonors: (params: any) => Promise<EmailGenerationResult | null>;
+    generateEmailsForDonors: (params: {
+      instruction: string;
+      donors: Array<{ id: number; firstName: string; lastName: string; email: string }>;
+      organizationName: string;
+      organizationWritingInstructions?: string;
+      previousInstruction?: string;
+      currentDate?: string;
+      chatHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+      signature?: string;
+    }) => Promise<EmailGenerationResult | null>;
     sessionId?: number;
     saveEmailsToSession: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
   }
@@ -175,6 +194,7 @@ export async function handleGenerateMoreEmails(
 
   // Generate emails using the same chat history
   const result = await generateEmailsForDonors({
+    instruction: previousInstruction || "Generate more emails",
     donors: donorData,
     organizationName: organization.name,
     organizationWritingInstructions: organization.writingInstructions ?? undefined,
