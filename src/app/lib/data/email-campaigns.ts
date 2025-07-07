@@ -330,3 +330,290 @@ export async function getScheduledEmailJobs(
     throw new Error('Could not retrieve scheduled email jobs.');
   }
 }
+
+/**
+ * Gets session status with minimal data
+ */
+export async function getSessionStatus(
+  sessionId: number,
+  organizationId: string
+): Promise<{ id: number; status: string; totalDonors: number; completedDonors: number } | null> {
+  try {
+    const session = await db.query.emailGenerationSessions.findFirst({
+      where: and(
+        eq(emailGenerationSessions.id, sessionId),
+        eq(emailGenerationSessions.organizationId, organizationId)
+      ),
+      columns: {
+        status: true,
+        totalDonors: true,
+        completedDonors: true,
+        id: true,
+      },
+    });
+    return session || null;
+  } catch (error) {
+    console.error('Failed to get session status:', error);
+    throw new Error('Could not retrieve session status.');
+  }
+}
+
+/**
+ * Checks if session exists with minimal columns
+ */
+export async function checkSessionExists(
+  sessionId: number,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    const session = await db.query.emailGenerationSessions.findFirst({
+      where: and(
+        eq(emailGenerationSessions.id, sessionId),
+        eq(emailGenerationSessions.organizationId, organizationId)
+      ),
+      columns: { id: true },
+    });
+    return !!session;
+  } catch (error) {
+    console.error('Failed to check session exists:', error);
+    throw new Error('Could not check session existence.');
+  }
+}
+
+/**
+ * Gets email by session and donor
+ */
+export async function getEmailBySessionAndDonor(
+  sessionId: number,
+  donorId: number
+): Promise<{ id: number } | null> {
+  try {
+    const email = await db.query.generatedEmails.findFirst({
+      where: and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.donorId, donorId)),
+      columns: { id: true },
+    });
+    return email || null;
+  } catch (error) {
+    console.error('Failed to get email by session and donor:', error);
+    throw new Error('Could not retrieve email.');
+  }
+}
+
+/**
+ * Updates generated email by ID
+ */
+export async function updateGeneratedEmail(
+  emailId: number,
+  updateData: Partial<Omit<NewGeneratedEmail, 'id' | 'createdAt'>>
+): Promise<GeneratedEmail> {
+  try {
+    const result = await db
+      .update(generatedEmails)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(generatedEmails.id, emailId))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error('Failed to update generated email:', error);
+    throw new Error('Could not update generated email.');
+  }
+}
+
+/**
+ * Creates a new generated email
+ */
+export async function createGeneratedEmail(
+  emailData: Omit<NewGeneratedEmail, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<GeneratedEmail> {
+  try {
+    const result = await db.insert(generatedEmails).values(emailData).returning();
+    return result[0];
+  } catch (error) {
+    console.error('Failed to create generated email:', error);
+    throw new Error('Could not create generated email.');
+  }
+}
+
+/**
+ * Counts emails by session and status
+ */
+export async function countEmailsBySessionAndStatus(
+  sessionId: number,
+  status: 'PENDING_APPROVAL' | 'APPROVED'
+): Promise<number> {
+  try {
+    const result = await db
+      .select({ count: count() })
+      .from(generatedEmails)
+      .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, status)));
+    return result[0]?.count || 0;
+  } catch (error) {
+    console.error('Failed to count emails by session and status:', error);
+    throw new Error('Could not count emails.');
+  }
+}
+
+/**
+ * Gets donor IDs with emails for a session
+ */
+export async function getDonorIdsWithEmails(
+  sessionId: number,
+  status?: 'PENDING_APPROVAL' | 'APPROVED'
+): Promise<number[]> {
+  try {
+    const whereClauses = [eq(generatedEmails.sessionId, sessionId)];
+    if (status) {
+      whereClauses.push(eq(generatedEmails.status, status));
+    }
+
+    const result = await db
+      .select({ donorId: generatedEmails.donorId })
+      .from(generatedEmails)
+      .where(and(...whereClauses));
+
+    return result.map((e) => e.donorId);
+  } catch (error) {
+    console.error('Failed to get donor IDs with emails:', error);
+    throw new Error('Could not retrieve donor IDs.');
+  }
+}
+
+/**
+ * Checks if draft session exists by name
+ */
+export async function getDraftSessionByName(
+  organizationId: string,
+  campaignName: string
+): Promise<EmailGenerationSession | null> {
+  try {
+    const draft = await db
+      .select()
+      .from(emailGenerationSessions)
+      .where(
+        and(
+          eq(emailGenerationSessions.organizationId, organizationId),
+          eq(emailGenerationSessions.jobName, campaignName),
+          eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT)
+        )
+      )
+      .limit(1);
+    return draft[0] || null;
+  } catch (error) {
+    console.error('Failed to get draft session by name:', error);
+    throw new Error('Could not retrieve draft session.');
+  }
+}
+
+/**
+ * Gets donor IDs with existing emails (both PENDING_APPROVAL and APPROVED)
+ */
+export async function getDonorIdsWithExistingEmails(sessionId: number): Promise<number[]> {
+  try {
+    const result = await db
+      .select({ donorId: generatedEmails.donorId })
+      .from(generatedEmails)
+      .where(
+        and(
+          eq(generatedEmails.sessionId, sessionId),
+          or(eq(generatedEmails.status, 'PENDING_APPROVAL'), eq(generatedEmails.status, 'APPROVED'))
+        )
+      );
+
+    return result.map((e) => e.donorId);
+  } catch (error) {
+    console.error('Failed to get donor IDs with existing emails:', error);
+    throw new Error('Could not retrieve donor IDs.');
+  }
+}
+
+/**
+ * Updates email status for multiple emails
+ */
+export async function updateEmailStatusBulk(
+  sessionId: number,
+  fromStatus: 'PENDING_APPROVAL' | 'APPROVED',
+  toStatus: 'PENDING_APPROVAL' | 'APPROVED',
+  additionalUpdates?: Partial<Omit<NewGeneratedEmail, 'id' | 'createdAt'>>
+): Promise<void> {
+  try {
+    await db
+      .update(generatedEmails)
+      .set({
+        status: toStatus,
+        ...additionalUpdates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, fromStatus)));
+  } catch (error) {
+    console.error('Failed to update email status in bulk:', error);
+    throw new Error('Could not update email status.');
+  }
+}
+
+/**
+ * Gets email with organization check
+ */
+export async function getEmailWithOrganizationCheck(
+  emailId: number,
+  organizationId: string
+): Promise<{ id: number; isSent: boolean; sentAt: Date | null } | null> {
+  try {
+    const [email] = await db
+      .select({
+        id: generatedEmails.id,
+        isSent: generatedEmails.isSent,
+        sentAt: generatedEmails.sentAt,
+      })
+      .from(generatedEmails)
+      .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+      .where(
+        and(
+          eq(generatedEmails.id, emailId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        )
+      )
+      .limit(1);
+
+    return email || null;
+  } catch (error) {
+    console.error('Failed to get email with organization check:', error);
+    throw new Error('Could not retrieve email.');
+  }
+}
+
+/**
+ * Gets full email generation session with relations
+ */
+export async function getFullSessionById(
+  sessionId: number,
+  organizationId: string
+): Promise<any | null> {
+  try {
+    const session = await db.query.emailGenerationSessions.findFirst({
+      where: and(
+        eq(emailGenerationSessions.id, sessionId),
+        eq(emailGenerationSessions.organizationId, organizationId)
+      ),
+    });
+    return session || null;
+  } catch (error) {
+    console.error('Failed to get full session:', error);
+    throw new Error('Could not retrieve session.');
+  }
+}
+
+/**
+ * Gets email by ID with minimal columns for existence check
+ */
+export async function checkEmailExists(sessionId: number, donorId: number): Promise<boolean> {
+  try {
+    const email = await db.query.generatedEmails.findFirst({
+      where: and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.donorId, donorId)),
+      columns: { id: true },
+    });
+    return !!email;
+  } catch (error) {
+    console.error('Failed to check email exists:', error);
+    throw new Error('Could not check email existence.');
+  }
+}

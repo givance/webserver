@@ -1,37 +1,43 @@
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, count, sql, or, inArray } from 'drizzle-orm';
-import { db } from '@/app/lib/db';
+import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
 import {
-  emailGenerationSessions,
-  generatedEmails,
-  EmailGenerationSessionStatus,
-  emailSendJobs,
-  organizations,
-  staff,
-  donors,
-} from '@/app/lib/db/schema';
-import {
-  createEmailGenerationSession,
-  getEmailGenerationSessionById,
-  updateEmailGenerationSession,
   deleteEmailGenerationSession,
-  listEmailGenerationSessions,
+  getEmailGenerationSessionById,
   getGeneratedEmailsBySessionId,
-  saveGeneratedEmail,
-  updateEmailStatus,
+  getScheduledEmailJobs,
+  getSessionStatus as getSessionStatusData,
+  checkSessionExists,
+  getEmailBySessionAndDonor,
+  updateGeneratedEmail,
+  createGeneratedEmail,
+  countEmailsBySessionAndStatus,
+  getDonorIdsWithEmails,
+  getDraftSessionByName,
+  getDonorIdsWithExistingEmails,
+  updateEmailStatusBulk,
+  updateEmailGenerationSession,
+  createEmailGenerationSession,
+  listEmailGenerationSessions,
   getEmailStatsBySessionIds,
   deleteGeneratedEmails,
   getSessionsByCriteria,
-  getScheduledEmailJobs,
+  saveGeneratedEmail as saveGeneratedEmailData,
+  updateEmailStatus,
+  getEmailWithOrganizationCheck,
+  getFullSessionById,
+  checkEmailExists,
 } from '@/app/lib/data/email-campaigns';
+import { EmailGenerationSessionStatus } from '@/app/lib/db/schema';
 import { logger } from '@/app/lib/logger';
+import {
+  appendSignatureToEmail,
+  removeSignatureFromContent,
+} from '@/app/lib/utils/email-with-signature';
 import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
 import { runs } from '@trigger.dev/sdk/v3';
-import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
-import { removeSignatureFromContent } from '@/app/lib/utils/email-with-signature';
-import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { TRPCError } from '@trpc/server';
 import { EmailSchedulingService } from './email-scheduling.service';
-import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
+import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 
 /**
  * Input types for campaign management
@@ -182,39 +188,24 @@ export class EmailCampaignsService {
       }
 
       // First check if there's an existing campaign with the same ID
-      const existingCampaign = await db
-        .select()
-        .from(emailGenerationSessions)
-        .where(
-          and(
-            eq(emailGenerationSessions.id, input.campaignId),
-            eq(emailGenerationSessions.organizationId, organizationId)
-          )
-        )
-        .limit(1);
+      const existingCampaign = await wrapDatabaseOperation(async () => {
+        return await getEmailGenerationSessionById(input.campaignId, organizationId);
+      });
 
-      if (!existingCampaign[0]) {
+      if (!existingCampaign) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Campaign not found',
         });
       }
 
-      let sessionId: number = existingCampaign[0].id;
+      let sessionId: number = existingCampaign.id;
 
       // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
-      const existingEmailsForSelectedDonors = await db
-        .select({ donorId: generatedEmails.donorId })
-        .from(generatedEmails)
-        .where(
-          and(
-            eq(generatedEmails.sessionId, existingCampaign[0].id),
-            or(
-              eq(generatedEmails.status, 'PENDING_APPROVAL'),
-              eq(generatedEmails.status, 'APPROVED')
-            )
-          )
-        );
+      const existingEmailsForSelectedDonors = await wrapDatabaseOperation(async () => {
+        const donorIds = await getDonorIdsWithExistingEmails(existingCampaign.id);
+        return donorIds.map((donorId) => ({ donorId }));
+      });
 
       // Count how many of the selected donors already have emails
       const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
@@ -243,52 +234,43 @@ export class EmailCampaignsService {
         }
       );
 
-      const [updatedSession] = await db
-        .update(emailGenerationSessions)
-        .set({
+      const updatedSession = await wrapDatabaseOperation(async () => {
+        return await updateEmailGenerationSession(existingCampaign.id, organizationId, {
           status: newStatus,
-          chatHistory: input.chatHistory ?? existingCampaign[0].chatHistory,
+          chatHistory: input.chatHistory ?? existingCampaign.chatHistory,
           selectedDonorIds: input.selectedDonorIds,
           previewDonorIds: input.previewDonorIds ?? [],
           totalDonors: input.selectedDonorIds.length,
           completedDonors: currentCompletedCount, // Set the initial completed count
-          updatedAt: new Date(),
-        })
-        .where(eq(emailGenerationSessions.id, existingCampaign[0].id))
-        .returning();
+        });
+      });
+
+      if (!updatedSession) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update session',
+        });
+      }
 
       sessionId = updatedSession.id;
 
       // Update any PENDING_APPROVAL emails to APPROVED
-      await db
-        .update(generatedEmails)
-        .set({
-          status: 'APPROVED',
+      await wrapDatabaseOperation(async () => {
+        await updateEmailStatusBulk(sessionId, 'PENDING_APPROVAL', 'APPROVED', {
           isPreview: false,
           isSent: false,
           sendStatus: 'pending',
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(generatedEmails.sessionId, sessionId),
-            eq(generatedEmails.status, 'PENDING_APPROVAL')
-          )
-        );
+        });
+      });
 
       logger.info(
         `Updated existing campaign session ${sessionId} to ${newStatus} with ${currentCompletedCount} completed donors for user ${userId}`
       );
 
       // Get the list of donors that already have approved emails
-      const existingEmails = await db
-        .select({ donorId: generatedEmails.donorId })
-        .from(generatedEmails)
-        .where(
-          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, 'APPROVED'))
-        );
-
-      const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
+      const alreadyGeneratedDonorIds = await wrapDatabaseOperation(async () => {
+        return await getDonorIdsWithEmails(sessionId, 'APPROVED');
+      });
       const donorsToGenerate = input.selectedDonorIds.filter(
         (id) => !alreadyGeneratedDonorIds.includes(id)
       );
@@ -308,12 +290,12 @@ export class EmailCampaignsService {
             previewDonorIds: input.previewDonorIds ?? [],
             chatHistory:
               input.chatHistory ??
-              (existingCampaign[0].chatHistory as Array<{
+              (existingCampaign.chatHistory as Array<{
                 role: 'user' | 'assistant';
                 content: string;
               }>) ??
               [],
-            templateId: input.templateId ?? existingCampaign[0].templateId ?? undefined,
+            templateId: input.templateId ?? existingCampaign.templateId ?? undefined,
           });
 
           logger.info(
@@ -327,15 +309,13 @@ export class EmailCampaignsService {
           );
 
           // Update session with error message if trigger fails (keep status as GENERATING)
-          await db
-            .update(emailGenerationSessions)
-            .set({
+          await wrapDatabaseOperation(async () => {
+            await updateEmailGenerationSession(sessionId, organizationId, {
               errorMessage: `Failed to start background job: ${
                 triggerError instanceof Error ? triggerError.message : String(triggerError)
               }`,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailGenerationSessions.id, sessionId));
+            });
+          });
 
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
@@ -357,14 +337,12 @@ export class EmailCampaignsService {
 
         // If all donors already have emails, ensure session status is READY_TO_SEND
         if (newStatus !== EmailGenerationSessionStatus.READY_TO_SEND) {
-          await db
-            .update(emailGenerationSessions)
-            .set({
+          await wrapDatabaseOperation(async () => {
+            await updateEmailGenerationSession(sessionId, organizationId, {
               status: EmailGenerationSessionStatus.READY_TO_SEND,
               completedDonors: input.selectedDonorIds.length,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailGenerationSessions.id, sessionId));
+            });
+          });
         }
       }
 
@@ -402,40 +380,35 @@ export class EmailCampaignsService {
   async createSession(input: CreateSessionInput, organizationId: string, userId: string) {
     try {
       // Check if there's already a draft with the same name
-      const existingDraft = await db
-        .select()
-        .from(emailGenerationSessions)
-        .where(
-          and(
-            eq(emailGenerationSessions.organizationId, organizationId),
-            eq(emailGenerationSessions.jobName, input.campaignName),
-            eq(emailGenerationSessions.status, EmailGenerationSessionStatus.DRAFT)
-          )
-        )
-        .limit(1);
+      const existingDraft = await wrapDatabaseOperation(async () => {
+        return await getDraftSessionByName(organizationId, input.campaignName);
+      });
 
-      if (existingDraft[0]) {
+      if (existingDraft) {
         // Update existing draft
-        const [updatedSession] = await db
-          .update(emailGenerationSessions)
-          .set({
+        const updatedSession = await wrapDatabaseOperation(async () => {
+          return await updateEmailGenerationSession(existingDraft.id, organizationId, {
             chatHistory: input.chatHistory,
             selectedDonorIds: input.selectedDonorIds,
             previewDonorIds: input.previewDonorIds,
             totalDonors: input.selectedDonorIds.length,
             completedDonors: 0,
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, existingDraft[0].id))
-          .returning();
+          });
+        });
+
+        if (!updatedSession) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to update draft session',
+          });
+        }
 
         logger.info(`Updated existing draft session ${updatedSession.id} for user ${userId}`);
         return { sessionId: updatedSession.id };
       } else {
         // Create new draft session
-        const [session] = await db
-          .insert(emailGenerationSessions)
-          .values({
+        const session = await wrapDatabaseOperation(async () => {
+          return await createEmailGenerationSession({
             organizationId,
             userId,
             templateId: input.templateId,
@@ -446,8 +419,8 @@ export class EmailCampaignsService {
             totalDonors: input.selectedDonorIds.length,
             completedDonors: 0,
             status: EmailGenerationSessionStatus.DRAFT, // Always create as DRAFT
-          })
-          .returning();
+          });
+        });
 
         logger.info(`Created new draft session ${session.id} for user ${userId}`);
         return { sessionId: session.id };
@@ -528,17 +501,8 @@ export class EmailCampaignsService {
    * @returns The session status
    */
   async getSessionStatus(sessionId: number, organizationId: string) {
-    const session = await db.query.emailGenerationSessions.findFirst({
-      where: and(
-        eq(emailGenerationSessions.id, sessionId),
-        eq(emailGenerationSessions.organizationId, organizationId)
-      ),
-      columns: {
-        status: true,
-        totalDonors: true,
-        completedDonors: true,
-        id: true,
-      },
+    const session = await wrapDatabaseOperation(async () => {
+      return await getSessionStatusData(sessionId, organizationId);
     });
 
     if (!session) {
@@ -556,14 +520,12 @@ export class EmailCampaignsService {
         `Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to ${EmailGenerationSessionStatus.COMPLETED}.`
       );
 
-      await db
-        .update(emailGenerationSessions)
-        .set({
+      await wrapDatabaseOperation(async () => {
+        await updateEmailGenerationSession(sessionId, organizationId, {
           status: EmailGenerationSessionStatus.COMPLETED,
           completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(emailGenerationSessions.id, sessionId));
+        });
+      });
 
       return {
         ...session,
@@ -589,23 +551,21 @@ export class EmailCampaignsService {
     }
 
     // Get campaigns without email counts first
-    const campaigns = await db
-      .select({
-        id: emailGenerationSessions.id,
-        campaignName: emailGenerationSessions.jobName,
-        status: emailGenerationSessions.status,
-        totalDonors: emailGenerationSessions.totalDonors,
-        completedDonors: emailGenerationSessions.completedDonors,
-        errorMessage: emailGenerationSessions.errorMessage,
-        createdAt: emailGenerationSessions.createdAt,
-        updatedAt: emailGenerationSessions.updatedAt,
-        completedAt: emailGenerationSessions.completedAt,
-      })
-      .from(emailGenerationSessions)
-      .where(and(...whereClauses))
-      .orderBy(desc(emailGenerationSessions.createdAt))
-      .limit(limit)
-      .offset(offset);
+    const campaignsResult = await wrapDatabaseOperation(async () => {
+      return await listEmailGenerationSessions(organizationId, { limit, offset, status });
+    });
+
+    const campaigns = campaignsResult.sessions.map((session) => ({
+      id: session.id,
+      campaignName: session.jobName,
+      status: session.status,
+      totalDonors: session.totalDonors,
+      completedDonors: session.completedDonors,
+      errorMessage: session.errorMessage,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      completedAt: session.completedAt,
+    }));
 
     // Check and fix stuck campaigns in batch
     const campaignsToCheck = campaigns
@@ -827,24 +787,9 @@ export class EmailCampaignsService {
         });
       }
 
-      const [email] = await db
-        .select({
-          id: generatedEmails.id,
-          isSent: generatedEmails.isSent,
-          sentAt: generatedEmails.sentAt,
-        })
-        .from(generatedEmails)
-        .innerJoin(
-          emailGenerationSessions,
-          eq(generatedEmails.sessionId, emailGenerationSessions.id)
-        )
-        .where(
-          and(
-            eq(generatedEmails.id, emailId),
-            eq(emailGenerationSessions.organizationId, organizationId)
-          )
-        )
-        .limit(1);
+      const email = await wrapDatabaseOperation(async () => {
+        return await getEmailWithOrganizationCheck(emailId, organizationId);
+      });
 
       if (!email) {
         logger.warn(`Email not found for emailId: ${emailId}, organizationId: ${organizationId}`);
@@ -1913,25 +1858,17 @@ export class EmailCampaignsService {
   async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
     try {
       // Verify the session belongs to the organization
-      const session = await db.query.emailGenerationSessions.findFirst({
-        where: and(
-          eq(emailGenerationSessions.id, input.sessionId),
-          eq(emailGenerationSessions.organizationId, organizationId)
-        ),
-        columns: { id: true },
+      const sessionExists = await wrapDatabaseOperation(async () => {
+        return await checkSessionExists(input.sessionId, organizationId);
       });
 
-      if (!session) {
+      if (!sessionExists) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
       }
 
       // Check if email already exists for this donor in this session
-      const existingEmail = await db.query.generatedEmails.findFirst({
-        where: and(
-          eq(generatedEmails.sessionId, input.sessionId),
-          eq(generatedEmails.donorId, input.donorId)
-        ),
-        columns: { id: true },
+      const existingEmail = await wrapDatabaseOperation(async () => {
+        return await getEmailBySessionAndDonor(input.sessionId, input.donorId);
       });
 
       // Remove signature from content before saving (only if structuredContent exists)
@@ -1967,11 +1904,9 @@ export class EmailCampaignsService {
           updateData.response = input.response;
         }
 
-        const [updatedEmail] = await db
-          .update(generatedEmails)
-          .set(updateData)
-          .where(eq(generatedEmails.id, existingEmail.id))
-          .returning();
+        const updatedEmail = await wrapDatabaseOperation(async () => {
+          return await updateGeneratedEmail(existingEmail.id, updateData);
+        });
         return { success: true, email: updatedEmail };
       } else {
         // Create new email
@@ -2004,7 +1939,9 @@ export class EmailCampaignsService {
           insertData.response = input.response;
         }
 
-        const [newEmail] = await db.insert(generatedEmails).values(insertData).returning();
+        const newEmail = await wrapDatabaseOperation(async () => {
+          return await createGeneratedEmail(insertData);
+        });
         return { success: true, email: newEmail };
       }
     } catch (error) {
@@ -2029,11 +1966,8 @@ export class EmailCampaignsService {
   async retryCampaign(sessionId: number, organizationId: string, userId: string) {
     try {
       // Get the session
-      const session = await db.query.emailGenerationSessions.findFirst({
-        where: and(
-          eq(emailGenerationSessions.id, sessionId),
-          eq(emailGenerationSessions.organizationId, organizationId)
-        ),
+      const session = await wrapDatabaseOperation(async () => {
+        return await getEmailGenerationSessionById(sessionId, organizationId);
       });
 
       if (!session) {
@@ -2051,24 +1985,17 @@ export class EmailCampaignsService {
       logger.info(`Retrying campaign ${sessionId} with status ${session.status}`);
 
       // Reset status to PENDING and clear error message
-      await db
-        .update(emailGenerationSessions)
-        .set({
+      await wrapDatabaseOperation(async () => {
+        await updateEmailGenerationSession(sessionId, organizationId, {
           status: EmailGenerationSessionStatus.GENERATING,
           errorMessage: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(emailGenerationSessions.id, sessionId));
+        });
+      });
 
       // Get donors that don't have approved emails yet
-      const existingEmails = await db
-        .select({ donorId: generatedEmails.donorId })
-        .from(generatedEmails)
-        .where(
-          and(eq(generatedEmails.sessionId, sessionId), eq(generatedEmails.status, 'APPROVED'))
-        );
-
-      const alreadyGeneratedDonorIds = existingEmails.map((e) => e.donorId);
+      const alreadyGeneratedDonorIds = await wrapDatabaseOperation(async () => {
+        return await getDonorIdsWithEmails(sessionId, 'APPROVED');
+      });
       const selectedDonorIds = session.selectedDonorIds as number[];
       const donorsToGenerate = selectedDonorIds.filter(
         (id) => !alreadyGeneratedDonorIds.includes(id)
