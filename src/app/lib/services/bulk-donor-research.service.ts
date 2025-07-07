@@ -1,9 +1,7 @@
-import { TRPCError } from "@trpc/server";
-import { eq, and, notExists, count, inArray } from "drizzle-orm";
-import { db } from "@/app/lib/db";
-import { donors, personResearch } from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
-import { bulkDonorResearchTask } from "@/trigger/jobs/bulkDonorResearch";
+import { TRPCError } from '@trpc/server';
+import { logger } from '@/app/lib/logger';
+import { bulkDonorResearchTask } from '@/trigger/jobs/bulkDonorResearch';
+import { getUnresearchedDonorsCount as getUnresearchedDonorsCountData } from '@/app/lib/data/donors';
 
 export interface StartBulkResearchInput {
   organizationId: string;
@@ -41,8 +39,8 @@ export class BulkDonorResearchService {
 
       if (donorsToResearchCount.unresearchedDonors === 0) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No donors found that need research",
+          code: 'BAD_REQUEST',
+          message: 'No donors found that need research',
         });
       }
 
@@ -53,7 +51,7 @@ export class BulkDonorResearchService {
 
       logger.info(
         `Starting bulk donor research for organization ${organizationId} - ${actualDonorsToResearch} donors to research${
-          limit ? ` (limited from ${donorsToResearchCount.unresearchedDonors})` : ""
+          limit ? ` (limited from ${donorsToResearchCount.unresearchedDonors})` : ''
         }`
       );
 
@@ -72,15 +70,17 @@ export class BulkDonorResearchService {
         donorsToResearch: actualDonorsToResearch,
       };
     } catch (error) {
-      logger.error(`Failed to start bulk donor research: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to start bulk donor research: ${error instanceof Error ? error.message : String(error)}`
+      );
 
       if (error instanceof TRPCError) {
         throw error;
       }
 
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to start bulk donor research",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to start bulk donor research',
       });
     }
   }
@@ -91,61 +91,19 @@ export class BulkDonorResearchService {
    * @param donorIds - Optional specific donor IDs to check
    * @returns Donor count information
    */
-  async getUnresearchedDonorsCount(organizationId: string, donorIds?: number[]): Promise<UnresearchedDonorsCount> {
+  async getUnresearchedDonorsCount(
+    organizationId: string,
+    donorIds?: number[]
+  ): Promise<UnresearchedDonorsCount> {
     try {
-      let totalDonorsQuery;
-      let unresearchedDonorsQuery;
-
-      // If specific donor IDs are provided, filter by them
-      if (donorIds && donorIds.length > 0) {
-
-        totalDonorsQuery = db
-          .select({ count: count() })
-          .from(donors)
-          .where(and(eq(donors.organizationId, organizationId), inArray(donors.id, donorIds)));
-
-        unresearchedDonorsQuery = db
-          .select({ count: count() })
-          .from(donors)
-          .where(
-            and(
-              eq(donors.organizationId, organizationId),
-              inArray(donors.id, donorIds),
-              notExists(db.select().from(personResearch).where(eq(personResearch.donorId, donors.id)))
-            )
-          );
-      } else {
-        totalDonorsQuery = db.select({ count: count() }).from(donors).where(eq(donors.organizationId, organizationId));
-
-        unresearchedDonorsQuery = db
-          .select({ count: count() })
-          .from(donors)
-          .where(
-            and(
-              eq(donors.organizationId, organizationId),
-              notExists(db.select().from(personResearch).where(eq(personResearch.donorId, donors.id)))
-            )
-          );
-      }
-
-      const [totalResult, unresearchedResult] = await Promise.all([totalDonorsQuery, unresearchedDonorsQuery]);
-
-      const totalDonors = totalResult[0]?.count || 0;
-      const unresearchedDonors = unresearchedResult[0]?.count || 0;
-      const researchedDonors = totalDonors - unresearchedDonors;
-
-      return {
-        totalDonors,
-        unresearchedDonors,
-        researchedDonors,
-      };
+      return await getUnresearchedDonorsCountData(organizationId, donorIds);
     } catch (error) {
       logger.error(
         `Failed to get unresearched donors count: ${error instanceof Error ? error.message : String(error)}`
       );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get donor research statistics",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get donor research statistics',
       });
     }
   }

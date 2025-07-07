@@ -25,6 +25,7 @@ import {
   isNull,
   count,
   inArray,
+  notExists,
 } from 'drizzle-orm';
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 import { clerkClient } from '@clerk/nextjs/server';
@@ -1219,5 +1220,74 @@ export async function updateDonorHighPotentialFlag(
   } catch (error) {
     console.error('Failed to update donor high potential flag:', error);
     throw new Error('Could not update donor high potential flag.');
+  }
+}
+
+/**
+ * Gets count statistics for researched and unresearched donors
+ */
+export async function getUnresearchedDonorsCount(
+  organizationId: string,
+  donorIds?: number[]
+): Promise<{
+  totalDonors: number;
+  unresearchedDonors: number;
+  researchedDonors: number;
+}> {
+  try {
+    let totalDonorsQuery;
+    let unresearchedDonorsQuery;
+
+    // If specific donor IDs are provided, filter by them
+    if (donorIds && donorIds.length > 0) {
+      totalDonorsQuery = db
+        .select({ count: count() })
+        .from(donors)
+        .where(and(eq(donors.organizationId, organizationId), inArray(donors.id, donorIds)));
+
+      unresearchedDonorsQuery = db
+        .select({ count: count() })
+        .from(donors)
+        .where(
+          and(
+            eq(donors.organizationId, organizationId),
+            inArray(donors.id, donorIds),
+            notExists(db.select().from(personResearch).where(eq(personResearch.donorId, donors.id)))
+          )
+        );
+    } else {
+      totalDonorsQuery = db
+        .select({ count: count() })
+        .from(donors)
+        .where(eq(donors.organizationId, organizationId));
+
+      unresearchedDonorsQuery = db
+        .select({ count: count() })
+        .from(donors)
+        .where(
+          and(
+            eq(donors.organizationId, organizationId),
+            notExists(db.select().from(personResearch).where(eq(personResearch.donorId, donors.id)))
+          )
+        );
+    }
+
+    const [totalResult, unresearchedResult] = await Promise.all([
+      totalDonorsQuery,
+      unresearchedDonorsQuery,
+    ]);
+
+    const totalDonors = totalResult[0]?.count || 0;
+    const unresearchedDonors = unresearchedResult[0]?.count || 0;
+    const researchedDonors = totalDonors - unresearchedDonors;
+
+    return {
+      totalDonors,
+      unresearchedDonors,
+      researchedDonors,
+    };
+  } catch (error) {
+    console.error('Failed to get unresearched donors count:', error);
+    throw new Error('Could not get donor research statistics.');
   }
 }
