@@ -1,9 +1,16 @@
-import { db } from "@/app/lib/db";
-import { todos, donors } from "@/app/lib/db/schema";
-import { eq, and, desc, asc, sql, notInArray } from "drizzle-orm";
-import type { PredictedAction } from "@/app/lib/analysis/types";
-import type { Todo } from "@/app/types/todo";
-import { getDonorById } from "@/app/lib/data/donors";
+import type { PredictedAction } from '@/app/lib/analysis/types';
+import type { Todo } from '@/app/types/todo';
+import { getDonorById } from '@/app/lib/data/donors';
+import {
+  createTodo as createTodoData,
+  bulkCreateTodos,
+  updateTodo as updateTodoData,
+  deleteTodo as deleteTodoData,
+  getTodosByOrganization as getTodosByOrganizationData,
+  getTodosByDonor as getTodosByDonorData,
+  getTodosByStaff as getTodosByStaffData,
+  getTodosGroupedByType as getTodosGroupedByTypeData,
+} from '@/app/lib/data/todos';
 
 export interface CreateTodoInput {
   title: string;
@@ -29,17 +36,18 @@ export interface TodoWithDonor extends Todo {
 
 export class TodoService {
   async createTodo(input: CreateTodoInput) {
-    return await db
-      .insert(todos)
-      .values({
-        ...input,
-        status: "PENDING",
-        priority: input.priority || "MEDIUM",
-      })
-      .returning();
+    return await createTodoData({
+      ...input,
+      status: 'PENDING',
+      priority: input.priority || 'MEDIUM',
+    });
   }
 
-  async createTodosFromPredictedActions(donorId: number, organizationId: string, predictedActions: PredictedAction[]) {
+  async createTodosFromPredictedActions(
+    donorId: number,
+    organizationId: string,
+    predictedActions: PredictedAction[]
+  ) {
     // First get the donor to find their assigned staff member
     const donor = await getDonorById(donorId, organizationId);
     if (!donor) {
@@ -49,9 +57,9 @@ export class TodoService {
     const todoInputs = predictedActions.map((action) => ({
       title: action.type,
       description: action.description,
-      type: "PREDICTED_ACTION",
-      status: "PENDING",
-      priority: "MEDIUM",
+      type: 'PREDICTED_ACTION',
+      status: 'PENDING',
+      priority: 'MEDIUM',
       donorId,
       staffId: donor.assignedToStaffId, // Assign to the donor's assigned staff member
       organizationId,
@@ -59,25 +67,18 @@ export class TodoService {
       explanation: action.explanation,
     }));
 
-    return await db.insert(todos).values(todoInputs).returning();
+    return await bulkCreateTodos(todoInputs);
   }
 
   async updateTodo(id: number, input: UpdateTodoInput) {
     const updateData = { ...input };
     delete (updateData as any).organizationId;
 
-    return await db
-      .update(todos)
-      .set({
-        ...updateData,
-        updatedAt: new Date(),
-      })
-      .where(eq(todos.id, id))
-      .returning();
+    return await updateTodoData(id, updateData);
   }
 
   async deleteTodo(id: number) {
-    return await db.delete(todos).where(eq(todos.id, id)).returning();
+    return await deleteTodoData(id);
   }
 
   async getTodosByOrganization(
@@ -89,79 +90,37 @@ export class TodoService {
       staffId?: number;
     }
   ) {
-    const conditions = [eq(todos.organizationId, organizationId)];
-
-    if (options?.type) {
-      conditions.push(eq(todos.type, options.type));
-    }
-    if (options?.status) {
-      conditions.push(eq(todos.status, options.status));
-    }
-    if (options?.donorId) {
-      conditions.push(eq(todos.donorId, options.donorId));
-    }
-    if (options?.staffId) {
-      conditions.push(eq(todos.staffId, options.staffId));
-    }
-
-    return await db
-      .select()
-      .from(todos)
-      .where(and(...conditions))
-      .orderBy(desc(todos.createdAt));
+    return await getTodosByOrganizationData(organizationId, options);
   }
 
   async getTodosByDonor(donorId: number) {
-    return await db.select().from(todos).where(eq(todos.donorId, donorId)).orderBy(desc(todos.createdAt));
+    return await getTodosByDonorData(donorId);
   }
 
   async getTodosByStaff(staffId: number) {
-    return await db.select().from(todos).where(eq(todos.staffId, staffId)).orderBy(desc(todos.createdAt));
+    return await getTodosByStaffData(staffId);
   }
 
   async getTodosGroupedByType(organizationId: string, statusesToExclude?: string[]) {
-    const conditions = [eq(todos.organizationId, organizationId)];
-
-    if (statusesToExclude && statusesToExclude.length > 0) {
-      conditions.push(notInArray(todos.status, statusesToExclude));
-    }
-
-    const allTodos = await db
-      .select({
-        id: todos.id,
-        title: todos.title,
-        description: todos.description,
-        type: todos.type,
-        status: todos.status,
-        priority: todos.priority,
-        dueDate: sql<string | null>`${todos.dueDate}::text`,
-        scheduledDate: sql<string | null>`${todos.scheduledDate}::text`,
-        completedDate: sql<string | null>`${todos.completedDate}::text`,
-        donorId: todos.donorId,
-        staffId: todos.staffId,
-        organizationId: todos.organizationId,
-        explanation: todos.explanation,
-        createdAt: sql<string>`${todos.createdAt}::text`,
-        updatedAt: sql<string>`${todos.updatedAt}::text`,
-        donorFirstName: donors.firstName,
-        donorLastName: donors.lastName,
-      })
-      .from(todos)
-      .leftJoin(donors, eq(todos.donorId, donors.id))
-      .where(and(...conditions))
-      .orderBy(asc(todos.type), desc(todos.createdAt));
+    const allTodos = await getTodosGroupedByTypeData(organizationId, statusesToExclude);
 
     // Group todos by type
-    return allTodos.reduce((groups, todo) => {
-      const type = todo.type;
-      if (!groups[type]) {
-        groups[type] = [];
-      }
-      groups[type].push({
-        ...todo,
-        donorName: todo.donorFirstName && todo.donorLastName ? `${todo.donorFirstName} ${todo.donorLastName}` : null,
-      });
-      return groups;
-    }, {} as Record<string, TodoWithDonor[]>);
+    return allTodos.reduce(
+      (groups, todo) => {
+        const type = todo.type;
+        if (!groups[type]) {
+          groups[type] = [];
+        }
+        groups[type].push({
+          ...todo,
+          donorName:
+            todo.donorFirstName && todo.donorLastName
+              ? `${todo.donorFirstName} ${todo.donorLastName}`
+              : null,
+        });
+        return groups;
+      },
+      {} as Record<string, TodoWithDonor[]>
+    );
   }
 }
