@@ -1,20 +1,18 @@
-import { getDonorCommunicationHistory } from "@/app/lib/data/communications";
-import { listDonations } from "@/app/lib/data/donations";
-import { getOrganizationMemories } from "@/app/lib/data/organizations";
-import { getUserMemories } from "@/app/lib/data/users";
-import { db } from "@/app/lib/db";
-import { donors, organizations } from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
-import { PersonResearchService } from "@/app/lib/services/person-research.service";
-import { and, eq, inArray } from "drizzle-orm";
-import fs from "fs/promises";
-import path from "path";
+import { getDonorCommunicationHistory } from '@/app/lib/data/communications';
+import { listDonations } from '@/app/lib/data/donations';
+import { getOrganizationMemories, getOrganizationById } from '@/app/lib/data/organizations';
+import { getUserMemories } from '@/app/lib/data/users';
+import { getDonorsByIds } from '@/app/lib/data/donors';
+import { logger } from '@/app/lib/logger';
+import { PersonResearchService } from '@/app/lib/services/person-research.service';
+import fs from 'fs/promises';
+import path from 'path';
 import {
   AgenticEmailGenerationOrchestrator,
   AgenticFlowContext,
   AgenticFlowStep,
-} from "../utils/email-generator/agentic-flow";
-import { UnifiedSmartEmailGenerationService } from "./unified-smart-email-generation.service";
+} from '../utils/email-generator/agentic-flow';
+import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
 
 export interface AgenticEmailGenerationInput {
   donors: Array<{
@@ -38,10 +36,10 @@ export interface AgenticFlowState {
 }
 
 export interface AgenticConversationMessage {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  stepType?: AgenticFlowStep["type"];
+  stepType?: AgenticFlowStep['type'];
 }
 
 /**
@@ -76,9 +74,13 @@ export class AgenticEmailGenerationService {
     const sessionId = this.generateSessionId();
 
     logger.info(`[AGENTIC SERVICE] Starting agentic email generation flow`);
-    logger.info(`[AGENTIC SERVICE] Organization: ${organizationId}, User: ${userId}, Session: ${sessionId}`);
+    logger.info(
+      `[AGENTIC SERVICE] Organization: ${organizationId}, User: ${userId}, Session: ${sessionId}`
+    );
     logger.info(`[AGENTIC SERVICE] Donors count: ${input.donors.length}`);
-    logger.info(`[AGENTIC SERVICE] Has writing instructions: ${!!input.organizationWritingInstructions}`);
+    logger.info(
+      `[AGENTIC SERVICE] Has writing instructions: ${!!input.organizationWritingInstructions}`
+    );
 
     try {
       // Build minimal context for now
@@ -86,7 +88,9 @@ export class AgenticEmailGenerationService {
       logger.info(`[AGENTIC SERVICE] Context built successfully`);
       logger.info(`[AGENTIC SERVICE] Best practices length: ${context.bestPractices.length} chars`);
       logger.info(`[AGENTIC SERVICE] User memories: ${context.userMemories.length}`);
-      logger.info(`[AGENTIC SERVICE] Organization memories: ${context.organizationMemories.length}`);
+      logger.info(
+        `[AGENTIC SERVICE] Organization memories: ${context.organizationMemories.length}`
+      );
 
       // Start the agentic flow
       const result = await this.orchestrator.startFlow(context);
@@ -123,8 +127,10 @@ export class AgenticEmailGenerationService {
     } catch (error) {
       logger.error(`[AGENTIC SERVICE ERROR] Failed to start agentic flow`);
       logger.error(`[AGENTIC SERVICE ERROR] Session: ${sessionId}`);
-      logger.error(`[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
-      throw new Error("Failed to start agentic email generation flow");
+      logger.error(
+        `[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new Error('Failed to start agentic email generation flow');
     }
   }
 
@@ -147,14 +153,18 @@ export class AgenticEmailGenerationService {
     const flowState = this.activeSessions.get(sessionId);
     if (!flowState) {
       logger.error(`[AGENTIC SERVICE ERROR] Session not found: ${sessionId}`);
-      throw new Error("Session not found or expired");
+      throw new Error('Session not found or expired');
     }
 
     logger.info(`[AGENTIC SERVICE] Session found - previous steps: ${flowState.steps.length}`);
 
     try {
       // Continue the conversation
-      const result = await this.orchestrator.continueFlow(flowState.context, userResponse, flowState.steps);
+      const result = await this.orchestrator.continueFlow(
+        flowState.context,
+        userResponse,
+        flowState.steps
+      );
 
       // Update session state
       flowState.steps = result.steps;
@@ -180,8 +190,10 @@ export class AgenticEmailGenerationService {
     } catch (error) {
       logger.error(`[AGENTIC SERVICE ERROR] Failed to continue agentic flow`);
       logger.error(`[AGENTIC SERVICE ERROR] Session: ${sessionId}`);
-      logger.error(`[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
-      throw new Error("Failed to continue agentic flow");
+      logger.error(
+        `[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new Error('Failed to continue agentic flow');
     }
   }
 
@@ -191,7 +203,7 @@ export class AgenticEmailGenerationService {
   async generateFinalPrompt(sessionId: string): Promise<{
     finalPrompt: string;
     summary: string;
-    estimatedComplexity: "low" | "medium" | "high";
+    estimatedComplexity: 'low' | 'medium' | 'high';
   }> {
     logger.info(`[AGENTIC SERVICE] Generating final prompt`);
     logger.info(`[AGENTIC SERVICE] Session: ${sessionId}`);
@@ -199,13 +211,16 @@ export class AgenticEmailGenerationService {
     const flowState = this.activeSessions.get(sessionId);
     if (!flowState) {
       logger.error(`[AGENTIC SERVICE ERROR] Session not found for final prompt: ${sessionId}`);
-      throw new Error("Session not found or expired");
+      throw new Error('Session not found or expired');
     }
 
     logger.info(`[AGENTIC SERVICE] Session found - steps to process: ${flowState.steps.length}`);
 
     try {
-      const result = await this.orchestrator.generateFinalPrompt(flowState.context, flowState.steps);
+      const result = await this.orchestrator.generateFinalPrompt(
+        flowState.context,
+        flowState.steps
+      );
 
       // Update the session with the final prompt
       flowState.finalPrompt = result.finalPrompt;
@@ -219,8 +234,10 @@ export class AgenticEmailGenerationService {
     } catch (error) {
       logger.error(`[AGENTIC SERVICE ERROR] Failed to generate final prompt`);
       logger.error(`[AGENTIC SERVICE ERROR] Session: ${sessionId}`);
-      logger.error(`[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
-      throw new Error("Failed to generate final prompt");
+      logger.error(
+        `[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new Error('Failed to generate final prompt');
     }
   }
 
@@ -233,7 +250,7 @@ export class AgenticEmailGenerationService {
     const flowState = this.activeSessions.get(sessionId);
     if (!flowState) {
       logger.error(`[AGENTIC SERVICE ERROR] Session not found: ${sessionId}`);
-      throw new Error("Session not found or expired");
+      throw new Error('Session not found or expired');
     }
 
     logger.info(`[AGENTIC SERVICE] Session found - donors: ${flowState.context.donors.length}`);
@@ -248,13 +265,13 @@ export class AgenticEmailGenerationService {
       // Build chat history from the final prompt
       const chatHistory = [
         {
-          role: "user" as const,
+          role: 'user' as const,
           content: confirmedPrompt,
         },
       ];
 
       const result = await this.unifiedEmailService.generateSmartEmailsForCampaign({
-        organizationId: flowState.context.organization?.id || "",
+        organizationId: flowState.context.organization?.id || '',
         sessionId: sessionId, // Use the same sessionId
         chatHistory,
         donorIds,
@@ -279,11 +296,11 @@ export class AgenticEmailGenerationService {
           structuredContent: [
             {
               piece: r.email!.content,
-              references: ["email-content"],
+              references: ['email-content'],
               addNewlineAfter: false,
             },
           ],
-          referenceContexts: { "email-content": "Generated email content" },
+          referenceContexts: { 'email-content': 'Generated email content' },
           tokenUsage: {
             promptTokens: 0,
             completionTokens: 0,
@@ -299,8 +316,10 @@ export class AgenticEmailGenerationService {
     } catch (error) {
       logger.error(`[AGENTIC SERVICE ERROR] Failed to execute email generation`);
       logger.error(`[AGENTIC SERVICE ERROR] Session: ${sessionId}`);
-      logger.error(`[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
-      throw new Error("Failed to execute email generation");
+      logger.error(
+        `[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new Error('Failed to execute email generation');
     }
   }
 
@@ -325,15 +344,11 @@ export class AgenticEmailGenerationService {
     const bestPractices = await this.loadBestPractices();
 
     // Get organization data
-
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+    const organization = await getOrganizationById(organizationId);
 
     // Get full donor data from database
     const donorIds = input.donors.map((d) => d.id);
-
-    const fullDonorData = await db.query.donors.findMany({
-      where: and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)),
-    });
+    const fullDonorData = await getDonorsByIds(donorIds, organizationId);
 
     // Convert to DonorInfo format including notes
     const donorInfos = fullDonorData.map((donor) => ({
@@ -364,8 +379,8 @@ export class AgenticEmailGenerationService {
         listDonations({
           donorId: donor.id,
           limit: 50,
-          orderBy: "date",
-          orderDirection: "desc",
+          orderBy: 'date',
+          orderDirection: 'desc',
           includeProject: true,
         }),
       ]);
@@ -426,7 +441,7 @@ export class AgenticEmailGenerationService {
       : null;
 
     const context: AgenticFlowContext = {
-      userInstruction: "",
+      userInstruction: '',
       donors: donorInfos,
       organizationName: input.organizationName,
       organization: emailGeneratorOrg,
@@ -454,12 +469,12 @@ export class AgenticEmailGenerationService {
    */
   private async loadBestPractices(): Promise<string> {
     try {
-      const bestPracticesPath = path.join(process.cwd(), "src", "data", "best_practice.md");
-      const bestPractices = await fs.readFile(bestPracticesPath, "utf-8");
+      const bestPracticesPath = path.join(process.cwd(), 'src', 'data', 'best_practice.md');
+      const bestPractices = await fs.readFile(bestPracticesPath, 'utf-8');
       return bestPractices;
     } catch (error) {
       logger.error(`Error loading best practices: ${error}`);
-      return "Best practices file not found. Please follow general email best practices.";
+      return 'Best practices file not found. Please follow general email best practices.';
     }
   }
 
@@ -471,7 +486,7 @@ export class AgenticEmailGenerationService {
 
     steps.forEach((step, index) => {
       messages.push({
-        role: "assistant",
+        role: 'assistant',
         content: step.content,
         timestamp: new Date(),
         stepType: step.type,
@@ -481,10 +496,10 @@ export class AgenticEmailGenerationService {
       if (step.questions && step.questions.length > 0) {
         step.questions.forEach((question) => {
           messages.push({
-            role: "assistant",
+            role: 'assistant',
             content: question,
             timestamp: new Date(),
-            stepType: "question",
+            stepType: 'question',
           });
         });
       }
