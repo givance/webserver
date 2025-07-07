@@ -552,3 +552,17 @@ export async function deleteStaffGmailToken(staffId: number): Promise<void> {
     throw new Error('Could not delete staff Gmail token.');
   }
 }
+
+/**
+ * Get all staff members for an organization
+ */
+export async function getAllStaffByOrganization(organizationId: string): Promise<Staff[]> {
+  try {
+    return await db.query.staff.findMany({
+      where: eq(staff.organizationId, organizationId),
+    });
+  } catch (error) {
+    console.error('Failed to get all staff by organization:', error);
+    throw new Error('Could not retrieve staff members.');
+  }
+}

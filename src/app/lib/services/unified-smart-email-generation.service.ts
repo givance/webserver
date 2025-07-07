@@ -1,11 +1,23 @@
-import { db } from '@/app/lib/db';
-import { donations, generatedEmails, donorListMembers, organizations, personResearch, staff, users, donors, emailGenerationSessions } from '@/app/lib/db/schema';
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import { generateSingleEmail, type SingleEmailGeneratorParams } from '@/app/lib/utils/email-generator/single-email-generator';
-import { getComprehensiveDonorStats } from '@/app/lib/data/donations';
+import {
+  generateSingleEmail,
+  type SingleEmailGeneratorParams,
+} from '@/app/lib/utils/email-generator/single-email-generator';
+import {
+  getComprehensiveDonorStats,
+  getDonorDonationsWithProjects,
+} from '@/app/lib/data/donations';
 import { getUserMemories } from '@/app/lib/data/users';
 import { getDonorCommunicationHistory } from '@/app/lib/data/communications';
 import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
+import { getOrganizationById, getOrganizationMemories } from '@/app/lib/data/organizations';
+import {
+  getEmailGenerationSessionById,
+  saveGeneratedEmail as saveGeneratedEmailData,
+} from '@/app/lib/data/email-campaigns';
+import { getAllStaffByOrganization } from '@/app/lib/data/staff';
+import { getDonorsByIds, getAllDonorsByOrganization } from '@/app/lib/data/donors';
+import { getPersonResearchByDonor } from '@/app/lib/data/person-research';
+import { getListMembers } from '@/app/lib/data/donor-lists';
 
 interface GenerateSmartEmailsParams {
   organizationId: string;
@@ -52,13 +64,13 @@ export class UnifiedSmartEmailGenerationService {
     // 4. Query all donors (with optional filtering)
     const donorsData = await this.getDonorsWithStaffAssignments(
       params.organizationId,
-      params.donorIds?.map(id => Number(id))
+      params.donorIds?.map((id) => Number(id))
     );
 
     // 5. Run Promise.all on the generation function
     const currentDate = new Date().toISOString();
     const results = await Promise.all(
-      donorsData.map(donor => 
+      donorsData.map((donor) =>
         this.generateSmartEmailForDonor({
           donor,
           organization,
@@ -72,9 +84,7 @@ export class UnifiedSmartEmailGenerationService {
     );
 
     // Calculate total tokens used
-    const totalTokensUsed = results.reduce((sum, result) => 
-      sum + (result.tokensUsed || 0), 0
-    );
+    const totalTokensUsed = results.reduce((sum, result) => sum + (result.tokensUsed || 0), 0);
 
     return { results, totalTokensUsed };
   }
@@ -92,27 +102,23 @@ export class UnifiedSmartEmailGenerationService {
     chatHistory: Array<{ role: string; content: string }>;
   }): Promise<SmartEmailGenerationResult> {
     try {
-      const { donor, organization, staffMembers, sessionId, userId, currentDate, chatHistory } = params;
+      const { donor, organization, staffMembers, sessionId, userId, currentDate, chatHistory } =
+        params;
 
       // Get assigned staff if exists
       const assignedStaff = donor.assignedToStaffId
-        ? staffMembers.find(s => s.id === donor.assignedToStaffId)
+        ? staffMembers.find((s) => s.id === donor.assignedToStaffId)
         : null;
 
       // Fetch donor-specific data
-      const [
-        communicationHistory,
-        donationHistory,
-        donorStats,
-        researchResults,
-        memories
-      ] = await Promise.all([
-        this.getCommunicationHistory(donor.id, organization.id),
-        this.getDonationHistory(donor.id, organization.id),
-        this.getDonorStats(donor.id, organization.id),
-        this.getPersonResearch(donor.id, organization.id),
-        this.getMemories(organization.id, assignedStaff?.userId || userId)
-      ]);
+      const [communicationHistory, donationHistory, donorStats, researchResults, memories] =
+        await Promise.all([
+          this.getCommunicationHistory(donor.id, organization.id),
+          this.getDonationHistory(donor.id, organization.id),
+          this.getDonorStats(donor.id, organization.id),
+          this.getPersonResearch(donor.id, organization.id),
+          this.getMemories(organization.id, assignedStaff?.userId || userId),
+        ]);
 
       // Generate the email using the pure function
       const emailParams: SingleEmailGeneratorParams = {
@@ -122,34 +128,34 @@ export class UnifiedSmartEmailGenerationService {
           lastName: donor.lastName,
           email: donor.email,
           notes: donor.notes,
-          assignedUserId: assignedStaff?.userId
+          assignedUserId: assignedStaff?.userId,
         },
         organization: {
           id: organization.id,
           name: organization.name,
           description: organization.description,
           websiteSummary: organization.websiteSummary,
-          writingInstructions: organization.writingInstructions
+          writingInstructions: organization.writingInstructions,
         },
-        staffMembers: staffMembers.map(s => ({
+        staffMembers: staffMembers.map((s) => ({
           id: s.id,
           userId: s.userId,
           writingInstructions: s.writingInstructions,
           firstName: s.firstName,
-          lastName: s.lastName
+          lastName: s.lastName,
         })),
         donorHistory: {
           communications: communicationHistory,
           donations: donationHistory,
           statistics: donorStats,
-          personResearch: researchResults
+          personResearch: researchResults,
         },
         memories: {
-          user: memories.userMemories.split('\n').filter(m => m.trim()),
-          organization: memories.organizationMemories.split('\n').filter(m => m.trim())
+          user: memories.userMemories.split('\n').filter((m) => m.trim()),
+          organization: memories.organizationMemories.split('\n').filter((m) => m.trim()),
         },
         chatHistory: chatHistory || [],
-        currentDate
+        currentDate,
       };
 
       const emailResult = await generateSingleEmail(emailParams);
@@ -163,28 +169,29 @@ export class UnifiedSmartEmailGenerationService {
           subject: emailResult.subject,
           content: emailResult.content,
           reasoning: emailResult.reasoning,
-          response: emailResult.response
+          response: emailResult.response,
         });
       }
 
       return {
         donor,
-        email: emailResult ? {
-          subject: emailResult.subject,
-          content: emailResult.content,
-          reasoning: emailResult.reasoning,
-          response: emailResult.response
-        } : null,
-        tokensUsed: emailResult?.tokensUsed || 0
+        email: emailResult
+          ? {
+              subject: emailResult.subject,
+              content: emailResult.content,
+              reasoning: emailResult.reasoning,
+              response: emailResult.response,
+            }
+          : null,
+        tokensUsed: emailResult?.tokensUsed || 0,
       };
-
     } catch (error) {
       console.error(`Error generating email for donor ${params.donor.id}:`, error);
       return {
         donor: params.donor,
         email: null,
         error: error instanceof Error ? error.message : 'Unknown error',
-        tokensUsed: 0
+        tokensUsed: 0,
       };
     }
   }
@@ -194,27 +201,19 @@ export class UnifiedSmartEmailGenerationService {
    */
   private async getOrganization(organizationId: string): Promise<any | null> {
     return await wrapDatabaseOperation(async () => {
-      const result = await db.query.organizations.findFirst({
-        where: eq(organizations.id, organizationId)
-      });
-      return result || null;
+      return await getOrganizationById(organizationId);
     });
   }
 
   private async getSession(sessionId: string, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      const result = await db.query.emailGenerationSessions.findFirst({
-        where: eq(emailGenerationSessions.id, Number(sessionId))
-      });
-      return result || null;
+      return await getEmailGenerationSessionById(Number(sessionId), organizationId);
     });
   }
 
   private async getStaffMembers(organizationId: string): Promise<any[]> {
     return await wrapDatabaseOperation(async () => {
-      return await db.query.staff.findMany({
-        where: eq(staff.organizationId, organizationId)
-      });
+      return await getAllStaffByOrganization(organizationId);
     });
   }
 
@@ -223,27 +222,23 @@ export class UnifiedSmartEmailGenerationService {
     donorIds?: number[]
   ): Promise<any[]> {
     return await wrapDatabaseOperation(async () => {
-      const conditions = [eq(donors.organizationId, organizationId)];
       if (donorIds && donorIds.length > 0) {
-        conditions.push(inArray(donors.id, donorIds));
+        return await getDonorsByIds(donorIds, organizationId);
       }
-
-      return await db.query.donors.findMany({
-        where: and(...conditions)
-      });
+      return await getAllDonorsByOrganization(organizationId);
     });
   }
 
   private async getCommunicationHistory(donorId: number, organizationId: string) {
     const threads = await getDonorCommunicationHistory(donorId, { organizationId });
-    
+
     // Format communication history for email generation
     const formattedHistory: any[] = [];
-    threads.forEach(thread => {
+    threads.forEach((thread) => {
       if (thread.content) {
-        thread.content.forEach(msg => {
+        thread.content.forEach((msg) => {
           formattedHistory.push({
-            content: [{ content: msg.content }]
+            content: [{ content: msg.content }],
           });
         });
       }
@@ -254,13 +249,7 @@ export class UnifiedSmartEmailGenerationService {
 
   private async getDonationHistory(donorId: number, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      return await db.query.donations.findMany({
-        where: eq(donations.donorId, donorId),
-        with: {
-          project: true
-        },
-        orderBy: [desc(donations.date)]
-      });
+      return await getDonorDonationsWithProjects(donorId);
     });
   }
 
@@ -270,33 +259,19 @@ export class UnifiedSmartEmailGenerationService {
 
   private async getPersonResearch(donorId: number, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      const research = await db.query.personResearch.findMany({
-        where: and(
-          eq(personResearch.donorId, donorId),
-          eq(personResearch.organizationId, organizationId),
-          eq(personResearch.isLive, true)
-        ),
-        orderBy: [desc(personResearch.createdAt)],
-        limit: 5
-      });
-
-      return research
-        .filter(r => r.researchData)
-        .map(r => r.researchData as any);
+      return await getPersonResearchByDonor(donorId, organizationId, 5);
     });
   }
 
   private async getMemories(organizationId: string, userId: string) {
-    const [userMemories, orgData] = await Promise.all([
+    const [userMemories, orgMemories] = await Promise.all([
       getUserMemories(userId),
-      db.query.organizations.findFirst({
-        where: eq(organizations.id, organizationId)
-      })
+      getOrganizationMemories(organizationId),
     ]);
-    
+
     return {
       userMemories: userMemories.join('\n'),
-      organizationMemories: (orgData?.memory || []).join('\n')
+      organizationMemories: orgMemories.join('\n'),
     };
   }
 
@@ -310,26 +285,23 @@ export class UnifiedSmartEmailGenerationService {
     response: string;
   }) {
     return await wrapDatabaseOperation(async () => {
-      // Save to generatedEmails table
-      await db.insert(generatedEmails).values({
+      await saveGeneratedEmailData({
         sessionId: Number(params.sessionId),
         donorId: params.donorId,
         subject: params.subject,
-        // For compatibility, save as structured content
-        structuredContent: [{
-          piece: params.content,
-          references: ['email-content'],
-          addNewlineAfter: false
-        }],
+        structuredContent: [
+          {
+            piece: params.content,
+            references: ['email-content'],
+            addNewlineAfter: false,
+          },
+        ],
         referenceContexts: { 'email-content': 'Generated email content' },
-        // New format fields
         emailContent: params.content,
         reasoning: params.reasoning,
         response: params.response,
         status: 'PENDING_APPROVAL',
-        isPreview: true, // Mark as preview for now - should be determined by context
-        createdAt: new Date(),
-        updatedAt: new Date()
+        isPreview: true,
       });
     });
   }
@@ -348,18 +320,16 @@ export class UnifiedSmartEmailGenerationService {
   }> {
     // Get donor IDs from the list
     const listDonors = await wrapDatabaseOperation(async () => {
-      return await db.query.donorListMembers.findMany({
-        where: eq(donorListMembers.listId, Number(params.listId))
-      });
+      return await getListMembers(Number(params.listId));
     });
 
-    const donorIds = listDonors.map(ld => String(ld.donorId));
+    const donorIds = listDonors.map((ld) => String(ld.donorId));
 
     return this.generateSmartEmailsForCampaign({
       organizationId: params.organizationId,
       sessionId: params.sessionId,
       chatHistory: params.chatHistory,
-      donorIds
+      donorIds,
     });
   }
 }

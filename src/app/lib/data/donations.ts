@@ -1,18 +1,18 @@
-import { db } from "../db";
-import { donations, donors, projects } from "../db/schema";
-import { eq, sql, and, SQL, count, desc, asc, or, getTableColumns } from "drizzle-orm";
-import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
-import type { Donor } from "./donors";
-import type { Project } from "./projects";
-import type { PgSelect } from "drizzle-orm/pg-core";
+import { db } from '../db';
+import { donations, donors, projects } from '../db/schema';
+import { eq, sql, and, SQL, count, desc, asc, or, getTableColumns } from 'drizzle-orm';
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import type { Donor } from './donors';
+import type { Project } from './projects';
+import type { PgSelect } from 'drizzle-orm/pg-core';
 
 export type Donation = InferSelectModel<typeof donations>;
 export type NewDonation = InferInsertModel<typeof donations>;
 
 // For results that include related donor and project information
 export type DonationWithDetails = Donation & {
-  donor?: Omit<Donor, "donations" | "communicationThreads" | "sentMessages" | "receivedMessages">; // Avoid circular types if Donor includes donations
-  project?: Omit<Project, "donations">; // Avoid circular types if Project includes donations
+  donor?: Omit<Donor, 'donations' | 'communicationThreads' | 'sentMessages' | 'receivedMessages'>; // Avoid circular types if Donor includes donations
+  project?: Omit<Project, 'donations'>; // Avoid circular types if Project includes donations
 };
 
 /**
@@ -35,8 +35,8 @@ export async function getDonationById(
     });
     return (await query) as DonationWithDetails | undefined;
   } catch (error) {
-    console.error("Failed to retrieve donation by ID:", error);
-    throw new Error("Could not retrieve donation.");
+    console.error('Failed to retrieve donation by ID:', error);
+    throw new Error('Could not retrieve donation.');
   }
 }
 
@@ -47,16 +47,16 @@ export async function getDonationById(
  * @returns The newly created donation object.
  */
 export async function createDonation(
-  donationData: Omit<NewDonation, "id" | "createdAt" | "updatedAt" | "date">
+  donationData: Omit<NewDonation, 'id' | 'createdAt' | 'updatedAt' | 'date'>
 ): Promise<Donation> {
   try {
     // date is set to defaultNow() in schema, createdAt and updatedAt also
     const result = await db.insert(donations).values(donationData).returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to create donation:", error);
+    console.error('Failed to create donation:', error);
     // Handle potential foreign key constraint violations for donorId or projectId
-    throw new Error("Could not create donation. Ensure donor and project exist.");
+    throw new Error('Could not create donation. Ensure donor and project exist.');
   }
 }
 
@@ -68,7 +68,7 @@ export async function createDonation(
  */
 export async function updateDonation(
   id: number,
-  donationData: Partial<Omit<NewDonation, "id" | "createdAt" | "updatedAt">>
+  donationData: Partial<Omit<NewDonation, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<Donation | undefined> {
   try {
     const result = await db
@@ -78,8 +78,8 @@ export async function updateDonation(
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to update donation:", error);
-    throw new Error("Could not update donation.");
+    console.error('Failed to update donation:', error);
+    throw new Error('Could not update donation.');
   }
 }
 
@@ -91,8 +91,8 @@ export async function deleteDonation(id: number): Promise<void> {
   try {
     await db.delete(donations).where(eq(donations.id, id));
   } catch (error) {
-    console.error("Failed to delete donation:", error);
-    throw new Error("Could not delete donation.");
+    console.error('Failed to delete donation:', error);
+    throw new Error('Could not delete donation.');
   }
 }
 
@@ -110,8 +110,8 @@ export async function listDonations(
     endDate?: Date;
     limit?: number;
     offset?: number;
-    orderBy?: keyof Pick<Donation, "date" | "amount" | "createdAt">;
-    orderDirection?: "asc" | "desc";
+    orderBy?: keyof Pick<Donation, 'date' | 'amount' | 'createdAt'>;
+    orderDirection?: 'asc' | 'desc';
     includeDonor?: boolean;
     includeProject?: boolean;
   } = {},
@@ -126,7 +126,7 @@ export async function listDonations(
       limit = 10,
       offset = 0,
       orderBy,
-      orderDirection = "asc",
+      orderDirection = 'asc',
       includeDonor,
       includeProject,
     } = options;
@@ -146,7 +146,9 @@ export async function listDonations(
     }
 
     if (organizationId) {
-      conditions.push(or(eq(donors.organizationId, organizationId), eq(projects.organizationId, organizationId))!);
+      conditions.push(
+        or(eq(donors.organizationId, organizationId), eq(projects.organizationId, organizationId))!
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -173,7 +175,11 @@ export async function listDonations(
       })
       .from(donations)
       .leftJoin(donors, eq(donations.donorId, donors.id))
-      .leftJoin(projects, eq(donations.projectId, projects.id)) as unknown as PgSelect<any, any, any>;
+      .leftJoin(projects, eq(donations.projectId, projects.id)) as unknown as PgSelect<
+      any,
+      any,
+      any
+    >;
 
     if (whereClause) {
       queryBuilder = queryBuilder.where(whereClause);
@@ -196,7 +202,7 @@ export async function listDonations(
         };
         const selectedColumn = columnMap[orderBy as keyof typeof columnMap];
         if (selectedColumn) {
-          return orderDirection === "asc" ? [asc(selectedColumn)] : [desc(selectedColumn)];
+          return orderDirection === 'asc' ? [asc(selectedColumn)] : [desc(selectedColumn)];
         }
         return []; // Return an empty array if no valid column is found
       })();
@@ -213,8 +219,8 @@ export async function listDonations(
       totalCount,
     };
   } catch (error) {
-    console.error("Failed to list donations:", error);
-    throw new Error("Could not list donations.");
+    console.error('Failed to list donations:', error);
+    throw new Error('Could not list donations.');
   }
 }
 
@@ -243,7 +249,7 @@ export async function getMultipleDonorDonationStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       )
@@ -259,14 +265,15 @@ export async function getMultipleDonorDonationStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       )
       .groupBy(donations.donorId);
 
     // Combine the results
-    const stats: { [donorId: number]: { totalDonated: number; lastDonationDate: Date | null } } = {};
+    const stats: { [donorId: number]: { totalDonated: number; lastDonationDate: Date | null } } =
+      {};
 
     // Initialize stats for all requested donors
     donorIds.forEach((id) => {
@@ -289,8 +296,8 @@ export async function getMultipleDonorDonationStats(
 
     return stats;
   } catch (error) {
-    console.error("Failed to get multiple donor donation stats:", error);
-    throw new Error("Could not retrieve donor donation statistics.");
+    console.error('Failed to get multiple donor donation stats:', error);
+    throw new Error('Could not retrieve donor donation statistics.');
   }
 }
 
@@ -328,8 +335,8 @@ export async function getDonorDonationStats(
       lastDonationDate: lastDonationResult[0]?.lastDate || null,
     };
   } catch (error) {
-    console.error("Failed to get donor donation stats:", error);
-    throw new Error("Could not retrieve donor donation statistics.");
+    console.error('Failed to get donor donation stats:', error);
+    throw new Error('Could not retrieve donor donation statistics.');
   }
 }
 
@@ -347,7 +354,11 @@ export async function getComprehensiveDonorStats(
   totalAmount: number;
   firstDonation: { date: Date; amount: number } | null;
   lastDonation: { date: Date; amount: number } | null;
-  donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+  donationsByProject: {
+    projectId: number | null;
+    projectName: string | null;
+    totalAmount: number;
+  }[];
 }> {
   try {
     // Get total count and amount
@@ -400,7 +411,9 @@ export async function getComprehensiveDonorStats(
     return {
       totalDonations: totalStats?.count || 0,
       totalAmount: totalStats?.total || 0,
-      firstDonation: firstDonation ? { date: firstDonation.date, amount: firstDonation.amount } : null,
+      firstDonation: firstDonation
+        ? { date: firstDonation.date, amount: firstDonation.amount }
+        : null,
       lastDonation: lastDonation ? { date: lastDonation.date, amount: lastDonation.amount } : null,
       donationsByProject: donationsByProject.map((item) => ({
         projectId: item.projectId,
@@ -409,8 +422,8 @@ export async function getComprehensiveDonorStats(
       })),
     };
   } catch (error) {
-    console.error("Failed to get comprehensive donor stats:", error);
-    throw new Error("Could not retrieve comprehensive donor statistics.");
+    console.error('Failed to get comprehensive donor stats:', error);
+    throw new Error('Could not retrieve comprehensive donor statistics.');
   }
 }
 
@@ -429,7 +442,11 @@ export async function getMultipleComprehensiveDonorStats(
     totalAmount: number;
     firstDonation: { date: Date; amount: number } | null;
     lastDonation: { date: Date; amount: number } | null;
-    donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+    donationsByProject: {
+      projectId: number | null;
+      projectName: string | null;
+      totalAmount: number;
+    }[];
   };
 }> {
   try {
@@ -448,7 +465,7 @@ export async function getMultipleComprehensiveDonorStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       )
@@ -466,7 +483,7 @@ export async function getMultipleComprehensiveDonorStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       );
@@ -490,7 +507,7 @@ export async function getMultipleComprehensiveDonorStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       );
@@ -515,7 +532,7 @@ export async function getMultipleComprehensiveDonorStats(
       .leftJoin(projects, eq(donations.projectId, projects.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId)
         )
       )
@@ -523,7 +540,11 @@ export async function getMultipleComprehensiveDonorStats(
 
     // Group donations by project for each donor
     const donationsByProjectMap: {
-      [donorId: number]: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+      [donorId: number]: {
+        projectId: number | null;
+        projectName: string | null;
+        totalAmount: number;
+      }[];
     } = {};
 
     donationsByProject.forEach((item) => {
@@ -544,7 +565,11 @@ export async function getMultipleComprehensiveDonorStats(
         totalAmount: number;
         firstDonation: { date: Date; amount: number } | null;
         lastDonation: { date: Date; amount: number } | null;
-        donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+        donationsByProject: {
+          projectId: number | null;
+          projectName: string | null;
+          totalAmount: number;
+        }[];
       };
     } = {};
 
@@ -582,8 +607,8 @@ export async function getMultipleComprehensiveDonorStats(
 
     return result;
   } catch (error) {
-    console.error("Failed to get multiple comprehensive donor stats:", error);
-    throw new Error("Could not retrieve comprehensive donor statistics.");
+    console.error('Failed to get multiple comprehensive donor stats:', error);
+    throw new Error('Could not retrieve comprehensive donor statistics.');
   }
 }
 
@@ -603,7 +628,11 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
     totalAmount: number;
     firstDonation: { date: Date; amount: number } | null;
     lastDonation: { date: Date; amount: number } | null;
-    donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+    donationsByProject: {
+      projectId: number | null;
+      projectName: string | null;
+      totalAmount: number;
+    }[];
   };
 }> {
   try {
@@ -623,13 +652,10 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
       .leftJoin(projects, eq(donations.projectId, projects.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId),
           // Exclude donations to external projects
-          or(
-            sql`${donations.projectId} IS NULL`,
-            sql`${projects.external} = false`
-          )
+          or(sql`${donations.projectId} IS NULL`, sql`${projects.external} = false`)
         )
       )
       .groupBy(donations.donorId);
@@ -647,13 +673,10 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
       .leftJoin(projects, eq(donations.projectId, projects.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId),
           // Exclude donations to external projects
-          or(
-            sql`${donations.projectId} IS NULL`,
-            sql`${projects.external} = false`
-          )
+          or(sql`${donations.projectId} IS NULL`, sql`${projects.external} = false`)
         )
       );
 
@@ -670,13 +693,10 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
       .leftJoin(projects, eq(donations.projectId, projects.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId),
           // Exclude donations to external projects
-          or(
-            sql`${donations.projectId} IS NULL`,
-            sql`${projects.external} = false`
-          )
+          or(sql`${donations.projectId} IS NULL`, sql`${projects.external} = false`)
         )
       );
 
@@ -693,20 +713,21 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
       .leftJoin(projects, eq(donations.projectId, projects.id))
       .where(
         and(
-          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(","))}]::integer[])`,
+          sql`${donations.donorId} = ANY(ARRAY[${sql.raw(donorIds.join(','))}]::integer[])`,
           eq(donors.organizationId, organizationId),
           // Exclude donations to external projects
-          or(
-            sql`${donations.projectId} IS NULL`,
-            sql`${projects.external} = false`
-          )
+          or(sql`${donations.projectId} IS NULL`, sql`${projects.external} = false`)
         )
       )
       .groupBy(donations.donorId, donations.projectId, projects.name);
 
     // Group donations by project for each donor
     const donationsByProjectMap: {
-      [donorId: number]: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+      [donorId: number]: {
+        projectId: number | null;
+        projectName: string | null;
+        totalAmount: number;
+      }[];
     } = {};
 
     donationsByProject.forEach((item) => {
@@ -727,7 +748,11 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
         totalAmount: number;
         firstDonation: { date: Date; amount: number } | null;
         lastDonation: { date: Date; amount: number } | null;
-        donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+        donationsByProject: {
+          projectId: number | null;
+          projectName: string | null;
+          totalAmount: number;
+        }[];
       };
     } = {};
 
@@ -773,7 +798,25 @@ export async function getMultipleComprehensiveDonorStatsExcludingExternal(
 
     return result;
   } catch (error) {
-    console.error("Failed to get multiple comprehensive donor stats excluding external:", error);
-    throw new Error("Could not retrieve comprehensive donor statistics.");
+    console.error('Failed to get multiple comprehensive donor stats excluding external:', error);
+    throw new Error('Could not retrieve comprehensive donor statistics.');
+  }
+}
+
+/**
+ * Get donations for a donor with project information
+ */
+export async function getDonorDonationsWithProjects(donorId: number): Promise<any[]> {
+  try {
+    return await db.query.donations.findMany({
+      where: eq(donations.donorId, donorId),
+      with: {
+        project: true,
+      },
+      orderBy: [desc(donations.date)],
+    });
+  } catch (error) {
+    console.error('Failed to get donor donations with projects:', error);
+    throw new Error('Could not retrieve donor donations.');
   }
 }

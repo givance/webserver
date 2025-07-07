@@ -1,7 +1,7 @@
-import { db } from "../db";
-import { donorLists, donorListMembers, donors, donations } from "../db/schema";
-import { eq, and, desc, asc, ilike, inArray, count, sql } from "drizzle-orm";
-import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { db } from '../db';
+import { donorLists, donorListMembers, donors, donations } from '../db/schema';
+import { eq, and, desc, asc, ilike, inArray, count, sql } from 'drizzle-orm';
+import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 // Type definitions
 export type DonorList = InferSelectModel<typeof donorLists>;
@@ -46,7 +46,10 @@ export async function createDonorList(data: InsertDonorList): Promise<DonorList>
  * @param organizationId The organization ID for authorization
  * @returns The donor list if found and authorized
  */
-export async function getDonorListById(id: number, organizationId: string): Promise<DonorList | null> {
+export async function getDonorListById(
+  id: number,
+  organizationId: string
+): Promise<DonorList | null> {
   const [list] = await db
     .select()
     .from(donorLists)
@@ -156,8 +159,8 @@ export async function listDonorLists(
     isActive?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: "name" | "createdAt" | "updatedAt" | "memberCount";
-    orderDirection?: "asc" | "desc";
+    orderBy?: 'name' | 'createdAt' | 'updatedAt' | 'memberCount';
+    orderDirection?: 'asc' | 'desc';
     includeMemberCount?: boolean;
   } = {}
 ): Promise<{ lists: DonorListWithMemberCount[]; totalCount: number }> {
@@ -166,8 +169,8 @@ export async function listDonorLists(
     isActive,
     limit = 50,
     offset = 0,
-    orderBy = "name",
-    orderDirection = "asc",
+    orderBy = 'name',
+    orderDirection = 'asc',
     includeMemberCount = true,
   } = options;
 
@@ -185,20 +188,23 @@ export async function listDonorLists(
   const whereClause = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];
 
   // Get total count
-  const [{ count: totalCount }] = await db.select({ count: count() }).from(donorLists).where(whereClause);
+  const [{ count: totalCount }] = await db
+    .select({ count: count() })
+    .from(donorLists)
+    .where(whereClause);
 
   // Build order clause
   let orderClause;
-  const direction = orderDirection === "desc" ? desc : asc;
+  const direction = orderDirection === 'desc' ? desc : asc;
 
   switch (orderBy) {
-    case "createdAt":
+    case 'createdAt':
       orderClause = direction(donorLists.createdAt);
       break;
-    case "updatedAt":
+    case 'updatedAt':
       orderClause = direction(donorLists.updatedAt);
       break;
-    case "memberCount":
+    case 'memberCount':
       // For member count ordering, we'll need a subquery
       orderClause = direction(donorLists.name); // Fallback to name for now
       break;
@@ -207,7 +213,13 @@ export async function listDonorLists(
   }
 
   // Get lists
-  const lists = await db.select().from(donorLists).where(whereClause).orderBy(orderClause).limit(limit).offset(offset);
+  const lists = await db
+    .select()
+    .from(donorLists)
+    .where(whereClause)
+    .orderBy(orderClause)
+    .limit(limit)
+    .offset(offset);
 
   // Get member counts if requested
   if (includeMemberCount && lists.length > 0) {
@@ -256,7 +268,7 @@ export async function updateDonorList(
   return updated || null;
 }
 
-export type ListDeletionMode = "listOnly" | "withExclusiveDonors" | "withAllDonors";
+export type ListDeletionMode = 'listOnly' | 'withExclusiveDonors' | 'withAllDonors';
 
 export interface ListDeletionResult {
   listDeleted: boolean;
@@ -267,16 +279,16 @@ export interface ListDeletionResult {
  * Delete a donor list with various deletion modes
  * @param id The donor list ID
  * @param organizationId The organization ID for authorization
- * @param deleteMode The deletion mode: 
+ * @param deleteMode The deletion mode:
  *   - "listOnly": Delete only the list, keep all donors
  *   - "withExclusiveDonors": Delete the list and donors that are only in this list
  *   - "withAllDonors": Delete the list and all donors in it
  * @returns Object with deletion results
  */
 export async function deleteDonorList(
-  id: number, 
+  id: number,
   organizationId: string,
-  deleteMode: ListDeletionMode = "listOnly"
+  deleteMode: ListDeletionMode = 'listOnly'
 ): Promise<ListDeletionResult> {
   // Start transaction
   return await db.transaction(async (tx) => {
@@ -288,46 +300,34 @@ export async function deleteDonorList(
 
     let donorsDeleted = 0;
 
-    if (deleteMode === "withExclusiveDonors") {
+    if (deleteMode === 'withExclusiveDonors') {
       // Get donors that are only in this list
       const exclusiveDonorIds = await getDonorsExclusiveToList(id, organizationId);
-      
+
       if (exclusiveDonorIds.length > 0) {
         // First delete donations for these donors
-        await tx
-          .delete(donations)
-          .where(inArray(donations.donorId, exclusiveDonorIds));
-        
+        await tx.delete(donations).where(inArray(donations.donorId, exclusiveDonorIds));
+
         // Then delete the donors (cascade will handle other related data)
         const deleteResult = await tx
           .delete(donors)
           .where(
-            and(
-              inArray(donors.id, exclusiveDonorIds),
-              eq(donors.organizationId, organizationId)
-            )
+            and(inArray(donors.id, exclusiveDonorIds), eq(donors.organizationId, organizationId))
           );
         donorsDeleted = deleteResult.rowCount || 0;
       }
-    } else if (deleteMode === "withAllDonors") {
+    } else if (deleteMode === 'withAllDonors') {
       // Get all donor IDs in this list
       const allDonorIds = await getDonorIdsFromLists([id], organizationId);
-      
+
       if (allDonorIds.length > 0) {
         // First delete donations for these donors
-        await tx
-          .delete(donations)
-          .where(inArray(donations.donorId, allDonorIds));
-        
+        await tx.delete(donations).where(inArray(donations.donorId, allDonorIds));
+
         // Then delete all donors in the list (cascade will handle other related data)
         const deleteResult = await tx
           .delete(donors)
-          .where(
-            and(
-              inArray(donors.id, allDonorIds),
-              eq(donors.organizationId, organizationId)
-            )
-          );
+          .where(and(inArray(donors.id, allDonorIds), eq(donors.organizationId, organizationId)));
         donorsDeleted = deleteResult.rowCount || 0;
       }
     }
@@ -339,7 +339,7 @@ export async function deleteDonorList(
 
     return {
       listDeleted: (result.rowCount || 0) > 0,
-      donorsDeleted
+      donorsDeleted,
     };
   });
 }
@@ -361,7 +361,7 @@ export async function addDonorsToList(
   // First verify the list belongs to the organization
   const list = await getDonorListById(listId, organizationId);
   if (!list) {
-    throw new Error("List not found or access denied");
+    throw new Error('List not found or access denied');
   }
 
   // Verify all donors belong to the same organization
@@ -371,7 +371,7 @@ export async function addDonorsToList(
     .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
 
   if (donorCheck.length !== donorIds.length) {
-    throw new Error("Some donors do not belong to the organization");
+    throw new Error('Some donors do not belong to the organization');
   }
 
   // Get existing memberships to avoid duplicates
@@ -413,7 +413,7 @@ export async function removeDonorsFromList(
   // First verify the list belongs to the organization
   const list = await getDonorListById(listId, organizationId);
   if (!list) {
-    throw new Error("List not found or access denied");
+    throw new Error('List not found or access denied');
   }
 
   const result = await db
@@ -424,12 +424,31 @@ export async function removeDonorsFromList(
 }
 
 /**
+ * Get list members by list ID
+ * @param listId The list ID
+ * @returns Array of donor list members
+ */
+export async function getListMembers(listId: number): Promise<DonorListMember[]> {
+  try {
+    return await db.query.donorListMembers.findMany({
+      where: eq(donorListMembers.listId, listId),
+    });
+  } catch (error) {
+    console.error('Failed to get list members:', error);
+    throw new Error('Could not retrieve list members.');
+  }
+}
+
+/**
  * Get donor IDs for multiple lists (useful for communication flow)
  * @param listIds Array of list IDs
  * @param organizationId The organization ID for authorization
  * @returns Array of unique donor IDs from all lists
  */
-export async function getDonorIdsFromLists(listIds: number[], organizationId: string): Promise<number[]> {
+export async function getDonorIdsFromLists(
+  listIds: number[],
+  organizationId: string
+): Promise<number[]> {
   if (listIds.length === 0) return [];
 
   // Verify all lists belong to the organization
@@ -439,7 +458,7 @@ export async function getDonorIdsFromLists(listIds: number[], organizationId: st
     .where(and(inArray(donorLists.id, listIds), eq(donorLists.organizationId, organizationId)));
 
   if (listCheck.length !== listIds.length) {
-    throw new Error("Some lists do not belong to the organization");
+    throw new Error('Some lists do not belong to the organization');
   }
 
   // Get all donor IDs from the lists
@@ -459,7 +478,10 @@ export async function getDonorIdsFromLists(listIds: number[], organizationId: st
  * @param organizationId The organization ID for authorization
  * @returns Array of lists containing the donor
  */
-export async function getListsForDonor(donorId: number, organizationId: string): Promise<DonorList[]> {
+export async function getListsForDonor(
+  donorId: number,
+  organizationId: string
+): Promise<DonorList[]> {
   const lists = await db
     .select({
       id: donorLists.id,
@@ -522,7 +544,7 @@ export async function removeFromAllLists(donorId: number, organizationId: string
     .limit(1);
 
   if (!donor) {
-    throw new Error("Donor not found or access denied");
+    throw new Error('Donor not found or access denied');
   }
 
   // Get all list IDs that belong to the organization and contain this donor
@@ -531,10 +553,7 @@ export async function removeFromAllLists(donorId: number, organizationId: string
     .from(donorListMembers)
     .innerJoin(donorLists, eq(donorLists.id, donorListMembers.listId))
     .where(
-      and(
-        eq(donorListMembers.donorId, donorId),
-        eq(donorLists.organizationId, organizationId)
-      )
+      and(eq(donorListMembers.donorId, donorId), eq(donorLists.organizationId, organizationId))
     );
 
   if (listMemberships.length === 0) {
@@ -542,15 +561,10 @@ export async function removeFromAllLists(donorId: number, organizationId: string
   }
 
   // Delete all memberships for this donor in lists belonging to the organization
-  const listIds = listMemberships.map(m => m.listId);
+  const listIds = listMemberships.map((m) => m.listId);
   const result = await db
     .delete(donorListMembers)
-    .where(
-      and(
-        eq(donorListMembers.donorId, donorId),
-        inArray(donorListMembers.listId, listIds)
-      )
-    );
+    .where(and(eq(donorListMembers.donorId, donorId), inArray(donorListMembers.listId, listIds)));
 
   return result.rowCount || 0;
 }
@@ -561,11 +575,14 @@ export async function removeFromAllLists(donorId: number, organizationId: string
  * @param organizationId The organization ID for authorization
  * @returns Array of donor IDs that are only in this list
  */
-export async function getDonorsExclusiveToList(listId: number, organizationId: string): Promise<number[]> {
+export async function getDonorsExclusiveToList(
+  listId: number,
+  organizationId: string
+): Promise<number[]> {
   // First verify the list belongs to the organization
   const list = await getDonorListById(listId, organizationId);
   if (!list) {
-    throw new Error("List not found or access denied");
+    throw new Error('List not found or access denied');
   }
 
   // Get donors that are in this list but not in any other list
@@ -587,7 +604,7 @@ export async function getDonorsExclusiveToList(listId: number, organizationId: s
       )
     );
 
-  return exclusiveDonors.map(d => d.donorId);
+  return exclusiveDonors.map((d) => d.donorId);
 }
 
 /**
@@ -605,7 +622,7 @@ export async function bulkUpdateListMembersStaff(
   // First verify the list belongs to the organization
   const list = await getDonorListById(listId, organizationId);
   if (!list) {
-    throw new Error("List not found or access denied");
+    throw new Error('List not found or access denied');
   }
 
   // Get all donor IDs in this list
@@ -618,21 +635,16 @@ export async function bulkUpdateListMembersStaff(
     return { updated: 0 };
   }
 
-  const donorIds = listMembers.map(m => m.donorId);
+  const donorIds = listMembers.map((m) => m.donorId);
 
   // Update all donors in the list
   const result = await db
     .update(donors)
-    .set({ 
+    .set({
       assignedToStaffId: staffId,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
-    .where(
-      and(
-        inArray(donors.id, donorIds),
-        eq(donors.organizationId, organizationId)
-      )
-    );
+    .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
 
   return { updated: result.rowCount || 0 };
 }

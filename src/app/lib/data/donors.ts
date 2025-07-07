@@ -1291,3 +1291,17 @@ export async function getUnresearchedDonorsCount(
     throw new Error('Could not get donor research statistics.');
   }
 }
+
+/**
+ * Get all donors for an organization
+ */
+export async function getAllDonorsByOrganization(organizationId: string): Promise<Donor[]> {
+  try {
+    return await db.query.donors.findMany({
+      where: eq(donors.organizationId, organizationId),
+    });
+  } catch (error) {
+    console.error('Failed to get all donors by organization:', error);
+    throw new Error('Could not retrieve donors.');
+  }
+}
