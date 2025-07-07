@@ -31,6 +31,7 @@ import {
   getEmailsBySessionWithDonor,
   markEmailsAsSent,
   updateEmailSendStatus,
+  updateSessionsBatch,
 } from '@/app/lib/data/email-campaigns';
 import { EmailGenerationSessionStatus } from '@/app/lib/db/schema';
 import { logger } from '@/app/lib/logger';
@@ -598,15 +599,14 @@ export class EmailCampaignsService {
 
     // Get email counts for all campaigns in batch
     const allSessionIds = campaigns.map((c) => c.id);
-    const emailCounts = await db
-      .select({
-        sessionId: generatedEmails.sessionId,
-        totalEmails: count(),
-        sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
-      })
-      .from(generatedEmails)
-      .where(inArray(generatedEmails.sessionId, allSessionIds))
-      .groupBy(generatedEmails.sessionId);
+    const emailCounts = await wrapDatabaseOperation(async () => {
+      const stats = await getEmailStatsBySessionIds(allSessionIds);
+      return stats.map((stat) => ({
+        sessionId: stat.sessionId,
+        totalEmails: stat.totalEmails,
+        sentEmails: stat.sentEmails,
+      }));
+    });
 
     // Create lookup map for email counts
     const emailCountsMap = new Map();
@@ -615,14 +615,14 @@ export class EmailCampaignsService {
     });
 
     // Get updated campaign statuses in batch
-    const updatedCampaigns = await db
-      .select({
-        id: emailGenerationSessions.id,
-        status: emailGenerationSessions.status,
-        completedDonors: emailGenerationSessions.completedDonors,
-      })
-      .from(emailGenerationSessions)
-      .where(inArray(emailGenerationSessions.id, allSessionIds));
+    const updatedCampaigns = await wrapDatabaseOperation(async () => {
+      const sessions = await getSessionsByCriteria(organizationId, { sessionIds: allSessionIds });
+      return sessions.map((session) => ({
+        id: session.id,
+        status: session.status,
+        completedDonors: session.completedDonors,
+      }));
+    });
 
     const updatedCampaignsMap = new Map();
     updatedCampaigns.forEach((campaign) => {
@@ -1488,21 +1488,14 @@ export class EmailCampaignsService {
         logger.info(`[saveDraft] Attempting to update existing draft session ${input.sessionId}`);
 
         // First check if the session exists and its current status
-        const existingSession = await db
-          .select()
-          .from(emailGenerationSessions)
-          .where(
-            and(
-              eq(emailGenerationSessions.id, input.sessionId),
-              eq(emailGenerationSessions.organizationId, organizationId)
-            )
-          )
-          .limit(1);
+        const existingSession = await wrapDatabaseOperation(async () => {
+          return await getEmailGenerationSessionById(input.sessionId!, organizationId);
+        });
 
         logger.info(`[saveDraft] Existing session lookup result:`, {
-          found: !!existingSession[0],
-          status: existingSession[0]?.status,
-          sessionId: existingSession[0]?.id,
+          found: !!existingSession,
+          status: existingSession?.status,
+          sessionId: existingSession?.id,
         });
 
         // Update existing draft
@@ -1519,24 +1512,16 @@ export class EmailCampaignsService {
         logger.info(`[saveDraft] Updating session with data:`, {
           ...updateData,
           chatHistoryLength: updateData.chatHistory.length,
-          existingStatus: existingSession[0]?.status,
+          existingStatus: existingSession?.status,
           lastTwoMessages: updateData.chatHistory.slice(-2).map((m) => ({
             role: m.role,
             contentPreview: m.content.substring(0, 50) + '...',
           })),
         });
 
-        const [updatedSession] = await db
-          .update(emailGenerationSessions)
-          .set(updateData)
-          .where(
-            and(
-              eq(emailGenerationSessions.id, input.sessionId),
-              eq(emailGenerationSessions.organizationId, organizationId)
-              // Removed status check - allow updating sessions in any status
-            )
-          )
-          .returning();
+        const updatedSession = await wrapDatabaseOperation(async () => {
+          return await updateEmailGenerationSession(input.sessionId!, organizationId, updateData);
+        });
 
         if (!updatedSession) {
           logger.error(
@@ -1582,10 +1567,9 @@ export class EmailCampaignsService {
         });
 
         // Create new draft
-        const [newSession] = await db
-          .insert(emailGenerationSessions)
-          .values(newSessionData)
-          .returning();
+        const newSession = await wrapDatabaseOperation(async () => {
+          return await createEmailGenerationSession(newSessionData);
+        });
 
         logger.info(`[saveDraft] Successfully created new draft session ${newSession.id}`);
         return { sessionId: newSession.id };
@@ -1617,29 +1601,16 @@ export class EmailCampaignsService {
 
     try {
       // Get all sessions in batch
-      const sessions = await db
-        .select()
-        .from(emailGenerationSessions)
-        .where(
-          and(
-            inArray(emailGenerationSessions.id, sessionIds),
-            eq(emailGenerationSessions.organizationId, organizationId)
-          )
-        );
+      const sessions = await wrapDatabaseOperation(async () => {
+        return await getSessionsByCriteria(organizationId, { sessionIds });
+      });
 
       if (sessions.length === 0) return new Map();
 
       // Get email stats for all sessions in batch
-      const emailStats = await db
-        .select({
-          sessionId: generatedEmails.sessionId,
-          totalEmails: count(),
-          sentEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.isSent} = true THEN 1 END)`,
-          approvedEmails: sql<number>`COUNT(CASE WHEN ${generatedEmails.status} = 'APPROVED' THEN 1 END)`,
-        })
-        .from(generatedEmails)
-        .where(inArray(generatedEmails.sessionId, sessionIds))
-        .groupBy(generatedEmails.sessionId);
+      const emailStats = await wrapDatabaseOperation(async () => {
+        return await getEmailStatsBySessionIds(sessionIds);
+      });
 
       // Create lookup map for email stats
       const emailStatsMap = new Map();
@@ -1736,19 +1707,15 @@ export class EmailCampaignsService {
 
       // Perform batch updates
       if (sessionsToUpdate.length > 0) {
-        for (const update of sessionsToUpdate) {
-          await db
-            .update(emailGenerationSessions)
-            .set({
-              status: update.status,
-              completedDonors: update.completedDonors,
-              updatedAt: new Date(),
-              ...(update.shouldSetCompletedAt && {
-                completedAt: new Date(),
-              }),
-            })
-            .where(eq(emailGenerationSessions.id, update.id));
-        }
+        await wrapDatabaseOperation(async () => {
+          const updates = sessionsToUpdate.map((update) => ({
+            sessionId: update.id,
+            status: update.status,
+            completedDonors: update.completedDonors,
+            completedAt: update.shouldSetCompletedAt ? new Date() : undefined,
+          }));
+          await updateSessionsBatch(updates);
+        });
 
         logger.info(
           `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate
@@ -2012,21 +1979,18 @@ export class EmailCampaignsService {
   async fixStuckCampaigns(organizationId: string) {
     try {
       // Get all campaigns that might be stuck (PENDING or IN_PROGRESS)
-      const stuckCampaigns = await db
-        .select({
-          id: emailGenerationSessions.id,
-          status: emailGenerationSessions.status,
-        })
-        .from(emailGenerationSessions)
-        .where(
-          and(
-            eq(emailGenerationSessions.organizationId, organizationId),
-            or(
-              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.GENERATING),
-              eq(emailGenerationSessions.status, EmailGenerationSessionStatus.READY_TO_SEND)
-            )
-          )
-        );
+      const stuckCampaigns = await wrapDatabaseOperation(async () => {
+        const sessions = await getSessionsByCriteria(organizationId, {
+          statuses: [
+            EmailGenerationSessionStatus.GENERATING,
+            EmailGenerationSessionStatus.READY_TO_SEND,
+          ],
+        });
+        return sessions.map((session) => ({
+          id: session.id,
+          status: session.status,
+        }));
+      });
 
       let fixedCount = 0;
 
@@ -2036,11 +2000,10 @@ export class EmailCampaignsService {
           await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
 
           // Check if status changed
-          const [updatedCampaign] = await db
-            .select({ status: emailGenerationSessions.status })
-            .from(emailGenerationSessions)
-            .where(eq(emailGenerationSessions.id, campaign.id))
-            .limit(1);
+          const updatedCampaign = await wrapDatabaseOperation(async () => {
+            const session = await getEmailGenerationSessionById(campaign.id, organizationId);
+            return session ? { status: session.status } : null;
+          });
 
           if (updatedCampaign && updatedCampaign.status !== originalStatus) {
             fixedCount++;

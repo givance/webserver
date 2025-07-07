@@ -782,3 +782,37 @@ export async function updateEmailSendStatus(
     throw new Error('Could not update email send status.');
   }
 }
+
+/**
+ * Updates multiple sessions in batch
+ */
+export async function updateSessionsBatch(
+  updates: Array<{
+    sessionId: number;
+    status: string;
+    completedDonors: number;
+    completedAt?: Date;
+  }>
+): Promise<void> {
+  try {
+    if (updates.length === 0) return;
+
+    // Use a transaction to update all sessions
+    await db.transaction(async (tx) => {
+      for (const update of updates) {
+        await tx
+          .update(emailGenerationSessions)
+          .set({
+            status: update.status,
+            completedDonors: update.completedDonors,
+            completedAt: update.completedAt,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailGenerationSessions.id, update.sessionId));
+      }
+    });
+  } catch (error) {
+    console.error('Failed to update sessions in batch:', error);
+    throw new Error('Could not update sessions.');
+  }
+}
