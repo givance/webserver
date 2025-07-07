@@ -1156,3 +1156,47 @@ export async function listDonorsByCriteria(
     throw new Error('Could not list donors by criteria.');
   }
 }
+
+/**
+ * Updates a donor's stage classification
+ */
+export async function updateDonorStageClassification(
+  donorId: number,
+  stageName: string,
+  reasoning?: string
+): Promise<void> {
+  try {
+    await db
+      .update(donors)
+      .set({
+        currentStageName: stageName,
+        classificationReasoning: reasoning,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(donors.id, donorId));
+  } catch (error) {
+    console.error('Failed to update donor stage classification:', error);
+    throw new Error('Could not update donor stage classification.');
+  }
+}
+
+/**
+ * Updates a donor's predicted actions
+ */
+export async function updateDonorPredictedActions(
+  donorId: number,
+  predictedActions: any[]
+): Promise<void> {
+  try {
+    await db
+      .update(donors)
+      .set({
+        predictedActions: predictedActions,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(donors.id, donorId));
+  } catch (error) {
+    console.error('Failed to update donor predicted actions:', error);
+    throw new Error('Could not update donor predicted actions.');
+  }
+}

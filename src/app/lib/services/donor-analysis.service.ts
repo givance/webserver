@@ -1,9 +1,10 @@
-import { db } from "@/app/lib/db";
-import { donors as donorSchema } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { logger } from "@/app/lib/logger";
-import { wrapDatabaseOperation } from "@/app/lib/utils/error-handler";
-import type { PredictedAction } from "@/app/lib/analysis/types";
+import { logger } from '@/app/lib/logger';
+import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
+import type { PredictedAction } from '@/app/lib/analysis/types';
+import {
+  updateDonorStageClassification as updateDonorStageClassificationData,
+  updateDonorPredictedActions as updateDonorPredictedActionsData,
+} from '@/app/lib/data/donors';
 
 /**
  * Service for handling donor analysis database operations
@@ -18,15 +19,10 @@ export class DonorAnalysisService {
     reasoning?: string
   ): Promise<void> {
     return await wrapDatabaseOperation(async () => {
-      await db
-        .update(donorSchema)
-        .set({
-          currentStageName: stageName,
-          classificationReasoning: reasoning,
-        })
-        .where(eq(donorSchema.id, donorId));
-
-      logger.info(`Updated stage and reasoning for donor ${donorId} to "${stageName}" in database.`);
+      await updateDonorStageClassificationData(donorId, stageName, reasoning);
+      logger.info(
+        `Updated stage and reasoning for donor ${donorId} to "${stageName}" in database.`
+      );
     });
   }
 
@@ -39,14 +35,7 @@ export class DonorAnalysisService {
     reasoning?: string
   ): Promise<void> {
     return await wrapDatabaseOperation(async () => {
-      await db
-        .update(donorSchema)
-        .set({
-          currentStageName: newStageName,
-          classificationReasoning: reasoning,
-        })
-        .where(eq(donorSchema.id, donorId));
-
+      await updateDonorStageClassificationData(donorId, newStageName, reasoning);
       logger.info(`Donor ${donorId} transitioned to new stage "${newStageName}".`);
     });
   }
@@ -59,13 +48,7 @@ export class DonorAnalysisService {
     predictedActions: PredictedAction[]
   ): Promise<void> {
     return await wrapDatabaseOperation(async () => {
-      await db
-        .update(donorSchema)
-        .set({
-          predictedActions: predictedActions,
-        })
-        .where(eq(donorSchema.id, donorId));
-
+      await updateDonorPredictedActionsData(donorId, predictedActions);
       logger.info(`Updated predicted actions for donor ${donorId} in database.`);
     });
   }
