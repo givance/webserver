@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db } from '../db';
 import {
   donors,
   staff,
@@ -11,17 +11,30 @@ import {
   generatedEmails,
   todos,
   type DonorNote,
-} from "../db/schema";
-import { eq, sql, like, or, desc, asc, SQL, AnyColumn, and, isNull, count, inArray } from "drizzle-orm";
-import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
-import { clerkClient } from "@clerk/nextjs/server";
-import type { DonorJourney } from "./organizations";
-import { removeFromAllLists } from "./donor-lists";
+} from '../db/schema';
+import {
+  eq,
+  sql,
+  like,
+  or,
+  desc,
+  asc,
+  SQL,
+  AnyColumn,
+  and,
+  isNull,
+  count,
+  inArray,
+} from 'drizzle-orm';
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import { clerkClient } from '@clerk/nextjs/server';
+import type { DonorJourney } from './organizations';
+import { removeFromAllLists } from './donor-lists';
 
 export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
 
-export type DonorWithDetails = Omit<Donor, "predictedActions"> & {
+export type DonorWithDetails = Omit<Donor, 'predictedActions'> & {
   stageName?: string;
   stageExplanation?: string;
   possibleActions?: string[];
@@ -31,21 +44,21 @@ export type DonorWithDetails = Omit<Donor, "predictedActions"> & {
 
 export type CommunicationDonor = Pick<
   Donor,
-  | "id"
-  | "firstName"
-  | "lastName"
-  | "email"
-  | "phone"
-  | "displayName"
-  | "hisTitle"
-  | "hisFirstName"
-  | "hisInitial"
-  | "hisLastName"
-  | "herTitle"
-  | "herFirstName"
-  | "herInitial"
-  | "herLastName"
-  | "isCouple"
+  | 'id'
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'phone'
+  | 'displayName'
+  | 'hisTitle'
+  | 'hisFirstName'
+  | 'hisInitial'
+  | 'hisLastName'
+  | 'herTitle'
+  | 'herFirstName'
+  | 'herInitial'
+  | 'herLastName'
+  | 'isCouple'
 >;
 
 /**
@@ -54,24 +67,26 @@ export type CommunicationDonor = Pick<
  */
 function normalizeDonorNotes(donor: any): any {
   if (!donor) return donor;
-  
+
   // If notes is already an array or null/undefined, return as is
   if (!donor.notes || Array.isArray(donor.notes)) {
     return donor;
   }
-  
+
   // Convert string notes to array format
   if (typeof donor.notes === 'string') {
     return {
       ...donor,
-      notes: [{
-        createdAt: new Date().toISOString(),
-        createdBy: 'system_migration',
-        content: donor.notes
-      }]
+      notes: [
+        {
+          createdAt: new Date().toISOString(),
+          createdBy: 'system_migration',
+          content: donor.notes,
+        },
+      ],
     };
   }
-  
+
   return donor;
 }
 
@@ -90,8 +105,8 @@ export async function getDonorById(id: number, organizationId: string): Promise<
       .limit(1);
     return normalizeDonorNotes(result[0]);
   } catch (error) {
-    console.error("Failed to retrieve donor by ID:", error);
-    throw new Error("Could not retrieve donor.");
+    console.error('Failed to retrieve donor by ID:', error);
+    throw new Error('Could not retrieve donor.');
   }
 }
 
@@ -101,7 +116,10 @@ export async function getDonorById(id: number, organizationId: string): Promise<
  * @param organizationId - The ID of the organization the donor belongs to.
  * @returns The donor object if found, otherwise undefined.
  */
-export async function getDonorByEmail(email: string, organizationId: string): Promise<Donor | undefined> {
+export async function getDonorByEmail(
+  email: string,
+  organizationId: string
+): Promise<Donor | undefined> {
   try {
     const result = await db
       .select()
@@ -110,8 +128,8 @@ export async function getDonorByEmail(email: string, organizationId: string): Pr
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to retrieve donor by email:", error);
-    throw new Error("Could not retrieve donor by email.");
+    console.error('Failed to retrieve donor by email:', error);
+    throw new Error('Could not retrieve donor by email.');
   }
 }
 
@@ -131,10 +149,10 @@ export async function getDonorsByIds(ids: number[], organizationId: string): Pro
       .select()
       .from(donors)
       .where(and(inArray(donors.id, ids), eq(donors.organizationId, organizationId)));
-    return result.map(donor => normalizeDonorNotes(donor));
+    return result.map((donor) => normalizeDonorNotes(donor));
   } catch (error) {
-    console.error("Failed to retrieve donors by IDs:", error);
-    throw new Error("Could not retrieve donors by IDs.");
+    console.error('Failed to retrieve donors by IDs:', error);
+    throw new Error('Could not retrieve donors by IDs.');
   }
 }
 
@@ -143,16 +161,21 @@ export async function getDonorsByIds(ids: number[], organizationId: string): Pro
  * @param donorData - The data for the new donor. `id`, `createdAt`, `updatedAt` are typically auto-generated.
  * @returns The newly created donor object.
  */
-export async function createDonor(donorData: Omit<NewDonor, "id" | "createdAt" | "updatedAt">): Promise<Donor> {
+export async function createDonor(
+  donorData: Omit<NewDonor, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<Donor> {
   try {
     const result = await db.insert(donors).values(donorData).returning();
     return normalizeDonorNotes(result[0]);
   } catch (error) {
-    console.error("Failed to create donor:", error);
-    if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Donor with this email already exists in this organization.");
+    console.error('Failed to create donor:', error);
+    if (
+      error instanceof Error &&
+      error.message.includes('duplicate key value violates unique constraint')
+    ) {
+      throw new Error('Donor with this email already exists in this organization.');
     }
-    throw new Error("Could not create donor.");
+    throw new Error('Could not create donor.');
   }
 }
 
@@ -165,7 +188,7 @@ export async function createDonor(donorData: Omit<NewDonor, "id" | "createdAt" |
  */
 export async function updateDonor(
   id: number,
-  donorData: Partial<Omit<NewDonor, "id" | "createdAt" | "updatedAt">>,
+  donorData: Partial<Omit<NewDonor, 'id' | 'createdAt' | 'updatedAt'>>,
   organizationId: string
 ): Promise<Donor | undefined> {
   try {
@@ -176,11 +199,16 @@ export async function updateDonor(
       .returning();
     return normalizeDonorNotes(result[0]);
   } catch (error) {
-    console.error("Failed to update donor:", error);
-    if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Cannot update to an email that already exists for another donor in this organization.");
+    console.error('Failed to update donor:', error);
+    if (
+      error instanceof Error &&
+      error.message.includes('duplicate key value violates unique constraint')
+    ) {
+      throw new Error(
+        'Cannot update to an email that already exists for another donor in this organization.'
+      );
     }
-    throw new Error("Could not update donor.");
+    throw new Error('Could not update donor.');
   }
 }
 
@@ -194,7 +222,7 @@ export async function deleteDonor(
   id: number,
   organizationId: string,
   options?: {
-    deleteMode?: "fromList" | "fromAllLists" | "entirely";
+    deleteMode?: 'fromList' | 'fromAllLists' | 'entirely';
     listId?: number;
   }
 ): Promise<void> {
@@ -202,15 +230,15 @@ export async function deleteDonor(
     // First verify the donor exists and belongs to the organization
     const donor = await getDonorById(id, organizationId);
     if (!donor) {
-      throw new Error("Donor not found or access denied");
+      throw new Error('Donor not found or access denied');
     }
 
-    const deleteMode = options?.deleteMode || "entirely";
+    const deleteMode = options?.deleteMode || 'entirely';
 
-    if (deleteMode === "fromList") {
+    if (deleteMode === 'fromList') {
       // Delete from specific list only
       if (!options?.listId) {
-        throw new Error("List ID is required when deleting from a specific list");
+        throw new Error('List ID is required when deleting from a specific list');
       }
 
       const result = await db
@@ -218,9 +246,9 @@ export async function deleteDonor(
         .where(and(eq(donorListMembers.donorId, id), eq(donorListMembers.listId, options.listId)));
 
       if ((result.rowCount || 0) === 0) {
-        throw new Error("Donor is not a member of the specified list");
+        throw new Error('Donor is not a member of the specified list');
       }
-    } else if (deleteMode === "fromAllLists") {
+    } else if (deleteMode === 'fromAllLists') {
       // Remove from all lists but keep donor record
       await removeFromAllLists(id, organizationId);
     } else {
@@ -233,7 +261,9 @@ export async function deleteDonor(
         // 2. Delete communication content where donor is sender or receiver
         await tx
           .delete(communicationContent)
-          .where(or(eq(communicationContent.fromDonorId, id), eq(communicationContent.toDonorId, id)));
+          .where(
+            or(eq(communicationContent.fromDonorId, id), eq(communicationContent.toDonorId, id))
+          );
 
         // 3. Delete donor list memberships
         await tx.delete(donorListMembers).where(eq(donorListMembers.donorId, id));
@@ -251,12 +281,14 @@ export async function deleteDonor(
         await tx.delete(todos).where(eq(todos.donorId, id));
 
         // 8. Finally delete the donor (communication thread donors will cascade automatically)
-        await tx.delete(donors).where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
+        await tx
+          .delete(donors)
+          .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)));
       });
     }
   } catch (error) {
-    console.error("Failed to delete donor:", error);
-    throw new Error(error instanceof Error ? error.message : "Could not delete donor.");
+    console.error('Failed to delete donor:', error);
+    throw new Error(error instanceof Error ? error.message : 'Could not delete donor.');
   }
 }
 
@@ -281,7 +313,7 @@ export async function assignDonorToStaff(
       .limit(1);
 
     if (!staffMember[0]) {
-      throw new Error("Staff member not found in this organization.");
+      throw new Error('Staff member not found in this organization.');
     }
 
     // Update the donor's assigned staff
@@ -292,8 +324,8 @@ export async function assignDonorToStaff(
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to assign donor to staff:", error);
-    throw new Error("Could not assign donor to staff member.");
+    console.error('Failed to assign donor to staff:', error);
+    throw new Error('Could not assign donor to staff member.');
   }
 }
 
@@ -303,7 +335,10 @@ export async function assignDonorToStaff(
  * @param organizationId - The ID of the organization the donor belongs to.
  * @returns The updated donor object.
  */
-export async function unassignDonorFromStaff(donorId: number, organizationId: string): Promise<Donor | undefined> {
+export async function unassignDonorFromStaff(
+  donorId: number,
+  organizationId: string
+): Promise<Donor | undefined> {
   try {
     const result = await db
       .update(donors)
@@ -312,8 +347,8 @@ export async function unassignDonorFromStaff(donorId: number, organizationId: st
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to unassign donor from staff:", error);
-    throw new Error("Could not unassign donor from staff member.");
+    console.error('Failed to unassign donor from staff:', error);
+    throw new Error('Could not unassign donor from staff member.');
   }
 }
 
@@ -324,7 +359,7 @@ export async function unassignDonorFromStaff(donorId: number, organizationId: st
 async function getDonorStageInfo(
   donor: Donor,
   organizationId: string
-): Promise<Pick<DonorWithDetails, "stageName" | "stageExplanation" | "possibleActions">> {
+): Promise<Pick<DonorWithDetails, 'stageName' | 'stageExplanation' | 'possibleActions'>> {
   try {
     // Get the organization's donor journey
     const org = await db
@@ -336,8 +371,8 @@ async function getDonorStageInfo(
     const journey = org[0]?.donorJourney as DonorJourney;
     if (!journey || !journey.nodes || !journey.edges) {
       return {
-        stageName: "No Journey Defined",
-        stageExplanation: "The organization has not defined a donor journey.",
+        stageName: 'No Journey Defined',
+        stageExplanation: 'The organization has not defined a donor journey.',
         possibleActions: [],
       };
     }
@@ -350,8 +385,8 @@ async function getDonorStageInfo(
       const firstStage = journey.nodes[0];
       if (!firstStage) {
         return {
-          stageName: "No Stages Defined",
-          stageExplanation: "No stages have been defined in the donor journey.",
+          stageName: 'No Stages Defined',
+          stageExplanation: 'No stages have been defined in the donor journey.',
           possibleActions: [],
         };
       }
@@ -360,7 +395,9 @@ async function getDonorStageInfo(
         stageExplanation: firstStage.properties.description,
         possibleActions: [
           ...(firstStage.properties.actions || []),
-          ...journey.edges.filter((edge) => edge.source === firstStage.id).map((edge) => edge.label),
+          ...journey.edges
+            .filter((edge) => edge.source === firstStage.id)
+            .map((edge) => edge.label),
         ],
       };
     }
@@ -370,14 +407,16 @@ async function getDonorStageInfo(
       stageExplanation: currentStage.properties.description,
       possibleActions: [
         ...(currentStage.properties.actions || []),
-        ...journey.edges.filter((edge) => edge.source === currentStage.id).map((edge) => edge.label),
+        ...journey.edges
+          .filter((edge) => edge.source === currentStage.id)
+          .map((edge) => edge.label),
       ],
     };
   } catch (error) {
-    console.error("Failed to get donor stage info:", error);
+    console.error('Failed to get donor stage info:', error);
     return {
-      stageName: "Error",
-      stageExplanation: "Failed to retrieve stage information.",
+      stageName: 'Error',
+      stageExplanation: 'Failed to retrieve stage information.',
       possibleActions: [],
     };
   }
@@ -393,15 +432,15 @@ export async function listDonors(
   options: {
     searchTerm?: string;
     state?: string;
-    gender?: "male" | "female" | null;
+    gender?: 'male' | 'female' | null;
     assignedToStaffId?: number | null;
     listId?: number;
     notInAnyList?: boolean;
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt" | "totalDonated";
-    orderDirection?: "asc" | "desc";
+    orderBy?: 'firstName' | 'lastName' | 'email' | 'createdAt' | 'totalDonated';
+    orderDirection?: 'asc' | 'desc';
   } = {},
   organizationId: string
 ): Promise<{ donors: DonorWithDetails[]; totalCount: number }> {
@@ -417,7 +456,7 @@ export async function listDonors(
       limit, // No default limit - if not provided, fetch all
       offset = 0,
       orderBy,
-      orderDirection = "asc",
+      orderDirection = 'asc',
     } = options;
     const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
 
@@ -478,7 +517,7 @@ export async function listDonors(
     }
 
     // If ordering by totalDonated, we need to join with donations table
-    const needsDonationJoin = orderBy === "totalDonated";
+    const needsDonationJoin = orderBy === 'totalDonated';
 
     let queryBuilder;
     if (needsDonationJoin) {
@@ -521,7 +560,10 @@ export async function listDonors(
           totalDonated: sql<number>`COALESCE(SUM(${donations.amount}), 0)`,
         })
         .from(donors)
-        .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+        .leftJoin(
+          personResearch,
+          and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true))
+        )
         .leftJoin(donations, eq(donations.donorId, donors.id))
         .where(and(...whereClauses))
         .groupBy(
@@ -593,16 +635,21 @@ export async function listDonors(
           `,
         })
         .from(donors)
-        .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+        .leftJoin(
+          personResearch,
+          and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true))
+        )
         .where(and(...whereClauses));
     }
 
     if (orderBy) {
-      if (orderBy === "totalDonated") {
-        const directionFn = orderDirection === "asc" ? asc : desc;
-        queryBuilder = queryBuilder.orderBy(directionFn(sql<number>`COALESCE(SUM(${donations.amount}), 0)`));
+      if (orderBy === 'totalDonated') {
+        const directionFn = orderDirection === 'asc' ? asc : desc;
+        queryBuilder = queryBuilder.orderBy(
+          directionFn(sql<number>`COALESCE(SUM(${donations.amount}), 0)`)
+        );
       } else {
-        const columnMap: { [key in Exclude<typeof orderBy, "totalDonated">]: AnyColumn } = {
+        const columnMap: { [key in Exclude<typeof orderBy, 'totalDonated'>]: AnyColumn } = {
           firstName: donors.firstName,
           lastName: donors.lastName,
           email: donors.email,
@@ -610,7 +657,7 @@ export async function listDonors(
         };
         const selectedColumn = columnMap[orderBy];
         if (selectedColumn) {
-          const directionFn = orderDirection === "asc" ? asc : desc;
+          const directionFn = orderDirection === 'asc' ? asc : desc;
           // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
           queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
         }
@@ -637,7 +684,7 @@ export async function listDonors(
         // Ensure predictedActions conforms to string[] | undefined
         let processedPredictedActions: string[] | undefined = undefined;
         if (Array.isArray(donor.predictedActions)) {
-          if (donor.predictedActions.every((item) => typeof item === "string")) {
+          if (donor.predictedActions.every((item) => typeof item === 'string')) {
             processedPredictedActions = donor.predictedActions as string[];
           }
         }
@@ -655,8 +702,8 @@ export async function listDonors(
       totalCount: totalCountResult[0]?.count || 0,
     };
   } catch (error) {
-    console.error("Failed to list donors:", error);
-    throw new Error("Could not list donors.");
+    console.error('Failed to list donors:', error);
+    throw new Error('Could not list donors.');
   }
 }
 
@@ -672,13 +719,13 @@ export async function listDonorsForCommunication(
     searchTerm?: string;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
-    orderDirection?: "asc" | "desc";
+    orderBy?: 'firstName' | 'lastName' | 'email' | 'createdAt';
+    orderDirection?: 'asc' | 'desc';
   } = {},
   organizationId: string
 ): Promise<{ donors: CommunicationDonor[]; totalCount: number }> {
   try {
-    const { searchTerm, limit, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const { searchTerm, limit, offset = 0, orderBy, orderDirection = 'asc' } = options;
     const whereClauses: SQL[] = [eq(donors.organizationId, organizationId)];
 
     if (searchTerm) {
@@ -724,7 +771,7 @@ export async function listDonorsForCommunication(
       };
       const selectedColumn = columnMap[orderBy];
       if (selectedColumn) {
-        const directionFn = orderDirection === "asc" ? asc : desc;
+        const directionFn = orderDirection === 'asc' ? asc : desc;
         // @ts-ignore Drizzle's orderBy type can be tricky with dynamic columns
         queryBuilder = queryBuilder.orderBy(directionFn(selectedColumn));
       }
@@ -748,8 +795,8 @@ export async function listDonorsForCommunication(
       totalCount: totalCountResult[0]?.count || 0,
     };
   } catch (error) {
-    console.error("Failed to list donors for communication:", error);
-    throw new Error("Could not list donors for communication.");
+    console.error('Failed to list donors for communication:', error);
+    throw new Error('Could not list donors for communication.');
   }
 }
 
@@ -782,7 +829,7 @@ export async function bulkDeleteDonors(
       return {
         success: 0,
         failed: ids.length,
-        errors: ["No valid donors found in your organization"],
+        errors: ['No valid donors found in your organization'],
       };
     }
 
@@ -817,7 +864,9 @@ export async function bulkDeleteDonors(
       await tx.delete(todos).where(inArray(todos.donorId, validDonorIds));
 
       // 8. Finally delete the donors in batch (communication thread donors will cascade automatically)
-      await tx.delete(donors).where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId)));
+      await tx
+        .delete(donors)
+        .where(and(inArray(donors.id, validDonorIds), eq(donors.organizationId, organizationId)));
     });
 
     results.success = validDonorIds.length;
@@ -827,9 +876,11 @@ export async function bulkDeleteDonors(
       results.errors.push(`${results.failed} donor(s) not found in your organization`);
     }
   } catch (error) {
-    console.error("Failed to bulk delete donors:", error);
+    console.error('Failed to bulk delete donors:', error);
     results.failed = ids.length;
-    results.errors.push("Failed to delete donors: " + (error instanceof Error ? error.message : "Unknown error"));
+    results.errors.push(
+      'Failed to delete donors: ' + (error instanceof Error ? error.message : 'Unknown error')
+    );
   }
 
   return results;
@@ -841,6 +892,65 @@ export async function bulkDeleteDonors(
  * @param organizationId - The organization ID to filter by
  * @returns Object containing filtered donors and total count
  */
+/**
+ * Bulk update assigned staff for multiple donors
+ */
+export async function bulkUpdateAssignedStaff(
+  donorIds: number[],
+  staffId: number | null,
+  organizationId: string
+): Promise<void> {
+  try {
+    await db
+      .update(donors)
+      .set({ assignedToStaffId: staffId, updatedAt: sql`now()` })
+      .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
+  } catch (error) {
+    console.error('Failed to bulk update assigned staff:', error);
+    throw new Error('Could not update assigned staff for donors.');
+  }
+}
+
+/**
+ * Add a note to a donor
+ */
+export async function addNoteToDonor(
+  donorId: number,
+  note: DonorNote,
+  organizationId: string
+): Promise<Donor> {
+  try {
+    // Get existing donor to retrieve current notes
+    const existingDonor = await getDonorById(donorId, organizationId);
+
+    if (!existingDonor) {
+      throw new Error('Donor not found');
+    }
+
+    // Get existing notes
+    const existingNotes = (existingDonor.notes as DonorNote[]) || [];
+
+    // Update donor with new note
+    const result = await db
+      .update(donors)
+      .set({
+        notes: [...existingNotes, note],
+        updatedAt: new Date(),
+      })
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+      .returning();
+
+    if (!result[0]) {
+      throw new Error('Failed to add note to donor');
+    }
+
+    return normalizeDonorNotes(result[0]);
+  } catch (error) {
+    console.error('Failed to add note to donor:', error);
+    throw new Error('Could not add note to donor.');
+  }
+}
+
 export async function listDonorsByCriteria(
   criteria: {
     createdDateFrom?: Date;
@@ -965,7 +1075,9 @@ export async function listDonorsByCriteria(
       }
     } else if (!includeNoDonations) {
       // If no donation filters but not including no donations, only include donors with donations
-      whereClauses.push(sql`EXISTS (SELECT 1 FROM ${donations} WHERE ${donations.donorId} = ${donors.id})`);
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM ${donations} WHERE ${donations.donorId} = ${donors.id})`
+      );
     }
 
     // Build the main query
@@ -1005,7 +1117,10 @@ export async function listDonorsByCriteria(
         `,
       })
       .from(donors)
-      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+      .leftJoin(
+        personResearch,
+        and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true))
+      )
       .where(and(...whereClauses))
       .orderBy(asc(donors.firstName), asc(donors.lastName));
 
@@ -1013,7 +1128,10 @@ export async function listDonorsByCriteria(
     const countQuery = db
       .select({ count: count(donors.id) })
       .from(donors)
-      .leftJoin(personResearch, and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true)))
+      .leftJoin(
+        personResearch,
+        and(eq(personResearch.donorId, donors.id), eq(personResearch.isLive, true))
+      )
       .where(and(...whereClauses));
 
     const [totalResult, donorsResult] = await Promise.all([
@@ -1034,7 +1152,7 @@ export async function listDonorsByCriteria(
       totalCount,
     };
   } catch (error) {
-    console.error("Failed to list donors by criteria:", error);
-    throw new Error("Could not list donors by criteria.");
+    console.error('Failed to list donors by criteria:', error);
+    throw new Error('Could not list donors by criteria.');
   }
 }
