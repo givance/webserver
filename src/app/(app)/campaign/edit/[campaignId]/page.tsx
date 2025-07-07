@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { toast } from "sonner";
-import { CampaignSteps } from "../../components/CampaignSteps";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { CampaignSteps } from '../../components/CampaignSteps';
 
 export default function EditCampaignPage() {
   const params = useParams();
@@ -25,8 +25,8 @@ export default function EditCampaignPage() {
 
   useEffect(() => {
     if (sessionError) {
-      toast.error("Failed to load campaign data");
-      router.push("/existing-campaigns");
+      toast.error('Failed to load campaign data');
+      router.push('/existing-campaigns');
       return;
     }
 
@@ -34,13 +34,13 @@ export default function EditCampaignPage() {
       // Check if campaign is still processing
       // Block editing if the campaign is actively generating emails
       // All other statuses (DRAFT, READY_TO_SEND, COMPLETED) are allowed for editing
-      if (sessionData.session.status === "GENERATING") {
-        toast.error("Cannot edit campaign while emails are being generated");
-        router.push("/existing-campaigns");
+      if (sessionData.session.status === 'GENERATING') {
+        toast.error('Cannot edit campaign while emails are being generated');
+        router.push('/existing-campaigns');
         return;
       }
 
-      console.log("[EditCampaignPage] Session data updated:", {
+      console.log('[EditCampaignPage] Session data updated:', {
         campaignId,
         campaignName: sessionData.session.jobName,
         status: sessionData.session.status,
@@ -52,7 +52,7 @@ export default function EditCampaignPage() {
   }, [sessionData, sessionError, router, campaignId]);
 
   const handleClose = () => {
-    router.push("/existing-campaigns");
+    router.push('/existing-campaigns');
   };
 
   if (isLoadingSession) {
@@ -88,16 +88,13 @@ export default function EditCampaignPage() {
           selectedDonorIds: sessionData.session.selectedDonorIds as number[],
           chatHistory: Array.isArray(sessionData.session.chatHistory)
             ? (sessionData.session.chatHistory as Array<{
-                role: "user" | "assistant";
+                role: 'user' | 'assistant';
                 content: string;
               }>)
             : [], // Ensure chatHistory is always an array
           templateId: sessionData.session.templateId ?? undefined,
           // Include any existing generated emails for reference
           existingGeneratedEmails: sessionData.emails || [],
-          // Include the previewDonorIds from the session (THIS WAS MISSING!)
-          previewDonorIds:
-            (sessionData.session.previewDonorIds as number[]) || [],
         }}
       />
     </div>

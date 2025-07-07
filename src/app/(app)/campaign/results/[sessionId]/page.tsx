@@ -1,14 +1,19 @@
-"use client";
+'use client';
 
-import { useParams } from "next/navigation";
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useDonors } from "@/app/hooks/use-donors";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { EmailListViewer, BaseGeneratedEmail, BaseDonor, TrackingStats } from "../../components/EmailListViewer";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useParams } from 'next/navigation';
+import { useCommunications } from '@/app/hooks/use-communications';
+import { useDonors } from '@/app/hooks/use-donors';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  EmailListViewer,
+  BaseGeneratedEmail,
+  BaseDonor,
+  TrackingStats,
+} from '../../components/EmailListViewer';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   ArrowLeft,
   Users,
@@ -22,17 +27,20 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
-} from "lucide-react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { TrackingAnalytics } from "@/components/tracking/tracking-analytics";
-import { useSessionTracking } from "@/app/hooks/use-email-tracking";
-import { Badge } from "@/components/ui/badge";
-import { useStaff } from "@/app/hooks/use-staff";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useDonorStaffEmailValidation, type DonorEmailValidationResult } from "@/app/hooks/use-donor-validation";
+} from 'lucide-react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { TrackingAnalytics } from '@/components/tracking/tracking-analytics';
+import { useSessionTracking } from '@/app/hooks/use-email-tracking';
+import { Badge } from '@/components/ui/badge';
+import { useStaff } from '@/app/hooks/use-staff';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  useDonorStaffEmailValidation,
+  type DonorEmailValidationResult,
+} from '@/app/hooks/use-donor-validation';
 
 interface GeneratedEmailData {
   id: number;
@@ -50,9 +58,8 @@ interface GeneratedEmailData {
 interface SessionData {
   session: {
     id: number;
-    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     selectedDonorIds: number[];
-    previewDonorIds: number[];
     totalDonors: number;
     completedDonors: number;
     status: string;
@@ -81,7 +88,7 @@ export default function EmailGenerationResultsPage() {
 
   // Debug logging to check if data updates
   useEffect(() => {
-    console.log("[Campaign Results] Session data updated:", {
+    console.log('[Campaign Results] Session data updated:', {
       sessionId,
       emailCount: sessionData?.emails?.length,
       firstEmailContent: sessionData?.emails?.[0]?.structuredContent?.length,
@@ -126,9 +133,9 @@ export default function EmailGenerationResultsPage() {
 
   const getStaffName = useCallback(
     (staffId: number | null) => {
-      if (!staffId) return "Unassigned";
+      if (!staffId) return 'Unassigned';
       const staff = staffMembers.find((s) => parseInt(s.id, 10) === staffId);
-      return staff ? staff.name : "Unknown Staff";
+      return staff ? staff.name : 'Unknown Staff';
     },
     [staffMembers]
   );
@@ -215,7 +222,7 @@ export default function EmailGenerationResultsPage() {
             <div>
               <h2 className="text-lg font-medium">Failed to load session data</h2>
               <p className="text-sm text-muted-foreground">
-                {error.message || "An error occurred while loading the email generation results."}
+                {error.message || 'An error occurred while loading the email generation results.'}
               </p>
             </div>
             <Button asChild>
@@ -232,7 +239,9 @@ export default function EmailGenerationResultsPage() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <h2 className="text-lg font-medium">Session not found</h2>
-          <p className="text-sm text-muted-foreground">The requested email generation session could not be found.</p>
+          <p className="text-sm text-muted-foreground">
+            The requested email generation session could not be found.
+          </p>
           <Button asChild className="mt-4">
             <Link href="/campaign">Return to Campaign</Link>
           </Button>
@@ -255,8 +264,11 @@ export default function EmailGenerationResultsPage() {
           <div className="flex-1">
             <h1 className="text-xl font-semibold">Email Generation Results</h1>
             <p className="text-sm text-muted-foreground">
-              Session #{sessionData.session.id} • {sessionData.session.totalDonors} donors • Completed{" "}
-              {sessionData.session.completedAt ? new Date(sessionData.session.completedAt).toLocaleDateString() : "N/A"}
+              Session #{sessionData.session.id} • {sessionData.session.totalDonors} donors •
+              Completed{' '}
+              {sessionData.session.completedAt
+                ? new Date(sessionData.session.completedAt).toLocaleDateString()
+                : 'N/A'}
             </p>
           </div>
         </div>
@@ -282,20 +294,21 @@ export default function EmailGenerationResultsPage() {
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validationResult.donorsWithoutStaff.length > 0 && (
                     <li>
-                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
-                      staff members
+                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s)
+                      don&apos;t have assigned staff members
                     </li>
                   )}
                   {validationResult.donorsWithStaffButNoEmail.length > 0 && (
                     <li>
-                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
-                      without connected Gmail accounts
+                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s)
+                      have staff members without connected Gmail accounts
                     </li>
                   )}
                 </ul>
                 <p className="text-sm">
-                  These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
-                  ensure all staff have connected their Gmail accounts in Settings.
+                  These issues need to be resolved before emails can be scheduled. Please assign
+                  staff to all donors and ensure all staff have connected their Gmail accounts in
+                  Settings.
                 </p>
               </div>
             </AlertDescription>
@@ -339,10 +352,13 @@ export default function EmailGenerationResultsPage() {
                   })) || []
                 }
                 referenceContexts={
-                  sessionData?.emails.reduce<Record<number, Record<string, string>>>((acc, email) => {
-                    acc[email.donorId] = email.referenceContexts;
-                    return acc;
-                  }, {}) || {}
+                  sessionData?.emails.reduce<Record<number, Record<string, string>>>(
+                    (acc, email) => {
+                      acc[email.donorId] = email.referenceContexts;
+                      return acc;
+                    },
+                    {}
+                  ) || {}
                 }
                 showSearch={true}
                 showPagination={true}
@@ -372,19 +388,23 @@ export default function EmailGenerationResultsPage() {
                 <CardContent className="h-full">
                   <ScrollArea className="h-full">
                     <div className="space-y-4">
-                      {sessionData.session.chatHistory && sessionData.session.chatHistory.length > 0 ? (
+                      {sessionData.session.chatHistory &&
+                      sessionData.session.chatHistory.length > 0 ? (
                         sessionData.session.chatHistory.map(
-                          (message: { role: "user" | "assistant"; content: string }, index: number) => (
+                          (
+                            message: { role: 'user' | 'assistant'; content: string },
+                            index: number
+                          ) => (
                             <div
                               key={index}
-                              className={cn("flex flex-col space-y-2", {
-                                "items-end": message.role === "user",
+                              className={cn('flex flex-col space-y-2', {
+                                'items-end': message.role === 'user',
                               })}
                             >
                               <div
-                                className={cn("rounded-lg px-3 py-2 max-w-[80%]", {
-                                  "bg-primary text-primary-foreground": message.role === "user",
-                                  "bg-muted": message.role === "assistant",
+                                className={cn('rounded-lg px-3 py-2 max-w-[80%]', {
+                                  'bg-primary text-primary-foreground': message.role === 'user',
+                                  'bg-muted': message.role === 'assistant',
                                 })}
                               >
                                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -422,18 +442,11 @@ export default function EmailGenerationResultsPage() {
                       </div>
                     </div>
 
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-sm font-medium">Status</p>
-                        <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{sessionData.session.status}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">Preview Donors</p>
-                        <p className="text-2xl font-bold">
-                          {Array.isArray(sessionData.session.previewDonorIds)
-                            ? sessionData.session.previewDonorIds.length
-                            : 0}
+                        <p className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                          {sessionData.session.status}
                         </p>
                       </div>
                     </div>

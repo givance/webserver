@@ -301,7 +301,7 @@ export class UnifiedSmartEmailGenerationService {
         reasoning: params.reasoning,
         response: params.response,
         status: 'PENDING_APPROVAL',
-        isPreview: true,
+        isPreview: false, // Default to false for all emails
       });
     });
   }

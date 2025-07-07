@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useDonors } from "@/app/hooks/use-donors";
-import { useOrganization } from "@/app/hooks/use-organization";
-import { useProjects } from "@/app/hooks/use-projects";
-import { useStaff } from "@/app/hooks/use-staff";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, ArrowRight, MessageSquare, RefreshCw, X } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
-import "../styles.css";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { useDonors } from '@/app/hooks/use-donors';
+import { useOrganization } from '@/app/hooks/use-organization';
+import { useProjects } from '@/app/hooks/use-projects';
+import { useStaff } from '@/app/hooks/use-staff';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@clerk/nextjs';
+import { ArrowLeft, ArrowRight, MessageSquare, RefreshCw, X } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import '../styles.css';
 import {
   handleEmailStatusChange,
   handleGenerateMore,
   handleRegenerateEmails,
   handleSubmitInstruction,
-} from "./write-instruction-step/handlers";
-import { processEmailResult } from "./write-instruction-step/handlers/emailResultHandler";
+} from './write-instruction-step/handlers';
+import { processEmailResult } from './write-instruction-step/handlers/emailResultHandler';
 import {
   clearEmailState,
   clearEmailStateForRegeneration,
@@ -27,7 +27,7 @@ import {
   setEmailGenerationLoading,
   clearInstructionInput,
   updateEmailStatus as updateEmailStatusInState,
-} from "./write-instruction-step/utils/stateManagement";
+} from './write-instruction-step/utils/stateManagement';
 
 // Import extracted components, hooks, and types
 import {
@@ -39,8 +39,8 @@ import {
   useDonorUtils,
   useWriteInstructionStep,
   WriteInstructionStepProps,
-} from "./write-instruction-step";
-import { GENERATE_MORE_COUNT } from "./write-instruction-step/constants";
+} from './write-instruction-step';
+import { GENERATE_MORE_COUNT } from './write-instruction-step/constants';
 
 function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const {
@@ -52,7 +52,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     templatePrompt,
     initialChatHistory = [],
     initialGeneratedEmails = [],
-    initialPreviewDonorIds = [],
     campaignName,
     templateId,
     onBulkGenerationComplete,
@@ -65,7 +64,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const [showBulkGenerationDialog, setShowBulkGenerationDialog] = useState(false);
   const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
-  const [regenerateOption, setRegenerateOption] = useState<"all" | "unapproved">("all");
+  const [regenerateOption, setRegenerateOption] = useState<'all' | 'unapproved'>('all');
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isEmailListExpanded, setIsEmailListExpanded] = useState(false);
   const [previousInstruction, setPreviousInstruction] = useState<string | undefined>(
@@ -73,23 +72,23 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   );
 
   // Signature state (simplified)
-  const [customSignature, setCustomSignature] = useState("");
+  const [customSignature, setCustomSignature] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
 
   // Consolidated hook
-  const { emailGeneration, emailState, chatState, instructionInput, previewDonors } = useWriteInstructionStep(
-    initialGeneratedEmails,
-    editMode,
-    initialChatHistory,
-    sessionId,
-    campaignName,
-    selectedDonors,
-    templateId,
-    instruction,
-    onInstructionChange,
-    templatePrompt,
-    initialPreviewDonorIds
-  );
+  const { emailGeneration, emailState, chatState, instructionInput, donorState } =
+    useWriteInstructionStep(
+      initialGeneratedEmails,
+      editMode,
+      initialChatHistory,
+      sessionId,
+      campaignName,
+      selectedDonors,
+      templateId,
+      instruction,
+      onInstructionChange,
+      templatePrompt
+    );
 
   // Data hooks
   const { getOrganization } = useOrganization();
@@ -125,34 +124,33 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   }, [selectedStaffId, staffData]);
 
   const currentSignature = useMemo(() => {
-    return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || "Staff"}`;
+    return selectedStaff?.signature || `Best,\n${selectedStaff?.firstName || 'Staff'}`;
   }, [selectedStaff]);
 
   const donorUtils = useDonorUtils(donorsData || []);
 
   const mentionsInputPlaceholder = useMemo(() => {
-    if (isLoadingProjects) return "Loading projects...";
+    if (isLoadingProjects) return 'Loading projects...';
     if (projectMentions.length > 0) {
       return `Enter instructions... (Type @ for ${projectMentions.length} projects). Cmd/Ctrl + Enter to send.`;
     }
-    return "Enter your instructions... Press Cmd/Ctrl + Enter to send.";
+    return 'Enter your instructions... Press Cmd/Ctrl + Enter to send.';
   }, [isLoadingProjects, projectMentions.length]);
 
   const sessionData = useMemo(
     () => ({
       chatHistory: chatState.chatMessages,
-      previewDonorIds: previewDonors.previewDonorIds,
       generatedEmails: emailState.allGeneratedEmails,
       referenceContexts: emailState.referenceContexts,
     }),
-    [chatState.chatMessages, previewDonors.previewDonorIds, emailState.allGeneratedEmails, emailState.referenceContexts]
+    [chatState.chatMessages, emailState.allGeneratedEmails, emailState.referenceContexts]
   );
 
   // Handlers (refactored to use individual stateless functions)
   const handleSubmitInstructionCallback = useCallback(
     async (instructionToSubmit?: string) => {
       // Set loading state
-      setEmailGenerationLoading(emailGeneration, "generating", true);
+      setEmailGenerationLoading(emailGeneration, 'generating', true);
 
       // Clear existing state
       clearEmailState(emailState, chatState);
@@ -163,7 +161,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             emailGeneration,
             emailState,
             chatState,
-            previewDonors,
             instructionInput,
             organization,
             donorsData: donorsData || [],
@@ -179,16 +176,20 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           // Process the result and update state
           const processedResult = processEmailResult(response.result);
 
-          if (processedResult.type === "agentic" && processedResult.agenticResult) {
+          if (processedResult.type === 'agentic' && processedResult.agenticResult) {
             // Handle agentic flow
-            chatState.setChatMessages((prev) => [...prev, ...processedResult.agenticResult!.conversationMessages]);
+            chatState.setChatMessages((prev) => [
+              ...prev,
+              ...processedResult.agenticResult!.conversationMessages,
+            ]);
 
             if (!processedResult.agenticResult.needsUserInput) {
               clearInstructionInput(instructionInput);
             }
-          } else if (processedResult.type === "email" && processedResult.emailResult) {
+          } else if (processedResult.type === 'email' && processedResult.emailResult) {
             // Handle email generation
-            const { emails, refinedInstruction, updatedChatMessages, responseMessage } = processedResult.emailResult;
+            const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
+              processedResult.emailResult;
 
             // Update email state
             updateEmailStateWithNewEmails(emailState, emails);
@@ -198,7 +199,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               const newMessages = [
                 ...updatedChatMessages,
                 {
-                  role: "assistant" as const,
+                  role: 'assistant' as const,
                   content: responseMessage,
                 },
               ];
@@ -214,20 +215,19 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           }
         } else {
           // Handle error
-          toast.error(response.error || "Failed to generate emails");
+          toast.error(response.error || 'Failed to generate emails');
         }
       } catch (error) {
-        console.error("Error in handleSubmitInstructionCallback:", error);
-        toast.error("An unexpected error occurred");
+        console.error('Error in handleSubmitInstructionCallback:', error);
+        toast.error('An unexpected error occurred');
       } finally {
-        setEmailGenerationLoading(emailGeneration, "generating", false);
+        setEmailGenerationLoading(emailGeneration, 'generating', false);
       }
     },
     [
       emailGeneration,
       emailState,
       chatState,
-      previewDonors,
       instructionInput,
       donorsData,
       organization,
@@ -241,7 +241,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const handleBulkGeneration = async () => {
     if (isStartingBulkGeneration || !userId) return;
     if (emailState.allGeneratedEmails.length === 0 && chatState.chatMessages.length === 0) {
-      toast.error("Please generate emails first before launching the campaign.");
+      toast.error('Please generate emails first before launching the campaign.');
       return;
     }
 
@@ -252,19 +252,18 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         campaignName,
         chatHistory: chatState.chatMessages,
         selectedDonorIds: selectedDonors,
-        previewDonorIds: previewDonors.previewDonorIds,
         templateId,
         signature: currentSignature,
       });
 
-      if (!response?.sessionId) throw new Error("Failed to launch campaign");
+      if (!response?.sessionId) throw new Error('Failed to launch campaign');
 
-      toast.success(editMode ? "Campaign updated and launched!" : "Campaign launched!");
+      toast.success(editMode ? 'Campaign updated and launched!' : 'Campaign launched!');
       setShowBulkGenerationDialog(false);
       setTimeout(() => onBulkGenerationComplete(response.sessionId), 1000);
     } catch (error) {
-      console.error("Error starting bulk generation:", error);
-      toast.error("Failed to start bulk generation");
+      console.error('Error starting bulk generation:', error);
+      toast.error('Failed to start bulk generation');
     } finally {
       setIsStartingBulkGeneration(false);
     }
@@ -272,7 +271,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleNextClick = useCallback(() => {
     if (emailState.generatedEmails.length === 0) {
-      toast.error("Please generate emails first before proceeding");
+      toast.error('Please generate emails first before proceeding');
       return;
     }
     onSessionDataChange?.(sessionData);
@@ -280,12 +279,17 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
 
   const handleEmailStatusChangeCallback = useCallback(
-    async (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => {
+    async (emailId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => {
       // Set loading state
       emailState.setIsUpdatingStatus(true);
 
       try {
-        const response = await handleEmailStatusChange({ emailState, sessionId }, emailId, status, updateEmailStatus);
+        const response = await handleEmailStatusChange(
+          { emailState, sessionId },
+          emailId,
+          status,
+          updateEmailStatus
+        );
 
         if (response.success) {
           // Update state based on response
@@ -296,14 +300,14 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           }
 
           // Show success message
-          toast.success(status === "APPROVED" ? "Email approved" : "Email marked as pending");
+          toast.success(status === 'APPROVED' ? 'Email approved' : 'Email marked as pending');
         } else {
           // Handle error
-          toast.error(response.error || "Failed to update email status");
+          toast.error(response.error || 'Failed to update email status');
         }
       } catch (error) {
-        console.error("Error in handleEmailStatusChangeCallback:", error);
-        toast.error("An unexpected error occurred");
+        console.error('Error in handleEmailStatusChangeCallback:', error);
+        toast.error('An unexpected error occurred');
       } finally {
         emailState.setIsUpdatingStatus(false);
       }
@@ -324,15 +328,15 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         if (response.success) {
           toast.success(
             `Successfully regenerated ${response.donorIdsToRegenerate.length} emails${
-              response.onlyUnapproved ? " (unapproved only)" : ""
+              response.onlyUnapproved ? ' (unapproved only)' : ''
             }`
           );
         } else {
-          toast.error(response.error || "Failed to regenerate emails");
+          toast.error(response.error || 'Failed to regenerate emails');
         }
       } catch (error) {
-        console.error("Error in handleRegenerateEmailsCallback:", error);
-        toast.error("Failed to regenerate emails. Please try again.");
+        console.error('Error in handleRegenerateEmailsCallback:', error);
+        toast.error('Failed to regenerate emails. Please try again.');
       } finally {
         emailGeneration.setIsRegenerating(false);
       }
@@ -342,14 +346,13 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleGenerateMoreCallback = useCallback(async () => {
     // Set loading state
-    setEmailGenerationLoading(emailGeneration, "generating_more", true);
+    setEmailGenerationLoading(emailGeneration, 'generating_more', true);
 
     try {
       const response = await handleGenerateMore({
         emailGeneration,
         emailState,
         chatState,
-        previewDonors,
         instructionInput,
         organization,
         donorsData: donorsData || [],
@@ -365,19 +368,18 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         // Don't update chat history - just silently generate more
       } else {
         // Handle error
-        toast.error(response.error || "Failed to generate more emails");
+        toast.error(response.error || 'Failed to generate more emails');
       }
     } catch (error) {
-      console.error("Error in handleGenerateMoreCallback:", error);
-      toast.error("An unexpected error occurred");
+      console.error('Error in handleGenerateMoreCallback:', error);
+      toast.error('An unexpected error occurred');
     } finally {
-      setEmailGenerationLoading(emailGeneration, "generating_more", false);
+      setEmailGenerationLoading(emailGeneration, 'generating_more', false);
     }
   }, [
     emailGeneration,
     emailState,
     chatState,
-    previewDonors,
     instructionInput,
     organization,
     donorsData,
@@ -391,7 +393,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     return emailState.allGeneratedEmails
       .map((email) => ({
         ...email,
-        status: emailState.emailStatuses[email.donorId] || "PENDING_APPROVAL",
+        status: emailState.emailStatuses[email.donorId] || 'PENDING_APPROVAL',
         emailContent: email.emailContent,
         reasoning: email.reasoning,
       }))
@@ -456,8 +458,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           {/* Chat Side */}
           <div
             className={cn(
-              "flex flex-col h-full border-r overflow-hidden transition-all duration-300 ease-in-out",
-              isChatCollapsed ? "w-0 opacity-0" : "w-full lg:w-1/2"
+              'flex flex-col h-full border-r overflow-hidden transition-all duration-300 ease-in-out',
+              isChatCollapsed ? 'w-0 opacity-0' : 'w-full lg:w-1/2'
             )}
           >
             <div className="flex-1 min-h-0 overflow-hidden">
@@ -471,8 +473,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
             <div
               className={cn(
-                "border-t bg-background flex-shrink-0 transition-all duration-300 ease-in-out",
-                isChatCollapsed && "opacity-0 pointer-events-none"
+                'border-t bg-background flex-shrink-0 transition-all duration-300 ease-in-out',
+                isChatCollapsed && 'opacity-0 pointer-events-none'
               )}
             >
               <IsolatedMentionsInput
@@ -506,7 +508,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                   size="sm"
                   className="h-7 text-xs"
                 >
-                  {emailGeneration.isGenerating ? "Generating..." : "Generate Emails"}
+                  {emailGeneration.isGenerating ? 'Generating...' : 'Generate Emails'}
                 </Button>
               </div>
             </div>
@@ -515,8 +517,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           {/* Email Preview Side */}
           <div
             className={cn(
-              "flex flex-col h-full bg-muted/5 overflow-hidden relative transition-all duration-300 ease-in-out",
-              isChatCollapsed ? "flex-1" : "flex-1 lg:w-1/2"
+              'flex flex-col h-full bg-muted/5 overflow-hidden relative transition-all duration-300 ease-in-out',
+              isChatCollapsed ? 'flex-1' : 'flex-1 lg:w-1/2'
             )}
           >
             <div className="h-full overflow-hidden">
@@ -533,12 +535,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 handlePreviewEdit={async () => {}}
                 handlePreviewEnhance={async () => {}}
                 isGeneratingMore={emailGeneration.isGeneratingMore}
-                totalRemainingDonors={previewDonors.totalRemainingDonors}
+                totalRemainingDonors={donorState.totalRemainingDonors}
                 isEmailListExpanded={isEmailListExpanded}
                 setIsEmailListExpanded={setIsEmailListExpanded}
                 staffData={staffData}
                 primaryStaff={primaryStaff}
-                canGenerateMore={previewDonors.canGenerateMore}
+                canGenerateMore={donorState.canGenerateMore}
                 onGenerateMore={handleGenerateMoreCallback}
                 generateMoreCount={GENERATE_MORE_COUNT}
               />
@@ -578,7 +580,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   );
 }
 
-const arePropsEqual = (prevProps: WriteInstructionStepProps, nextProps: WriteInstructionStepProps): boolean => {
+const arePropsEqual = (
+  prevProps: WriteInstructionStepProps,
+  nextProps: WriteInstructionStepProps
+): boolean => {
   return (
     prevProps.sessionId === nextProps.sessionId &&
     prevProps.editMode === nextProps.editMode &&

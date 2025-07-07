@@ -14,7 +14,6 @@ const createSessionSchema = z.object({
     })
   ),
   selectedDonorIds: z.array(z.number()),
-  previewDonorIds: z.array(z.number()),
   templateId: z.number().optional(),
 });
 
@@ -30,7 +29,6 @@ const launchCampaignSchema = z.object({
     )
     .optional(),
   selectedDonorIds: z.array(z.number()).optional(),
-  previewDonorIds: z.array(z.number()).optional(),
   templateId: z.number().optional(),
   signature: z.string().optional(),
 });
@@ -108,14 +106,13 @@ const updateCampaignSchema = z.object({
     })
     .optional(),
   selectedDonorIds: z.array(z.number()).optional(),
-  previewDonorIds: z.array(z.number()).optional(),
   templateId: z.number().optional(),
 });
 
 const smartEmailGenerationSchema = z.object({
   sessionId: z.number(),
   mode: z.enum(['generate_more', 'regenerate_all', 'generate_with_new_message']),
-  newDonorIds: z.array(z.number()).optional(),
+  count: z.number().min(1).max(50).optional(), // Number of new emails to generate (for generate_more mode)
   newMessage: z.string().optional(),
 });
 
@@ -132,7 +129,6 @@ const saveDraftSchema = z.object({
       })
     )
     .optional(),
-  previewDonorIds: z.array(z.number()).optional(),
 });
 
 const saveGeneratedEmailSchema = z.object({

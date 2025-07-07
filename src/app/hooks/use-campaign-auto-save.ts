@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useRef, useCallback, useState } from "react";
-import { useCommunications } from "./use-communications";
-import { toast } from "react-hot-toast";
+import { useRef, useCallback, useState } from 'react';
+import { useCommunications } from './use-communications';
+import { toast } from 'react-hot-toast';
 
 interface CampaignDraftData {
   sessionId?: number;
@@ -10,8 +10,7 @@ interface CampaignDraftData {
   selectedDonorIds?: number[];
   templateId?: number;
   instruction?: string;
-  chatHistory?: Array<{ role: "user" | "assistant"; content: string }>;
-  previewDonorIds?: number[];
+  chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 interface UseCampaignAutoSaveOptions {
@@ -24,7 +23,7 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
   const { saveDraft } = useCommunications();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedData, setLastSavedData] = useState<string>("");
+  const [lastSavedData, setLastSavedData] = useState<string>('');
 
   const autoSave = useCallback(
     async (data: CampaignDraftData) => {
@@ -41,7 +40,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
         templateId: data.templateId,
         instruction: data.instruction?.trim(),
         chatHistory: data.chatHistory || [],
-        previewDonorIds: data.previewDonorIds || [],
       });
 
       // Don't save if data hasn't changed
@@ -65,7 +63,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
             templateId: data.templateId,
             instruction: data.instruction?.trim(),
             chatHistory: data.chatHistory,
-            previewDonorIds: data.previewDonorIds,
           };
 
           const result = await saveDraft.mutateAsync(payload);
@@ -77,7 +74,7 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
 
           setLastSavedData(dataHash);
         } catch (error) {
-          console.error("Failed to auto-save campaign draft:", error);
+          console.error('Failed to auto-save campaign draft:', error);
           // Don't show toast for auto-save failures as they can be annoying
           // The user will still be able to save manually if needed
         } finally {
@@ -105,7 +102,6 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
           templateId: data.templateId,
           instruction: data.instruction?.trim(),
           chatHistory: data.chatHistory,
-          previewDonorIds: data.previewDonorIds,
         };
 
         const result = await saveDraft.mutateAsync(payload);
@@ -118,11 +114,11 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
         const dataHash = JSON.stringify(payload);
         setLastSavedData(dataHash);
 
-        toast.success("Campaign saved successfully!");
+        toast.success('Campaign saved successfully!');
         return result;
       } catch (error) {
-        console.error("Failed to save campaign draft:", error);
-        toast.error("Failed to save campaign. Please try again.");
+        console.error('Failed to save campaign draft:', error);
+        toast.error('Failed to save campaign. Please try again.');
         throw error;
       } finally {
         setIsSaving(false);

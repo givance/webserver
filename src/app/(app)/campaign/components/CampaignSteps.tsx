@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
-import { StepIndicator } from "@/components/ui/step-indicator";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
-import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
-import { useTemplates } from "@/app/hooks/use-templates";
-import { useOrganization } from "@/app/hooks/use-organization";
-import { generateDefaultCampaignName } from "@/app/lib/utils/campaign-utils";
-import { SelectDonorsAndNameStep } from "../steps/SelectDonorsAndNameStep";
-import { SelectTemplateStep } from "../steps/SelectTemplateStep";
-import { WriteInstructionStep } from "../steps/WriteInstructionStep";
+import { useCampaignAutoSave } from '@/app/hooks/use-campaign-auto-save';
+import { StepIndicator } from '@/components/ui/step-indicator';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import { useTemplates } from '@/app/hooks/use-templates';
+import { useOrganization } from '@/app/hooks/use-organization';
+import { generateDefaultCampaignName } from '@/app/lib/utils/campaign-utils';
+import { SelectDonorsAndNameStep } from '../steps/SelectDonorsAndNameStep';
+import { SelectTemplateStep } from '../steps/SelectTemplateStep';
+import { WriteInstructionStep } from '../steps/WriteInstructionStep';
 
-const STEPS = ["Select Donors & Name", "Select Template", "Write Instructions"] as const;
+const STEPS = ['Select Donors & Name', 'Select Template', 'Write Instructions'] as const;
 type Step = (typeof STEPS)[number];
 
 interface CampaignStepsProps {
@@ -23,14 +23,17 @@ interface CampaignStepsProps {
     campaignId: number;
     campaignName: string;
     selectedDonorIds: number[];
-    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     templateId?: number;
     existingGeneratedEmails?: any[];
-    previewDonorIds?: number[]; // Add the missing previewDonorIds field
   };
 }
 
-function CampaignStepsComponent({ onClose, editMode = false, existingCampaignData }: CampaignStepsProps) {
+function CampaignStepsComponent({
+  onClose,
+  editMode = false,
+  existingCampaignData,
+}: CampaignStepsProps) {
   // Get organization data for default campaign name generation
   const { getOrganization } = useOrganization();
   const { data: organization } = getOrganization();
@@ -38,14 +41,14 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   // Generate default campaign name for new campaigns
   const getDefaultCampaignName = () => {
     if (editMode || existingCampaignData?.campaignName) {
-      return existingCampaignData?.campaignName || "";
+      return existingCampaignData?.campaignName || '';
     }
 
     if (organization?.name) {
       return generateDefaultCampaignName(organization.name);
     }
 
-    return ""; // Fallback if organization name isn't loaded yet
+    return ''; // Fallback if organization name isn't loaded yet
   };
 
   // Initialize state with existing campaign data if in edit mode
@@ -64,31 +67,29 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
     return 0; // Start from beginning for create mode
   };
   const [currentStep, setCurrentStep] = useState(getInitialStep());
-  const [selectedDonors, setSelectedDonors] = useState<number[]>(existingCampaignData?.selectedDonorIds || []);
+  const [selectedDonors, setSelectedDonors] = useState<number[]>(
+    existingCampaignData?.selectedDonorIds || []
+  );
   const [campaignName, setCampaignName] = useState(getDefaultCampaignName());
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(
     existingCampaignData?.templateId || undefined
   );
-  const [templatePrompt, setTemplatePrompt] = useState<string>("");
-  const [instruction, setInstruction] = useState("");
+  const [templatePrompt, setTemplatePrompt] = useState<string>('');
+  const [instruction, setInstruction] = useState('');
 
   const [sessionId, setSessionId] = useState<number | undefined>(existingCampaignData?.campaignId);
   const [sessionData, setSessionData] = useState<{
-    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    previewDonorIds: number[];
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   } | null>(null);
   // Add state to persist chat history and generated emails
   const [persistedChatHistory, setPersistedChatHistory] = useState<
-    Array<{ role: "user" | "assistant"; content: string }>
+    Array<{ role: 'user' | 'assistant'; content: string }>
   >(existingCampaignData?.chatHistory || []);
   // In edit mode, always use the fresh data from parent, not stale state
   const [persistedGeneratedEmails, setPersistedGeneratedEmails] = useState<any[]>([]);
-  const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<Record<number, Record<string, string>>>(
-    {}
-  );
-  const [persistedPreviewDonorIds, setPersistedPreviewDonorIds] = useState<number[]>(
-    existingCampaignData?.previewDonorIds || []
-  );
+  const [persistedReferenceContexts, setPersistedReferenceContexts] = useState<
+    Record<number, Record<string, string>>
+  >({});
   const router = useRouter();
 
   // Template hooks
@@ -118,7 +119,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   // Navigation auto-save hook
   const { autoSave: navigationAutoSave, manualSave } = useCampaignAutoSave({
     onSessionIdChange: (newSessionId: number) => {
-
       setSessionId(newSessionId);
     },
   });
@@ -140,7 +140,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
             templateId: selectedTemplateId,
             instruction: instructionRef.current, // Use ref to get current value
             chatHistory: persistedChatHistory,
-            previewDonorIds: persistedPreviewDonorIds,
           });
         } catch (error) {
           // Continue with navigation even if save fails
@@ -155,7 +154,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
       selectedTemplateId,
       // instruction removed from dependencies - using ref instead
       persistedChatHistory,
-      persistedPreviewDonorIds,
       navigationAutoSave,
     ]
   );
@@ -166,7 +164,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
   };
 
   const handleCampaignNameSet = async (name: string) => {
-
     // Use the provided name (should not be empty at this point)
     setCampaignName(name);
 
@@ -180,9 +177,7 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
           templateId: selectedTemplateId,
           instruction,
           chatHistory: persistedChatHistory,
-          previewDonorIds: persistedPreviewDonorIds,
         });
-
 
         // Get the session ID (either from result or existing sessionId)
         const finalSessionId = result?.sessionId || sessionId;
@@ -206,26 +201,27 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
     setSelectedTemplateId(templateId ?? undefined);
     if (templatePrompt) {
       // In create mode and no chat history, set instruction immediately
-      if (!editMode && (!existingCampaignData?.chatHistory || existingCampaignData.chatHistory.length === 0)) {
+      if (
+        !editMode &&
+        (!existingCampaignData?.chatHistory || existingCampaignData.chatHistory.length === 0)
+      ) {
         setInstruction(templatePrompt);
       }
       setTemplatePrompt(templatePrompt); // Always set the templatePrompt state so it can be passed to WriteInstructionStep
     } else {
       // Clear template prompt if no template is selected
-      setTemplatePrompt("");
+      setTemplatePrompt('');
     }
   };
 
   const handleSessionDataChange = useCallback(
     (newSessionData: {
-      chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-      previewDonorIds: number[];
+      chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
       generatedEmails?: any[];
       referenceContexts?: Record<number, Record<string, string>>;
     }) => {
       setSessionData(newSessionData);
       setPersistedChatHistory(newSessionData.chatHistory);
-      setPersistedPreviewDonorIds(newSessionData.previewDonorIds);
       if (newSessionData.generatedEmails) {
         setPersistedGeneratedEmails(newSessionData.generatedEmails);
       }
@@ -304,7 +300,6 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
                 : persistedGeneratedEmails
             }
             initialReferenceContexts={persistedReferenceContexts}
-            initialPreviewDonorIds={persistedPreviewDonorIds}
             campaignName={campaignName}
             templateId={selectedTemplateId}
             onBulkGenerationComplete={handleBulkGenerationComplete}
@@ -337,7 +332,8 @@ function CampaignStepsComponent({ onClose, editMode = false, existingCampaignDat
 const areEqual = (prevProps: CampaignStepsProps, nextProps: CampaignStepsProps): boolean => {
   // Only re-render for essential prop changes
   const essentialPropsEqual =
-    prevProps.editMode === nextProps.editMode && prevProps.existingCampaignData === nextProps.existingCampaignData;
+    prevProps.editMode === nextProps.editMode &&
+    prevProps.existingCampaignData === nextProps.existingCampaignData;
 
   // We ignore onClose function changes since they're typically stable
 

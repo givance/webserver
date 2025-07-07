@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Common validation schemas used across multiple routers
@@ -19,7 +19,7 @@ export const nameSchema = z.string().min(1).max(255);
 export const descriptionSchema = z.string();
 export const notesSchema = z.string();
 export const addressSchema = z.string().max(500);
-export const currencySchema = z.string().length(3).default("USD");
+export const currencySchema = z.string().length(3).default('USD');
 export const amountSchema = z.number().int().positive();
 export const percentageSchema = z.number().min(0).max(100);
 
@@ -36,7 +36,7 @@ export const cursorPaginationSchema = z.object({
 
 export const orderingSchema = z.object({
   orderBy: z.string().optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
+  orderDirection: z.enum(['asc', 'desc']).optional(),
 });
 
 // Search and filter schemas
@@ -45,21 +45,23 @@ export const searchSchema = z.object({
   searchFields: z.array(z.string()).optional(),
 });
 
-export const dateRangeSchema = z.object({
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
-}).refine(
-  (data) => {
-    if (data.startDate && data.endDate) {
-      return data.startDate <= data.endDate;
+export const dateRangeSchema = z
+  .object({
+    startDate: z.date().optional(),
+    endDate: z.date().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.startDate <= data.endDate;
+      }
+      return true;
+    },
+    {
+      message: 'Start date must be before or equal to end date',
+      path: ['endDate'],
     }
-    return true;
-  },
-  {
-    message: "Start date must be before or equal to end date",
-    path: ["endDate"],
-  }
-);
+  );
 
 // Response wrapper schemas
 export const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
@@ -94,10 +96,12 @@ export const batchOperationSchema = z.object({
 export const batchResultSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
     successful: z.array(itemSchema),
-    failed: z.array(z.object({
-      id: idSchema,
-      error: z.string(),
-    })),
+    failed: z.array(
+      z.object({
+        id: idSchema,
+        error: z.string(),
+      })
+    ),
   });
 
 /**
@@ -158,7 +162,7 @@ export const donorSchemas = {
     phone: phoneSchema.optional(),
     address: z.string().optional(),
     state: z.string().length(2).optional(),
-    gender: z.enum(["male", "female"]).nullable().optional(),
+    gender: z.enum(['male', 'female']).nullable().optional(),
     notes: z.string().optional(),
     assignedToStaffId: idSchema.optional(),
   }),
@@ -170,7 +174,7 @@ export const donorSchemas = {
     phone: phoneSchema.optional(),
     address: z.string().optional(),
     state: z.string().length(2).optional(),
-    gender: z.enum(["male", "female"]).nullable().optional(),
+    gender: z.enum(['male', 'female']).nullable().optional(),
     notes: z.string().optional(),
     assignedToStaffId: idSchema.nullable().optional(),
   }),
@@ -178,7 +182,7 @@ export const donorSchemas = {
   list: z.object({
     searchTerm: z.string().optional(),
     state: z.string().length(2).optional(),
-    gender: z.enum(["male", "female"]).nullable().optional(),
+    gender: z.enum(['male', 'female']).nullable().optional(),
     assignedToStaffId: idSchema.nullable().optional(),
     ...paginationSchema.shape,
     ...orderingSchema.shape,
@@ -270,7 +274,7 @@ export const donationSchemas = {
     donorId: idSchema,
     projectId: idSchema,
     amount: z.number().int().positive(),
-    currency: z.string().length(3).default("USD"),
+    currency: z.string().length(3).default('USD'),
     date: z.date().optional(),
   }),
 
@@ -306,7 +310,7 @@ export const communicationSchemas = {
   }),
 
   createThread: z.object({
-    channel: z.enum(["email", "phone", "text"]),
+    channel: z.enum(['email', 'phone', 'text']),
     staffIds: z.array(idSchema).optional(),
     donorIds: z.array(idSchema).optional(),
   }),
@@ -318,7 +322,7 @@ export const communicationSchemas = {
   }),
 
   listThreads: z.object({
-    channel: z.enum(["email", "phone", "text"]).optional(),
+    channel: z.enum(['email', 'phone', 'text']).optional(),
     staffId: idSchema.optional(),
     donorId: idSchema.optional(),
     includeStaff: z.boolean().optional(),
@@ -365,12 +369,11 @@ export const communicationSchemas = {
     jobName: z.string().min(1).max(255),
     chatHistory: z.array(
       z.object({
-        role: z.enum(["user", "assistant"]),
+        role: z.enum(['user', 'assistant']),
         content: z.string(),
       })
     ),
     selectedDonorIds: z.array(idSchema),
-    previewDonorIds: z.array(idSchema),
     refinedInstruction: z.string().optional(),
   }),
 
@@ -427,7 +430,7 @@ export const todoSchemas = {
     title: z.string().min(1).max(255),
     description: z.string().optional(),
     type: z.string().min(1),
-    priority: z.enum(["low", "medium", "high"]).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
     dueDate: z.date().optional(),
     scheduledDate: z.date().optional(),
     donorId: idSchema.optional(),
@@ -439,8 +442,8 @@ export const todoSchemas = {
     title: z.string().min(1).max(255).optional(),
     description: z.string().optional(),
     type: z.string().min(1).optional(),
-    priority: z.enum(["low", "medium", "high"]).optional(),
-    status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
+    status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
     dueDate: z.date().nullable().optional(),
     scheduledDate: z.date().nullable().optional(),
     completedDate: z.date().nullable().optional(),
@@ -451,10 +454,10 @@ export const todoSchemas = {
 
   list: z.object({
     type: z.string().optional(),
-    status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
+    status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
     donorId: idSchema.optional(),
     staffId: idSchema.optional(),
-    priority: z.enum(["low", "medium", "high"]).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
     ...paginationSchema.shape,
     ...orderingSchema.shape,
   }),
@@ -514,7 +517,7 @@ const donorListCriteriaSchema = z
     },
     {
       message: "Created date 'from' must be before or equal to 'to' date",
-      path: ["createdDateTo"],
+      path: ['createdDateTo'],
     }
   )
   .refine(
@@ -527,7 +530,7 @@ const donorListCriteriaSchema = z
     },
     {
       message: "Last donation date 'from' must be before or equal to 'to' date",
-      path: ["lastDonationDateTo"],
+      path: ['lastDonationDateTo'],
     }
   )
   .refine(
@@ -539,8 +542,8 @@ const donorListCriteriaSchema = z
       return true;
     },
     {
-      message: "Highest donation minimum must be less than or equal to maximum",
-      path: ["highestDonationMax"],
+      message: 'Highest donation minimum must be less than or equal to maximum',
+      path: ['highestDonationMax'],
     }
   )
   .refine(
@@ -552,8 +555,8 @@ const donorListCriteriaSchema = z
       return true;
     },
     {
-      message: "Total donation minimum must be less than or equal to maximum",
-      path: ["totalDonationMax"],
+      message: 'Total donation minimum must be less than or equal to maximum',
+      path: ['totalDonationMax'],
     }
   );
 

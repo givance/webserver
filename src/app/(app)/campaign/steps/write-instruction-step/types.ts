@@ -5,16 +5,14 @@ export interface WriteInstructionStepProps {
   onNext: () => void;
   selectedDonors: number[];
   onSessionDataChange?: (sessionData: {
-    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-    previewDonorIds: number[];
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     generatedEmails?: GeneratedEmail[];
     referenceContexts?: Record<number, Record<string, string>>;
   }) => void;
   templatePrompt?: string; // Optional template prompt to pre-populate
-  initialChatHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+  initialChatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   initialGeneratedEmails?: GeneratedEmail[];
   initialReferenceContexts?: Record<number, Record<string, string>>;
-  initialPreviewDonorIds?: number[];
   initialRefinedInstruction?: string; // The refined instruction from previous generation
   campaignName: string;
   templateId?: number;
@@ -54,7 +52,7 @@ export interface ThreadMessage {
 export interface ReferenceContext {
   [key: string]: {
     content: string;
-    type: "donation" | "communication" | "summary";
+    type: 'donation' | 'communication' | 'summary';
     datetime?: string;
   };
 }
@@ -73,10 +71,10 @@ export interface AgenticFlowResponse {
   needsUserInput: boolean;
   isComplete: boolean;
   conversation: Array<{
-    role: "user" | "assistant";
+    role: 'user' | 'assistant';
     content: string;
     timestamp: Date | string;
-    stepType?: "question" | "confirmation" | "generation" | "complete";
+    stepType?: 'question' | 'confirmation' | 'generation' | 'complete';
   }>;
   canProceed?: boolean;
 }
@@ -85,9 +83,9 @@ export type EmailGenerationResult = GenerateEmailsResponse | AgenticFlowResponse
 
 // Extended type for the wrapped email generation results returned by emailOperations utility functions
 export interface EmailOperationResult {
-  type: "agentic" | "traditional";
+  type: 'agentic' | 'traditional';
   result: EmailGenerationResult;
-  updatedChatMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  updatedChatMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
   responseMessage?: string;
 }
 
