@@ -617,3 +617,168 @@ export async function checkEmailExists(sessionId: number, donorId: number): Prom
     throw new Error('Could not check email existence.');
   }
 }
+
+/**
+ * Counts total sessions by organization and status
+ */
+export async function countSessionsByOrganization(
+  organizationId: string,
+  status?: keyof typeof EmailGenerationSessionStatus
+): Promise<number> {
+  try {
+    const whereClauses = [eq(emailGenerationSessions.organizationId, organizationId)];
+    if (status) {
+      whereClauses.push(eq(emailGenerationSessions.status, status));
+    }
+
+    const result = await db
+      .select({ count: count() })
+      .from(emailGenerationSessions)
+      .where(and(...whereClauses));
+
+    return result[0]?.count || 0;
+  } catch (error) {
+    console.error('Failed to count sessions by organization:', error);
+    throw new Error('Could not count sessions.');
+  }
+}
+
+/**
+ * Gets email with session for authorization check
+ */
+export async function getEmailWithSessionAuth(
+  emailId: number,
+  organizationId: string
+): Promise<{
+  id: number;
+  sessionId: number;
+  isSent: boolean;
+  currentStatus: 'PENDING_APPROVAL' | 'APPROVED';
+} | null> {
+  try {
+    const [existingEmail] = await db
+      .select({
+        id: generatedEmails.id,
+        sessionId: generatedEmails.sessionId,
+        isSent: generatedEmails.isSent,
+        currentStatus: generatedEmails.status,
+      })
+      .from(generatedEmails)
+      .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+      .where(
+        and(
+          eq(generatedEmails.id, emailId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        )
+      )
+      .limit(1);
+
+    return existingEmail || null;
+  } catch (error) {
+    console.error('Failed to get email with session auth:', error);
+    throw new Error('Could not retrieve email.');
+  }
+}
+
+/**
+ * Updates generated email content
+ */
+export async function updateGeneratedEmailContent(
+  emailId: number,
+  updateData: {
+    subject: string;
+    structuredContent?: any;
+    referenceContexts?: any;
+    emailContent?: string;
+    status?: 'PENDING_APPROVAL' | 'APPROVED';
+  }
+): Promise<GeneratedEmail | undefined> {
+  try {
+    const result = await db
+      .update(generatedEmails)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(generatedEmails.id, emailId))
+      .returning();
+    return result[0];
+  } catch (error) {
+    console.error('Failed to update generated email content:', error);
+    throw new Error('Could not update email content.');
+  }
+}
+
+/**
+ * Gets emails by session with donor info
+ */
+export async function getEmailsBySessionWithDonor(
+  sessionId: number,
+  donorIds?: number[]
+): Promise<Array<GeneratedEmail & { donor?: any }>> {
+  try {
+    const whereClauses = [eq(generatedEmails.sessionId, sessionId)];
+    if (donorIds && donorIds.length > 0) {
+      whereClauses.push(inArray(generatedEmails.donorId, donorIds));
+    }
+
+    const emails = await db.query.generatedEmails.findMany({
+      where: and(...whereClauses),
+      with: {
+        donor: true,
+      },
+    });
+
+    return emails;
+  } catch (error) {
+    console.error('Failed to get emails by session with donor:', error);
+    throw new Error('Could not retrieve emails.');
+  }
+}
+
+/**
+ * Marks emails as sent
+ */
+export async function markEmailsAsSent(
+  emailIds: number[],
+  sentAt: Date = new Date()
+): Promise<void> {
+  try {
+    if (emailIds.length === 0) return;
+
+    await db
+      .update(generatedEmails)
+      .set({
+        isSent: true,
+        sentAt,
+        sendStatus: 'sent',
+        updatedAt: new Date(),
+      })
+      .where(inArray(generatedEmails.id, emailIds));
+  } catch (error) {
+    console.error('Failed to mark emails as sent:', error);
+    throw new Error('Could not mark emails as sent.');
+  }
+}
+
+/**
+ * Updates send status for an email
+ */
+export async function updateEmailSendStatus(
+  emailId: number,
+  sendStatus: string,
+  errorMessage?: string
+): Promise<void> {
+  try {
+    const updateData: any = {
+      sendStatus,
+      updatedAt: new Date(),
+    };
+
+    if (errorMessage) {
+      updateData.sendErrorMessage = errorMessage;
+    }
+
+    await db.update(generatedEmails).set(updateData).where(eq(generatedEmails.id, emailId));
+  } catch (error) {
+    console.error('Failed to update email send status:', error);
+    throw new Error('Could not update email send status.');
+  }
+}
