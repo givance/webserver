@@ -10,6 +10,20 @@ import {
   staff,
   donors,
 } from '@/app/lib/db/schema';
+import {
+  createEmailGenerationSession,
+  getEmailGenerationSessionById,
+  updateEmailGenerationSession,
+  deleteEmailGenerationSession,
+  listEmailGenerationSessions,
+  getGeneratedEmailsBySessionId,
+  saveGeneratedEmail,
+  updateEmailStatus,
+  getEmailStatsBySessionIds,
+  deleteGeneratedEmails,
+  getSessionsByCriteria,
+  getScheduledEmailJobs,
+} from '@/app/lib/data/email-campaigns';
 import { logger } from '@/app/lib/logger';
 import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
 import { runs } from '@trigger.dev/sdk/v3';
@@ -456,13 +470,9 @@ export class EmailCampaignsService {
    */
   async getSession(sessionId: number, organizationId: string, customSignature?: string) {
     try {
-      const [session] = await db
-        .select()
-        .from(emailGenerationSessions)
-        .where(eq(emailGenerationSessions.id, sessionId))
-        .limit(1);
+      const session = await getEmailGenerationSessionById(sessionId, organizationId);
 
-      if (!session || session.organizationId !== organizationId) {
+      if (!session) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Session not found',
@@ -470,10 +480,7 @@ export class EmailCampaignsService {
       }
 
       // Get generated emails for this session
-      const emails = await db
-        .select()
-        .from(generatedEmails)
-        .where(eq(generatedEmails.sessionId, sessionId));
+      const emails = await getGeneratedEmailsBySessionId(sessionId);
 
       // Append signatures to each email for display
       const emailsWithSignatures = await Promise.all(
@@ -688,29 +695,14 @@ export class EmailCampaignsService {
    */
   async deleteCampaign(campaignId: number, organizationId: string) {
     // First, verify the job belongs to the organization
-    const campaign = await db.query.emailGenerationSessions.findFirst({
-      where: and(
-        eq(emailGenerationSessions.id, campaignId),
-        eq(emailGenerationSessions.organizationId, organizationId)
-      ),
-      columns: { id: true },
-    });
+    const campaign = await getEmailGenerationSessionById(campaignId, organizationId);
 
     if (!campaign) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign not found' });
     }
 
     // Get all scheduled jobs that need to be cancelled
-    const scheduledJobs = await db
-      .select()
-      .from(emailSendJobs)
-      .where(
-        and(
-          eq(emailSendJobs.sessionId, campaignId),
-          eq(emailSendJobs.organizationId, organizationId),
-          eq(emailSendJobs.status, 'scheduled')
-        )
-      );
+    const scheduledJobs = await getScheduledEmailJobs(campaignId, organizationId);
 
     // Cancel all pending Trigger.dev jobs
     if (scheduledJobs.length > 0) {
@@ -726,14 +718,8 @@ export class EmailCampaignsService {
       logger.info(`Cancelled ${scheduledJobs.length} scheduled jobs for campaign ${campaignId}`);
     }
 
-    // Use a transaction to delete the job and associated emails
-    await db.transaction(async (tx) => {
-      // Delete associated emails first to maintain foreign key constraints
-      await tx.delete(generatedEmails).where(eq(generatedEmails.sessionId, campaignId));
-
-      // Then delete the job
-      await tx.delete(emailGenerationSessions).where(eq(emailGenerationSessions.id, campaignId));
-    });
+    // Delete the campaign and its emails using data layer
+    await deleteEmailGenerationSession(campaignId, organizationId);
 
     logger.info(
       `Campaign ${campaignId} and associated emails deleted for organization ${organizationId}`
