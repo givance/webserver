@@ -1,12 +1,9 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateObject } from "ai";
-import { z } from "zod";
-import type {
-  DonorStatistics,
-  RawCommunicationThread,
-} from './types';
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateObject } from 'ai';
+import { z } from 'zod';
+import type { DonorStatistics, RawCommunicationThread } from './types';
 import type { DonationWithDetails } from '@/app/lib/data/donations';
 import type { PersonResearchResult } from '@/app/lib/services/person-research/types';
 import { formatDonorName } from '../donor-name-formatter';
@@ -23,7 +20,7 @@ export interface SingleEmailGeneratorParams {
     firstName: string;
     lastName: string;
     email: string | null;
-    notes: string | null;
+    notes: string | object | null;
     assignedUserId?: string | null;
   };
   organization: {
@@ -69,29 +66,22 @@ export interface SingleEmailResult {
 export async function generateSingleEmail(
   params: SingleEmailGeneratorParams
 ): Promise<SingleEmailResult> {
-  const {
-    donor,
-    organization,
-    staffMembers,
-    donorHistory,
-    memories,
-    chatHistory,
-    currentDate,
-  } = params;
+  const { donor, organization, staffMembers, donorHistory, memories, chatHistory, currentDate } =
+    params;
 
   // Find the assigned staff member
   const assignedStaff = donor.assignedUserId
-    ? staffMembers.find(s => s.userId === donor.assignedUserId)
+    ? staffMembers.find((s) => s.userId === donor.assignedUserId)
     : null;
 
   // Determine writing instructions (staff-specific > org default)
   const writingInstructions =
-    assignedStaff?.writingInstructions ||
-    organization.writingInstructions ||
-    '';
+    assignedStaff?.writingInstructions || organization.writingInstructions || '';
 
   // Get staff name for signature
-  const staffName = assignedStaff ? `${assignedStaff.firstName || ''} ${assignedStaff.lastName || ''}`.trim() : '';
+  const staffName = assignedStaff
+    ? `${assignedStaff.firstName || ''} ${assignedStaff.lastName || ''}`.trim()
+    : '';
 
   // Build the prompt
   const prompt = buildEmailPrompt({
@@ -102,29 +92,37 @@ export async function generateSingleEmail(
     memories,
     chatHistory,
     currentDate,
-    staffName
+    staffName,
   });
 
-  logger.info(`[SingleEmailGenerator] Generating email for donor ${donor.id} (${formatDonorName(donor)})`);
+  logger.info(
+    `[SingleEmailGenerator] Generating email for donor ${donor.id} (${formatDonorName(donor)})`
+  );
 
   // Define the schema for the expected response
   const emailSchema = z.object({
-    subject: z.string().min(1).max(100).describe("A compelling subject line for the email (1-100 characters)"),
+    subject: z
+      .string()
+      .min(1)
+      .max(100)
+      .describe('A compelling subject line for the email (1-100 characters)'),
     reasoning: z
       .string()
       .min(1)
       .describe(
-        "Explanation of why this email was crafted this way, including strategy and personalization choices"
+        'Explanation of why this email was crafted this way, including strategy and personalization choices'
       ),
     emailContent: z
       .string()
       .min(1)
-      .describe("Complete plain text email content without any structured pieces, reference markers, or signature"),
+      .describe(
+        'Complete plain text email content without any structured pieces, reference markers, or signature'
+      ),
     response: z
       .string()
       .min(1)
       .describe(
-        "A concise summary for the user highlighting what was accomplished, key donor insights utilized, and any important context that influenced the email"
+        'A concise summary for the user highlighting what was accomplished, key donor insights utilized, and any important context that influenced the email'
       ),
   });
 
@@ -135,6 +133,9 @@ export async function generateSingleEmail(
       prompt,
       temperature: 0.7,
     });
+
+    logger.info(`[SingleEmailGenerator] system prompt: ${prompt}`);
+    logger.info(`[SingleEmailGenerator] result: ${JSON.stringify(result)}`);
 
     logger.info(`[SingleEmailGenerator] Successfully generated email for donor ${donor.id}`);
 
@@ -169,72 +170,69 @@ function buildEmailPrompt(params: {
     memories,
     chatHistory,
     currentDate,
-    staffName
+    staffName,
   } = params;
 
   // Extract the latest user instruction from chat history
-  const latestUserMessage = chatHistory
-    .filter(msg => msg.role === 'user')
-    .pop()?.content || '';
+  const latestUserMessage = chatHistory.filter((msg) => msg.role === 'user').pop()?.content || '';
 
   // Build system prompt
-  const systemPrompt = `You are an expert fundraising copywriter specializing in donor reengagement emails for ${organization.name}.
+  const systemPrompt = `You are an expert email writer specializing in wirting emails for ${organization.name}.
 
-ORGANIZATION CONTEXT:
-${organization.description ? `Organization Description: ${organization.description}` : ""}
-${organization.websiteSummary ? `Organization Website Summary: ${organization.websiteSummary}` : ""}
-${staffName ? `Email is being sent by: ${staffName}` : ""}
-${writingInstructions ? `Writing Guidelines: ${writingInstructions}` : ""}
+[ORGANIZATION CONTEXT]:
+${organization.description ? `Organization Description: ${organization.description}` : ''}
+${organization.websiteSummary ? `Organization Website Summary: ${organization.websiteSummary}` : ''}
+${staffName ? `Email is being sent by: ${staffName}` : ''}
+${writingInstructions ? `Writing Guidelines: ${writingInstructions}` : ''}
 
-${memories.user.length > 0 ? `Personal Memories:\n${memories.user.join("\n")}\n` : ""}
-${memories.organization.length > 0 ? `Organization Memories:\n${memories.organization.join("\n")}\n` : ""}
+${memories.user.length > 0 ? `Personal Memories:\n${memories.user.join('\n')}\n` : ''}
+${memories.organization.length > 0 ? `Organization Memories:\n${memories.organization.join('\n')}\n` : ''}
 
 CURRENT DATE: ${currentDate}
 
-USER INSTRUCTION: ${latestUserMessage}
+[USER INSTRUCTION]:
+${latestUserMessage}
 
-TASK: Generate a personalized donor reengagement email with the following structure:
+TASK: Generate an email with the following structure, based on the user instruction and the donor context:
 1. **subject**: A compelling subject line (50 characters max)
 2. **reasoning**: Technical explanation of your email strategy and personalization tactics
-3. **emailContent**: The complete email content as plain text (120-150 words)
+3. **emailContent**: The complete email content as plain text, you should use line breaks as needed to make the email more readable.
 4. **response**: User-facing summary describing what was delivered
 
 REQUIREMENTS:
-- Write for a mid-level donor ($250-$999) who hasn't donated in 12-48 months
 - Tone: Warm, personal, confident
-- Use specific donation amounts and dates from the history when available
-- Reference their impact using past donation history
+- Use specific donation amounts and dates from the history when relevant andavailable
+- Reference their impact using past donation history when relevant and available
 - DO NOT include any signature, closing, or sign-off - this is added automatically
-- DO NOT use reference markers, footnotes, or bracketed placeholders
 - Be specific and avoid general statements
 
 Priority order for conflicting instructions:
-1. The user instruction above
+1. The user instruction takes the highest priority, if it conflicts with other instructions, the user instruction should always be followed.
 2. The donor notes
 3. Personal writing instructions
 4. Organization writing instructions`;
 
   // Build donor context
   let donorContext = `\n\nDONOR: ${formatDonorName(donor)} (${donor.email || 'no email'})`;
-  
+
   if (donor.notes) {
-    donorContext += `\nNotes about this Donor: ${donor.notes}`;
+    donorContext += `\nNotes about this Donor: ${JSON.stringify(donor.notes)}`;
   }
 
   // Add donation history
   if (donorHistory.donations.length > 0) {
-    donorContext += "\n\nDONATION HISTORY:";
+    donorContext += '\n\nDONATION HISTORY:';
     const sortedDonations = [...donorHistory.donations]
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 5); // Show last 5 donations
-    
+
     sortedDonations.forEach((donation, index) => {
-      const amount = (donation.amount / 100).toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
+      const amount = (donation.amount / 100).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
       });
       const date = new Date(donation.date).toLocaleDateString();
-      const project = donation.project ? ` to ${donation.project.name}` : "";
+      const project = donation.project ? ` to ${donation.project.name}` : '';
       donorContext += `\n${index + 1}. ${amount} on ${date}${project}`;
     });
   }
@@ -242,14 +240,14 @@ Priority order for conflicting instructions:
   // Add donor statistics
   if (donorHistory.statistics) {
     const stats = donorHistory.statistics;
-    const totalAmount = (stats.totalAmount / 100).toLocaleString("en-US", {
-      style: "currency",
-      currency: "USD",
+    const totalAmount = (stats.totalAmount / 100).toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
     });
     donorContext += `\n\nDONOR STATISTICS:`;
     donorContext += `\nTotal donations: ${stats.totalDonations}`;
     donorContext += `\nTotal amount: ${totalAmount}`;
-    
+
     if (stats.lastDonation) {
       const lastDate = new Date(stats.lastDonation.date).toLocaleDateString();
       donorContext += `\nLast donation: ${lastDate}`;
@@ -258,7 +256,7 @@ Priority order for conflicting instructions:
 
   // Add communication history
   if (donorHistory.communications.length > 0) {
-    donorContext += "\n\nPAST COMMUNICATIONS:";
+    donorContext += '\n\nPAST COMMUNICATIONS:';
     donorHistory.communications.slice(0, 3).forEach((thread, index) => {
       if (thread.content && thread.content.length > 0) {
         donorContext += `\nCommunication ${index + 1}: ${thread.content[0].content.substring(0, 100)}...`;
@@ -269,7 +267,7 @@ Priority order for conflicting instructions:
   // Add person research
   if (donorHistory.personResearch && donorHistory.personResearch.length > 0) {
     const research = donorHistory.personResearch[0];
-    donorContext += "\n\nDONOR RESEARCH:";
+    donorContext += '\n\nDONOR RESEARCH:';
     donorContext += `\n${research.answer}`;
     if (research.personIdentity) {
       if (research.personIdentity.profession) {
