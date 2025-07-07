@@ -1,8 +1,12 @@
-import { db } from "@/app/lib/db";
-import { donors, microsoftOAuthTokens, staff, users } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { logger } from "@/app/lib/logger";
-import { wrapDatabaseOperation } from "@/app/lib/utils/error-handler";
+import { logger } from '@/app/lib/logger';
+import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
+import {
+  getMicrosoftTokenByUserId,
+  getDonorWithOrgVerification,
+  getStaffWithOrgVerification,
+  getUserById,
+  deleteMicrosoftToken,
+} from '@/app/lib/data/microsoft-oauth';
 
 /**
  * Service for handling Microsoft OAuth database operations
@@ -13,10 +17,7 @@ export class MicrosoftOAuthService {
    */
   async getMicrosoftToken(userId: string) {
     return await wrapDatabaseOperation(async () => {
-      const tokenInfo = await db.query.microsoftOAuthTokens.findFirst({
-        where: eq(microsoftOAuthTokens.userId, userId),
-      });
-      return tokenInfo;
+      return await getMicrosoftTokenByUserId(userId);
     });
   }
 
@@ -25,16 +26,7 @@ export class MicrosoftOAuthService {
    */
   async getDonorInfo(donorId: number, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      const donorInfo = await db.query.donors.findFirst({
-        where: eq(donors.id, donorId),
-      });
-      
-      // Verify donor belongs to organization
-      if (donorInfo && donorInfo.organizationId !== organizationId) {
-        return null;
-      }
-      
-      return donorInfo;
+      return await getDonorWithOrgVerification(donorId, organizationId);
     });
   }
 
@@ -43,16 +35,7 @@ export class MicrosoftOAuthService {
    */
   async getStaffInfo(staffId: number, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      const staffInfo = await db.query.staff.findFirst({
-        where: eq(staff.id, staffId),
-      });
-      
-      // Verify staff belongs to organization
-      if (staffInfo && staffInfo.organizationId !== organizationId) {
-        return null;
-      }
-      
-      return staffInfo;
+      return await getStaffWithOrgVerification(staffId, organizationId);
     });
   }
 
@@ -72,10 +55,7 @@ export class MicrosoftOAuthService {
    */
   async getUserInfo(userId: string) {
     return await wrapDatabaseOperation(async () => {
-      const userInfo = await db.query.users.findFirst({
-        where: eq(users.id, userId),
-      });
-      return userInfo;
+      return await getUserById(userId);
     });
   }
 
@@ -84,7 +64,7 @@ export class MicrosoftOAuthService {
    */
   async disconnectMicrosoftToken(userId: string): Promise<void> {
     return await wrapDatabaseOperation(async () => {
-      await db.delete(microsoftOAuthTokens).where(eq(microsoftOAuthTokens.userId, userId));
+      await deleteMicrosoftToken(userId);
       logger.info(`Microsoft account disconnected for user ${userId}`);
     });
   }
