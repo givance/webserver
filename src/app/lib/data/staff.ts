@@ -1,7 +1,7 @@
-import { db } from "../db";
-import { staff, gmailOAuthTokens, staffEmailExamples } from "../db/schema";
-import { eq, sql, like, or, asc, desc, SQL, and, count, inArray } from "drizzle-orm";
-import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import { db } from '../db';
+import { staff, gmailOAuthTokens, staffEmailExamples, staffGmailTokens } from '../db/schema';
+import { eq, sql, like, or, asc, desc, SQL, and, count, inArray } from 'drizzle-orm';
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 
 export type Staff = InferSelectModel<typeof staff>;
 export type NewStaff = InferInsertModel<typeof staff>;
@@ -23,8 +23,8 @@ export async function getStaffById(id: number, organizationId: string): Promise<
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to retrieve staff member by ID:", error);
-    throw new Error("Could not retrieve staff member.");
+    console.error('Failed to retrieve staff member by ID:', error);
+    throw new Error('Could not retrieve staff member.');
   }
 }
 
@@ -49,8 +49,8 @@ export async function getStaffWithGmailById(id: number, organizationId: string) 
     });
     return result;
   } catch (error) {
-    console.error("Failed to retrieve staff member with Gmail by ID:", error);
-    throw new Error("Could not retrieve staff member with Gmail.");
+    console.error('Failed to retrieve staff member with Gmail by ID:', error);
+    throw new Error('Could not retrieve staff member with Gmail.');
   }
 }
 
@@ -60,7 +60,10 @@ export async function getStaffWithGmailById(id: number, organizationId: string) 
  * @param organizationId - The ID of the organization the staff member belongs to.
  * @returns The staff member object if found, otherwise undefined.
  */
-export async function getStaffByEmail(email: string, organizationId: string): Promise<Staff | undefined> {
+export async function getStaffByEmail(
+  email: string,
+  organizationId: string
+): Promise<Staff | undefined> {
   try {
     const result = await db
       .select()
@@ -69,8 +72,8 @@ export async function getStaffByEmail(email: string, organizationId: string): Pr
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to retrieve staff member by email:", error);
-    throw new Error("Could not retrieve staff member by email.");
+    console.error('Failed to retrieve staff member by email:', error);
+    throw new Error('Could not retrieve staff member by email.');
   }
 }
 
@@ -92,8 +95,8 @@ export async function getStaffByIds(ids: number[], organizationId: string): Prom
       .where(and(inArray(staff.id, ids), eq(staff.organizationId, organizationId)));
     return result;
   } catch (error) {
-    console.error("Failed to retrieve staff members by IDs:", error);
-    throw new Error("Could not retrieve staff members by IDs.");
+    console.error('Failed to retrieve staff members by IDs:', error);
+    throw new Error('Could not retrieve staff members by IDs.');
   }
 }
 
@@ -102,16 +105,21 @@ export async function getStaffByIds(ids: number[], organizationId: string): Prom
  * @param staffData - Data for the new staff member. Excludes auto-generated fields.
  * @returns The newly created staff member object.
  */
-export async function createStaff(staffData: Omit<NewStaff, "id" | "createdAt" | "updatedAt">): Promise<Staff> {
+export async function createStaff(
+  staffData: Omit<NewStaff, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<Staff> {
   try {
     const result = await db.insert(staff).values(staffData).returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to create staff member:", error);
-    if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Staff member with this email already exists in this organization.");
+    console.error('Failed to create staff member:', error);
+    if (
+      error instanceof Error &&
+      error.message.includes('duplicate key value violates unique constraint')
+    ) {
+      throw new Error('Staff member with this email already exists in this organization.');
     }
-    throw new Error("Could not create staff member.");
+    throw new Error('Could not create staff member.');
   }
 }
 
@@ -124,7 +132,7 @@ export async function createStaff(staffData: Omit<NewStaff, "id" | "createdAt" |
  */
 export async function updateStaff(
   id: number,
-  staffData: Partial<Omit<NewStaff, "id" | "createdAt" | "updatedAt">>,
+  staffData: Partial<Omit<NewStaff, 'id' | 'createdAt' | 'updatedAt'>>,
   organizationId: string
 ): Promise<Staff | undefined> {
   try {
@@ -135,11 +143,16 @@ export async function updateStaff(
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to update staff member:", error);
-    if (error instanceof Error && error.message.includes("duplicate key value violates unique constraint")) {
-      throw new Error("Cannot update to an email that already exists for another staff member in this organization.");
+    console.error('Failed to update staff member:', error);
+    if (
+      error instanceof Error &&
+      error.message.includes('duplicate key value violates unique constraint')
+    ) {
+      throw new Error(
+        'Cannot update to an email that already exists for another staff member in this organization.'
+      );
     }
-    throw new Error("Could not update staff member.");
+    throw new Error('Could not update staff member.');
   }
 }
 
@@ -152,9 +165,9 @@ export async function deleteStaff(id: number, organizationId: string): Promise<v
   try {
     await db.delete(staff).where(and(eq(staff.id, id), eq(staff.organizationId, organizationId)));
   } catch (error) {
-    console.error("Failed to delete staff member:", error);
+    console.error('Failed to delete staff member:', error);
     // Consider implications if staff are linked to communication threads, etc.
-    throw new Error("Could not delete staff member. They may be linked to other records.");
+    throw new Error('Could not delete staff member. They may be linked to other records.');
   }
 }
 
@@ -170,13 +183,20 @@ export async function listStaff(
     isRealPerson?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: keyof Pick<Staff, "firstName" | "lastName" | "email" | "createdAt">;
-    orderDirection?: "asc" | "desc";
+    orderBy?: keyof Pick<Staff, 'firstName' | 'lastName' | 'email' | 'createdAt'>;
+    orderDirection?: 'asc' | 'desc';
   } = {},
   organizationId: string
 ): Promise<{ staff: Staff[]; totalCount: number }> {
   try {
-    const { searchTerm, isRealPerson, limit = 10, offset = 0, orderBy = "firstName", orderDirection = "asc" } = options;
+    const {
+      searchTerm,
+      isRealPerson,
+      limit = 10,
+      offset = 0,
+      orderBy = 'firstName',
+      orderDirection = 'asc',
+    } = options;
 
     const conditions: SQL[] = [eq(staff.organizationId, organizationId)];
 
@@ -207,11 +227,15 @@ export async function listStaff(
     // Build order by for relational query
     let orderByClause;
     if (orderBy) {
-      const direction = orderDirection === "asc" ? asc : desc;
+      const direction = orderDirection === 'asc' ? asc : desc;
 
-      if (orderBy === "firstName") {
+      if (orderBy === 'firstName') {
         // For firstName, also order by lastName and then email for consistent sorting
-        orderByClause = [direction(staff.firstName), direction(staff.lastName), direction(staff.email)];
+        orderByClause = [
+          direction(staff.firstName),
+          direction(staff.lastName),
+          direction(staff.email),
+        ];
       } else {
         const column = staff[orderBy];
         if (column) {
@@ -242,8 +266,8 @@ export async function listStaff(
 
     return { staff: staffData, totalCount };
   } catch (error) {
-    console.error("Failed to list staff:", error);
-    throw new Error("Could not list staff.");
+    console.error('Failed to list staff:', error);
+    throw new Error('Could not list staff.');
   }
 }
 
@@ -267,8 +291,8 @@ export async function updateStaffSignature(
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to update staff signature:", error);
-    throw new Error("Could not update staff member signature.");
+    console.error('Failed to update staff signature:', error);
+    throw new Error('Could not update staff member signature.');
   }
 }
 
@@ -279,7 +303,10 @@ export async function updateStaffSignature(
  * @param organizationId - The ID of the organization.
  * @returns The updated staff member object.
  */
-export async function setPrimaryStaff(id: number, organizationId: string): Promise<Staff | undefined> {
+export async function setPrimaryStaff(
+  id: number,
+  organizationId: string
+): Promise<Staff | undefined> {
   try {
     // Use a transaction to ensure atomicity
     return await db.transaction(async (tx) => {
@@ -299,8 +326,8 @@ export async function setPrimaryStaff(id: number, organizationId: string): Promi
       return result[0];
     });
   } catch (error) {
-    console.error("Failed to set primary staff:", error);
-    throw new Error("Could not set primary staff member.");
+    console.error('Failed to set primary staff:', error);
+    throw new Error('Could not set primary staff member.');
   }
 }
 
@@ -310,7 +337,10 @@ export async function setPrimaryStaff(id: number, organizationId: string): Promi
  * @param organizationId - The ID of the organization.
  * @returns The updated staff member object.
  */
-export async function unsetPrimaryStaff(id: number, organizationId: string): Promise<Staff | undefined> {
+export async function unsetPrimaryStaff(
+  id: number,
+  organizationId: string
+): Promise<Staff | undefined> {
   try {
     const result = await db
       .update(staff)
@@ -319,8 +349,8 @@ export async function unsetPrimaryStaff(id: number, organizationId: string): Pro
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to unset primary staff:", error);
-    throw new Error("Could not unset primary staff member.");
+    console.error('Failed to unset primary staff:', error);
+    throw new Error('Could not unset primary staff member.');
   }
 }
 
@@ -338,8 +368,8 @@ export async function getPrimaryStaff(organizationId: string): Promise<Staff | u
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to get primary staff:", error);
-    throw new Error("Could not get primary staff member.");
+    console.error('Failed to get primary staff:', error);
+    throw new Error('Could not get primary staff member.');
   }
 }
 
@@ -352,14 +382,14 @@ export async function getPrimaryStaff(organizationId: string): Promise<Staff | u
  * @returns The newly created email example object.
  */
 export async function createEmailExample(
-  emailExampleData: Omit<NewStaffEmailExample, "id" | "createdAt" | "updatedAt">
+  emailExampleData: Omit<NewStaffEmailExample, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<StaffEmailExample> {
   try {
     const result = await db.insert(staffEmailExamples).values(emailExampleData).returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to create email example:", error);
-    throw new Error("Could not create email example.");
+    console.error('Failed to create email example:', error);
+    throw new Error('Could not create email example.');
   }
 }
 
@@ -377,12 +407,17 @@ export async function getEmailExamplesByStaffId(
     const result = await db
       .select()
       .from(staffEmailExamples)
-      .where(and(eq(staffEmailExamples.staffId, staffId), eq(staffEmailExamples.organizationId, organizationId)))
+      .where(
+        and(
+          eq(staffEmailExamples.staffId, staffId),
+          eq(staffEmailExamples.organizationId, organizationId)
+        )
+      )
       .orderBy(desc(staffEmailExamples.createdAt));
     return result;
   } catch (error) {
-    console.error("Failed to retrieve email examples:", error);
-    throw new Error("Could not retrieve email examples.");
+    console.error('Failed to retrieve email examples:', error);
+    throw new Error('Could not retrieve email examples.');
   }
 }
 
@@ -400,12 +435,14 @@ export async function getEmailExampleById(
     const result = await db
       .select()
       .from(staffEmailExamples)
-      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)))
+      .where(
+        and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId))
+      )
       .limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to retrieve email example by ID:", error);
-    throw new Error("Could not retrieve email example.");
+    console.error('Failed to retrieve email example by ID:', error);
+    throw new Error('Could not retrieve email example.');
   }
 }
 
@@ -418,19 +455,23 @@ export async function getEmailExampleById(
  */
 export async function updateEmailExample(
   id: number,
-  emailExampleData: Partial<Omit<NewStaffEmailExample, "id" | "staffId" | "organizationId" | "createdAt" | "updatedAt">>,
+  emailExampleData: Partial<
+    Omit<NewStaffEmailExample, 'id' | 'staffId' | 'organizationId' | 'createdAt' | 'updatedAt'>
+  >,
   organizationId: string
 ): Promise<StaffEmailExample | undefined> {
   try {
     const result = await db
       .update(staffEmailExamples)
       .set({ ...emailExampleData, updatedAt: sql`now()` })
-      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)))
+      .where(
+        and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId))
+      )
       .returning();
     return result[0];
   } catch (error) {
-    console.error("Failed to update email example:", error);
-    throw new Error("Could not update email example.");
+    console.error('Failed to update email example:', error);
+    throw new Error('Could not update email example.');
   }
 }
 
@@ -443,10 +484,12 @@ export async function deleteEmailExample(id: number, organizationId: string): Pr
   try {
     await db
       .delete(staffEmailExamples)
-      .where(and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId)));
+      .where(
+        and(eq(staffEmailExamples.id, id), eq(staffEmailExamples.organizationId, organizationId))
+      );
   } catch (error) {
-    console.error("Failed to delete email example:", error);
-    throw new Error("Could not delete email example.");
+    console.error('Failed to delete email example:', error);
+    throw new Error('Could not delete email example.');
   }
 }
 
@@ -464,10 +507,48 @@ export async function countEmailExamplesByStaffId(
     const result = await db
       .select({ value: count() })
       .from(staffEmailExamples)
-      .where(and(eq(staffEmailExamples.staffId, staffId), eq(staffEmailExamples.organizationId, organizationId)));
+      .where(
+        and(
+          eq(staffEmailExamples.staffId, staffId),
+          eq(staffEmailExamples.organizationId, organizationId)
+        )
+      );
     return result[0]?.value || 0;
   } catch (error) {
-    console.error("Failed to count email examples:", error);
-    throw new Error("Could not count email examples.");
+    console.error('Failed to count email examples:', error);
+    throw new Error('Could not count email examples.');
+  }
+}
+
+/**
+ * Get staff member with Gmail token relation
+ */
+export async function getStaffMemberWithGmailToken(
+  staffId: number,
+  organizationId: string
+): Promise<any> {
+  try {
+    const staffMember = await db.query.staff.findFirst({
+      where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
+      with: {
+        gmailToken: true, // Include Gmail token relation
+      },
+    });
+    return staffMember;
+  } catch (error) {
+    console.error('Failed to get staff member with Gmail token:', error);
+    throw new Error('Could not retrieve staff member with Gmail token.');
+  }
+}
+
+/**
+ * Delete Gmail token for a staff member
+ */
+export async function deleteStaffGmailToken(staffId: number): Promise<void> {
+  try {
+    await db.delete(staffGmailTokens).where(eq(staffGmailTokens.staffId, staffId));
+  } catch (error) {
+    console.error('Failed to delete staff Gmail token:', error);
+    throw new Error('Could not delete staff Gmail token.');
   }
 }
