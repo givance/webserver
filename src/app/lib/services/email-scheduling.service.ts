@@ -8,6 +8,19 @@ import {
   staff,
   staffGmailTokens,
 } from '@/app/lib/db/schema';
+import {
+  getEmailScheduleConfig,
+  createEmailScheduleConfig,
+  updateEmailScheduleConfig,
+  createEmailSendJob,
+  getEmailSendJobs,
+  updateEmailSendJobStatus,
+  bulkCreateEmailSendJobs,
+  deleteEmailSendJobs,
+  getEmailsForScheduling,
+  updateGeneratedEmailSendStatus,
+  getDailyEmailCount,
+} from '@/app/lib/data/email-scheduling';
 import { logger } from '@/app/lib/logger';
 import { sendSingleEmailTask } from '@/trigger/jobs/sendSingleEmail';
 import { runs } from '@trigger.dev/sdk/v3';
@@ -38,35 +51,28 @@ export class EmailSchedulingService {
   async getOrCreateScheduleConfig(organizationId: string): Promise<EmailScheduleConfig> {
     try {
       // Try to get existing config
-      const existingConfig = await db
-        .select()
-        .from(emailScheduleConfig)
-        .where(eq(emailScheduleConfig.organizationId, organizationId))
-        .limit(1);
+      const existingConfig = await getEmailScheduleConfig(organizationId);
 
-      if (existingConfig[0]) {
-        return existingConfig[0];
+      if (existingConfig) {
+        return existingConfig;
       }
 
       // Create default config
-      const newConfig = await db
-        .insert(emailScheduleConfig)
-        .values({
-          organizationId,
-          dailyLimit: 150,
-          maxDailyLimit: 500,
-          minGapMinutes: 1,
-          maxGapMinutes: 3,
-          timezone: 'America/New_York',
-          allowedDays: [1, 2, 3, 4, 5], // Monday to Friday
-          allowedStartTime: '09:00',
-          allowedEndTime: '17:00',
-          allowedTimezone: 'America/New_York',
-        })
-        .returning();
+      const newConfig = await createEmailScheduleConfig({
+        organizationId,
+        dailyLimit: 150,
+        maxDailyLimit: 500,
+        minGapMinutes: 1,
+        maxGapMinutes: 3,
+        timezone: 'America/New_York',
+        allowedDays: [1, 2, 3, 4, 5], // Monday to Friday
+        allowedStartTime: '09:00',
+        allowedEndTime: '17:00',
+        allowedTimezone: 'America/New_York',
+      });
 
       logger.info(`Created default email schedule config for organization ${organizationId}`);
-      return newConfig[0];
+      return newConfig;
     } catch (error) {
       logger.error(
         `Failed to get/create schedule config: ${error instanceof Error ? error.message : String(error)}`
@@ -181,16 +187,9 @@ export class EmailSchedulingService {
         }
       }
 
-      const updatedConfig = await db
-        .update(emailScheduleConfig)
-        .set({
-          ...updates,
-          updatedAt: new Date(),
-        })
-        .where(eq(emailScheduleConfig.organizationId, organizationId))
-        .returning();
+      const updatedConfig = await updateEmailScheduleConfig(organizationId, updates);
 
-      if (!updatedConfig || updatedConfig.length === 0) {
+      if (!updatedConfig) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Schedule configuration not found',
@@ -206,7 +205,7 @@ export class EmailSchedulingService {
         logger.info(`Rescheduled ${rescheduleResult.rescheduled} email jobs`);
       }
 
-      return updatedConfig[0];
+      return updatedConfig;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
       logger.error(
