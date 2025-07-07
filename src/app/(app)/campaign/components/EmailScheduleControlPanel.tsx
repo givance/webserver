@@ -355,22 +355,22 @@ export function EmailScheduleControlPanel({
 
       {/* Schedule Configuration Dialog */}
       <AlertDialog open={showScheduleConfig} onOpenChange={setShowScheduleConfig}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <AlertDialogHeader className="flex-shrink-0">
             <AlertDialogTitle>Campaign Schedule Settings</AlertDialogTitle>
             <AlertDialogDescription>
               Configure schedule settings for this campaign. Changes will apply to any remaining
               emails that haven&apos;t been sent yet.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4">
+          <div className="flex-1 overflow-y-auto py-4 min-h-0">
             <CampaignScheduleConfig
               scheduleConfig={campaign?.session?.scheduleConfig as any}
               onChange={setScheduleConfig}
               compact={true}
             />
           </div>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
             <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleScheduleConfigSave}

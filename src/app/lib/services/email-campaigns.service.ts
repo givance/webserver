@@ -1051,63 +1051,49 @@ export class EmailCampaignsService {
 
       // If schedule config was updated and campaign has scheduled emails, reschedule them
       if (input.scheduleConfig !== undefined && isOnlyScheduleUpdate) {
-        // Cancel any existing scheduled send jobs for unsent emails
-        const cancelledCount = await db
-          .update(emailSendJobs)
-          .set({
-            status: 'cancelled',
-            processedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(
-            and(eq(emailSendJobs.sessionId, input.campaignId), eq(emailSendJobs.status, 'pending'))
-          );
+        try {
+          // Use the new EmailSchedulingService method to reschedule the campaign
+          const schedulingService = new EmailSchedulingService();
 
-        logger.info(
-          `Cancelled ${cancelledCount.rowCount} pending email send jobs for campaign ${input.campaignId} due to schedule update`
-        );
+          // Get current user ID from the session
+          const [session] = await db
+            .select({ userId: emailGenerationSessions.userId })
+            .from(emailGenerationSessions)
+            .where(eq(emailGenerationSessions.id, input.campaignId))
+            .limit(1);
 
-        // Reset sendStatus for unsent emails so they can be rescheduled
-        const resetCount = await db
-          .update(generatedEmails)
-          .set({
-            sendStatus: null,
-            sendJobId: null,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(generatedEmails.sessionId, input.campaignId),
-              eq(generatedEmails.isSent, false),
-              or(
-                eq(generatedEmails.sendStatus, 'scheduled'),
-                eq(generatedEmails.sendStatus, 'pending'),
-                eq(generatedEmails.sendStatus, 'paused')
-              )
-            )
-          );
+          if (!session) {
+            throw new Error('Session not found for rescheduling');
+          }
 
-        logger.info(
-          `Reset send status for ${resetCount.rowCount} unsent emails in campaign ${input.campaignId} for rescheduling`
-        );
-
-        // Check if there are any unsent emails at all (including those that might have been reset or are in null status)
-        const unsentEmails = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(generatedEmails)
-          .where(
-            and(eq(generatedEmails.sessionId, input.campaignId), eq(generatedEmails.isSent, false))
-          );
-
-        const unsentCount = Number(unsentEmails[0]?.count || 0);
-
-        // Automatically reschedule the emails with the new configuration if there are unsent emails
-        if (unsentCount > 0) {
+          // First pause the campaign to cancel existing jobs
           try {
-            const schedulingService = new EmailSchedulingService();
-            const rescheduleResult = await schedulingService.scheduleEmailSend(
+            await schedulingService.pauseCampaign(input.campaignId, organizationId);
+            logger.info(`Paused campaign ${input.campaignId} for rescheduling`);
+          } catch (pauseError) {
+            // If pause fails because there are no scheduled emails, that's fine
+            logger.info(`No scheduled emails to pause for campaign ${input.campaignId}`);
+          }
+
+          // Check if there are any unsent emails
+          const unsentEmails = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(generatedEmails)
+            .where(
+              and(
+                eq(generatedEmails.sessionId, input.campaignId),
+                eq(generatedEmails.isSent, false)
+              )
+            );
+
+          const unsentCount = Number(unsentEmails[0]?.count || 0);
+
+          // Reschedule the emails with the new configuration if there are unsent emails
+          if (unsentCount > 0) {
+            const rescheduleResult = await schedulingService.scheduleEmailCampaign(
               input.campaignId,
               organizationId,
+              session.userId,
               input.scheduleConfig
             );
 
@@ -1118,20 +1104,26 @@ export class EmailCampaignsService {
             return {
               success: true,
               campaign: updatedCampaign,
-              message: `Campaign schedule updated and ${rescheduleResult.scheduled} emails rescheduled successfully. ${rescheduleResult.scheduledForToday} will be sent today.`,
+              message: `Campaign schedule updated and ${rescheduleResult.scheduled} emails rescheduled successfully. ${rescheduleResult.scheduledForToday} will be sent today, ${rescheduleResult.scheduledForLater} scheduled for later.`,
             };
-          } catch (error) {
-            logger.error(
-              `Failed to reschedule emails after schedule update: ${error instanceof Error ? error.message : String(error)}`
-            );
-            // Even if rescheduling fails, the update was successful
+          } else {
             return {
               success: true,
               campaign: updatedCampaign,
-              message:
-                'Campaign schedule updated successfully. Please manually reschedule the emails.',
+              message: 'Campaign schedule updated successfully. No emails needed rescheduling.',
             };
           }
+        } catch (error) {
+          logger.error(
+            `Failed to reschedule emails after schedule update: ${error instanceof Error ? error.message : String(error)}`
+          );
+          // Even if rescheduling fails, the update was successful
+          return {
+            success: true,
+            campaign: updatedCampaign,
+            message:
+              'Campaign schedule updated successfully, but rescheduling failed. Please manually reschedule the emails.',
+          };
         }
       }
 
