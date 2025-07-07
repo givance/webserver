@@ -1032,7 +1032,7 @@ export class EmailCampaignsService {
         updateData.selectedDonorIds = input.selectedDonorIds;
         updateData.totalDonors = input.selectedDonorIds.length;
       }
-      if (input.previewDonorIds) {
+      if (input.previewDonorIds !== undefined) {
         updateData.previewDonorIds = input.previewDonorIds;
       }
       if (input.templateId !== undefined) {
@@ -1435,40 +1435,88 @@ export class EmailCampaignsService {
           `[smartEmailGeneration] Added ${input.newDonorIds.length} new donors to preview set`
         );
       } else if (input.mode === 'regenerate_all' || input.mode === 'generate_with_new_message') {
-        // Regenerate emails for existing preview donors
-        if (previewDonorIds.length === 0) {
-          // If no preview donors exist, randomly select 3-5 donors from selectedDonorIds
-          const selectedDonorIds = (existingSession.selectedDonorIds as number[]) || [];
-          if (selectedDonorIds.length === 0) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'No donors available for preview generation',
-            });
-          }
+        // For regenerate_all and generate_with_new_message, always use existing preview donors
+        // The preview donors should already be stored in the session from creation
 
-          // Use the same preview donor count as frontend
-          const numToSelect = Math.min(selectedDonorIds.length, PREVIEW_DONOR_COUNT);
-          const shuffled = [...selectedDonorIds].sort(() => Math.random() - 0.5);
-          const randomPreviewDonorIds = shuffled.slice(0, numToSelect);
+        logger.info(
+          `[smartEmailGeneration] Preview donors from session: ${JSON.stringify(previewDonorIds)}`
+        );
 
-          // Update the session with the new preview donor IDs
-          await db
-            .update(emailGenerationSessions)
-            .set({
-              previewDonorIds: randomPreviewDonorIds,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailGenerationSessions.id, input.sessionId));
-
+        if (previewDonorIds.length > 0) {
+          // Use existing preview donors from the session - this is the normal case
+          donorsToProcess = previewDonorIds;
           logger.info(
-            `[smartEmailGeneration] No preview donors found, randomly selected ${randomPreviewDonorIds.length} donors: ${JSON.stringify(
-              randomPreviewDonorIds
+            `[smartEmailGeneration] Using existing preview donors from session: ${JSON.stringify(
+              previewDonorIds
             )}`
           );
-
-          donorsToProcess = randomPreviewDonorIds;
         } else {
-          donorsToProcess = previewDonorIds;
+          // This should only happen if the session was created without preview donors
+          // Try to find existing preview donors from generated emails in this session first
+          const existingPreviewEmails = await db
+            .select({
+              donorId: generatedEmails.donorId,
+            })
+            .from(generatedEmails)
+            .where(
+              and(
+                eq(generatedEmails.sessionId, input.sessionId),
+                eq(generatedEmails.isPreview, true)
+              )
+            );
+
+          const existingPreviewDonorIds = [...new Set(existingPreviewEmails.map((e) => e.donorId))];
+
+          if (existingPreviewDonorIds.length > 0) {
+            // Use existing preview donors from previous emails
+            donorsToProcess = existingPreviewDonorIds;
+
+            // Update the session with the found preview donor IDs
+            await db
+              .update(emailGenerationSessions)
+              .set({
+                previewDonorIds: existingPreviewDonorIds,
+                updatedAt: new Date(),
+              })
+              .where(eq(emailGenerationSessions.id, input.sessionId));
+
+            logger.info(
+              `[smartEmailGeneration] Found existing preview donors from generated emails: ${JSON.stringify(
+                existingPreviewDonorIds
+              )}`
+            );
+          } else {
+            // Last resort: session has no preview donors, generate them now
+            const selectedDonorIds = (existingSession.selectedDonorIds as number[]) || [];
+            if (selectedDonorIds.length === 0) {
+              throw new TRPCError({
+                code: 'BAD_REQUEST',
+                message: 'No donors available for preview generation',
+              });
+            }
+
+            // Use the same preview donor count as frontend
+            const numToSelect = Math.min(selectedDonorIds.length, PREVIEW_DONOR_COUNT);
+            const shuffled = [...selectedDonorIds].sort(() => Math.random() - 0.5);
+            const randomPreviewDonorIds = shuffled.slice(0, numToSelect);
+
+            // Update the session with the new preview donor IDs
+            await db
+              .update(emailGenerationSessions)
+              .set({
+                previewDonorIds: randomPreviewDonorIds,
+                updatedAt: new Date(),
+              })
+              .where(eq(emailGenerationSessions.id, input.sessionId));
+
+            logger.info(
+              `[smartEmailGeneration] Session had no preview donors, randomly selected ${randomPreviewDonorIds.length} donors: ${JSON.stringify(
+                randomPreviewDonorIds
+              )}`
+            );
+
+            donorsToProcess = randomPreviewDonorIds;
+          }
         }
         shouldDeleteExisting = true;
       }
