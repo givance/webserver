@@ -1,10 +1,10 @@
-import { logger } from "@/app/lib/logger";
-import { AnswerSynthesisService } from "@/app/lib/services/person-research/answer-synthesis.service";
-import { QueryGenerationService } from "@/app/lib/services/person-research/query-generation.service";
-import { ReflectionService } from "@/app/lib/services/person-research/reflection.service";
-import { PersonResearchDatabaseService } from "@/app/lib/services/person-research/database.service";
-import { PersonIdentificationService } from "@/app/lib/services/person-research/person-identification.service";
-import { StructuredDataExtractionService } from "@/app/lib/services/person-research/structured-data-extraction.service";
+import { logger } from '@/app/lib/logger';
+import { AnswerSynthesisService } from '@/app/lib/services/person-research/answer-synthesis.service';
+import { QueryGenerationService } from '@/app/lib/services/person-research/query-generation.service';
+import { ReflectionService } from '@/app/lib/services/person-research/reflection.service';
+import { PersonResearchDatabaseService } from '@/app/lib/services/person-research/database.service';
+import { PersonIdentificationService } from '@/app/lib/services/person-research/person-identification.service';
+import { StructuredDataExtractionService } from '@/app/lib/services/person-research/structured-data-extraction.service';
 import {
   PersonResearchInput,
   PersonResearchResult,
@@ -19,12 +19,9 @@ import {
   DonorInfo,
   PersonIdentity,
   PersonResearchData,
-} from "@/app/lib/services/person-research/types";
-import { WebSearchService } from "@/app/lib/services/person-research/web-search.service";
-import { getDonorById } from "@/app/lib/data/donors";
-import { db } from "@/app/lib/db";
-import { donors } from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
+} from '@/app/lib/services/person-research/types';
+import { WebSearchService } from '@/app/lib/services/person-research/web-search.service';
+import { getDonorById, updateDonorHighPotentialFlag } from '@/app/lib/data/donors';
 
 /**
  * PersonResearchService - Main service for iterative web research on individuals
@@ -65,12 +62,14 @@ export class PersonResearchService {
       if (donor) {
         donorInfo = {
           fullName: `${donor.firstName} ${donor.lastName}`.trim(),
-          location: donor.address ? `${donor.address}${donor.state ? `, ${donor.state}` : ""}` : undefined,
+          location: donor.address
+            ? `${donor.address}${donor.state ? `, ${donor.state}` : ''}`
+            : undefined,
           notes: (() => {
             if (!donor.notes) return undefined;
             if (typeof donor.notes === 'string') return donor.notes;
             if (Array.isArray(donor.notes) && donor.notes.length > 0) {
-              return donor.notes.map(note => note.content).join('. ');
+              return donor.notes.map((note) => note.content).join('. ');
             }
             return undefined;
           })(),
@@ -79,7 +78,9 @@ export class PersonResearchService {
           state: donor.state || undefined,
         };
 
-        logger.info(`Using donor information for enhanced person identification: ${donorInfo.fullName}`);
+        logger.info(
+          `Using donor information for enhanced person identification: ${donorInfo.fullName}`
+        );
       }
     }
 
@@ -97,15 +98,10 @@ export class PersonResearchService {
 
     // Update donor record with high potential flag
     try {
-      await db
-        .update(donors)
-        .set({
-          highPotentialDonor: result.structuredData.highPotentialDonor,
-          updatedAt: new Date(),
-        })
-        .where(eq(donors.id, donorId));
-
-      logger.info(`Updated donor ${donorId} with high potential flag: ${result.structuredData.highPotentialDonor}`);
+      await updateDonorHighPotentialFlag(donorId, result.structuredData.highPotentialDonor);
+      logger.info(
+        `Updated donor ${donorId} with high potential flag: ${result.structuredData.highPotentialDonor}`
+      );
     } catch (error) {
       logger.error(
         `Failed to update donor ${donorId} with research results: ${
@@ -115,7 +111,9 @@ export class PersonResearchService {
       // Don't throw error - research was still successful
     }
 
-    logger.info(`Successfully conducted and saved person research for donor ${donorId}, research ID: ${dbRecord.id}`);
+    logger.info(
+      `Successfully conducted and saved person research for donor ${donorId}, research ID: ${dbRecord.id}`
+    );
 
     return { result, dbRecord };
   }
@@ -151,7 +149,10 @@ export class PersonResearchService {
    * @param organizationId - The organization ID
    * @returns Array of research records
    */
-  async getAllPersonResearchVersions(donorId: number, organizationId: string): Promise<PersonResearchDBRecord[]> {
+  async getAllPersonResearchVersions(
+    donorId: number,
+    organizationId: string
+  ): Promise<PersonResearchDBRecord[]> {
     return this.databaseService.getAllPersonResearchVersions(donorId, organizationId);
   }
 
@@ -171,7 +172,10 @@ export class PersonResearchService {
    * @param donorInfo - Optional donor information for improved person identification
    * @returns Comprehensive research results with citations
    */
-  async conductPersonResearch(input: PersonResearchInput, donorInfo?: DonorInfo | null): Promise<PersonResearchResult> {
+  async conductPersonResearch(
+    input: PersonResearchInput,
+    donorInfo?: DonorInfo | null
+  ): Promise<PersonResearchResult> {
     this.validateInput(input);
 
     const { researchTopic, organizationId, userId } = input;
@@ -192,7 +196,9 @@ export class PersonResearchService {
       let queries: ResearchQuery[] = [];
 
       // Stage 1: Initial Query Generation
-      logger.info(`[Research Loop ${currentLoop + 1}] Generating initial search queries for: "${researchTopic}"`);
+      logger.info(
+        `[Research Loop ${currentLoop + 1}] Generating initial search queries for: "${researchTopic}"`
+      );
 
       const initialQueries = await this.queryGenerationService.generateQueries({
         researchTopic,
@@ -202,15 +208,22 @@ export class PersonResearchService {
       });
 
       // Accumulate query generation tokens
-      tokenUsage.queryGeneration = addTokenUsage(tokenUsage.queryGeneration, initialQueries.tokenUsage);
+      tokenUsage.queryGeneration = addTokenUsage(
+        tokenUsage.queryGeneration,
+        initialQueries.tokenUsage
+      );
 
       queries = initialQueries.queries;
-      logger.info(`Generated ${queries.length} initial queries: ${queries.map((q) => q.query).join(", ")}`);
+      logger.info(
+        `Generated ${queries.length} initial queries: ${queries.map((q) => q.query).join(', ')}`
+      );
 
       // Research Loop - Continue until sufficient or max loops reached
       while (currentLoop < this.MAX_RESEARCH_LOOPS) {
         currentLoop++;
-        logger.info(`[Research Loop ${currentLoop}] Starting web research with ${queries.length} queries`);
+        logger.info(
+          `[Research Loop ${currentLoop}] Starting web research with ${queries.length} queries`
+        );
 
         // Stage 2: Web Research
         const searchResults = await this.webSearchService.conductParallelSearch({
@@ -223,11 +236,16 @@ export class PersonResearchService {
         if (currentLoop === 1 && donorInfo && !personIdentity) {
           try {
             // Get some initial search results to help with identification
-            const initialSearchResults = searchResults.results.flatMap((r) => r.sources).slice(0, 3); // Just use a few results
+            const initialSearchResults = searchResults.results
+              .flatMap((r) => r.sources)
+              .slice(0, 3); // Just use a few results
 
             // Extract person identity
             const { identity, tokenUsage: identityTokenUsage } =
-              await this.personIdentificationService.extractPersonIdentity(donorInfo, initialSearchResults);
+              await this.personIdentificationService.extractPersonIdentity(
+                donorInfo,
+                initialSearchResults
+              );
 
             personIdentity = identity;
 
@@ -251,14 +269,17 @@ export class PersonResearchService {
         }
 
         // Accumulate web search summary tokens
-        tokenUsage.webSearchSummaries = addTokenUsage(tokenUsage.webSearchSummaries, searchResults.totalTokenUsage);
+        tokenUsage.webSearchSummaries = addTokenUsage(
+          tokenUsage.webSearchSummaries,
+          searchResults.totalTokenUsage
+        );
 
         // Add results to our collection
         allSummaries.push(...searchResults.results);
 
         const filteredMsg = searchResults.totalFilteredSources
           ? ` (${searchResults.totalFilteredSources} sources filtered out as irrelevant)`
-          : "";
+          : '';
 
         logger.info(
           `[Research Loop ${currentLoop}] Collected ${searchResults.results.length} search results with ${searchResults.totalSources} sources${filteredMsg} (total summaries: ${allSummaries.length})`
@@ -296,17 +317,24 @@ export class PersonResearchService {
             });
 
             // Accumulate additional query generation tokens
-            tokenUsage.queryGeneration = addTokenUsage(tokenUsage.queryGeneration, followUpQueries.tokenUsage);
+            tokenUsage.queryGeneration = addTokenUsage(
+              tokenUsage.queryGeneration,
+              followUpQueries.tokenUsage
+            );
 
             queries = followUpQueries.queries;
           } else {
-            logger.info(`[Research Loop ${currentLoop}] No follow-up queries generated, ending research`);
+            logger.info(
+              `[Research Loop ${currentLoop}] No follow-up queries generated, ending research`
+            );
             break;
           }
         }
       }
 
-      logger.info(`Research completed after ${currentLoop} loops with ${allSummaries.length} total summaries`);
+      logger.info(
+        `Research completed after ${currentLoop} loops with ${allSummaries.length} total summaries`
+      );
 
       // Stage 5: Answer Synthesis
       logger.info(`Synthesizing final answer from ${allSummaries.length} research summaries`);
@@ -317,16 +345,21 @@ export class PersonResearchService {
       });
 
       // Accumulate answer synthesis tokens
-      tokenUsage.answerSynthesis = addTokenUsage(tokenUsage.answerSynthesis, finalAnswer.tokenUsage);
+      tokenUsage.answerSynthesis = addTokenUsage(
+        tokenUsage.answerSynthesis,
+        finalAnswer.tokenUsage
+      );
 
       // Stage 6: Structured Data Extraction
       logger.info(`Extracting structured data from research results`);
 
-      const structuredDataResult = await this.structuredDataExtractionService.extractStructuredData({
-        answer: finalAnswer.answer,
-        summaries: allSummaries,
-        researchTopic,
-      });
+      const structuredDataResult = await this.structuredDataExtractionService.extractStructuredData(
+        {
+          answer: finalAnswer.answer,
+          summaries: allSummaries,
+          researchTopic,
+        }
+      );
 
       // Accumulate structured data extraction tokens
       tokenUsage.structuredDataExtraction = addTokenUsage(
@@ -371,7 +404,7 @@ export class PersonResearchService {
 
       const identificationLog = tokenUsage.personIdentification
         ? `, Person Identification: ${tokenUsage.personIdentification.totalTokens} tokens (${tokenUsage.personIdentification.promptTokens} input, ${tokenUsage.personIdentification.completionTokens} output)`
-        : "";
+        : '';
 
       logger.info(
         `Token usage summary for "${researchTopic}": Query Generation: ${tokenUsage.queryGeneration.totalTokens} tokens (${tokenUsage.queryGeneration.promptTokens} input, ${tokenUsage.queryGeneration.completionTokens} output), Web Search Summaries: ${tokenUsage.webSearchSummaries.totalTokens} tokens (${tokenUsage.webSearchSummaries.promptTokens} input, ${tokenUsage.webSearchSummaries.completionTokens} output), Reflection: ${tokenUsage.reflection.totalTokens} tokens (${tokenUsage.reflection.promptTokens} input, ${tokenUsage.reflection.completionTokens} output), Answer Synthesis: ${tokenUsage.answerSynthesis.totalTokens} tokens (${tokenUsage.answerSynthesis.promptTokens} input, ${tokenUsage.answerSynthesis.completionTokens} output), Structured Data Extraction: ${tokenUsage.structuredDataExtraction.totalTokens} tokens (${tokenUsage.structuredDataExtraction.promptTokens} input, ${tokenUsage.structuredDataExtraction.completionTokens} output)${identificationLog}, TOTAL: ${tokenUsage.total.totalTokens} tokens (${tokenUsage.total.promptTokens} input, ${tokenUsage.total.completionTokens} output)`
@@ -382,7 +415,9 @@ export class PersonResearchService {
       logger.error(
         `Person research failed for topic "${researchTopic}": ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new Error(`Failed to conduct person research: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Failed to conduct person research: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -391,15 +426,15 @@ export class PersonResearchService {
    */
   private validateInput(input: PersonResearchInput): void {
     if (!input.researchTopic?.trim()) {
-      throw new Error("Research topic is required");
+      throw new Error('Research topic is required');
     }
 
     if (!input.organizationId?.trim()) {
-      throw new Error("Organization ID is required");
+      throw new Error('Organization ID is required');
     }
 
     if (!input.userId?.trim()) {
-      throw new Error("User ID is required");
+      throw new Error('User ID is required');
     }
   }
 }

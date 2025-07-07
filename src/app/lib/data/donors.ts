@@ -1200,3 +1200,24 @@ export async function updateDonorPredictedActions(
     throw new Error('Could not update donor predicted actions.');
   }
 }
+
+/**
+ * Updates a donor's high potential flag
+ */
+export async function updateDonorHighPotentialFlag(
+  donorId: number,
+  highPotentialDonor: boolean
+): Promise<void> {
+  try {
+    await db
+      .update(donors)
+      .set({
+        highPotentialDonor: highPotentialDonor,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(donors.id, donorId));
+  } catch (error) {
+    console.error('Failed to update donor high potential flag:', error);
+    throw new Error('Could not update donor high potential flag.');
+  }
+}
