@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -10,14 +10,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
-import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { Eye } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface EmailPiece {
   piece: string;
@@ -30,8 +30,12 @@ interface EmailEditModalProps {
   onOpenChange: (open: boolean) => void;
   emailId: number;
   initialSubject: string;
-  initialContent: EmailPiece[];
-  initialReferenceContexts: Record<string, string>;
+  // Legacy format fields (optional for backward compatibility)
+  initialContent?: EmailPiece[];
+  initialReferenceContexts?: Record<string, string>;
+  // New format fields
+  initialEmailContent?: string;
+  initialReasoning?: string;
   donorName: string;
   donorEmail: string;
 }
@@ -41,34 +45,39 @@ export function EmailEditModal({
   onOpenChange,
   emailId,
   initialSubject,
-  initialContent,
-  initialReferenceContexts,
+  initialContent = [],
+  initialReferenceContexts = {},
+  initialEmailContent,
+  initialReasoning,
   donorName,
   donorEmail,
 }: EmailEditModalProps) {
   const { updateEmail } = useCommunications();
   const [subject, setSubject] = useState(initialSubject);
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState('');
   const [referenceContexts, setReferenceContexts] = useState(initialReferenceContexts);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Determine which format we're working with
+  const isNewFormat = initialEmailContent !== undefined;
 
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Remove signature pieces
     const contentWithoutSignature = structuredContent.filter(
-      (piece) => !piece.references?.includes("signature")
+      (piece) => !piece.references?.includes('signature')
     );
 
     return contentWithoutSignature
-      .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
-      .join("")
+      .map((piece) => piece.piece + (piece.addNewlineAfter ? '\n\n' : ''))
+      .join('')
       .trim();
   };
 
   // Convert plain text to structured content
   const plainTextToStructured = (text: string): EmailPiece[] => {
     if (!text.trim()) {
-      return [{ piece: "", references: [], addNewlineAfter: false }];
+      return [{ piece: '', references: [], addNewlineAfter: false }];
     }
 
     // Split by double newlines to create paragraphs
@@ -85,37 +94,56 @@ export function EmailEditModal({
   useEffect(() => {
     if (open) {
       setSubject(initialSubject);
-      setContent(structuredToPlainText(initialContent));
+
+      if (initialEmailContent !== undefined) {
+        // For new format, use the plain email content directly
+        setContent(initialEmailContent || '');
+      } else {
+        // For legacy format, convert structured content to plain text
+        setContent(structuredToPlainText(initialContent));
+      }
+
       setReferenceContexts(initialReferenceContexts);
       setShowPreview(false);
     }
-  }, [open, initialSubject, initialContent, initialReferenceContexts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Only depend on open to prevent infinite loops from object dependencies
 
   const handleSave = async () => {
     if (!subject.trim()) {
-      toast.error("Subject is required");
+      toast.error('Subject is required');
       return;
     }
 
     if (!content.trim()) {
-      toast.error("Email content is required");
+      toast.error('Email content is required');
       return;
     }
 
-    const structuredContent = plainTextToStructured(content);
-    // Signature will be appended automatically when displaying/sending
-
     try {
-      await updateEmail.mutateAsync({
-        emailId,
-        subject,
-        structuredContent,
-        referenceContexts,
-      });
-      toast.success("Email updated successfully");
+      if (isNewFormat) {
+        // Send new format
+        await updateEmail.mutateAsync({
+          emailId,
+          subject,
+          emailContent: content,
+          reasoning: initialReasoning, // Preserve the original reasoning
+        });
+      } else {
+        // Send legacy format
+        const structuredContent = plainTextToStructured(content);
+        await updateEmail.mutateAsync({
+          emailId,
+          subject,
+          structuredContent,
+          referenceContexts,
+        });
+      }
+
+      toast.success('Email updated successfully');
       onOpenChange(false);
     } catch (error) {
-      toast.error("Failed to update email.");
+      toast.error('Failed to update email.');
     }
   };
 
@@ -136,12 +164,12 @@ export function EmailEditModal({
             <div className="space-y-2 text-sm font-sans">
               {previewStructured.map((piece, index) => {
                 // Check if this is signature content or contains HTML
-                const isSignature = piece.references.includes("signature");
+                const isSignature = piece.references.includes('signature');
                 const containsHTML = /<[^>]+>/.test(piece.piece);
                 const shouldRenderHTML = isSignature || containsHTML;
 
                 return (
-                  <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                  <div key={index} className={piece.addNewlineAfter ? 'mb-4' : ''}>
                     {shouldRenderHTML ? (
                       <div
                         className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
@@ -172,10 +200,18 @@ export function EmailEditModal({
 
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="flex gap-2 mb-4 flex-shrink-0">
-            <Button variant={!showPreview ? "default" : "outline"} size="sm" onClick={() => setShowPreview(false)}>
+            <Button
+              variant={!showPreview ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowPreview(false)}
+            >
               Edit
             </Button>
-            <Button variant={showPreview ? "default" : "outline"} size="sm" onClick={() => setShowPreview(true)}>
+            <Button
+              variant={showPreview ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowPreview(true)}
+            >
               <Eye className="h-4 w-4 mr-2" />
               Preview
             </Button>
@@ -224,7 +260,7 @@ export function EmailEditModal({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={updateEmail.isPending}>
-            {updateEmail.isPending ? "Saving..." : "Save Changes"}
+            {updateEmail.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

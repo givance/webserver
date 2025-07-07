@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Sparkles } from "lucide-react";
-import { toast } from "sonner";
-import { useCommunications } from "@/app/hooks/use-communications";
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { useCommunications } from '@/app/hooks/use-communications';
 
 interface EmailPiece {
   piece: string;
@@ -47,41 +47,46 @@ export function EmailEnhanceButton({
   onPreviewEnhance,
 }: EmailEnhanceButtonProps) {
   const [open, setOpen] = useState(false);
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState('');
   const { smartEmailGeneration, getSession } = useCommunications();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleEnhance = async () => {
     if (!instruction.trim()) {
-      toast.error("Please enter enhancement instructions");
-      return;
-    }
-
-    if (!sessionId) {
-      toast.error("No session found");
+      toast.error('Please enter enhancement instructions');
       return;
     }
 
     try {
       setIsLoading(true);
 
-      // Use smartEmailGeneration with generate_with_new_message mode
-      const result = await smartEmailGeneration.mutateAsync({
-        sessionId,
-        mode: "generate_with_new_message",
-        newMessage: instruction,
-      });
-
-      if (result.success) {
-        toast.success("Email enhanced successfully!");
-        setInstruction("");
+      if (isPreviewMode && onPreviewEnhance) {
+        // Preview mode: Use the callback provided by the parent
+        onPreviewEnhance(instruction);
+        toast.success('Enhancement instruction noted!');
+        setInstruction('');
         setOpen(false);
+      } else if (!isPreviewMode && sessionId) {
+        // Normal mode: Use smartEmailGeneration with generate_with_new_message mode
+        const result = await smartEmailGeneration.mutateAsync({
+          sessionId,
+          mode: 'generate_with_new_message',
+          newMessage: instruction,
+        });
+
+        if (result.success) {
+          toast.success('Email enhanced successfully!');
+          setInstruction('');
+          setOpen(false);
+        } else {
+          toast.error('Failed to enhance email');
+        }
       } else {
-        toast.error("Failed to enhance email");
+        toast.error('Enhancement not available in this mode');
       }
     } catch (error) {
-      console.error("Error enhancing email:", error);
-      toast.error("Failed to enhance email");
+      console.error('Error enhancing email:', error);
+      toast.error('Failed to enhance email');
     } finally {
       setIsLoading(false);
     }
@@ -104,8 +109,8 @@ export function EmailEnhanceButton({
           <DialogHeader>
             <DialogTitle>AI Email Enhancement</DialogTitle>
             <DialogDescription>
-              Describe how you&apos;d like to enhance this email. The AI will modify it while preserving the core
-              message.
+              Describe how you&apos;d like to enhance this email. The AI will modify it while
+              preserving the core message.
             </DialogDescription>
           </DialogHeader>
 
@@ -119,7 +124,7 @@ export function EmailEnhanceButton({
                   onChange={(e) => setInstruction(e.target.value)}
                   placeholder="e.g., Add a warm greeting, make it more personal, mention their last donation..."
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       handleEnhance();
                     }
@@ -127,8 +132,8 @@ export function EmailEnhanceButton({
                   autoFocus
                 />
                 <p className="text-xs text-muted-foreground">
-                  Examples: &quot;Add one line of greeting&quot;, &quot;Make the tone more friendly&quot;, &quot;Include
-                  a personal touch&quot;
+                  Examples: &quot;Add one line of greeting&quot;, &quot;Make the tone more
+                  friendly&quot;, &quot;Include a personal touch&quot;
                 </p>
               </div>
 
@@ -140,12 +145,12 @@ export function EmailEnhanceButton({
                   <div className="space-y-2 text-sm font-sans">
                     {currentContent.map((piece, index) => {
                       // Check if this is signature content or contains HTML
-                      const isSignature = piece.references?.includes("signature") || false;
+                      const isSignature = piece.references?.includes('signature') || false;
                       const containsHTML = /<[^>]+>/.test(piece.piece);
                       const shouldRenderHTML = isSignature || containsHTML;
 
                       return (
-                        <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                        <div key={index} className={piece.addNewlineAfter ? 'mb-4' : ''}>
                           {shouldRenderHTML ? (
                             <div
                               className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
@@ -167,8 +172,11 @@ export function EmailEnhanceButton({
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEnhance} disabled={smartEmailGeneration.isPending || !instruction.trim()}>
-              {smartEmailGeneration.isPending ? "Enhancing..." : "Enhance Email"}
+            <Button
+              onClick={handleEnhance}
+              disabled={smartEmailGeneration.isPending || !instruction.trim()}
+            >
+              {smartEmailGeneration.isPending ? 'Enhancing...' : 'Enhance Email'}
             </Button>
           </DialogFooter>
         </DialogContent>

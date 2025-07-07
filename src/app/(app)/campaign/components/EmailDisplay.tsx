@@ -1,15 +1,26 @@
-import { useCommunications } from "@/app/hooks/use-communications";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Edit, Check, Clock, Sparkles, AlertCircle, Info, HelpCircle, DollarSign, Calendar, Hash } from "lucide-react";
-import Link from "next/link";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { EmailEditModal } from "./EmailEditModal";
-import { EmailSendButton } from "./EmailSendButton";
-import { EmailTrackingStatus } from "./EmailTrackingStatus";
-import { EmailEnhanceButton } from "./EmailEnhanceButton";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Edit,
+  Check,
+  Clock,
+  Sparkles,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  DollarSign,
+  Calendar,
+  Hash,
+} from 'lucide-react';
+import Link from 'next/link';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { EmailEditModal } from './EmailEditModal';
+import { EmailSendButton } from './EmailSendButton';
+import { EmailTrackingStatus } from './EmailTrackingStatus';
+import { EmailEnhanceButton } from './EmailEnhanceButton';
 import {
   Dialog,
   DialogContent,
@@ -17,11 +28,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { trpc } from "@/app/lib/trpc/client";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { trpc } from '@/app/lib/trpc/client';
 
 interface EmailPiece {
   piece: string;
@@ -44,14 +55,14 @@ interface EmailDisplayProps {
   sessionId?: number;
   showSendButton?: boolean; // Control whether to show the send button
   showEditButton?: boolean; // Control whether to show the edit button
-  approvalStatus?: "PENDING_APPROVAL" | "APPROVED";
-  onStatusChange?: (emailId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
+  approvalStatus?: 'PENDING_APPROVAL' | 'APPROVED';
+  onStatusChange?: (emailId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => void;
   isUpdatingStatus?: boolean;
   // Preview mode props
   isPreviewMode?: boolean; // When true, enables edit/enhance without emailId
   onPreviewEdit?: (donorId: number, subject: string, content: EmailPiece[]) => void;
   onPreviewEnhance?: (donorId: number, instruction: string) => void;
-  onPreviewStatusChange?: (donorId: number, status: "PENDING_APPROVAL" | "APPROVED") => void;
+  onPreviewStatusChange?: (donorId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => void;
   // Staff information
   staffName?: string;
   staffEmail?: string | null;
@@ -87,23 +98,25 @@ function PreviewEditModal({
   onSave,
 }: PreviewEditModalProps) {
   const [subject, setSubject] = useState(initialSubject);
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState('');
 
   // Convert structured content to plain text (excluding signatures)
   const structuredToPlainText = (structuredContent: EmailPiece[]): string => {
     // Remove signature pieces
-    const contentWithoutSignature = structuredContent.filter((piece) => !piece.references?.includes("signature"));
+    const contentWithoutSignature = structuredContent.filter(
+      (piece) => !piece.references?.includes('signature')
+    );
 
     return contentWithoutSignature
-      .map((piece) => piece.piece + (piece.addNewlineAfter ? "\n\n" : ""))
-      .join("")
+      .map((piece) => piece.piece + (piece.addNewlineAfter ? '\n\n' : ''))
+      .join('')
       .trim();
   };
 
   // Convert plain text to structured content
   const plainTextToStructured = (text: string): EmailPiece[] => {
     if (!text.trim()) {
-      return [{ piece: "", references: [], addNewlineAfter: false }];
+      return [{ piece: '', references: [], addNewlineAfter: false }];
     }
 
     // Split by double newlines to create paragraphs
@@ -122,7 +135,8 @@ function PreviewEditModal({
       setSubject(initialSubject);
       setContent(structuredToPlainText(initialContent));
     }
-  }, [open, initialSubject, initialContent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Only depend on open to prevent infinite loops from object dependencies
 
   const handleSave = () => {
     const structuredContent = plainTextToStructured(content);
@@ -160,7 +174,9 @@ function PreviewEditModal({
                 placeholder="Enter email content..."
                 className="flex-1 min-h-0 resize-none w-full"
               />
-              <p className="text-xs text-muted-foreground flex-shrink-0">Use double line breaks to create paragraphs</p>
+              <p className="text-xs text-muted-foreground flex-shrink-0">
+                Use double line breaks to create paragraphs
+              </p>
             </div>
           </div>
         </div>
@@ -222,7 +238,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   sessionId,
   showSendButton = true,
   showEditButton = true,
-  approvalStatus = "PENDING_APPROVAL",
+  approvalStatus = 'PENDING_APPROVAL',
   onStatusChange,
   isUpdatingStatus = false,
   isPreviewMode = false,
@@ -251,18 +267,18 @@ export const EmailDisplay = React.memo(function EmailDisplay({
 
   // Helper functions for donation tooltip
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
     }).format(amount / 100); // Convert cents to dollars
   };
 
   const formatDate = (date: string | Date) => {
     const d = new Date(date);
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
     });
   };
 
@@ -281,8 +297,8 @@ export const EmailDisplay = React.memo(function EmailDisplay({
         const donationsResult = await utils.donations.list.fetch({
           donorId,
           limit: 20,
-          orderBy: "date",
-          orderDirection: "desc",
+          orderBy: 'date',
+          orderDirection: 'desc',
           includeProject: true,
         });
 
@@ -298,24 +314,38 @@ export const EmailDisplay = React.memo(function EmailDisplay({
         setIsLoadingDonations(false);
       }
     },
-    [utils.donations.list, utils.donations.getDonorStats, isLoadingDonations, donorDonations]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [utils.donations.list, utils.donations.getDonorStats, isLoadingDonations]
+    // donorDonations intentionally excluded to prevent infinite callback recreation
   );
 
-  // Determine which format to use
-  const isNewFormat = emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
-  const isLegacyFormat = content !== undefined && content.length > 0;
+  // Determine which format to use - memoized to prevent re-computations
+  const isNewFormat = useMemo(() => {
+    return emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
+  }, [emailContent]);
+
+  const isLegacyFormat = useMemo(() => {
+    return content !== undefined && content.length > 0;
+  }, [content]);
 
   // Get email status to check if sent - only query if emailId exists
-  const { data: emailStatus } = getEmailStatus({ emailId: emailId || 0 }, { enabled: !!emailId && emailId > 0 });
+  const { data: emailStatus } = getEmailStatus(
+    { emailId: emailId || 0 },
+    { enabled: !!emailId && emailId > 0 }
+  );
 
   // Convert new format (type/content) to legacy format (piece/references/addNewlineAfter)
-  const convertToLegacyFormat = (content: any[]): EmailPiece[] => {
+  const convertToLegacyFormat = useCallback((content: any[]): EmailPiece[] => {
     return content.map((item) => {
       // If it's already in legacy format, return as-is
-      if (item.piece !== undefined && item.references !== undefined && item.addNewlineAfter !== undefined) {
+      if (
+        item.piece !== undefined &&
+        item.references !== undefined &&
+        item.addNewlineAfter !== undefined
+      ) {
         return item as EmailPiece;
       }
-      
+
       // If it's in new format, convert it
       if (item.type && item.content) {
         return {
@@ -324,7 +354,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
           addNewlineAfter: true, // Default to true for paragraph breaks
         };
       }
-      
+
       // Fallback for malformed data
       return {
         piece: typeof item === 'string' ? item : JSON.stringify(item),
@@ -332,19 +362,25 @@ export const EmailDisplay = React.memo(function EmailDisplay({
         addNewlineAfter: true,
       };
     });
-  };
+  }, []);
 
-  // For legacy format, we may need to fetch signature separately
-  const displayContent = isPreviewMode ? previewContent : content || [];
-  const legacyFormatContent = convertToLegacyFormat(displayContent);
-  
+  // For legacy format, we may need to fetch signature separately - memoized to prevent query refetches
+  const displayContent = useMemo(() => {
+    return isPreviewMode ? previewContent : content || [];
+  }, [isPreviewMode, previewContent, content]);
+
+  const legacyFormatContent = useMemo(() => {
+    return convertToLegacyFormat(displayContent);
+  }, [convertToLegacyFormat, displayContent]);
+
   const { data: signatureData } = trpc.emailCampaigns.getEmailWithSignature.useQuery(
     {
       donorId: donorId || 0,
       structuredContent: legacyFormatContent,
     },
     {
-      enabled: !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat && !isPreviewMode,
+      enabled:
+        !!donorId && displayContent.length > 0 && isLegacyFormat && !isNewFormat && !isPreviewMode,
       staleTime: 10 * 60 * 1000, // Cache for 10 minutes
       gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
       refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
@@ -353,23 +389,26 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   );
 
   // For new format, fetch plain text email content with signature
-  const { data: plainTextSignatureData } = trpc.emailCampaigns.getPlainTextEmailWithSignature.useQuery(
-    {
-      donorId: donorId || 0,
-      emailContent: emailContent || "",
-    },
-    {
-      enabled: !!donorId && !!emailContent && isNewFormat && !isPreviewMode,
-      staleTime: 10 * 60 * 1000, // Cache for 10 minutes
-      gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
-      refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
-      refetchOnMount: false, // Prevent refetch on mount if data exists
-    }
-  );
+  const { data: plainTextSignatureData } =
+    trpc.emailCampaigns.getPlainTextEmailWithSignature.useQuery(
+      {
+        donorId: donorId || 0,
+        emailContent: emailContent || '',
+      },
+      {
+        enabled: !!donorId && !!emailContent && isNewFormat && !isPreviewMode,
+        staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+        gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+        refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
+        refetchOnMount: false, // Prevent refetch on mount if data exists
+      }
+    );
 
   // Use signature-appended content for legacy format when available, otherwise use converted content
   const contentWithSignature =
-    signatureData && isLegacyFormat && !isNewFormat ? signatureData.structuredContent : legacyFormatContent;
+    signatureData && isLegacyFormat && !isNewFormat
+      ? signatureData.structuredContent
+      : legacyFormatContent;
 
   // Use signature-appended content for new format when available
   const emailContentWithSignature =
@@ -400,24 +439,34 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                             <HelpCircle className="h-3 w-3 text-muted-foreground opacity-60 cursor-help" />
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" align="start" className="max-w-sm p-0 bg-background border">
+                        <TooltipContent
+                          side="bottom"
+                          align="start"
+                          className="max-w-sm p-0 bg-background border"
+                        >
                           <div className="p-4 space-y-3">
                             <div className="font-semibold text-sm border-b pb-2">{donorName}</div>
 
                             {isLoadingDonations ? (
-                              <div className="text-sm text-gray-600 dark:text-gray-400">Loading donations...</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                Loading donations...
+                              </div>
                             ) : donorDonations ? (
                               <>
                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                   <div>
-                                    <div className="text-gray-600 dark:text-gray-400">Total Donations</div>
+                                    <div className="text-gray-600 dark:text-gray-400">
+                                      Total Donations
+                                    </div>
                                     <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
                                       <Hash className="h-3 w-3 text-gray-600 dark:text-gray-400" />
                                       {donorDonations.totalCount || 0}
                                     </div>
                                   </div>
                                   <div>
-                                    <div className="text-gray-600 dark:text-gray-400">Total Amount</div>
+                                    <div className="text-gray-600 dark:text-gray-400">
+                                      Total Amount
+                                    </div>
                                     <div className="font-semibold flex items-center gap-1 text-gray-900 dark:text-gray-100">
                                       <DollarSign className="h-3 w-3 text-gray-600 dark:text-gray-400" />
                                       {formatCurrency(donorDonations.totalAmount || 0)}
@@ -431,33 +480,37 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                                       Recent Donations
                                     </div>
                                     <div className="max-h-48 overflow-y-auto space-y-1">
-                                      {donorDonations.donations.slice(0, 20).map((donation: any, idx: number) => (
-                                        <div
-                                          key={idx}
-                                          className="flex items-center justify-between text-xs py-1 border-b last:border-0"
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <Calendar className="h-3 w-3 text-gray-600 dark:text-gray-400" />
-                                            <span className="text-gray-900 dark:text-gray-100">
-                                              {formatDate(donation.date)}
-                                            </span>
-                                            {donation.project && (
-                                              <span className="text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
-                                                • {donation.project.name}
+                                      {donorDonations.donations
+                                        .slice(0, 20)
+                                        .map((donation: any, idx: number) => (
+                                          <div
+                                            key={idx}
+                                            className="flex items-center justify-between text-xs py-1 border-b last:border-0"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <Calendar className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                                              <span className="text-gray-900 dark:text-gray-100">
+                                                {formatDate(donation.date)}
                                               </span>
-                                            )}
+                                              {donation.project && (
+                                                <span className="text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
+                                                  • {donation.project.name}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                                              {formatCurrency(donation.amount)}
+                                            </span>
                                           </div>
-                                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                                            {formatCurrency(donation.amount)}
-                                          </span>
-                                        </div>
-                                      ))}
+                                        ))}
                                     </div>
                                   </div>
                                 )}
                               </>
                             ) : (
-                              <div className="text-sm text-gray-600 dark:text-gray-400">No donations found</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                No donations found
+                              </div>
                             )}
                           </div>
                         </TooltipContent>
@@ -478,7 +531,10 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5 cursor-help">
+                            <Badge
+                              variant="destructive"
+                              className="text-xs px-1.5 py-0 h-5 cursor-help"
+                            >
                               <AlertCircle className="h-3 w-3 mr-1" />
                               No linked email
                             </Badge>
@@ -486,9 +542,9 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                           <TooltipContent className="max-w-xs">
                             <p>This staff member doesn&apos;t have a linked email account.</p>
                             <p className="mt-1">
-                              Emails will be sent from:{" "}
+                              Emails will be sent from:{' '}
                               <span className="font-medium">
-                                {defaultStaffEmail || "the default organization email"}
+                                {defaultStaffEmail || 'the default organization email'}
                               </span>
                             </p>
                           </TooltipContent>
@@ -499,32 +555,37 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                 )}
               </div>
               <div className="text-xs font-medium mt-1.5">
-                <span className="text-muted-foreground">Subject:</span> {isPreviewMode ? previewSubject : subject}
+                <span className="text-muted-foreground">Subject:</span>{' '}
+                {isPreviewMode ? previewSubject : subject}
               </div>
             </div>
             {((emailId && !emailStatus?.isSent) || isPreviewMode) && showEditButton && (
               <div className="flex flex-col gap-1.5 flex-shrink-0">
-                {((onStatusChange && emailId) || (isPreviewMode && onPreviewStatusChange && donorId)) &&
+                {((onStatusChange && emailId) ||
+                  (isPreviewMode && onPreviewStatusChange && donorId)) &&
                   !emailStatus?.isSent && (
                     <Button
-                      variant={approvalStatus === "APPROVED" ? "outline" : "default"}
+                      variant={approvalStatus === 'APPROVED' ? 'outline' : 'default'}
                       size="sm"
                       onClick={() => {
                         if (isPreviewMode && onPreviewStatusChange && donorId) {
                           onPreviewStatusChange(
                             donorId,
-                            approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED"
+                            approvalStatus === 'APPROVED' ? 'PENDING_APPROVAL' : 'APPROVED'
                           );
                         } else if (onStatusChange && emailId) {
-                          onStatusChange(emailId, approvalStatus === "APPROVED" ? "PENDING_APPROVAL" : "APPROVED");
+                          onStatusChange(
+                            emailId,
+                            approvalStatus === 'APPROVED' ? 'PENDING_APPROVAL' : 'APPROVED'
+                          );
                         }
                       }}
                       disabled={isUpdatingStatus}
                       className="flex items-center gap-1.5 h-7 text-xs px-2"
                     >
                       {isUpdatingStatus ? (
-                        "Updating..."
-                      ) : approvalStatus === "APPROVED" ? (
+                        'Updating...'
+                      ) : approvalStatus === 'APPROVED' ? (
                         <>
                           <Clock className="h-3 w-3" />
                           Unapprove
@@ -581,15 +642,19 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                   <div className="mt-1.5 p-2 bg-muted/30 rounded-md border">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <Info className="h-2.5 w-2.5 text-muted-foreground" />
-                      <span className="text-[10px] font-medium text-muted-foreground">AI Generation Strategy</span>
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        AI Generation Strategy
+                      </span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-light leading-relaxed">{reasoning}</p>
+                    <p className="text-[10px] text-muted-foreground font-light leading-relaxed">
+                      {reasoning}
+                    </p>
                   </div>
                 )}
 
                 {/* Handle email content with potential HTML signature */}
                 {(() => {
-                  const content = emailContentWithSignature || emailContent || "";
+                  const content = emailContentWithSignature || emailContent || '';
 
                   // Check if content contains HTML (likely from signature)
                   const hasHTML = /<[^>]+>/.test(content);
@@ -602,7 +667,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                   // Content has HTML, try to split email content from signature
                   // Look for the last double newline before HTML content
                   let emailPart = content;
-                  let signaturePart = "";
+                  let signaturePart = '';
 
                   // Find the last occurrence of \n\n followed by content that contains HTML
                   const splitRegex = /\n\n/g;
@@ -663,12 +728,12 @@ export const EmailDisplay = React.memo(function EmailDisplay({
               // Legacy format: Show structured content with references
               contentWithSignature.map((piece, index) => {
                 // Check if this is signature content or contains HTML
-                const isSignature = piece.references?.includes("signature") || false;
+                const isSignature = piece.references?.includes('signature') || false;
                 const containsHTML = /<[^>]+>/.test(piece.piece);
                 const shouldRenderHTML = isSignature || containsHTML;
 
                 return (
-                  <div key={index} className={piece.addNewlineAfter ? "mb-4" : ""}>
+                  <div key={index} className={piece.addNewlineAfter ? 'mb-4' : ''}>
                     {shouldRenderHTML ? (
                       <div
                         className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:inline-block [&_img.signature-image]:max-h-20 [&_img.signature-image]:w-auto"
@@ -679,7 +744,10 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                     )}
                     {/* Only show references for non-signature content */}
                     {!isSignature && (
-                      <ReferencesDisplay references={piece.references} referenceContexts={referenceContexts || {}} />
+                      <ReferencesDisplay
+                        references={piece.references}
+                        referenceContexts={referenceContexts || {}}
+                      />
                     )}
                   </div>
                 );
@@ -690,10 +758,14 @@ export const EmailDisplay = React.memo(function EmailDisplay({
       </Card>
 
       {/* Email Send Button */}
-      {emailId && showSendButton && <EmailSendButton emailId={emailId} donorName={donorName} donorEmail={donorEmail} />}
+      {emailId && showSendButton && (
+        <EmailSendButton emailId={emailId} donorName={donorName} donorEmail={donorEmail} />
+      )}
 
       {/* Email Tracking Status */}
-      {emailId && donorId && <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />}
+      {emailId && donorId && (
+        <EmailTrackingStatus emailId={emailId} donorId={donorId} sessionId={sessionId} />
+      )}
 
       {/* Email Edit Modal */}
       {isPreviewMode && !emailId ? (
@@ -721,8 +793,10 @@ export const EmailDisplay = React.memo(function EmailDisplay({
           onOpenChange={setIsEditModalOpen}
           emailId={emailId}
           initialSubject={subject}
-          initialContent={content || []}
-          initialReferenceContexts={referenceContexts || {}}
+          initialContent={isNewFormat ? undefined : content || []}
+          initialReferenceContexts={isNewFormat ? undefined : referenceContexts || {}}
+          initialEmailContent={isNewFormat ? emailContent : undefined}
+          initialReasoning={isNewFormat ? reasoning : undefined}
           donorName={donorName}
           donorEmail={donorEmail}
         />

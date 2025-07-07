@@ -92,7 +92,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // Data hooks
   const { getOrganization } = useOrganization();
-  const { launchCampaign, updateEmailStatus } = useCommunications();
+  const { launchCampaign, updateEmailStatus, smartEmailGeneration } = useCommunications();
   const { listProjects } = useProjects();
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
@@ -277,6 +277,65 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     onSessionDataChange?.(sessionData);
     setShowBulkGenerationDialog(true);
   }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
+
+  const handlePreviewEditCallback = useCallback(
+    (
+      donorId: number,
+      newSubject: string,
+      newContent: Array<{ piece: string; references: string[]; addNewlineAfter: boolean }>
+    ) => {
+      // For preview mode, we need to update the local state without calling the backend
+      // Find the email in the state and update it
+      const emailIndex = emailState.allGeneratedEmails.findIndex(
+        (email) => email.donorId === donorId
+      );
+      if (emailIndex !== -1) {
+        const updatedEmails = [...emailState.allGeneratedEmails];
+        updatedEmails[emailIndex] = {
+          ...updatedEmails[emailIndex],
+          subject: newSubject,
+          structuredContent: newContent,
+        };
+        emailState.setAllGeneratedEmails(updatedEmails);
+        toast.success('Email updated successfully');
+      }
+    },
+    [emailState]
+  );
+
+  const handlePreviewEnhanceCallback = useCallback(
+    async (donorId: number, enhanceInstruction: string) => {
+      // For preview mode, we can use the smartEmailGeneration API with generate_with_new_message mode
+      // if we have a sessionId, otherwise we show a message that enhancement is not available
+      if (!sessionId) {
+        toast.error('Enhancement not available in preview mode');
+        return;
+      }
+
+      try {
+        setEmailGenerationLoading(emailGeneration, 'generating', true);
+
+        const response = await smartEmailGeneration.mutateAsync({
+          sessionId,
+          mode: 'generate_with_new_message',
+          newMessage: enhanceInstruction,
+        });
+
+        if (response.success) {
+          toast.success('Email enhanced successfully');
+          // The cache invalidation should trigger a refresh of the data
+        } else {
+          toast.error('Failed to enhance email');
+        }
+      } catch (error) {
+        console.error('Error enhancing email:', error);
+        toast.error('Failed to enhance email');
+      } finally {
+        setEmailGenerationLoading(emailGeneration, 'generating', false);
+      }
+    },
+    [sessionId, emailGeneration, smartEmailGeneration]
+  );
 
   const handleEmailStatusChangeCallback = useCallback(
     async (emailId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => {
@@ -532,8 +591,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 handleEmailStatusChange={handleEmailStatusChangeCallback}
                 isUpdatingStatus={emailState.isUpdatingStatus}
                 sessionId={sessionId}
-                handlePreviewEdit={async () => {}}
-                handlePreviewEnhance={async () => {}}
+                handlePreviewEdit={handlePreviewEditCallback}
+                handlePreviewEnhance={handlePreviewEnhanceCallback}
                 isGeneratingMore={emailGeneration.isGeneratingMore}
                 totalRemainingDonors={donorState.totalRemainingDonors}
                 isEmailListExpanded={isEmailListExpanded}

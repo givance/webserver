@@ -110,10 +110,17 @@ export function useCommunications() {
 
   // Smart email generation mutation hook
   const smartEmailGeneration = trpc.communications.campaigns.smartEmailGeneration.useMutation({
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       // Invalidate campaign sessions since emails are generated/regenerated
       utils.communications.campaigns.listCampaigns.invalidate();
-      utils.communications.campaigns.getSession.invalidate();
+
+      // Invalidate the specific session that was updated
+      if (variables.sessionId) {
+        utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+      } else {
+        // Fallback: invalidate all sessions if sessionId is not available
+        utils.communications.campaigns.getSession.invalidate();
+      }
     },
   });
 

@@ -60,18 +60,37 @@ const retryCampaignSchema = z.object({
   campaignId: z.number(),
 });
 
-const updateEmailSchema = z.object({
-  emailId: z.number(),
-  subject: z.string().min(1).max(200),
-  structuredContent: z.array(
-    z.object({
-      piece: z.string(),
-      references: z.array(z.string()),
-      addNewlineAfter: z.boolean(),
-    })
-  ),
-  referenceContexts: z.record(z.string(), z.string()),
-});
+const updateEmailSchema = z
+  .object({
+    emailId: z.number(),
+    subject: z.string().min(1).max(200),
+    // Legacy format fields (optional for backward compatibility)
+    structuredContent: z
+      .array(
+        z.object({
+          piece: z.string(),
+          references: z.array(z.string()),
+          addNewlineAfter: z.boolean(),
+        })
+      )
+      .optional(),
+    referenceContexts: z.record(z.string(), z.string()).optional(),
+    // New format fields
+    emailContent: z.string().optional(),
+    reasoning: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      // At least one content format must be provided
+      return (
+        (data.structuredContent && data.structuredContent.length > 0) ||
+        data.emailContent !== undefined
+      );
+    },
+    {
+      message: 'Either structuredContent or emailContent must be provided',
+    }
+  );
 
 const updateCampaignSchema = z.object({
   campaignId: z.number(),

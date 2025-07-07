@@ -66,12 +66,16 @@ export interface ListCampaignsInput {
 export interface UpdateEmailInput {
   emailId: number;
   subject: string;
-  structuredContent: Array<{
+  // Legacy format fields (optional for backward compatibility)
+  structuredContent?: Array<{
     piece: string;
     references: string[];
     addNewlineAfter: boolean;
   }>;
-  referenceContexts: Record<string, string>;
+  referenceContexts?: Record<string, string>;
+  // New format fields
+  emailContent?: string;
+  reasoning?: string;
 }
 
 export interface UpdateCampaignInput {
@@ -815,17 +819,32 @@ export class EmailCampaignsService {
         });
       }
 
-      // Remove signature from content before saving
-      const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
+      // Handle both old and new formats
+      const updateData: any = {
+        subject: input.subject,
+        status: 'PENDING_APPROVAL', // Reset status when email is edited
+      };
+
+      // Handle legacy structured content format
+      if (input.structuredContent && input.structuredContent.length > 0) {
+        // Remove signature from content before saving
+        const contentWithoutSignature = removeSignatureFromContent(input.structuredContent);
+        updateData.structuredContent = contentWithoutSignature;
+        updateData.referenceContexts = input.referenceContexts;
+      }
+
+      // Handle new email content format
+      if (input.emailContent !== undefined) {
+        updateData.emailContent = input.emailContent;
+      }
+
+      if (input.reasoning !== undefined) {
+        updateData.reasoning = input.reasoning;
+      }
 
       // Update the email and reset status to PENDING_APPROVAL since content was edited
       const updatedEmail = await wrapDatabaseOperation(async () => {
-        return await updateGeneratedEmailContent(input.emailId, {
-          subject: input.subject,
-          structuredContent: contentWithoutSignature, // Save without signature
-          referenceContexts: input.referenceContexts,
-          status: 'PENDING_APPROVAL', // Reset status when email is edited
-        });
+        return await updateGeneratedEmailContent(input.emailId, updateData);
       });
 
       if (!updatedEmail) {

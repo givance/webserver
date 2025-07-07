@@ -107,14 +107,16 @@ function CampaignStepsComponent({
       const defaultName = generateDefaultCampaignName(organization.name);
       setCampaignName(defaultName);
     }
-  }, [organization?.name, editMode, campaignName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organization?.name, editMode]); // campaignName intentionally excluded to prevent infinite loop
 
   // Update templatePrompt when template data is loaded in edit mode
   useEffect(() => {
     if (editMode && templateData?.prompt && !templatePrompt) {
       setTemplatePrompt(templateData.prompt);
     }
-  }, [editMode, templateData, templatePrompt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, templateData]); // templatePrompt intentionally excluded to prevent infinite loop
 
   // Navigation auto-save hook
   const { autoSave: navigationAutoSave, manualSave } = useCampaignAutoSave({
