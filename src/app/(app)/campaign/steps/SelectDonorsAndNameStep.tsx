@@ -1,22 +1,21 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useDebounce } from "use-debounce";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDonors } from "@/app/hooks/use-donors";
-import { useLists } from "@/app/hooks/use-lists";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
-import { Users, List, Check, Loader2, AlertTriangle, ArrowRight } from "lucide-react";
-import { useDonorStaffEmailValidation } from "@/app/hooks/use-donor-validation";
+import { useCampaignAutoSave } from '@/app/hooks/use-campaign-auto-save';
+import { useDonorStaffEmailValidation } from '@/app/hooks/use-donor-validation';
+import { useDonors } from '@/app/hooks/use-donors';
+import { useLists } from '@/app/hooks/use-lists';
+import { formatDonorName } from '@/app/lib/utils/donor-name-formatter';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertTriangle, ArrowRight, Check, List, Loader2, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useDebounce } from 'use-debounce';
 
 interface SelectDonorsAndNameStepProps {
   selectedDonors: number[];
@@ -33,7 +32,7 @@ interface SelectDonorsAndNameStepProps {
 // Generate a default campaign name based on current date
 const generateDefaultCampaignName = (): string => {
   const now = new Date();
-  const month = now.toLocaleString("default", { month: "long" });
+  const month = now.toLocaleString('default', { month: 'long' });
   const year = now.getFullYear();
   return `${month} ${year} Campaign`;
 };
@@ -48,18 +47,17 @@ export function SelectDonorsAndNameStep({
   onSessionIdChange,
   templateId,
 }: SelectDonorsAndNameStepProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [listSearchTerm, setListSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [listSearchTerm, setListSearchTerm] = useState('');
   const [selectedLists, setSelectedLists] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<"donors" | "lists">("donors");
+  const [activeTab, setActiveTab] = useState<'donors' | 'lists'>('donors');
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const prevDonorIdsFromListsRef = useRef<number[]>([]);
-  const selectedDonorsRef = useRef<number[]>(selectedDonors);
 
   // Use the validation hook
-  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(selectedDonors);
+  const { data: validationResult, isLoading: isValidating } =
+    useDonorStaffEmailValidation(selectedDonors);
 
   // Auto-save hook
   const { autoSave, isSaving } = useCampaignAutoSave({
@@ -74,11 +72,6 @@ export function SelectDonorsAndNameStep({
       onCampaignNameChange(defaultName);
     }
   }, [localCampaignName, onCampaignNameChange]);
-
-  // Keep ref in sync with prop
-  useEffect(() => {
-    selectedDonorsRef.current = selectedDonors;
-  }, [selectedDonors]);
 
   // Auto-save when campaign name or selected donors change
   useEffect(() => {
@@ -112,41 +105,16 @@ export function SelectDonorsAndNameStep({
 
   // Update selected donors when lists change
   useEffect(() => {
-    const currentDonorIdsFromLists = donorIdsFromLists || [];
-    const prevDonorIdsFromLists = prevDonorIdsFromListsRef.current;
-
-    // Only proceed if the donor IDs from lists have actually changed
-    const listsChanged =
-      currentDonorIdsFromLists.length !== prevDonorIdsFromLists.length ||
-      !currentDonorIdsFromLists.every((id) => prevDonorIdsFromLists.includes(id));
-
-    if (listsChanged) {
-      prevDonorIdsFromListsRef.current = currentDonorIdsFromLists;
-
-      if (selectedLists.length > 0 && currentDonorIdsFromLists.length > 0) {
-        // Get current individual donors (not from lists) - use the ref to get current value
-        const currentSelectedDonors = selectedDonorsRef.current;
-        const individualDonors = currentSelectedDonors.filter((donorId) => !currentDonorIdsFromLists.includes(donorId));
-        const combinedDonors = [...new Set([...individualDonors, ...currentDonorIdsFromLists])];
-        onDonorsSelected(combinedDonors);
-      } else if (selectedLists.length === 0) {
-        // If no lists are selected, remove list-based donors but keep individual ones
-        const currentSelectedDonors = selectedDonorsRef.current;
-        const individualDonors = currentSelectedDonors.filter((donorId) => !prevDonorIdsFromLists.includes(donorId));
-        onDonorsSelected(individualDonors);
-      }
+    if (donorIdsFromLists && selectedLists.length > 0) {
+      // Add all donors from the selected lists to the selection
+      const newSelectedDonors = [...new Set([...selectedDonors, ...donorIdsFromLists])];
+      onDonorsSelected(newSelectedDonors);
     }
-  }, [donorIdsFromLists, selectedLists, onDonorsSelected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [donorIdsFromLists, selectedLists]); // selectedDonors and onDonorsSelected intentionally omitted to prevent loops
 
   const handleToggleDonor = (donorId: number) => {
-    // Only allow manual donor selection if not selected via lists
-    const isDonorFromLists = donorIdsFromLists?.includes(donorId) || false;
-
-    if (isDonorFromLists) {
-      // Don't allow manual deselection of donors from lists
-      return;
-    }
-
+    // Simple toggle - if selected, remove; if not selected, add
     const newSelectedDonors = selectedDonors.includes(donorId)
       ? selectedDonors.filter((id) => id !== donorId)
       : [...selectedDonors, donorId];
@@ -181,33 +149,33 @@ export function SelectDonorsAndNameStep({
     setLocalCampaignName(value);
     onCampaignNameChange(value);
     if (error) {
-      setError("");
+      setError('');
     }
   };
 
   const handleNext = async () => {
     if (!localCampaignName.trim()) {
-      setError("Campaign name is required");
+      setError('Campaign name is required');
       return;
     }
     if (localCampaignName.trim().length > 255) {
-      setError("Campaign name must be 255 characters or less");
+      setError('Campaign name must be 255 characters or less');
       return;
     }
     if (selectedDonors.length === 0) {
-      setError("Please select at least one donor");
+      setError('Please select at least one donor');
       return;
     }
 
-    setError("");
+    setError('');
     setIsProcessing(true);
 
     try {
       const trimmedName = localCampaignName.trim();
       await onNext(trimmedName);
     } catch (error) {
-      console.error("Error in handleNext:", error);
-      setError("Failed to save campaign. Please try again.");
+      console.error('Error in handleNext:', error);
+      setError('Failed to save campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -218,8 +186,9 @@ export function SelectDonorsAndNameStep({
   const displayedListCount = listsData?.lists?.length || 0;
   const totalListCount = listsData?.totalCount || 0;
 
-  const donorsFromLists = donorIdsFromLists?.length || 0;
-  const individualDonors = selectedDonors.length - donorsFromLists;
+  const donorsFromLists =
+    donorIdsFromLists?.filter((id) => selectedDonors.includes(id)).length || 0;
+  const individualDonors = selectedDonors.filter((id) => !donorIdsFromLists?.includes(id)).length;
 
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -258,7 +227,7 @@ export function SelectDonorsAndNameStep({
               <span>Saving...</span>
             </div>
           )}
-          {!isSaving && localCampaignName.trim() !== "" && (
+          {!isSaving && localCampaignName.trim() !== '' && (
             <div className="flex items-center gap-1 text-xs text-green-600">
               <Check className="h-3 w-3" />
               <span>Saved</span>
@@ -270,7 +239,7 @@ export function SelectDonorsAndNameStep({
           placeholder="e.g., 'Holiday Campaign 2024'"
           value={localCampaignName}
           onChange={(e) => handleCampaignNameChange(e.target.value)}
-          className={error ? "border-red-500" : ""}
+          className={error ? 'border-red-500' : ''}
           maxLength={255}
         />
         <div className="flex justify-between text-xs text-muted-foreground">
@@ -287,10 +256,15 @@ export function SelectDonorsAndNameStep({
             <p className="font-medium">⚠️ Setup issues:</p>
             <ul className="list-disc list-inside mt-1 space-y-0.5 text-xs">
               {validationResult.donorsWithoutStaff.length > 0 && (
-                <li>{validationResult.donorsWithoutStaff.length} donor(s) need staff assignments</li>
+                <li>
+                  {validationResult.donorsWithoutStaff.length} donor(s) need staff assignments
+                </li>
               )}
               {validationResult.donorsWithStaffButNoEmail.length > 0 && (
-                <li>{validationResult.donorsWithStaffButNoEmail.length} staff member(s) need Gmail connection</li>
+                <li>
+                  {validationResult.donorsWithStaffButNoEmail.length} staff member(s) need Gmail
+                  connection
+                </li>
               )}
             </ul>
           </AlertDescription>
@@ -305,7 +279,10 @@ export function SelectDonorsAndNameStep({
             <span className="text-sm font-medium">Select Donors</span>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "donors" | "lists")}>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as 'donors' | 'lists')}
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="donors" className="text-xs">
                 <Users className="h-3 w-3 mr-1" />
@@ -346,18 +323,14 @@ export function SelectDonorsAndNameStep({
                               id={`donor-${donor.id}`}
                               checked={isSelected}
                               onCheckedChange={() => handleToggleDonor(donor.id)}
-                              disabled={isDonorFromLists}
                             />
-                            <label
-                              htmlFor={`donor-${donor.id}`}
-                              className={`text-xs leading-none ${isDonorFromLists ? "text-muted-foreground" : ""}`}
-                            >
+                            <label htmlFor={`donor-${donor.id}`} className="text-xs leading-none">
                               {formatDonorName(donor)} ({donor.email})
                             </label>
                           </div>
                           {isDonorFromLists && (
                             <Badge variant="secondary" className="text-xs py-0 px-1">
-                              List
+                              From List
                             </Badge>
                           )}
                         </div>
@@ -404,7 +377,9 @@ export function SelectDonorsAndNameStep({
                           <label htmlFor={`list-${list.id}`} className="text-xs leading-none">
                             {list.name}
                             {list.description && (
-                              <span className="text-muted-foreground ml-1">- {list.description}</span>
+                              <span className="text-muted-foreground ml-1">
+                                - {list.description}
+                              </span>
                             )}
                           </label>
                         </div>
@@ -431,14 +406,15 @@ export function SelectDonorsAndNameStep({
         <div className="px-4 pb-4">
           <div className="p-3 bg-muted/30 rounded text-xs">
             <div className="font-medium">{selectedDonors.length} total donors selected</div>
-            {selectedLists.length > 0 && (
+            {selectedLists.length > 0 && donorsFromLists > 0 && (
               <div className="text-muted-foreground">
-                • {donorsFromLists} from {selectedLists.length} list{selectedLists.length !== 1 ? "s" : ""}
+                • {donorsFromLists} from {selectedLists.length} list
+                {selectedLists.length !== 1 ? 's' : ''}
               </div>
             )}
             {individualDonors > 0 && (
               <div className="text-muted-foreground">
-                • {individualDonors} individual donor{individualDonors !== 1 ? "s" : ""}
+                • {individualDonors} individual donor{individualDonors !== 1 ? 's' : ''}
               </div>
             )}
           </div>
