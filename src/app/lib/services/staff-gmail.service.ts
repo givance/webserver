@@ -1,8 +1,6 @@
-import { db } from "@/app/lib/db";
-import { staffGmailTokens, staff } from "@/app/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { logger } from "@/app/lib/logger";
-import { wrapDatabaseOperation } from "@/app/lib/utils/error-handler";
+import { logger } from '@/app/lib/logger';
+import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
+import { getStaffMemberWithGmailToken, deleteStaffGmailToken } from '@/app/lib/data/staff';
 
 /**
  * Service for handling staff Gmail database operations
@@ -13,12 +11,7 @@ export class StaffGmailService {
    */
   async getStaffMember(staffId: number, organizationId: string) {
     return await wrapDatabaseOperation(async () => {
-      const staffMember = await db.query.staff.findFirst({
-        where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
-        with: {
-          gmailToken: true, // Include Gmail token relation
-        },
-      });
+      const staffMember = await getStaffMemberWithGmailToken(staffId, organizationId);
       return staffMember;
     });
   }
@@ -28,7 +21,7 @@ export class StaffGmailService {
    */
   async disconnectStaffGmailToken(staffId: number): Promise<void> {
     return await wrapDatabaseOperation(async () => {
-      await db.delete(staffGmailTokens).where(eq(staffGmailTokens.staffId, staffId));
+      await deleteStaffGmailToken(staffId);
       logger.info(`Staff Gmail account disconnected for staff member ${staffId}`);
     });
   }
