@@ -107,10 +107,10 @@ export async function getEmailSendJobs(criteria: {
       whereClauses.push(eq(emailSendJobs.status, criteria.status));
     }
     if (criteria.scheduledBefore) {
-      whereClauses.push(lt(emailSendJobs.scheduledFor, criteria.scheduledBefore));
+      whereClauses.push(lt(emailSendJobs.scheduledTime, criteria.scheduledBefore));
     }
     if (criteria.scheduledAfter) {
-      whereClauses.push(gte(emailSendJobs.scheduledFor, criteria.scheduledAfter));
+      whereClauses.push(gte(emailSendJobs.scheduledTime, criteria.scheduledAfter));
     }
 
     const result = await db
@@ -234,29 +234,12 @@ export async function getEmailsForScheduling(
 
     // Join with session to verify organization
     const result = await db
-      .select({
-        id: generatedEmails.id,
-        sessionId: generatedEmails.sessionId,
-        donorId: generatedEmails.donorId,
-        subject: generatedEmails.subject,
-        structuredContent: generatedEmails.structuredContent,
-        referenceContexts: generatedEmails.referenceContexts,
-        emailContent: generatedEmails.emailContent,
-        reasoning: generatedEmails.reasoning,
-        response: generatedEmails.response,
-        status: generatedEmails.status,
-        isPreview: generatedEmails.isPreview,
-        isSent: generatedEmails.isSent,
-        sentAt: generatedEmails.sentAt,
-        sendStatus: generatedEmails.sendStatus,
-        createdAt: generatedEmails.createdAt,
-        updatedAt: generatedEmails.updatedAt,
-      })
+      .select()
       .from(generatedEmails)
       .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
       .where(and(...whereClauses, eq(emailGenerationSessions.organizationId, organizationId)));
 
-    return result;
+    return result.map((r) => r.generated_emails);
   } catch (error) {
     console.error('Failed to get emails for scheduling:', error);
     throw new Error('Could not retrieve emails for scheduling.');
@@ -304,8 +287,8 @@ export async function getDailyEmailCount(organizationId: string, date: Date): Pr
       .where(
         and(
           eq(emailSendJobs.organizationId, organizationId),
-          gte(emailSendJobs.scheduledFor, startOfDay),
-          lt(emailSendJobs.scheduledFor, endOfDay)
+          gte(emailSendJobs.scheduledTime, startOfDay),
+          lt(emailSendJobs.scheduledTime, endOfDay)
         )
       );
 

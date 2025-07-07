@@ -289,9 +289,12 @@ export async function getSessionsByCriteria(
     }
 
     if (criteria.statuses && criteria.statuses.length > 0) {
-      whereClauses.push(
-        or(...criteria.statuses.map((status) => eq(emailGenerationSessions.status, status)))
+      const statusCondition = or(
+        ...criteria.statuses.map((status) => eq(emailGenerationSessions.status, status))
       );
+      if (statusCondition) {
+        whereClauses.push(statusCondition);
+      }
     }
 
     const result = await db
@@ -673,7 +676,14 @@ export async function getEmailWithSessionAuth(
       )
       .limit(1);
 
-    return existingEmail || null;
+    if (!existingEmail) {
+      return null;
+    }
+
+    return {
+      ...existingEmail,
+      currentStatus: existingEmail.currentStatus as 'PENDING_APPROVAL' | 'APPROVED',
+    };
   } catch (error) {
     console.error('Failed to get email with session auth:', error);
     throw new Error('Could not retrieve email.');
@@ -789,7 +799,7 @@ export async function updateEmailSendStatus(
 export async function updateSessionsBatch(
   updates: Array<{
     sessionId: number;
-    status: string;
+    status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'COMPLETED';
     completedDonors: number;
     completedAt?: Date;
   }>

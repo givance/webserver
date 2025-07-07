@@ -1,36 +1,29 @@
 import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
 import {
+  checkSessionExists,
+  countSessionsByOrganization,
+  createEmailGenerationSession,
+  createGeneratedEmail,
   deleteEmailGenerationSession,
+  deleteGeneratedEmails,
+  getDonorIdsWithEmails,
+  getDonorIdsWithExistingEmails,
+  getDraftSessionByName,
+  getEmailBySessionAndDonor,
   getEmailGenerationSessionById,
+  getEmailStatsBySessionIds,
+  getEmailWithOrganizationCheck,
+  getEmailWithSessionAuth,
   getGeneratedEmailsBySessionId,
   getScheduledEmailJobs,
-  getSessionStatus as getSessionStatusData,
-  checkSessionExists,
-  getEmailBySessionAndDonor,
-  updateGeneratedEmail,
-  createGeneratedEmail,
-  countEmailsBySessionAndStatus,
-  getDonorIdsWithEmails,
-  getDraftSessionByName,
-  getDonorIdsWithExistingEmails,
-  updateEmailStatusBulk,
-  updateEmailGenerationSession,
-  createEmailGenerationSession,
-  listEmailGenerationSessions,
-  getEmailStatsBySessionIds,
-  deleteGeneratedEmails,
   getSessionsByCriteria,
-  saveGeneratedEmail as saveGeneratedEmailData,
+  getSessionStatus as getSessionStatusData,
+  listEmailGenerationSessions,
+  updateEmailGenerationSession,
   updateEmailStatus,
-  getEmailWithOrganizationCheck,
-  getFullSessionById,
-  checkEmailExists,
-  countSessionsByOrganization,
-  getEmailWithSessionAuth,
+  updateEmailStatusBulk,
+  updateGeneratedEmail,
   updateGeneratedEmailContent,
-  getEmailsBySessionWithDonor,
-  markEmailsAsSent,
-  updateEmailSendStatus,
   updateSessionsBatch,
 } from '@/app/lib/data/email-campaigns';
 import { EmailGenerationSessionStatus } from '@/app/lib/db/schema';
@@ -39,12 +32,12 @@ import {
   appendSignatureToEmail,
   removeSignatureFromContent,
 } from '@/app/lib/utils/email-with-signature';
+import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
 import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
 import { EmailSchedulingService } from './email-scheduling.service';
 import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
-import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 
 /**
  * Input types for campaign management
@@ -228,10 +221,10 @@ export class EmailCampaignsService {
 
       // Update existing campaign with appropriate status
       logger.info(
-        `[launchCampaign] Updating existing campaign ${existingCampaign[0].id} to ${newStatus} status`,
+        `[launchCampaign] Updating existing campaign ${existingCampaign.id} to ${newStatus} status`,
         {
-          campaignId: existingCampaign[0].id,
-          oldStatus: existingCampaign[0].status,
+          campaignId: existingCampaign.id,
+          oldStatus: existingCampaign.status,
           newStatus,
           totalDonors: input.selectedDonorIds.length,
           currentCompletedCount,
@@ -247,7 +240,7 @@ export class EmailCampaignsService {
           chatHistory: input.chatHistory ?? existingCampaign.chatHistory,
           selectedDonorIds: input.selectedDonorIds,
           previewDonorIds: input.previewDonorIds ?? [],
-          totalDonors: input.selectedDonorIds.length,
+          totalDonors: input.selectedDonorIds?.length,
           completedDonors: currentCompletedCount, // Set the initial completed count
         });
       });
@@ -347,7 +340,7 @@ export class EmailCampaignsService {
           await wrapDatabaseOperation(async () => {
             await updateEmailGenerationSession(sessionId, organizationId, {
               status: EmailGenerationSessionStatus.READY_TO_SEND,
-              completedDonors: input.selectedDonorIds.length,
+              completedDonors: input.selectedDonorIds?.length,
             });
           });
         }
@@ -551,11 +544,6 @@ export class EmailCampaignsService {
    */
   async listCampaigns(input: ListCampaignsInput, organizationId: string) {
     const { limit = 10, offset = 0, status } = input;
-
-    const whereClauses = [eq(emailGenerationSessions.organizationId, organizationId)];
-    if (status) {
-      whereClauses.push(eq(emailGenerationSessions.status, status));
-    }
 
     // Get campaigns without email counts first
     const campaignsResult = await wrapDatabaseOperation(async () => {
@@ -1151,30 +1139,21 @@ export class EmailCampaignsService {
       );
 
       // Delete only preview emails (emails for preview donors)
-      const deleteResult = await db
-        .delete(generatedEmails)
-        .where(
-          and(
-            eq(generatedEmails.sessionId, input.sessionId),
-            inArray(generatedEmails.donorId, donorsToRegenerate)
-          )
-        )
-        .returning({ id: generatedEmails.id });
+      const deletedCount = await wrapDatabaseOperation(async () => {
+        return await deleteGeneratedEmails(input.sessionId, donorsToRegenerate);
+      });
 
-      const deletedCount = deleteResult.length;
       logger.info(`Deleted ${deletedCount} preview emails for session ${input.sessionId}`);
 
       // Use the chat history from input
       const finalChatHistory = input.chatHistory;
 
       // Update the session chat history ONLY - do not modify donor lists
-      await db
-        .update(emailGenerationSessions)
-        .set({
+      await wrapDatabaseOperation(async () => {
+        await updateEmailGenerationSession(input.sessionId, organizationId, {
           chatHistory: finalChatHistory,
-          updatedAt: new Date(),
-        })
-        .where(eq(emailGenerationSessions.id, input.sessionId));
+        });
+      });
 
       // Now regenerate emails for preview donors using the same service as preview generation
       const emailGenerationService = new UnifiedSmartEmailGenerationService();
@@ -1619,7 +1598,12 @@ export class EmailCampaignsService {
       });
 
       const results = new Map();
-      const sessionsToUpdate = [];
+      const sessionsToUpdate: Array<{
+        id: number;
+        status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'COMPLETED';
+        completedDonors: number;
+        shouldSetCompletedAt: boolean;
+      }> = [];
 
       logger.info(
         `[checkAndUpdateMultipleCampaignCompletion] Checking ${sessions.length} campaigns in batch`,
@@ -1928,16 +1912,14 @@ export class EmailCampaignsService {
           );
 
           // Update session status to FAILED
-          await db
-            .update(emailGenerationSessions)
-            .set({
+          await wrapDatabaseOperation(async () => {
+            await updateEmailGenerationSession(sessionId, organizationId, {
               status: EmailGenerationSessionStatus.GENERATING,
               errorMessage: `Retry failed: ${
                 triggerError instanceof Error ? triggerError.message : String(triggerError)
               }`,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailGenerationSessions.id, sessionId));
+            });
+          });
 
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
@@ -1946,15 +1928,13 @@ export class EmailCampaignsService {
         }
       } else {
         // All donors already have emails, mark as completed
-        await db
-          .update(emailGenerationSessions)
-          .set({
-            status: 'COMPLETED',
+        await wrapDatabaseOperation(async () => {
+          await updateEmailGenerationSession(sessionId, organizationId, {
+            status: EmailGenerationSessionStatus.COMPLETED,
             completedDonors: selectedDonorIds.length,
             completedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, sessionId));
+          });
+        });
 
         logger.info(`Campaign ${sessionId} marked as completed - all donors already have emails`);
         return { success: true, message: 'Campaign completed - all emails already generated' };

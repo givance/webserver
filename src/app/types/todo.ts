@@ -1,7 +1,7 @@
 export interface Todo {
   id: number;
   title: string;
-  description: string;
+  description: string | null;
   type: string;
   status: string;
   priority: string;

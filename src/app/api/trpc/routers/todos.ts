@@ -1,17 +1,13 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "@/app/api/trpc/trpc";
-import type { UpdateTodoInput } from "@/app/lib/services/todo-service";
-import { 
+import { z } from 'zod';
+import { router, protectedProcedure } from '@/app/api/trpc/trpc';
+import type { UpdateTodoInput } from '@/app/lib/services/todo-service';
+import {
   createTRPCError,
   handleAsync,
   validateOrganizationAccess,
-  ERROR_MESSAGES
-} from "@/app/lib/utils/trpc-errors";
-import {
-  idSchema,
-  todoSchemas,
-  batchResultSchema
-} from "@/app/lib/validation/schemas";
+  ERROR_MESSAGES,
+} from '@/app/lib/utils/trpc-errors';
+import { idSchema, todoSchemas, batchResultSchema } from '@/app/lib/validation/schemas';
 
 // Helper to convert Todo dates to ISO strings
 const serializeTodo = (todo: any) => ({
@@ -25,7 +21,7 @@ const serializeTodo = (todo: any) => ({
 
 // Helper to preprocess date strings into Date objects
 const preprocessDate = (arg: unknown) => {
-  if (typeof arg === "string" || arg instanceof Date) return new Date(arg);
+  if (typeof arg === 'string' || arg instanceof Date) return new Date(arg);
   if (arg === null || arg === undefined) return arg;
   return undefined;
 };
@@ -87,23 +83,22 @@ const listTodosInputSchema = z.object({
 // Special schema for grouped todos that may include donor info
 const todoWithDonorSchema = todoResponseSchema.extend({
   donorName: z.string().nullable(), // Match the TodoWithDonor interface
-  donor: z.object({
-    id: idSchema,
-    firstName: z.string(),
-    lastName: z.string(),
-    email: z.string(),
-  }).optional(),
+  donor: z
+    .object({
+      id: idSchema,
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+    })
+    .optional(),
 });
 
-const groupedTodosResponseSchema = z.record(
-  z.string(),
-  z.array(todoWithDonorSchema)
-);
+const groupedTodosResponseSchema = z.record(z.string(), z.array(todoWithDonorSchema));
 
 export const todoRouter = router({
   /**
    * Create a new todo
-   * 
+   *
    * @param title - Todo title (required)
    * @param description - Detailed description
    * @param type - Todo type/category
@@ -112,9 +107,9 @@ export const todoRouter = router({
    * @param scheduledDate - Scheduled date for the todo
    * @param donorId - Associated donor ID
    * @param staffId - Assigned staff member ID
-   * 
+   *
    * @returns The created todo
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
@@ -123,38 +118,38 @@ export const todoRouter = router({
     .output(todoResponseSchema)
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      
+
       if (!user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
-          logLevel: "warn",
+          logLevel: 'warn',
         });
       }
 
       const result = await handleAsync(
-        async () => ctx.services.todos.createTodo({
-          ...input,
-          organizationId: user.organizationId,
-        }),
+        async () =>
+          ctx.services.todos.createTodo({
+            ...input,
+            organizationId: user.organizationId,
+          }),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("create todo"),
-          logMetadata: { userId: user.id, title: input.title }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('create todo'),
+          logMetadata: { userId: user.id, title: input.title },
         }
       );
-      
-      const todo = result[0]; // Service returns array, we need single item
-      return serializeTodo(todo);
+
+      return serializeTodo(result);
     }),
 
   /**
    * Update an existing todo
-   * 
+   *
    * @param id - Todo ID to update
    * @param data - Fields to update
-   * 
+   *
    * @returns The updated todo
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if todo doesn't exist
    * @throws {TRPCError} FORBIDDEN if user doesn't have access
    */
@@ -163,27 +158,23 @@ export const todoRouter = router({
     .output(todoResponseSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
-      
-      const result = await handleAsync(
-        async () => ctx.services.todos.updateTodo(id, updateData),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update todo"),
-          logMetadata: { todoId: id, userId: ctx.auth.user?.id }
-        }
-      );
-      
-      const todo = result[0]; // Service returns array, we need single item
-      return serializeTodo(todo);
+
+      const result = await handleAsync(async () => ctx.services.todos.updateTodo(id, updateData), {
+        errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update todo'),
+        logMetadata: { todoId: id, userId: ctx.auth.user?.id },
+      });
+
+      return serializeTodo(result);
     }),
 
   /**
    * Bulk update multiple todos
-   * 
+   *
    * @param ids - Array of todo IDs to update
    * @param data - Fields to update for all todos
-   * 
+   *
    * @returns Count of successfully updated todos
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} BAD_REQUEST if no IDs provided
    */
@@ -193,30 +184,30 @@ export const todoRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { ids, data } = input;
       const { user } = ctx.auth;
-      
+
       if (!user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
-          logLevel: "warn",
+          logLevel: 'warn',
         });
       }
 
       const results = await handleAsync(
         async () => {
           const serviceUpdateData: UpdateTodoInput = { ...data };
-          const updatePromises = ids.map((id) => 
+          const updatePromises = ids.map((id) =>
             ctx.services.todos.updateTodo(id, serviceUpdateData)
           );
           return await Promise.all(updatePromises);
         },
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk update todos"),
-          logMetadata: { 
-            userId: user.id, 
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk update todos'),
+          logMetadata: {
+            userId: user.id,
             count: ids.length,
-            organizationId: user.organizationId 
-          }
+            organizationId: user.organizationId,
+          },
         }
       );
 
@@ -225,9 +216,9 @@ export const todoRouter = router({
 
   /**
    * Delete a todo
-   * 
+   *
    * @param id - Todo ID to delete
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if todo doesn't exist
    * @throws {TRPCError} FORBIDDEN if user doesn't have access
    */
@@ -235,25 +226,22 @@ export const todoRouter = router({
     .input(z.object({ id: idSchema }))
     .output(z.void())
     .mutation(async ({ ctx, input }) => {
-      await handleAsync(
-        async () => ctx.services.todos.deleteTodo(input.id),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("delete todo"),
-          logMetadata: { todoId: input.id, userId: ctx.auth.user?.id }
-        }
-      );
+      await handleAsync(async () => ctx.services.todos.deleteTodo(input.id), {
+        errorMessage: ERROR_MESSAGES.OPERATION_FAILED('delete todo'),
+        logMetadata: { todoId: input.id, userId: ctx.auth.user?.id },
+      });
     }),
 
   /**
    * Get todos for the current organization
-   * 
+   *
    * @param type - Filter by todo type
    * @param status - Filter by status
    * @param donorId - Filter by donor
    * @param staffId - Filter by assigned staff
-   * 
+   *
    * @returns List of todos matching the filters
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
   getByOrganization: protectedProcedure
@@ -261,62 +249,62 @@ export const todoRouter = router({
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      
+
       if (!user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
-          logLevel: "warn",
+          logLevel: 'warn',
         });
       }
 
       const todos = await handleAsync(
         async () => ctx.services.todos.getTodosByOrganization(user.organizationId, input),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch todos"),
-          logMetadata: { organizationId: user.organizationId, filters: input }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch todos'),
+          logMetadata: { organizationId: user.organizationId, filters: input },
         }
       );
-      
+
       return todos.map(serializeTodo);
     }),
 
   /**
    * Get todos grouped by type
-   * 
+   *
    * @param statusesToExclude - Array of statuses to exclude from results
-   * 
+   *
    * @returns Object with todo types as keys and arrays of todos as values
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
   getGroupedByType: protectedProcedure
-    .input(z.object({
-      statusesToExclude: z.array(z.string()).optional(),
-    }))
+    .input(
+      z.object({
+        statusesToExclude: z.array(z.string()).optional(),
+      })
+    )
     .output(groupedTodosResponseSchema)
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      
+
       if (!user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
-          logLevel: "warn",
+          logLevel: 'warn',
         });
       }
 
       const grouped = await handleAsync(
-        async () => ctx.services.todos.getTodosGroupedByType(
-          user.organizationId, 
-          input.statusesToExclude
-        ),
+        async () =>
+          ctx.services.todos.getTodosGroupedByType(user.organizationId, input.statusesToExclude),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch grouped todos"),
-          logMetadata: { organizationId: user.organizationId }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch grouped todos'),
+          logMetadata: { organizationId: user.organizationId },
         }
       );
-      
+
       // Convert all todos in the grouped result
       const serializedGrouped: Record<string, any[]> = {};
       for (const [key, todos] of Object.entries(grouped)) {
@@ -327,11 +315,11 @@ export const todoRouter = router({
 
   /**
    * Get todos for a specific donor
-   * 
+   *
    * @param donorId - Donor ID to fetch todos for
-   * 
+   *
    * @returns List of todos for the donor
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
   getByDonor: protectedProcedure
@@ -341,21 +329,21 @@ export const todoRouter = router({
       const todos = await handleAsync(
         async () => ctx.services.todos.getTodosByDonor(input.donorId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor todos"),
-          logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donor todos'),
+          logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id },
         }
       );
-      
+
       return todos.map(serializeTodo);
     }),
 
   /**
    * Get todos for a specific staff member
-   * 
+   *
    * @param staffId - Staff ID to fetch todos for
-   * 
+   *
    * @returns List of todos assigned to the staff member
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if staff member doesn't exist
    */
   getByStaff: protectedProcedure
@@ -365,11 +353,11 @@ export const todoRouter = router({
       const todos = await handleAsync(
         async () => ctx.services.todos.getTodosByStaff(input.staffId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch staff todos"),
-          logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch staff todos'),
+          logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id },
         }
       );
-      
+
       return todos.map(serializeTodo);
     }),
 });

@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { z } from 'zod';
+import { router, protectedProcedure } from '../trpc';
 import {
   getDonorByEmail,
   getDonorsByIds,
@@ -9,17 +9,17 @@ import {
   bulkDeleteDonors,
   listDonors,
   listDonorsForCommunication,
-} from "@/app/lib/data/donors";
-import { countListsForDonor } from "@/app/lib/data/donor-lists";
-import { getStaffByIds } from "@/app/lib/data/staff";
-import { type DonorNote } from "@/app/lib/db/schema";
-import { 
+} from '@/app/lib/data/donors';
+import { countListsForDonor } from '@/app/lib/data/donor-lists';
+import { getStaffByIds } from '@/app/lib/data/staff';
+import { type DonorNote } from '@/app/lib/db/schema';
+import {
   createTRPCError,
   handleAsync,
   notFoundError,
   conflictError,
-  ERROR_MESSAGES
-} from "@/app/lib/utils/trpc-errors";
+  ERROR_MESSAGES,
+} from '@/app/lib/utils/trpc-errors';
 import {
   idSchema,
   emailSchema,
@@ -28,10 +28,10 @@ import {
   addressSchema,
   paginationSchema,
   orderingSchema,
-} from "@/app/lib/validation/schemas";
-import { db } from "@/app/lib/db";
-import { staff, staffGmailTokens, donors } from "@/app/lib/db/schema";
-import { and, inArray, eq, sql } from "drizzle-orm";
+} from '@/app/lib/validation/schemas';
+import { db } from '@/app/lib/db';
+import { staff, staffGmailTokens, donors } from '@/app/lib/db/schema';
+import { and, inArray, eq, sql } from 'drizzle-orm';
 
 // ============================================================================
 // Schema Definitions
@@ -70,11 +70,8 @@ const baseDonorSchema = z.object({
   phone: phoneSchema.nullable(),
   address: addressSchema.nullable(),
   state: z.string().nullable(),
-  gender: z.enum(["male", "female"]).nullable(),
-  notes: z.union([
-    z.string().nullable(),
-    z.array(donorNoteSchema)
-  ]).nullable(),
+  gender: z.enum(['male', 'female']).nullable(),
+  notes: z.union([z.string().nullable(), z.array(donorNoteSchema)]).nullable(),
   assignedToStaffId: idSchema.nullable(),
   currentStageName: z.string().nullable(),
   classificationReasoning: z.string().nullable(),
@@ -129,19 +126,19 @@ const donorIdsSchema = z.object({
 const deleteDonorSchema = z
   .object({
     id: idSchema,
-    deleteMode: z.enum(["fromList", "fromAllLists", "entirely"]).optional(),
+    deleteMode: z.enum(['fromList', 'fromAllLists', 'entirely']).optional(),
     listId: idSchema.optional(),
   })
   .refine(
     (data) => {
-      if (data.deleteMode === "fromList" && !data.listId) {
+      if (data.deleteMode === 'fromList' && !data.listId) {
         return false;
       }
       return true;
     },
     {
-      message: "List ID is required when deleting from a specific list",
-      path: ["listId"],
+      message: 'List ID is required when deleting from a specific list',
+      path: ['listId'],
     }
   );
 
@@ -153,7 +150,7 @@ const createDonorSchema = z.object({
   phone: phoneSchema.optional(),
   address: addressSchema.optional(),
   state: z.string().optional(),
-  gender: z.enum(["male", "female"]).nullable().optional(),
+  gender: z.enum(['male', 'female']).nullable().optional(),
 });
 
 const updateDonorSchema = z.object({
@@ -165,7 +162,7 @@ const updateDonorSchema = z.object({
   phone: phoneSchema.optional(),
   address: addressSchema.optional(),
   state: z.string().optional(),
-  gender: z.enum(["male", "female"]).nullable().optional(),
+  gender: z.enum(['male', 'female']).nullable().optional(),
   // Couple fields
   hisTitle: z.string().nullable().optional(),
   hisFirstName: z.string().nullable().optional(),
@@ -186,20 +183,20 @@ const updateDonorSchema = z.object({
 const listDonorsSchema = z.object({
   searchTerm: z.string().optional(),
   state: z.string().optional(),
-  gender: z.enum(["male", "female"]).nullable().optional(),
+  gender: z.enum(['male', 'female']).nullable().optional(),
   assignedToStaffId: idSchema.nullable().optional(),
   listId: idSchema.optional(),
   notInAnyList: z.boolean().optional(),
   onlyResearched: z.boolean().optional(),
   ...paginationSchema.shape,
-  orderBy: z.enum(["firstName", "lastName", "email", "createdAt", "totalDonated"]).optional(),
+  orderBy: z.enum(['firstName', 'lastName', 'email', 'createdAt', 'totalDonated']).optional(),
   orderDirection: orderingSchema.shape.orderDirection,
 });
 
 const listDonorsForCommunicationSchema = z.object({
   searchTerm: z.string().optional(),
   ...paginationSchema.shape,
-  orderBy: z.enum(["firstName", "lastName", "email", "createdAt"]).optional(),
+  orderBy: z.enum(['firstName', 'lastName', 'email', 'createdAt']).optional(),
   orderDirection: orderingSchema.shape.orderDirection,
 });
 
@@ -219,7 +216,7 @@ const validateDonorStaffEmailSchema = z.object({
 
 const addDonorNoteSchema = z.object({
   donorId: idSchema,
-  content: z.string().min(1, "Note content is required").max(5000),
+  content: z.string().min(1, 'Note content is required').max(5000),
 });
 
 // Output schemas
@@ -249,21 +246,25 @@ const bulkUpdateStaffResponseSchema = z.object({
 
 const validateStaffEmailResponseSchema = z.object({
   isValid: z.boolean(),
-  donorsWithoutStaff: z.array(z.object({
-    donorId: idSchema,
-    donorFirstName: z.string(),
-    donorLastName: z.string(),
-    donorEmail: z.string(),
-  })),
-  donorsWithStaffButNoEmail: z.array(z.object({
-    donorId: idSchema,
-    donorFirstName: z.string(),
-    donorLastName: z.string(),
-    donorEmail: z.string(),
-    staffFirstName: z.string(),
-    staffLastName: z.string(),
-    staffEmail: z.string(),
-  })),
+  donorsWithoutStaff: z.array(
+    z.object({
+      donorId: idSchema,
+      donorFirstName: z.string(),
+      donorLastName: z.string(),
+      donorEmail: z.string(),
+    })
+  ),
+  donorsWithStaffButNoEmail: z.array(
+    z.object({
+      donorId: idSchema,
+      donorFirstName: z.string(),
+      donorLastName: z.string(),
+      donorEmail: z.string(),
+      staffFirstName: z.string(),
+      staffLastName: z.string(),
+      staffEmail: z.string(),
+    })
+  ),
   errorMessage: z.string().optional(),
 });
 
@@ -285,14 +286,13 @@ const serializeDonor = (donor: any): z.infer<typeof donorResponseSchema> => ({
 // ============================================================================
 
 export const donorsRouter = router({
-
   /**
    * Get a donor by email address
-   * 
+   *
    * @param email - Donor email
-   * 
+   *
    * @returns The donor data
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
   getByEmail: protectedProcedure
@@ -302,13 +302,13 @@ export const donorsRouter = router({
       const donor = await handleAsync(
         async () => getDonorByEmail(input.email, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.NOT_FOUND("Donor"),
-          errorCode: "NOT_FOUND"
+          errorMessage: ERROR_MESSAGES.NOT_FOUND('Donor'),
+          errorCode: 'NOT_FOUND',
         }
       );
 
       if (!donor) {
-        throw notFoundError("Donor");
+        throw notFoundError('Donor');
       }
 
       return serializeDonor(donor);
@@ -316,9 +316,9 @@ export const donorsRouter = router({
 
   /**
    * Get multiple donors by IDs
-   * 
+   *
    * @param ids - Array of donor IDs
-   * 
+   *
    * @returns Array of donor data
    */
   getByIds: protectedProcedure
@@ -328,8 +328,8 @@ export const donorsRouter = router({
       const donors = await handleAsync(
         async () => getDonorsByIds(input.ids, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donors"),
-          logMetadata: { count: input.ids.length }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donors'),
+          logMetadata: { count: input.ids.length },
         }
       );
 
@@ -338,14 +338,14 @@ export const donorsRouter = router({
 
   /**
    * Create a new donor
-   * 
+   *
    * @param email - Donor email (required)
    * @param firstName - First name (required)
    * @param lastName - Last name (required)
    * @param Additional optional fields...
-   * 
+   *
    * @returns The created donor
-   * 
+   *
    * @throws {TRPCError} CONFLICT if email already exists
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
@@ -360,26 +360,26 @@ export const donorsRouter = router({
         } as any); // TODO: Fix type mismatch between input schema and createDonor
         return serializeDonor(donor);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("already exists")) {
+        if (error instanceof Error && error.message.includes('already exists')) {
           throw conflictError(error.message);
         }
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: ERROR_MESSAGES.OPERATION_FAILED("create donor"),
+          code: 'INTERNAL_SERVER_ERROR',
+          message: ERROR_MESSAGES.OPERATION_FAILED('create donor'),
           cause: error,
-          metadata: { email: input.email }
+          metadata: { email: input.email },
         });
       }
     }),
 
   /**
    * Update an existing donor
-   * 
+   *
    * @param id - Donor ID to update
    * @param Additional fields to update...
-   * 
+   *
    * @returns The updated donor
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
   update: protectedProcedure
@@ -387,17 +387,17 @@ export const donorsRouter = router({
     .output(donorResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { id, ...updateData } = input;
-      
+
       const updated = await handleAsync(
         async () => updateDonor(id, updateData as any, ctx.auth.user.organizationId), // TODO: Fix type mismatch
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update donor"),
-          logMetadata: { donorId: id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update donor'),
+          logMetadata: { donorId: id },
         }
       );
 
       if (!updated) {
-        throw notFoundError("Donor");
+        throw notFoundError('Donor');
       }
 
       return serializeDonor(updated);
@@ -405,11 +405,11 @@ export const donorsRouter = router({
 
   /**
    * Delete a donor
-   * 
+   *
    * @param id - Donor ID to delete
    * @param deleteMode - Deletion mode: 'fromList', 'fromAllLists', or 'entirely'
    * @param listId - List ID (required when deleteMode is 'fromList')
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    * @throws {TRPCError} BAD_REQUEST if invalid parameters
    * @throws {TRPCError} PRECONDITION_FAILED if donor has linked records
@@ -419,31 +419,32 @@ export const donorsRouter = router({
     .output(z.void())
     .mutation(async ({ input, ctx }) => {
       try {
-        const options = input.deleteMode || input.listId
-          ? {
-              deleteMode: input.deleteMode || "entirely",
-              listId: input.listId,
-            }
-          : undefined;
+        const options =
+          input.deleteMode || input.listId
+            ? {
+                deleteMode: input.deleteMode || 'entirely',
+                listId: input.listId,
+              }
+            : undefined;
 
         await deleteDonor(input.id, ctx.auth.user.organizationId, options);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("List ID is required")) {
+          if (error.message.includes('List ID is required')) {
             throw createTRPCError({
-              code: "BAD_REQUEST",
+              code: 'BAD_REQUEST',
               message: error.message,
-              logLevel: "info"
+              logLevel: 'info',
             });
           }
-          if (error.message.includes("not a member of the specified list")) {
+          if (error.message.includes('not a member of the specified list')) {
             throw notFoundError(error.message);
           }
-          if (error.message.includes("linked to other records")) {
+          if (error.message.includes('linked to other records')) {
             throw createTRPCError({
-              code: "PRECONDITION_FAILED",
-              message: "Cannot delete donor as they are linked to other records",
-              logLevel: "info"
+              code: 'PRECONDITION_FAILED',
+              message: 'Cannot delete donor as they are linked to other records',
+              logLevel: 'info',
             });
           }
         }
@@ -453,11 +454,11 @@ export const donorsRouter = router({
 
   /**
    * Bulk delete multiple donors
-   * 
+   *
    * @param ids - Array of donor IDs to delete
-   * 
+   *
    * @returns Summary of successful/failed deletions
-   * 
+   *
    * @throws {TRPCError} BAD_REQUEST if no IDs provided
    */
   bulkDelete: protectedProcedure
@@ -467,17 +468,17 @@ export const donorsRouter = router({
       return await handleAsync(
         async () => bulkDeleteDonors(input.ids, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk delete donors"),
-          logMetadata: { count: input.ids.length }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk delete donors'),
+          logMetadata: { count: input.ids.length },
         }
       );
     }),
 
   /**
    * Get all donor IDs matching filters
-   * 
+   *
    * @param Various filter parameters...
-   * 
+   *
    * @returns Array of donor IDs
    */
   getAllIds: protectedProcedure
@@ -487,8 +488,8 @@ export const donorsRouter = router({
       const result = await handleAsync(
         async () => listDonors(input, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor IDs"),
-          logMetadata: { filters: input }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donor IDs'),
+          logMetadata: { filters: input },
         }
       );
 
@@ -497,11 +498,11 @@ export const donorsRouter = router({
 
   /**
    * Count lists a donor belongs to
-   * 
+   *
    * @param id - Donor ID
-   * 
+   *
    * @returns Count of lists
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
   countLists: protectedProcedure
@@ -511,14 +512,14 @@ export const donorsRouter = router({
       // Verify donor exists
       const donorResults = await getDonorsByIds([input.id], ctx.auth.user.organizationId);
       if (donorResults.length === 0) {
-        throw notFoundError("Donor");
+        throw notFoundError('Donor');
       }
 
       const count = await handleAsync(
         async () => countListsForDonor(input.id, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("count donor lists"),
-          logMetadata: { donorId: input.id }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('count donor lists'),
+          logMetadata: { donorId: input.id },
         }
       );
 
@@ -527,12 +528,12 @@ export const donorsRouter = router({
 
   /**
    * Update assigned staff for a donor
-   * 
+   *
    * @param donorId - Donor ID
    * @param staffId - Staff ID (null to unassign)
-   * 
+   *
    * @returns Updated donor
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor or staff doesn't exist
    */
   updateAssignedStaff: protectedProcedure
@@ -545,7 +546,7 @@ export const donorsRouter = router({
       // Verify donor
       const donorResults = await getDonorsByIds([donorId], organizationId);
       if (donorResults.length === 0) {
-        throw notFoundError("Donor");
+        throw notFoundError('Donor');
       }
       const donor = donorResults[0];
 
@@ -553,21 +554,21 @@ export const donorsRouter = router({
       if (staffId !== null) {
         const staffResults = await getStaffByIds([staffId], organizationId);
         if (staffResults.length === 0) {
-          throw notFoundError("Staff member");
+          throw notFoundError('Staff member');
         }
       }
 
       const updatedDonor = await handleAsync(
         async () => updateDonor(donorId, { assignedToStaffId: staffId }, organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update assigned staff"),
-          logMetadata: { donorId, staffId }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update assigned staff'),
+          logMetadata: { donorId, staffId },
         }
       );
 
       if (!updatedDonor) {
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: 'INTERNAL_SERVER_ERROR',
           message: "Failed to update donor's assigned staff",
         });
       }
@@ -577,12 +578,12 @@ export const donorsRouter = router({
 
   /**
    * Bulk update assigned staff for multiple donors
-   * 
+   *
    * @param donorIds - Array of donor IDs
    * @param staffId - Staff ID (null to unassign)
-   * 
+   *
    * @returns Count of updated donors
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if staff doesn't exist
    */
   bulkUpdateAssignedStaff: protectedProcedure
@@ -600,7 +601,7 @@ export const donorsRouter = router({
       if (staffId !== null) {
         const staffResults = await getStaffByIds([staffId], organizationId);
         if (staffResults.length === 0) {
-          throw notFoundError("Staff member");
+          throw notFoundError('Staff member');
         }
       }
 
@@ -609,15 +610,16 @@ export const donorsRouter = router({
       const validDonorIds = validDonors.map((d) => d.id);
 
       if (validDonorIds.length === 0) {
-        throw notFoundError("No valid donors found in your organization");
+        throw notFoundError('No valid donors found in your organization');
       }
 
       // Bulk update
       await handleAsync(
-        async () => ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId),
+        async () =>
+          ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("bulk update assigned staff"),
-          logMetadata: { count: validDonorIds.length, staffId }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk update assigned staff'),
+          logMetadata: { count: validDonorIds.length, staffId },
         }
       );
 
@@ -626,10 +628,10 @@ export const donorsRouter = router({
 
   /**
    * List donors with filtering and pagination
-   * 
+   *
    * @param searchTerm - Search by name or email
    * @param Various filter and pagination parameters...
-   * 
+   *
    * @returns Paginated list of donors
    */
   list: protectedProcedure
@@ -639,8 +641,8 @@ export const donorsRouter = router({
       const result = await handleAsync(
         async () => listDonors(input, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list donors"),
-          logMetadata: { filters: input }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('list donors'),
+          logMetadata: { filters: input },
         }
       );
 
@@ -652,10 +654,10 @@ export const donorsRouter = router({
 
   /**
    * List donors optimized for communication features
-   * 
+   *
    * @param searchTerm - Search by name or email
    * @param Pagination parameters...
-   * 
+   *
    * @returns Lightweight donor list for communications
    */
   listForCommunication: protectedProcedure
@@ -665,17 +667,17 @@ export const donorsRouter = router({
       return await handleAsync(
         async () => listDonorsForCommunication(input, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list donors for communication"),
-          logMetadata: { filters: input }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('list donors for communication'),
+          logMetadata: { filters: input },
         }
       );
     }),
 
   /**
    * Validate staff email connectivity for donors
-   * 
+   *
    * @param donorIds - Array of donor IDs to validate
-   * 
+   *
    * @returns Validation results with detailed issues
    */
   validateStaffEmailConnectivity: protectedProcedure
@@ -697,25 +699,28 @@ export const donorsRouter = router({
       const donorSchema = donors;
 
       const donorsWithStaff = await handleAsync(
-        async () => db
-          .select({
-            donorId: donorSchema.id,
-            donorFirstName: donorSchema.firstName,
-            donorLastName: donorSchema.lastName,
-            donorEmail: donorSchema.email,
-            assignedToStaffId: donorSchema.assignedToStaffId,
-            staffFirstName: staff.firstName,
-            staffLastName: staff.lastName,
-            staffEmail: staff.email,
-            hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
-          })
-          .from(donorSchema)
-          .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
-          .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
-          .where(and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))),
+        async () =>
+          db
+            .select({
+              donorId: donorSchema.id,
+              donorFirstName: donorSchema.firstName,
+              donorLastName: donorSchema.lastName,
+              donorEmail: donorSchema.email,
+              assignedToStaffId: donorSchema.assignedToStaffId,
+              staffFirstName: staff.firstName,
+              staffLastName: staff.lastName,
+              staffEmail: staff.email,
+              hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+            })
+            .from(donorSchema)
+            .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
+            .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+            .where(
+              and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))
+            ),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("validate staff email connectivity"),
-          logMetadata: { donorCount: donorIds.length }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('validate staff email connectivity'),
+          logMetadata: { donorCount: donorIds.length },
         }
       );
 
@@ -750,9 +755,11 @@ export const donorsRouter = router({
           errors.push(`${donorsWithoutStaff.length} donor(s) don't have assigned staff`);
         }
         if (donorsWithStaffButNoEmail.length > 0) {
-          errors.push(`${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`);
+          errors.push(
+            `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`
+          );
         }
-        errorMessage = errors.join(" and ");
+        errorMessage = errors.join(' and ');
       }
 
       return {
@@ -765,12 +772,12 @@ export const donorsRouter = router({
 
   /**
    * Add a note to a donor
-   * 
+   *
    * @param donorId - Donor ID
    * @param content - Note content
-   * 
+   *
    * @returns Updated donor
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
   addNote: protectedProcedure
@@ -778,11 +785,11 @@ export const donorsRouter = router({
     .output(donorResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { donorId, content } = input;
-      
+
       // Verify donor exists
       const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
       if (donorResults.length === 0) {
-        throw notFoundError("Donor");
+        throw notFoundError('Donor');
       }
       const donor = donorResults[0];
 
@@ -795,17 +802,18 @@ export const donorsRouter = router({
 
       // Update donor with new note
       const updatedDonor = await handleAsync(
-        async () => ctx.services.donors.addNoteTodonor(donorId, newNote, ctx.auth.user.organizationId),
+        async () =>
+          ctx.services.donors.addNoteToDonor(donorId, newNote, ctx.auth.user.organizationId),
         {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("add note"),
-          logMetadata: { donorId }
+          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('add note'),
+          logMetadata: { donorId },
         }
       );
 
       if (!updatedDonor) {
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to add note",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to add note',
         });
       }
 
