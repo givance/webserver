@@ -14,6 +14,16 @@ import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
 import type { InferSelectModel } from 'drizzle-orm';
 import { and, eq, gte, isNull, lt, or, sql, inArray } from 'drizzle-orm';
+import {
+  calculateSchedule,
+  scheduleTasks,
+  cancelScheduledTasks,
+  scheduleAndTriggerTasks,
+  type ScheduleConfig,
+  type SchedulableTask,
+  type ScheduledTask,
+  type TriggerTaskConfig,
+} from '@/app/lib/utils/scheduling/task-scheduler';
 
 type EmailScheduleConfig = InferSelectModel<typeof emailScheduleConfig>;
 type EmailSendJob = InferSelectModel<typeof emailSendJobs>;
@@ -291,12 +301,16 @@ export class EmailSchedulingService {
     try {
       // Get schedule config - use campaign-specific config if provided, otherwise use org defaults
       const orgConfig = await this.getOrCreateScheduleConfig(organizationId);
-      const config = campaignScheduleConfig
+      const config: ScheduleConfig = campaignScheduleConfig
         ? {
             ...orgConfig,
             ...campaignScheduleConfig,
+            dailySchedules: orgConfig.dailySchedules ?? undefined,
           }
-        : orgConfig;
+        : {
+            ...orgConfig,
+            dailySchedules: orgConfig.dailySchedules ?? undefined,
+          };
 
       // First, check if there are any emails at all for this session
       const allEmails = await db
@@ -450,130 +464,105 @@ export class EmailSchedulingService {
       }
 
       // Check daily limit
-      const sentToday = await this.getEmailsSentToday(organizationId, config.timezone);
-      const remainingToday = Math.max(0, config.dailyLimit - sentToday);
+      const sentToday = await this.getEmailsSentToday(
+        organizationId,
+        config.timezone || 'America/New_York'
+      );
+      const remainingToday = Math.max(0, (config.dailyLimit || 150) - sentToday);
 
       logger.info(
         `Scheduling ${emails.length} emails for session ${sessionId}. Sent today: ${sentToday}, remaining: ${remainingToday}`
       );
 
-      // Calculate schedule times with allowed time constraints
-      const scheduledJobs: Array<{
-        emailId: number;
-        scheduledTime: Date;
-        delay: number;
-      }> = [];
-
-      let currentTime = new Date();
-      let emailsScheduledToday = 0;
-
-      // Find the next allowed time to start scheduling
-      currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
-
-      logger.info(
-        `Starting email scheduling at ${currentTime.toISOString()} (${config.allowedTimezone})`
-      );
-      const startTz = this.getDateInTimezone(currentTime, config.allowedTimezone);
-      logger.info(
-        `Local time in ${config.allowedTimezone}: ${startTz.hour}:${String(startTz.minute).padStart(2, '0')} on day ${
-          startTz.dayOfWeek
-        }`
+      // Convert emails to schedulable tasks
+      const tasks: SchedulableTask<{ emailId: number; donorId: number }>[] = emails.map(
+        (email) => ({
+          id: email.id.toString(),
+          data: { emailId: email.id, donorId: email.donorId },
+        })
       );
 
-      for (let i = 0; i < emails.length; i++) {
-        const email = emails[i];
+      // Calculate schedule first
+      const scheduleResult = calculateSchedule(tasks, config, {
+        startTime: new Date(),
+      });
 
-        // Check if we've hit today's limit (based on daily limit timezone)
-        if (emailsScheduledToday >= remainingToday) {
-          // Schedule for next allowed day
-          currentTime = new Date(currentTime);
-          currentTime.setDate(currentTime.getDate() + 1);
-          // Find next allowed time (could be multiple days ahead)
-          currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
-          emailsScheduledToday = 0; // Reset counter for new day
-        }
+      // Check if any tasks were scheduled
+      if (scheduleResult.scheduledTasks.length === 0) {
+        const unscheduledCount = scheduleResult.unscheduledTasks.length;
+        const errorMessage =
+          unscheduledCount > 0
+            ? `Unable to schedule ${unscheduledCount} emails with current schedule settings. Please check your allowed days, time windows, and daily limits.`
+            : 'No emails to schedule.';
 
-        // Calculate random gap between min and max
-        const gapMinutes =
-          Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
-        const delayMs = i === 0 ? 0 : gapMinutes * 60 * 1000;
-
-        if (i > 0) {
-          currentTime = new Date(currentTime.getTime() + delayMs);
-        }
-
-        // Ensure the scheduled time is still within allowed hours
-        // If not, move to next allowed time
-        if (!this.isTimeAllowed(currentTime, config, campaignScheduleConfig)) {
-          currentTime = this.findNextAllowedTime(currentTime, config, campaignScheduleConfig);
-          emailsScheduledToday = 0; // Reset counter as we've moved to a new allowed period
-        }
-
-        scheduledJobs.push({
-          emailId: email.id,
-          scheduledTime: new Date(currentTime),
-          delay: currentTime.getTime() - Date.now(),
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: errorMessage,
         });
-
-        emailsScheduledToday++;
       }
 
       // Create send jobs in database
       const jobRecords = await db
         .insert(emailSendJobs)
         .values(
-          scheduledJobs.map((job) => ({
-            emailId: job.emailId,
+          scheduleResult.scheduledTasks.map((task) => ({
+            emailId: task.data.emailId,
             sessionId: sessionId,
             organizationId: organizationId,
-            scheduledTime: job.scheduledTime,
+            scheduledTime: task.scheduledTime,
             status: 'scheduled' as const,
           }))
         )
         .returning();
 
+      // Update the context with job records for payload builder
+      const triggerConfig: TriggerTaskConfig<{ emailId: number; donorId: number }> = {
+        taskHandler: sendSingleEmailTask as any,
+        payloadBuilder: (
+          task: ScheduledTask<{ emailId: number; donorId: number }>,
+          _context: any
+        ) => ({
+          emailId: task.data.emailId,
+          jobId: jobRecords.find((jr) => jr.emailId === task.data.emailId)?.id,
+          sessionId: sessionId,
+          organizationId: organizationId,
+          userId: userId,
+        }),
+        context: { jobRecords },
+      };
+
+      // Schedule the tasks with trigger.dev
+      const scheduledJobs = await scheduleTasks(scheduleResult.scheduledTasks, triggerConfig);
+
+      // Update job records with trigger IDs
+      await Promise.all(
+        scheduledJobs.map((scheduledJob) => {
+          const jobRecord = jobRecords.find((jr) => jr.emailId === parseInt(scheduledJob.taskId));
+          if (jobRecord) {
+            return db
+              .update(emailSendJobs)
+              .set({
+                triggerJobId: scheduledJob.triggerId,
+                updatedAt: new Date(),
+              })
+              .where(eq(emailSendJobs.id, jobRecord.id));
+          }
+        })
+      );
+
       // Update email statuses and scheduled times
       await Promise.all(
-        scheduledJobs.map((job, index) =>
-          db
+        scheduleResult.scheduledTasks.map((task) => {
+          const jobRecord = jobRecords.find((jr) => jr.emailId === task.data.emailId);
+          return db
             .update(generatedEmails)
             .set({
-              sendJobId: jobRecords[index].id,
-              scheduledSendTime: job.scheduledTime,
+              sendJobId: jobRecord?.id,
+              scheduledSendTime: task.scheduledTime,
               sendStatus: 'scheduled',
               updatedAt: new Date(),
             })
-            .where(eq(generatedEmails.id, job.emailId))
-        )
-      );
-
-      // Create trigger.dev jobs
-      const triggerJobs = await Promise.all(
-        jobRecords.map(async (jobRecord, index) => {
-          const job = scheduledJobs[index];
-          const triggerJob = await sendSingleEmailTask.trigger(
-            {
-              emailId: job.emailId,
-              jobId: jobRecord.id,
-              sessionId: sessionId,
-              organizationId: organizationId,
-              userId: userId,
-            },
-            {
-              delay: new Date(job.scheduledTime),
-            }
-          );
-
-          // Update job with trigger ID
-          await db
-            .update(emailSendJobs)
-            .set({
-              triggerJobId: triggerJob.id,
-              updatedAt: new Date(),
-            })
-            .where(eq(emailSendJobs.id, jobRecord.id));
-
-          return triggerJob;
+            .where(eq(generatedEmails.id, task.data.emailId));
         })
       );
 
@@ -582,12 +571,16 @@ export class EmailSchedulingService {
       const todayEnd = new Date(now);
       todayEnd.setHours(23, 59, 59, 999);
 
-      const scheduledForToday = scheduledJobs.filter((job) => job.scheduledTime <= todayEnd).length;
-      const scheduledForLater = scheduledJobs.length - scheduledForToday;
-      const lastScheduledTime = scheduledJobs[scheduledJobs.length - 1].scheduledTime;
+      const scheduledForToday = scheduleResult.scheduledTasks.filter(
+        (task) => task.scheduledTime <= todayEnd
+      ).length;
+      const scheduledForLater = scheduleResult.scheduledTasks.length - scheduledForToday;
+      const lastScheduledTask =
+        scheduleResult.scheduledTasks[scheduleResult.scheduledTasks.length - 1];
+      const lastScheduledTime = lastScheduledTask ? lastScheduledTask.scheduledTime : new Date();
 
       logger.info(
-        `Scheduled ${scheduledJobs.length} emails for session ${sessionId}. Today: ${scheduledForToday}, Later: ${scheduledForLater}`
+        `Scheduled ${scheduleResult.scheduledTasks.length} emails for session ${sessionId}. Today: ${scheduledForToday}, Later: ${scheduledForLater}`
       );
 
       // Save campaign-specific schedule config if provided
@@ -602,7 +595,7 @@ export class EmailSchedulingService {
       }
 
       return {
-        scheduled: scheduledJobs.length,
+        scheduled: scheduleResult.scheduledTasks.length,
         scheduledForToday,
         scheduledForLater,
         estimatedCompletionTime: lastScheduledTime,
@@ -646,16 +639,16 @@ export class EmailSchedulingService {
         });
       }
 
-      // Cancel trigger.dev jobs
-      const cancelPromises = scheduledJobs
+      // Cancel trigger.dev jobs using the new function
+      const triggerIds = scheduledJobs
         .filter((job) => job.triggerJobId)
-        .map((job) =>
-          runs.cancel(job.triggerJobId!).catch((error) => {
-            logger.warn(`Failed to cancel trigger job ${job.triggerJobId}: ${error}`);
-          })
-        );
+        .map((job) => job.triggerJobId!);
 
-      await Promise.all(cancelPromises);
+      const cancelResult = await cancelScheduledTasks(triggerIds);
+
+      if (cancelResult.failed.length > 0) {
+        logger.warn(`Failed to cancel ${cancelResult.failed.length} trigger jobs`);
+      }
 
       // Update job statuses
       await db
@@ -946,7 +939,7 @@ export class EmailSchedulingService {
           ? new Date(lastSent.actualSendTime).toISOString()
           : null,
         estimatedCompletionTime: scheduledEmails[scheduledEmails.length - 1]?.scheduledTime
-          ? new Date(scheduledEmails[scheduledEmails.length - 1].scheduledTime).toISOString()
+          ? new Date(scheduledEmails[scheduledEmails.length - 1].scheduledTime!).toISOString()
           : null,
       };
     } catch (error) {
@@ -1071,179 +1064,6 @@ export class EmailSchedulingService {
   }
 
   /**
-   * Check if a given date/time is within the allowed time window
-   */
-  private isTimeAllowed(date: Date, config: EmailScheduleConfig, campaignConfig?: any): boolean {
-    // Get date components in the allowed timezone
-    const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
-
-    // Check if day is allowed (0 = Sunday, 1 = Monday, etc.)
-    if (!config.allowedDays.includes(tzDate.dayOfWeek)) {
-      return false;
-    }
-
-    // Check if time is within allowed hours
-    const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
-
-    // Use campaign-specific daily schedules if available
-    if (campaignConfig?.dailySchedules && campaignConfig.dailySchedules[tzDate.dayOfWeek]) {
-      const daySchedule = campaignConfig.dailySchedules[tzDate.dayOfWeek];
-      if (!daySchedule.enabled) return false;
-
-      const startMinutes = this.timeToMinutes(daySchedule.startTime);
-      const endMinutes = this.timeToMinutes(daySchedule.endTime);
-      return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
-    }
-
-    // Otherwise use default schedule for all days
-    const startMinutes = this.timeToMinutes(config.allowedStartTime);
-    const endMinutes = this.timeToMinutes(config.allowedEndTime);
-
-    return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
-  }
-
-  /**
-   * Find the next allowed time after the given date
-   */
-  private findNextAllowedTime(date: Date, config: EmailScheduleConfig, campaignConfig?: any): Date {
-    // If we're already in an allowed time, return immediately
-    if (this.isTimeAllowed(date, config, campaignConfig)) {
-      return date;
-    }
-
-    // Get current date components in the allowed timezone
-    const tzDate = this.getDateInTimezone(date, config.allowedTimezone);
-    const currentDay = tzDate.dayOfWeek;
-    const currentTimeMinutes = tzDate.hour * 60 + tzDate.minute;
-
-    let targetDate: Date;
-
-    // Check if we're using daily schedules
-    if (campaignConfig?.dailySchedules) {
-      // If today is an allowed day, check the schedule for today
-      if (config.allowedDays.includes(currentDay) && campaignConfig.dailySchedules[currentDay]) {
-        const daySchedule = campaignConfig.dailySchedules[currentDay];
-        if (daySchedule.enabled) {
-          const endMinutes = this.timeToMinutes(daySchedule.endTime);
-          const [startHours, startMins] = daySchedule.startTime.split(':').map(Number);
-
-          // If we're before start time today, go to start time
-          if (currentTimeMinutes < this.timeToMinutes(daySchedule.startTime)) {
-            targetDate = this.createDateInTimezone(
-              tzDate.year,
-              tzDate.month,
-              tzDate.day,
-              startHours,
-              startMins,
-              0,
-              config.allowedTimezone
-            );
-            return targetDate;
-          }
-        }
-      }
-
-      // Find next allowed day with a schedule
-      let daysToAdd = 0;
-      for (let i = 1; i <= 7; i++) {
-        const checkDay = (currentDay + i) % 7;
-        if (
-          config.allowedDays.includes(checkDay) &&
-          campaignConfig.dailySchedules[checkDay] &&
-          campaignConfig.dailySchedules[checkDay].enabled
-        ) {
-          daysToAdd = i;
-          const daySchedule = campaignConfig.dailySchedules[checkDay];
-          const [startHours, startMins] = daySchedule.startTime.split(':').map(Number);
-
-          targetDate = this.createDateInTimezone(
-            tzDate.year,
-            tzDate.month,
-            tzDate.day + daysToAdd,
-            startHours,
-            startMins,
-            0,
-            config.allowedTimezone
-          );
-          return targetDate;
-        }
-      }
-    }
-
-    // Fall back to default schedule logic
-    const startMinutes = this.timeToMinutes(config.allowedStartTime);
-    const endMinutes = this.timeToMinutes(config.allowedEndTime);
-    const [startHours, startMins] = config.allowedStartTime.split(':').map(Number);
-
-    // If today is an allowed day but we're past the end time, move to next allowed day
-    if (config.allowedDays.includes(currentDay) && currentTimeMinutes > endMinutes) {
-      // Find next allowed day
-      let daysToAdd = 0;
-      for (let i = 1; i <= 7; i++) {
-        const checkDay = (currentDay + i) % 7;
-        if (config.allowedDays.includes(checkDay)) {
-          daysToAdd = i;
-          break;
-        }
-      }
-
-      // Create date for next allowed day at start time
-      targetDate = this.createDateInTimezone(
-        tzDate.year,
-        tzDate.month,
-        tzDate.day + daysToAdd,
-        startHours,
-        startMins,
-        0,
-        config.allowedTimezone
-      );
-    }
-    // If today is an allowed day but we're before start time, move to start time today
-    else if (config.allowedDays.includes(currentDay) && currentTimeMinutes < startMinutes) {
-      targetDate = this.createDateInTimezone(
-        tzDate.year,
-        tzDate.month,
-        tzDate.day,
-        startHours,
-        startMins,
-        0,
-        config.allowedTimezone
-      );
-    }
-    // If today is not an allowed day, move to next allowed day
-    else {
-      let daysToAdd = 0;
-      for (let i = 1; i <= 7; i++) {
-        const checkDay = (currentDay + i) % 7;
-        if (config.allowedDays.includes(checkDay)) {
-          daysToAdd = i;
-          break;
-        }
-      }
-
-      // Create date for next allowed day at start time
-      targetDate = this.createDateInTimezone(
-        tzDate.year,
-        tzDate.month,
-        tzDate.day + daysToAdd,
-        startHours,
-        startMins,
-        0,
-        config.allowedTimezone
-      );
-    }
-
-    // Ensure the target date is in the future
-    if (targetDate <= date) {
-      // Something went wrong, add one day and try again
-      const tomorrow = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      return this.findNextAllowedTime(tomorrow, config, campaignConfig);
-    }
-
-    return targetDate;
-  }
-
-  /**
    * Reschedule existing campaigns to respect new allowed time constraints
    */
   async rescheduleExistingCampaigns(organizationId: string) {
@@ -1290,126 +1110,133 @@ export class EmailSchedulingService {
 
       // Process each session's jobs
       for (const [sessionId, jobs] of jobsBySession) {
-        const needsReschedule = jobs.filter(
-          (job) => !this.isTimeAllowed(job.scheduledTime, config)
-        );
+        // Get the campaign's schedule config
+        const campaign = await db
+          .select({ scheduleConfig: emailGenerationSessions.scheduleConfig })
+          .from(emailGenerationSessions)
+          .where(eq(emailGenerationSessions.id, sessionId))
+          .limit(1);
 
-        if (needsReschedule.length === 0) {
-          continue; // All jobs in this session are already in allowed times
-        }
+        const scheduleConfig: ScheduleConfig = campaign[0]?.scheduleConfig
+          ? { ...config, ...(campaign[0].scheduleConfig as any) }
+          : config;
 
-        logger.info(`Rescheduling ${needsReschedule.length} jobs for session ${sessionId}`);
-
-        // Calculate new schedule times for jobs that need rescheduling
-        let currentTime = new Date();
-        currentTime = this.findNextAllowedTime(currentTime, config);
-
-        const updatedJobs: Array<{
-          id: number;
-          newScheduledTime: Date;
+        // Convert jobs to tasks
+        const tasks: SchedulableTask<{
+          jobId: number;
+          emailId: number;
           triggerId?: string | null;
-        }> = [];
+        }>[] = jobs.map((job) => ({
+          id: job.id.toString(),
+          data: { jobId: job.id, emailId: job.emailId, triggerId: job.triggerId },
+        }));
 
-        for (let i = 0; i < needsReschedule.length; i++) {
-          const job = needsReschedule[i];
+        // Recalculate schedule
+        const scheduleResult = calculateSchedule(tasks, scheduleConfig, {
+          startTime: new Date(),
+        });
 
-          // Calculate gap for spacing
-          const gapMinutes =
-            Math.random() * (config.maxGapMinutes - config.minGapMinutes) + config.minGapMinutes;
-          const delayMs = i === 0 ? 0 : gapMinutes * 60 * 1000;
+        // Cancel old trigger jobs
+        const triggerIds = jobs.filter((job) => job.triggerId).map((job) => job.triggerId!);
 
-          if (i > 0) {
-            currentTime = new Date(currentTime.getTime() + delayMs);
-          }
-
-          // Ensure we're still in allowed time after adding delay
-          if (!this.isTimeAllowed(currentTime, config)) {
-            currentTime = this.findNextAllowedTime(currentTime, config);
-          }
-
-          updatedJobs.push({
-            id: job.id,
-            newScheduledTime: new Date(currentTime),
-            triggerId: job.triggerId,
-          });
+        if (triggerIds.length > 0) {
+          await cancelScheduledTasks(triggerIds);
         }
 
-        // Update the database with new scheduled times
-        for (const update of updatedJobs) {
+        // Update database with new scheduled times and schedule new trigger jobs
+        for (const scheduledTask of scheduleResult.scheduledTasks) {
           await db
             .update(emailSendJobs)
             .set({
-              scheduledTime: update.newScheduledTime,
+              scheduledTime: scheduledTask.scheduledTime,
               updatedAt: new Date(),
             })
-            .where(eq(emailSendJobs.id, update.id));
+            .where(eq(emailSendJobs.id, scheduledTask.data.jobId));
 
           // Also update the generated email's scheduled time
           await db
             .update(generatedEmails)
             .set({
-              scheduledSendTime: update.newScheduledTime,
+              scheduledSendTime: scheduledTask.scheduledTime,
               updatedAt: new Date(),
             })
-            .where(eq(generatedEmails.id, emailSendJobs.emailId));
-
-          // Cancel the old Trigger.dev job and schedule a new one
-          if (update.triggerId) {
-            try {
-              await runs.cancel(update.triggerId);
-            } catch (error) {
-              logger.warn(
-                `Failed to cancel trigger job ${update.triggerId}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`
-              );
-            }
-          }
-
-          // TODO: Schedule new Trigger.dev job - temporarily disabled until we can pass userId
-          // The trigger task requires userId, sessionId, and jobId parameters which are not
-          // available in this context. For now, we'll just update the schedule times in the database
-          // and the jobs will need to be manually rescheduled or the campaign restarted.
-          logger.warn(
-            `Trigger job rescheduling temporarily disabled for email ${update.id} - database schedule updated but trigger job not rescheduled`
-          );
-
-          /* TEMPORARILY DISABLED - REQUIRES REFACTORING
-          const delay = update.newScheduledTime.getTime() - Date.now();
-          if (delay > 0) {
-            try {
-              const triggerHandle = await sendSingleEmailTask.trigger(
-                {
-                  emailId: needsReschedule.find((j) => j.id === update.id)!.emailId,
-                  organizationId,
-                  userId: userId, // NOT AVAILABLE
-                  sessionId: sessionId, // NOT AVAILABLE
-                  jobId: update.id, // This is job ID, not email ID
-                },
-                {
-                  delay: Math.max(1000, delay), // At least 1 second delay
-                }
-              );
-
-              // Update the trigger ID in the database
-              await db
-                .update(emailSendJobs)
-                .set({
-                  triggerJobId: triggerHandle.id,
-                })
-                .where(eq(emailSendJobs.id, update.id));
-            } catch (error) {
-              logger.error(
-                `Failed to reschedule trigger job for email ${update.id}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`
-              );
-            }
-          }
-          */
+            .where(eq(generatedEmails.id, scheduledTask.data.emailId));
         }
 
-        totalRescheduled += updatedJobs.length;
+        // Schedule new trigger.dev jobs
+        if (scheduleResult.scheduledTasks.length > 0) {
+          try {
+            // Get the user ID for the session (needed for trigger payload)
+            const sessionInfo = await db
+              .select({ userId: emailGenerationSessions.userId })
+              .from(emailGenerationSessions)
+              .where(eq(emailGenerationSessions.id, sessionId))
+              .limit(1);
+
+            if (sessionInfo[0]) {
+              const triggerConfig: TriggerTaskConfig<{
+                jobId: number;
+                emailId: number;
+                triggerId?: string | null;
+              }> = {
+                taskHandler: sendSingleEmailTask as any,
+                payloadBuilder: (
+                  task: ScheduledTask<{
+                    jobId: number;
+                    emailId: number;
+                    triggerId?: string | null;
+                  }>,
+                  _context: any
+                ) => ({
+                  emailId: task.data.emailId,
+                  jobId: task.data.jobId,
+                  sessionId: sessionId,
+                  organizationId: organizationId,
+                  userId: sessionInfo[0].userId,
+                }),
+                context: {},
+              };
+
+              const scheduledJobs = await scheduleTasks(
+                scheduleResult.scheduledTasks,
+                triggerConfig
+              );
+
+              // Update job records with new trigger IDs
+              await Promise.all(
+                scheduledJobs.map((scheduledJob) => {
+                  const scheduledTask = scheduleResult.scheduledTasks.find(
+                    (task) => task.id === scheduledJob.taskId
+                  );
+                  if (scheduledTask) {
+                    return db
+                      .update(emailSendJobs)
+                      .set({
+                        triggerJobId: scheduledJob.triggerId,
+                        updatedAt: new Date(),
+                      })
+                      .where(eq(emailSendJobs.id, scheduledTask.data.jobId));
+                  }
+                })
+              );
+
+              logger.info(
+                `Scheduled ${scheduledJobs.length} new trigger jobs for session ${sessionId}`
+              );
+            }
+          } catch (triggerError) {
+            logger.error(
+              `Failed to schedule trigger jobs for session ${sessionId}: ${triggerError}`
+            );
+            // Continue with other sessions even if one fails
+          }
+        }
+
+        totalRescheduled += scheduleResult.scheduledTasks.length;
+
+        logger.info(
+          `Rescheduled ${scheduleResult.scheduledTasks.length} jobs for session ${sessionId}`
+        );
       }
 
       logger.info(

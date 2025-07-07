@@ -148,6 +148,7 @@ export function CampaignScheduleConfig({
     mounted,
     useDailySchedules,
     dailySchedules,
+    onChange,
   ]);
 
   // Handle toggle between org defaults and custom
