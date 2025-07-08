@@ -125,9 +125,9 @@ export class EmailSchedulingService {
       );
 
       check(
-        updates.maxGapMinutes !== undefined &&
-          updates.minGapMinutes !== undefined &&
-          updates.maxGapMinutes < updates.minGapMinutes,
+        (updates.maxGapMinutes ?? 0) > 0 &&
+          (updates.minGapMinutes ?? 0) > 0 &&
+          (updates.maxGapMinutes ?? 0) < (updates.minGapMinutes ?? 0),
         'BAD_REQUEST',
         'Maximum gap must be greater than or equal to minimum gap'
       );

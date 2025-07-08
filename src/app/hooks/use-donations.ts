@@ -67,7 +67,7 @@ export function useDonations() {
   const createMutation = trpc.donations.create.useMutation({
     onSuccess: (data) => {
       cacheInvalidators.invalidateResource('donations');
-      if (data?.donorId) {
+      if (data.donorId) {
         crossResourceInvalidators.invalidateDonorRelated(data.donorId);
       }
       toast.success('Donation created successfully');
