@@ -1,12 +1,7 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '@/app/api/trpc/trpc';
 import type { UpdateTodoInput } from '@/app/lib/services/todo-service';
-import {
-  createTRPCError,
-  handleAsync,
-  validateOrganizationAccess,
-  ERROR_MESSAGES,
-} from '@/app/lib/utils/trpc-errors';
+import { createTRPCError, validateOrganizationAccess, ERROR_MESSAGES } from '../trpc';
 import { idSchema, todoSchemas, batchResultSchema } from '@/app/lib/validation/schemas';
 
 // Helper to convert Todo dates to ISO strings
@@ -127,17 +122,10 @@ export const todoRouter = router({
         });
       }
 
-      const result = await handleAsync(
-        async () =>
-          ctx.services.todos.createTodo({
-            ...input,
-            organizationId: user.organizationId,
-          }),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('create todo'),
-          logMetadata: { userId: user.id, title: input.title },
-        }
-      );
+      const result = await ctx.services.todos.createTodo({
+        ...input,
+        organizationId: user.organizationId,
+      });
 
       return serializeTodo(result);
     }),
@@ -159,10 +147,7 @@ export const todoRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
 
-      const result = await handleAsync(async () => ctx.services.todos.updateTodo(id, updateData), {
-        errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update todo'),
-        logMetadata: { todoId: id, userId: ctx.auth.user?.id },
-      });
+      const result = await ctx.services.todos.updateTodo(id, updateData);
 
       return serializeTodo(result);
     }),
@@ -193,23 +178,9 @@ export const todoRouter = router({
         });
       }
 
-      const results = await handleAsync(
-        async () => {
-          const serviceUpdateData: UpdateTodoInput = { ...data };
-          const updatePromises = ids.map((id) =>
-            ctx.services.todos.updateTodo(id, serviceUpdateData)
-          );
-          return await Promise.all(updatePromises);
-        },
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk update todos'),
-          logMetadata: {
-            userId: user.id,
-            count: ids.length,
-            organizationId: user.organizationId,
-          },
-        }
-      );
+      const serviceUpdateData: UpdateTodoInput = { ...data };
+      const updatePromises = ids.map((id) => ctx.services.todos.updateTodo(id, serviceUpdateData));
+      const results = await Promise.all(updatePromises);
 
       return { count: results.filter((r) => r).length };
     }),
@@ -226,10 +197,7 @@ export const todoRouter = router({
     .input(z.object({ id: idSchema }))
     .output(z.void())
     .mutation(async ({ ctx, input }) => {
-      await handleAsync(async () => ctx.services.todos.deleteTodo(input.id), {
-        errorMessage: ERROR_MESSAGES.OPERATION_FAILED('delete todo'),
-        logMetadata: { todoId: input.id, userId: ctx.auth.user?.id },
-      });
+      await ctx.services.todos.deleteTodo(input.id);
     }),
 
   /**
@@ -258,13 +226,7 @@ export const todoRouter = router({
         });
       }
 
-      const todos = await handleAsync(
-        async () => ctx.services.todos.getTodosByOrganization(user.organizationId, input),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch todos'),
-          logMetadata: { organizationId: user.organizationId, filters: input },
-        }
-      );
+      const todos = await ctx.services.todos.getTodosByOrganization(user.organizationId, input);
 
       return todos.map(serializeTodo);
     }),
@@ -296,13 +258,9 @@ export const todoRouter = router({
         });
       }
 
-      const grouped = await handleAsync(
-        async () =>
-          ctx.services.todos.getTodosGroupedByType(user.organizationId, input.statusesToExclude),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch grouped todos'),
-          logMetadata: { organizationId: user.organizationId },
-        }
+      const grouped = await ctx.services.todos.getTodosGroupedByType(
+        user.organizationId,
+        input.statusesToExclude
       );
 
       // Convert all todos in the grouped result
@@ -326,13 +284,7 @@ export const todoRouter = router({
     .input(z.object({ donorId: idSchema }))
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      const todos = await handleAsync(
-        async () => ctx.services.todos.getTodosByDonor(input.donorId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donor todos'),
-          logMetadata: { donorId: input.donorId, userId: ctx.auth.user?.id },
-        }
-      );
+      const todos = await ctx.services.todos.getTodosByDonor(input.donorId);
 
       return todos.map(serializeTodo);
     }),
@@ -350,13 +302,7 @@ export const todoRouter = router({
     .input(z.object({ staffId: idSchema }))
     .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
-      const todos = await handleAsync(
-        async () => ctx.services.todos.getTodosByStaff(input.staffId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch staff todos'),
-          logMetadata: { staffId: input.staffId, userId: ctx.auth.user?.id },
-        }
-      );
+      const todos = await ctx.services.todos.getTodosByStaff(input.staffId);
 
       return todos.map(serializeTodo);
     }),

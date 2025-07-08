@@ -1,15 +1,8 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import type { DonorJourney } from "@/app/lib/data/organizations";
-import { 
-  createTRPCError,
-  handleAsync,
-  ERROR_MESSAGES
-} from "@/app/lib/utils/trpc-errors";
-import {
-  urlSchema,
-  descriptionSchema,
-} from "@/app/lib/validation/schemas";
+import { z } from 'zod';
+import { router, protectedProcedure } from '../trpc';
+import type { DonorJourney } from '@/app/lib/data/organizations';
+import { createTRPCError, ERROR_MESSAGES } from '../trpc';
+import { urlSchema, descriptionSchema } from '@/app/lib/validation/schemas';
 
 // ============================================================================
 // Schema Definitions
@@ -117,48 +110,40 @@ const serializeOrganization = (org: any): z.infer<typeof organizationResponseSch
 export const organizationsRouter = router({
   /**
    * Get the current organization's details
-   * 
+   *
    * @returns Organization data including donor journey
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getCurrent: protectedProcedure
-    .output(organizationResponseSchema)
-    .query(async ({ ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: "UNAUTHORIZED",
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+  getCurrent: protectedProcedure.output(organizationResponseSchema).query(async ({ ctx }) => {
+    if (!ctx.auth.user?.organizationId) {
+      throw createTRPCError({
+        code: 'UNAUTHORIZED',
+        message: ERROR_MESSAGES.UNAUTHORIZED,
+      });
+    }
 
-      const org = await handleAsync(
-        async () => ctx.services.organizations.getOrganization(ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.NOT_FOUND("Organization"),
-          errorCode: "NOT_FOUND"
-        }
-      );
+    const org = await ctx.services.organizations.getOrganization(ctx.auth.user.organizationId);
 
-      return serializeOrganization(org);
-    }),
+    return serializeOrganization(org);
+  }),
 
   /**
    * Update the current organization's details
-   * 
+   *
    * @param websiteUrl - Organization website URL
    * @param websiteSummary - AI-generated website summary
    * @param description - Full organization description
    * @param shortDescription - Brief organization description
    * @param writingInstructions - Instructions for AI email generation
    * @param memory - Organization memory items
-   * 
+   *
    * @returns Updated organization data
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
-   * 
+   *
    * @note Triggers website crawl if websiteUrl changes
    */
   updateCurrent: protectedProcedure
@@ -167,23 +152,14 @@ export const organizationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const org = await handleAsync(
-        async () => ctx.services.organizations.updateOrganizationWithWebsiteCrawl(
-          ctx.auth.user.organizationId, 
-          input
-        ),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update organization"),
-          logMetadata: { 
-            organizationId: ctx.auth.user.organizationId,
-            hasWebsiteChange: !!input.websiteUrl 
-          }
-        }
+      const org = await ctx.services.organizations.updateOrganizationWithWebsiteCrawl(
+        ctx.auth.user.organizationId,
+        input
       );
 
       return serializeOrganization(org);
@@ -191,9 +167,9 @@ export const organizationsRouter = router({
 
   /**
    * Generate a short description for the organization using AI
-   * 
+   *
    * @returns Generated short description
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} BAD_REQUEST if organization lacks required data
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if AI generation fails
@@ -203,17 +179,13 @@ export const organizationsRouter = router({
     .mutation(async ({ ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const shortDescription = await handleAsync(
-        async () => ctx.services.organizations.generateShortDescription(ctx.auth.user.organizationId),
-        {
-          errorMessage: "Failed to generate short description. Please ensure your organization has a website URL or description.",
-          logMetadata: { organizationId: ctx.auth.user.organizationId }
-        }
+      const shortDescription = await ctx.services.organizations.generateShortDescription(
+        ctx.auth.user.organizationId
       );
 
       return { shortDescription };
@@ -221,11 +193,11 @@ export const organizationsRouter = router({
 
   /**
    * Move a memory item from user memory to organization memory
-   * 
+   *
    * @param memoryIndex - Index of memory item to move
-   * 
+   *
    * @returns Success status and message
-   * 
+   *
    * @throws {TRPCError} BAD_REQUEST if memory index is invalid
    * @throws {TRPCError} NOT_FOUND if user or organization doesn't exist
    */
@@ -235,37 +207,28 @@ export const organizationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const result = await handleAsync(
-        async () => ctx.services.organizations.moveMemoryFromUserToOrganization(
-          ctx.auth.user.id,
-          ctx.auth.user.organizationId,
-          input
-        ),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("move memory"),
-          logMetadata: { 
-            userId: ctx.auth.user.id,
-            memoryIndex: input.memoryIndex 
-          }
-        }
+      const result = await ctx.services.organizations.moveMemoryFromUserToOrganization(
+        ctx.auth.user.id,
+        ctx.auth.user.organizationId,
+        input
       );
 
       return {
         ...result,
-        message: "Memory item moved successfully"
+        message: 'Memory item moved successfully',
       };
     }),
 
   /**
    * Get the current organization's donor journey
-   * 
+   *
    * @returns Donor journey graph structure or null
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    */
   getDonorJourney: protectedProcedure
@@ -273,28 +236,24 @@ export const organizationsRouter = router({
     .query(async ({ ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      return await handleAsync(
-        async () => ctx.services.organizations.getOrganizationDonorJourney(ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor journey"),
-          logMetadata: { organizationId: ctx.auth.user.organizationId }
-        }
+      return await ctx.services.organizations.getOrganizationDonorJourney(
+        ctx.auth.user.organizationId
       );
     }),
 
   /**
    * Update the current organization's donor journey
-   * 
+   *
    * @param nodes - Array of journey nodes
    * @param edges - Array of journey edges
-   * 
+   *
    * @returns Updated donor journey
-   * 
+   *
    * @throws {TRPCError} BAD_REQUEST if journey structure is invalid
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
@@ -304,24 +263,14 @@ export const organizationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const org = await handleAsync(
-        async () => ctx.services.organizations.updateOrganizationDonorJourney(
-          ctx.auth.user.organizationId, 
-          input
-        ),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update donor journey"),
-          logMetadata: { 
-            organizationId: ctx.auth.user.organizationId,
-            nodeCount: input.nodes.length,
-            edgeCount: input.edges.length 
-          }
-        }
+      const org = await ctx.services.organizations.updateOrganizationDonorJourney(
+        ctx.auth.user.organizationId,
+        input
       );
 
       // Return just the donor journey
@@ -330,37 +279,31 @@ export const organizationsRouter = router({
 
   /**
    * Get the current organization's donor journey text description
-   * 
+   *
    * @returns Text description or null
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    */
-  getDonorJourneyText: protectedProcedure
-    .output(z.string().nullable())
-    .query(async ({ ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: "UNAUTHORIZED",
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+  getDonorJourneyText: protectedProcedure.output(z.string().nullable()).query(async ({ ctx }) => {
+    if (!ctx.auth.user?.organizationId) {
+      throw createTRPCError({
+        code: 'UNAUTHORIZED',
+        message: ERROR_MESSAGES.UNAUTHORIZED,
+      });
+    }
 
-      return await handleAsync(
-        async () => ctx.services.organizations.getOrganizationDonorJourneyText(ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch donor journey text"),
-          logMetadata: { organizationId: ctx.auth.user.organizationId }
-        }
-      );
-    }),
+    return await ctx.services.organizations.getOrganizationDonorJourneyText(
+      ctx.auth.user.organizationId
+    );
+  }),
 
   /**
    * Update the current organization's donor journey text description
-   * 
+   *
    * @param input - Text description of donor journey
-   * 
+   *
    * @returns Success status
-   * 
+   *
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
   updateDonorJourneyText: protectedProcedure
@@ -369,23 +312,14 @@ export const organizationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      await handleAsync(
-        async () => ctx.services.organizations.updateOrganizationDonorJourneyText(
-          ctx.auth.user.organizationId, 
-          input
-        ),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update donor journey text"),
-          logMetadata: { 
-            organizationId: ctx.auth.user.organizationId,
-            textLength: input.length 
-          }
-        }
+      await ctx.services.organizations.updateOrganizationDonorJourneyText(
+        ctx.auth.user.organizationId,
+        input
       );
 
       return { success: true };
@@ -393,11 +327,11 @@ export const organizationsRouter = router({
 
   /**
    * Process and update the donor journey from text description
-   * 
+   *
    * @param input - Text description to process into journey graph
-   * 
+   *
    * @returns Processed donor journey graph
-   * 
+   *
    * @throws {TRPCError} BAD_REQUEST if text cannot be processed
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if AI processing fails
    */
@@ -407,29 +341,20 @@ export const organizationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const org = await handleAsync(
-        async () => ctx.services.organizations.processAndUpdateDonorJourney(
-          ctx.auth.user.organizationId, 
-          input
-        ),
-        {
-          errorMessage: "Failed to process donor journey. Please ensure the text clearly describes stages and transitions.",
-          logMetadata: { 
-            organizationId: ctx.auth.user.organizationId,
-            textLength: input.length 
-          }
-        }
+      const org = await ctx.services.organizations.processAndUpdateDonorJourney(
+        ctx.auth.user.organizationId,
+        input
       );
 
       if (!org?.donorJourney) {
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to process donor journey",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to process donor journey',
         });
       }
 

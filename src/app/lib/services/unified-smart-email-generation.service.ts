@@ -8,7 +8,6 @@ import {
 } from '@/app/lib/data/donations';
 import { getUserMemories } from '@/app/lib/data/users';
 import { getDonorCommunicationHistory } from '@/app/lib/data/communications';
-import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import { getOrganizationById, getOrganizationMemories } from '@/app/lib/data/organizations';
 import {
   getEmailGenerationSessionById,
@@ -200,33 +199,25 @@ export class UnifiedSmartEmailGenerationService {
    * Helper methods for data fetching
    */
   private async getOrganization(organizationId: string): Promise<any | null> {
-    return await wrapDatabaseOperation(async () => {
-      return await getOrganizationById(organizationId);
-    });
+    return await getOrganizationById(organizationId);
   }
 
   private async getSession(sessionId: string, organizationId: string) {
-    return await wrapDatabaseOperation(async () => {
-      return await getEmailGenerationSessionById(Number(sessionId), organizationId);
-    });
+    return await getEmailGenerationSessionById(Number(sessionId), organizationId);
   }
 
   private async getStaffMembers(organizationId: string): Promise<any[]> {
-    return await wrapDatabaseOperation(async () => {
-      return await getAllStaffByOrganization(organizationId);
-    });
+    return await getAllStaffByOrganization(organizationId);
   }
 
   private async getDonorsWithStaffAssignments(
     organizationId: string,
     donorIds?: number[]
   ): Promise<any[]> {
-    return await wrapDatabaseOperation(async () => {
-      if (donorIds && donorIds.length > 0) {
-        return await getDonorsByIds(donorIds, organizationId);
-      }
-      return await getAllDonorsByOrganization(organizationId);
-    });
+    if (donorIds && donorIds.length > 0) {
+      return await getDonorsByIds(donorIds, organizationId);
+    }
+    return await getAllDonorsByOrganization(organizationId);
   }
 
   private async getCommunicationHistory(donorId: number, organizationId: string) {
@@ -248,9 +239,7 @@ export class UnifiedSmartEmailGenerationService {
   }
 
   private async getDonationHistory(donorId: number, organizationId: string) {
-    return await wrapDatabaseOperation(async () => {
-      return await getDonorDonationsWithProjects(donorId);
-    });
+    return await getDonorDonationsWithProjects(donorId);
   }
 
   private async getDonorStats(donorId: number, organizationId: string) {
@@ -258,9 +247,7 @@ export class UnifiedSmartEmailGenerationService {
   }
 
   private async getPersonResearch(donorId: number, organizationId: string) {
-    return await wrapDatabaseOperation(async () => {
-      return await getPersonResearchByDonor(donorId, organizationId, 5);
-    });
+    return await getPersonResearchByDonor(donorId, organizationId, 5);
   }
 
   private async getMemories(organizationId: string, userId: string) {
@@ -284,25 +271,23 @@ export class UnifiedSmartEmailGenerationService {
     reasoning: string;
     response: string;
   }) {
-    return await wrapDatabaseOperation(async () => {
-      await saveGeneratedEmailData({
-        sessionId: Number(params.sessionId),
-        donorId: params.donorId,
-        subject: params.subject,
-        structuredContent: [
-          {
-            piece: params.content,
-            references: ['email-content'],
-            addNewlineAfter: false,
-          },
-        ],
-        referenceContexts: { 'email-content': 'Generated email content' },
-        emailContent: params.content,
-        reasoning: params.reasoning,
-        response: params.response,
-        status: 'PENDING_APPROVAL',
-        isPreview: false, // Default to false for all emails
-      });
+    await saveGeneratedEmailData({
+      sessionId: Number(params.sessionId),
+      donorId: params.donorId,
+      subject: params.subject,
+      structuredContent: [
+        {
+          piece: params.content,
+          references: ['email-content'],
+          addNewlineAfter: false,
+        },
+      ],
+      referenceContexts: { 'email-content': 'Generated email content' },
+      emailContent: params.content,
+      reasoning: params.reasoning,
+      response: params.response,
+      status: 'PENDING_APPROVAL',
+      isPreview: false, // Default to false for all emails
     });
   }
 
@@ -319,9 +304,7 @@ export class UnifiedSmartEmailGenerationService {
     totalTokensUsed: number;
   }> {
     // Get donor IDs from the list
-    const listDonors = await wrapDatabaseOperation(async () => {
-      return await getListMembers(Number(params.listId));
-    });
+    const listDonors = await getListMembers(Number(params.listId));
 
     const donorIds = listDonors.map((ld) => String(ld.donorId));
 

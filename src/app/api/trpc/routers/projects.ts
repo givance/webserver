@@ -1,20 +1,14 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { 
+import { z } from 'zod';
+import { router, protectedProcedure } from '../trpc';
+import {
   getProjectById,
-  getProjectsByIds, 
-  createProject, 
-  updateProject, 
-  deleteProject, 
-  listProjects 
-} from "@/app/lib/data/projects";
-import { 
-  createTRPCError,
-  handleAsync,
-  notFoundError,
-  conflictError,
-  ERROR_MESSAGES
-} from "@/app/lib/utils/trpc-errors";
+  getProjectsByIds,
+  createProject,
+  updateProject,
+  deleteProject,
+  listProjects,
+} from '@/app/lib/data/projects';
+import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES } from '../trpc';
 import {
   idSchema,
   nameSchema,
@@ -22,7 +16,7 @@ import {
   paginationSchema,
   orderingSchema,
   projectSchemas,
-} from "@/app/lib/validation/schemas";
+} from '@/app/lib/validation/schemas';
 
 // Schema definitions
 const projectResponseSchema = z.object({
@@ -44,7 +38,7 @@ const listProjectsInputSchema = z.object({
   searchTerm: z.string().optional(),
   ...paginationSchema.shape,
   ...orderingSchema.shape,
-  orderBy: z.enum(["name", "createdAt"]).optional(),
+  orderBy: z.enum(['name', 'createdAt']).optional(),
 });
 
 const listProjectsResponseSchema = z.object({
@@ -59,11 +53,11 @@ const projectIdsSchema = z.object({
 export const projectsRouter = router({
   /**
    * Get multiple projects by their IDs
-   * 
+   *
    * @param ids - Array of project IDs
-   * 
+   *
    * @returns Array of projects
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
   getByIds: protectedProcedure
@@ -72,33 +66,27 @@ export const projectsRouter = router({
     .query(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      const projects = await handleAsync(
-        async () => getProjectsByIds(input.ids, ctx.auth.user!.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("fetch projects"),
-          logMetadata: { projectIds: input.ids }
-        }
-      );
+      const projects = await getProjectsByIds(input.ids, ctx.auth.user.organizationId);
 
       return projects;
     }),
 
   /**
    * Create a new project
-   * 
+   *
    * @param name - Project name (required)
    * @param description - Project description
    * @param active - Whether the project is active
    * @param goal - Fundraising goal amount
    * @param tags - Array of tags for categorization
-   * 
+   *
    * @returns The created project
-   * 
+   *
    * @throws {TRPCError} CONFLICT if project name already exists
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
@@ -108,7 +96,7 @@ export const projectsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
@@ -120,58 +108,54 @@ export const projectsRouter = router({
           external: false,
         });
       } catch (error) {
-        if (error instanceof Error && error.message.includes("already exists")) {
+        if (error instanceof Error && error.message.includes('already exists')) {
           throw createTRPCError({
-            code: "CONFLICT",
+            code: 'CONFLICT',
             message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
-            logLevel: "info",
-            metadata: { projectName: input.name }
+            logLevel: 'info',
+            metadata: { projectName: input.name },
           });
         }
-        
+
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: ERROR_MESSAGES.OPERATION_FAILED("create project"),
+          code: 'INTERNAL_SERVER_ERROR',
+          message: ERROR_MESSAGES.OPERATION_FAILED('create project'),
           cause: error,
-          metadata: { userId: ctx.auth.user.id }
+          metadata: { userId: ctx.auth.user.id },
         });
       }
     }),
 
   /**
    * Update an existing project
-   * 
+   *
    * @param id - Project ID to update
    * @param name - New project name
    * @param description - New description
    * @param active - New active status
    * @param goal - New fundraising goal
    * @param tags - New tags
-   * 
+   *
    * @returns The updated project
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if project doesn't exist
    * @throws {TRPCError} CONFLICT if new name already exists
    */
   update: protectedProcedure
-    .input(z.object({
-      id: idSchema,
-      ...projectSchemas.update.shape,
-    }))
+    .input(
+      z.object({
+        id: idSchema,
+        ...projectSchemas.update.shape,
+      })
+    )
     .output(projectResponseSchema)
     .mutation(async ({ input }) => {
       const { id, ...updateData } = input;
-      
-      const updated = await handleAsync(
-        async () => updateProject(id, updateData),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("update project"),
-          logMetadata: { projectId: id, updates: Object.keys(updateData) }
-        }
-      );
+
+      const updated = await updateProject(id, updateData);
 
       if (!updated) {
-        throw notFoundError("Project");
+        throw notFoundError('Project');
       }
 
       return updated;
@@ -179,9 +163,9 @@ export const projectsRouter = router({
 
   /**
    * Delete a project
-   * 
+   *
    * @param id - Project ID to delete
-   * 
+   *
    * @throws {TRPCError} NOT_FOUND if project doesn't exist
    * @throws {TRPCError} CONFLICT if project has associated records
    */
@@ -192,36 +176,37 @@ export const projectsRouter = router({
       try {
         await deleteProject(input.id);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("linked to other records")) {
+        if (error instanceof Error && error.message.includes('linked to other records')) {
           throw createTRPCError({
-            code: "CONFLICT",
-            message: "This project cannot be deleted because it has associated donations or other records. Please remove those associations first.",
-            logLevel: "info",
-            metadata: { projectId: input.id }
+            code: 'CONFLICT',
+            message:
+              'This project cannot be deleted because it has associated donations or other records. Please remove those associations first.',
+            logLevel: 'info',
+            metadata: { projectId: input.id },
           });
         }
-        
+
         throw createTRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: ERROR_MESSAGES.OPERATION_FAILED("delete project"),
+          code: 'INTERNAL_SERVER_ERROR',
+          message: ERROR_MESSAGES.OPERATION_FAILED('delete project'),
           cause: error,
-          metadata: { projectId: input.id }
+          metadata: { projectId: input.id },
         });
       }
     }),
 
   /**
    * List projects with filtering and pagination
-   * 
+   *
    * @param active - Filter by active status
    * @param searchTerm - Search projects by name
    * @param limit - Maximum number of results
    * @param offset - Number of results to skip
    * @param orderBy - Field to order by
    * @param orderDirection - Sort direction (asc/desc)
-   * 
+   *
    * @returns Object containing projects array and total count
-   * 
+   *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
   list: protectedProcedure
@@ -230,20 +215,11 @@ export const projectsRouter = router({
     .query(async ({ input, ctx }) => {
       if (!ctx.auth.user?.organizationId) {
         throw createTRPCError({
-          code: "UNAUTHORIZED",
+          code: 'UNAUTHORIZED',
           message: ERROR_MESSAGES.UNAUTHORIZED,
         });
       }
 
-      return await handleAsync(
-        async () => listProjects(input, ctx.auth.user!.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED("list projects"),
-          logMetadata: { 
-            organizationId: ctx.auth.user.organizationId,
-            filters: input 
-          }
-        }
-      );
+      return await listProjects(input, ctx.auth.user.organizationId);
     }),
 });

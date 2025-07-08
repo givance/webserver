@@ -9,7 +9,6 @@ import {
 } from '@/app/lib/utils/email-tracking/content-processor';
 import { generateTrackingId } from '@/app/lib/utils/email-tracking/utils';
 import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
-import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import {
   getGmailTokenByUserId,
   upsertGmailToken,
@@ -152,9 +151,7 @@ export class GmailService {
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000);
 
-    await wrapDatabaseOperation(async () => {
-      await upsertGmailToken(userId, tokens.access_token!, tokens.refresh_token!, expiresAt);
-    });
+    await upsertGmailToken(userId, tokens.access_token!, tokens.refresh_token!, expiresAt);
 
     logger.info(`Gmail OAuth tokens stored for user ${userId}`);
   }

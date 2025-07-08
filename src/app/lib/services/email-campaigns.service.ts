@@ -33,7 +33,6 @@ import {
   appendSignatureToEmail,
   removeSignatureFromContent,
 } from '@/app/lib/utils/email-with-signature';
-import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
 import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
@@ -190,9 +189,10 @@ export class EmailCampaignsService {
       }
 
       // First check if there's an existing campaign with the same ID
-      const existingCampaign = await wrapDatabaseOperation(async () => {
-        return await getEmailGenerationSessionById(input.campaignId, organizationId);
-      });
+      const existingCampaign = await getEmailGenerationSessionById(
+        input.campaignId,
+        organizationId
+      );
 
       if (!existingCampaign) {
         throw new TRPCError({
@@ -204,10 +204,8 @@ export class EmailCampaignsService {
       let sessionId: number = existingCampaign.id;
 
       // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
-      const existingEmailsForSelectedDonors = await wrapDatabaseOperation(async () => {
-        const donorIds = await getDonorIdsWithExistingEmails(existingCampaign.id);
-        return donorIds.map((donorId) => ({ donorId }));
-      });
+      const donorIds = await getDonorIdsWithExistingEmails(existingCampaign.id);
+      const existingEmailsForSelectedDonors = donorIds.map((donorId) => ({ donorId }));
 
       // Count how many of the selected donors already have emails
       const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
@@ -236,15 +234,17 @@ export class EmailCampaignsService {
         }
       );
 
-      const updatedSession = await wrapDatabaseOperation(async () => {
-        return await updateEmailGenerationSession(existingCampaign.id, organizationId, {
+      const updatedSession = await updateEmailGenerationSession(
+        existingCampaign.id,
+        organizationId,
+        {
           status: newStatus,
           chatHistory: input.chatHistory ?? existingCampaign.chatHistory,
           selectedDonorIds: input.selectedDonorIds,
           totalDonors: input.selectedDonorIds?.length,
           completedDonors: currentCompletedCount, // Set the initial completed count
-        });
-      });
+        }
+      );
 
       if (!updatedSession) {
         throw new TRPCError({
@@ -256,12 +256,10 @@ export class EmailCampaignsService {
       sessionId = updatedSession.id;
 
       // Update any PENDING_APPROVAL emails to APPROVED
-      await wrapDatabaseOperation(async () => {
-        await updateEmailStatusBulk(sessionId, 'PENDING_APPROVAL', 'APPROVED', {
-          isPreview: false,
-          isSent: false,
-          sendStatus: 'pending',
-        });
+      await updateEmailStatusBulk(sessionId, 'PENDING_APPROVAL', 'APPROVED', {
+        isPreview: false,
+        isSent: false,
+        sendStatus: 'pending',
       });
 
       logger.info(
@@ -269,9 +267,7 @@ export class EmailCampaignsService {
       );
 
       // Get the list of donors that already have approved emails
-      const alreadyGeneratedDonorIds = await wrapDatabaseOperation(async () => {
-        return await getDonorIdsWithEmails(sessionId, 'APPROVED');
-      });
+      const alreadyGeneratedDonorIds = await getDonorIdsWithEmails(sessionId, 'APPROVED');
       const donorsToGenerate = input.selectedDonorIds.filter(
         (id) => !alreadyGeneratedDonorIds.includes(id)
       );
@@ -310,12 +306,10 @@ export class EmailCampaignsService {
           );
 
           // Update session with error message if trigger fails (keep status as GENERATING)
-          await wrapDatabaseOperation(async () => {
-            await updateEmailGenerationSession(sessionId, organizationId, {
-              errorMessage: `Failed to start background job: ${
-                triggerError instanceof Error ? triggerError.message : String(triggerError)
-              }`,
-            });
+          await updateEmailGenerationSession(sessionId, organizationId, {
+            errorMessage: `Failed to start background job: ${
+              triggerError instanceof Error ? triggerError.message : String(triggerError)
+            }`,
           });
 
           throw new TRPCError({
@@ -338,11 +332,9 @@ export class EmailCampaignsService {
 
         // If all donors already have emails, ensure session status is READY_TO_SEND
         if (newStatus !== EmailGenerationSessionStatus.READY_TO_SEND) {
-          await wrapDatabaseOperation(async () => {
-            await updateEmailGenerationSession(sessionId, organizationId, {
-              status: EmailGenerationSessionStatus.READY_TO_SEND,
-              completedDonors: input.selectedDonorIds?.length,
-            });
+          await updateEmailGenerationSession(sessionId, organizationId, {
+            status: EmailGenerationSessionStatus.READY_TO_SEND,
+            completedDonors: input.selectedDonorIds?.length,
           });
         }
       }
@@ -381,20 +373,20 @@ export class EmailCampaignsService {
   async createSession(input: CreateSessionInput, organizationId: string, userId: string) {
     try {
       // Check if there's already a draft with the same name
-      const existingDraft = await wrapDatabaseOperation(async () => {
-        return await getDraftSessionByName(organizationId, input.campaignName);
-      });
+      const existingDraft = await getDraftSessionByName(organizationId, input.campaignName);
 
       if (existingDraft) {
         // Update existing draft
-        const updatedSession = await wrapDatabaseOperation(async () => {
-          return await updateEmailGenerationSession(existingDraft.id, organizationId, {
+        const updatedSession = await updateEmailGenerationSession(
+          existingDraft.id,
+          organizationId,
+          {
             chatHistory: input.chatHistory,
             selectedDonorIds: input.selectedDonorIds,
             totalDonors: input.selectedDonorIds.length,
             completedDonors: 0,
-          });
-        });
+          }
+        );
 
         if (!updatedSession) {
           throw new TRPCError({
@@ -407,19 +399,17 @@ export class EmailCampaignsService {
         return { sessionId: updatedSession.id };
       } else {
         // Create new draft session
-        const session = await wrapDatabaseOperation(async () => {
-          return await createEmailGenerationSession({
-            organizationId,
-            userId,
-            templateId: input.templateId,
-            jobName: input.campaignName,
-            chatHistory: input.chatHistory,
-            selectedDonorIds: input.selectedDonorIds,
-            previewDonorIds: [], // Start with empty preview donors - will be selected automatically
-            totalDonors: input.selectedDonorIds.length,
-            completedDonors: 0,
-            status: EmailGenerationSessionStatus.DRAFT, // Always create as DRAFT
-          });
+        const session = await createEmailGenerationSession({
+          organizationId,
+          userId,
+          templateId: input.templateId,
+          jobName: input.campaignName,
+          chatHistory: input.chatHistory,
+          selectedDonorIds: input.selectedDonorIds,
+          previewDonorIds: [], // Start with empty preview donors - will be selected automatically
+          totalDonors: input.selectedDonorIds.length,
+          completedDonors: 0,
+          status: EmailGenerationSessionStatus.DRAFT, // Always create as DRAFT
         });
 
         logger.info(`Created new draft session ${session.id} for user ${userId}`);
@@ -501,9 +491,7 @@ export class EmailCampaignsService {
    * @returns The session status
    */
   async getSessionStatus(sessionId: number, organizationId: string) {
-    const session = await wrapDatabaseOperation(async () => {
-      return await getSessionStatusData(sessionId, organizationId);
-    });
+    const session = await getSessionStatusData(sessionId, organizationId);
 
     if (!session) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
@@ -520,11 +508,9 @@ export class EmailCampaignsService {
         `Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to ${EmailGenerationSessionStatus.COMPLETED}.`
       );
 
-      await wrapDatabaseOperation(async () => {
-        await updateEmailGenerationSession(sessionId, organizationId, {
-          status: EmailGenerationSessionStatus.COMPLETED,
-          completedAt: new Date(),
-        });
+      await updateEmailGenerationSession(sessionId, organizationId, {
+        status: EmailGenerationSessionStatus.COMPLETED,
+        completedAt: new Date(),
       });
 
       return {
@@ -546,8 +532,10 @@ export class EmailCampaignsService {
     const { limit = 10, offset = 0, status } = input;
 
     // Get campaigns without email counts first
-    const campaignsResult = await wrapDatabaseOperation(async () => {
-      return await listEmailGenerationSessions(organizationId, { limit, offset, status });
+    const campaignsResult = await listEmailGenerationSessions(organizationId, {
+      limit,
+      offset,
+      status,
     });
 
     const campaigns = campaignsResult.sessions.map((session) => ({
@@ -587,14 +575,12 @@ export class EmailCampaignsService {
 
     // Get email counts for all campaigns in batch
     const allSessionIds = campaigns.map((c) => c.id);
-    const emailCounts = await wrapDatabaseOperation(async () => {
-      const stats = await getEmailStatsBySessionIds(allSessionIds);
-      return stats.map((stat) => ({
-        sessionId: stat.sessionId,
-        totalEmails: stat.totalEmails,
-        sentEmails: stat.sentEmails,
-      }));
-    });
+    const stats = await getEmailStatsBySessionIds(allSessionIds);
+    const emailCounts = stats.map((stat) => ({
+      sessionId: stat.sessionId,
+      totalEmails: stat.totalEmails,
+      sentEmails: stat.sentEmails,
+    }));
 
     // Create lookup map for email counts
     const emailCountsMap = new Map();
@@ -603,14 +589,12 @@ export class EmailCampaignsService {
     });
 
     // Get updated campaign statuses in batch
-    const updatedCampaigns = await wrapDatabaseOperation(async () => {
-      const sessions = await getSessionsByCriteria(organizationId, { sessionIds: allSessionIds });
-      return sessions.map((session) => ({
-        id: session.id,
-        status: session.status,
-        completedDonors: session.completedDonors,
-      }));
-    });
+    const sessions = await getSessionsByCriteria(organizationId, { sessionIds: allSessionIds });
+    const updatedCampaigns = sessions.map((session) => ({
+      id: session.id,
+      status: session.status,
+      completedDonors: session.completedDonors,
+    }));
 
     const updatedCampaignsMap = new Map();
     updatedCampaigns.forEach((campaign) => {
@@ -631,9 +615,7 @@ export class EmailCampaignsService {
       };
     });
 
-    const totalCount = await wrapDatabaseOperation(async () => {
-      return await countSessionsByOrganization(organizationId, status);
-    });
+    const totalCount = await countSessionsByOrganization(organizationId, status);
 
     return { campaigns: campaignsWithCounts, totalCount };
   }
@@ -692,9 +674,7 @@ export class EmailCampaignsService {
   ) {
     try {
       // First verify the email exists and belongs to the user's organization
-      const existingEmail = await wrapDatabaseOperation(async () => {
-        return await getEmailWithSessionAuth(emailId, organizationId);
-      });
+      const existingEmail = await getEmailWithSessionAuth(emailId, organizationId);
 
       if (!existingEmail) {
         throw new TRPCError({
@@ -711,9 +691,7 @@ export class EmailCampaignsService {
       }
 
       // Update the email status
-      const updatedEmail = await wrapDatabaseOperation(async () => {
-        return await updateEmailStatus(emailId, status);
-      });
+      const updatedEmail = await updateEmailStatus(emailId, status);
 
       if (!updatedEmail) {
         throw new TRPCError({
@@ -764,9 +742,7 @@ export class EmailCampaignsService {
         });
       }
 
-      const email = await wrapDatabaseOperation(async () => {
-        return await getEmailWithOrganizationCheck(emailId, organizationId);
-      });
+      const email = await getEmailWithOrganizationCheck(emailId, organizationId);
 
       if (!email) {
         logger.warn(`Email not found for emailId: ${emailId}, organizationId: ${organizationId}`);
@@ -801,9 +777,7 @@ export class EmailCampaignsService {
   async updateEmail(input: UpdateEmailInput, organizationId: string) {
     try {
       // First verify the email exists and belongs to the user's organization
-      const existingEmail = await wrapDatabaseOperation(async () => {
-        return await getEmailWithSessionAuth(input.emailId, organizationId);
-      });
+      const existingEmail = await getEmailWithSessionAuth(input.emailId, organizationId);
 
       if (!existingEmail) {
         throw new TRPCError({
@@ -843,9 +817,7 @@ export class EmailCampaignsService {
       }
 
       // Update the email and reset status to PENDING_APPROVAL since content was edited
-      const updatedEmail = await wrapDatabaseOperation(async () => {
-        return await updateGeneratedEmailContent(input.emailId, updateData);
-      });
+      const updatedEmail = await updateGeneratedEmailContent(input.emailId, updateData);
 
       if (!updatedEmail) {
         throw new TRPCError({
@@ -885,9 +857,10 @@ export class EmailCampaignsService {
   async updateCampaign(input: UpdateCampaignInput, organizationId: string) {
     try {
       // First verify the campaign exists and belongs to the user's organization
-      const existingCampaign = await wrapDatabaseOperation(async () => {
-        return await getEmailGenerationSessionById(input.campaignId, organizationId);
-      });
+      const existingCampaign = await getEmailGenerationSessionById(
+        input.campaignId,
+        organizationId
+      );
 
       if (!existingCampaign) {
         throw new TRPCError({
@@ -941,9 +914,11 @@ export class EmailCampaignsService {
       }
 
       // Update the campaign
-      const updatedCampaign = await wrapDatabaseOperation(async () => {
-        return await updateEmailGenerationSession(input.campaignId, organizationId, updateData);
-      });
+      const updatedCampaign = await updateEmailGenerationSession(
+        input.campaignId,
+        organizationId,
+        updateData
+      );
 
       if (!updatedCampaign) {
         throw new TRPCError({
@@ -959,9 +934,7 @@ export class EmailCampaignsService {
           const schedulingService = new EmailSchedulingService();
 
           // Get current user ID from the session
-          const session = await wrapDatabaseOperation(async () => {
-            return await getEmailGenerationSessionById(input.campaignId, organizationId);
-          });
+          const session = await getEmailGenerationSessionById(input.campaignId, organizationId);
 
           if (!session) {
             throw new Error('Session not found for rescheduling');
@@ -977,10 +950,8 @@ export class EmailCampaignsService {
           }
 
           // Check if there are any unsent emails
-          const unsentCount = await wrapDatabaseOperation(async () => {
-            const emails = await getGeneratedEmailsBySessionId(input.campaignId);
-            return emails.filter((email) => !email.isSent).length;
-          });
+          const emails = await getGeneratedEmailsBySessionId(input.campaignId);
+          const unsentCount = emails.filter((email) => !email.isSent).length;
 
           // Reschedule the emails with the new configuration if there are unsent emails
 
@@ -1059,9 +1030,7 @@ export class EmailCampaignsService {
   ) {
     try {
       // First verify the session exists and belongs to the user's organization
-      const existingSession = await wrapDatabaseOperation(async () => {
-        return await getEmailGenerationSessionById(input.sessionId, organizationId);
-      });
+      const existingSession = await getEmailGenerationSessionById(input.sessionId, organizationId);
 
       if (!existingSession) {
         throw new TRPCError({
@@ -1078,14 +1047,12 @@ export class EmailCampaignsService {
       );
 
       // Get all emails for this session to understand what's happening
-      const allSessionEmails = await wrapDatabaseOperation(async () => {
-        const emails = await getGeneratedEmailsBySessionId(input.sessionId);
-        return emails.map((email) => ({
-          donorId: email.donorId,
-          isPreview: email.isPreview,
-          status: email.status,
-        }));
-      });
+      const emails = await getGeneratedEmailsBySessionId(input.sessionId);
+      const allSessionEmails = emails.map((email) => ({
+        donorId: email.donorId,
+        isPreview: email.isPreview,
+        status: email.status,
+      }));
 
       logger.info(
         `[regenerateAllEmails] All emails in session: ${JSON.stringify(allSessionEmails)}`
@@ -1131,10 +1098,8 @@ export class EmailCampaignsService {
         donorsToRegenerate = shuffled.slice(0, numToSelect);
 
         // Update the session with the new preview donor IDs
-        await wrapDatabaseOperation(async () => {
-          await updateEmailGenerationSession(input.sessionId, organizationId, {
-            previewDonorIds: donorsToRegenerate,
-          });
+        await updateEmailGenerationSession(input.sessionId, organizationId, {
+          previewDonorIds: donorsToRegenerate,
         });
 
         logger.info(
@@ -1151,9 +1116,7 @@ export class EmailCampaignsService {
       );
 
       // Delete only preview emails (emails for preview donors)
-      const deletedCount = await wrapDatabaseOperation(async () => {
-        return await deleteGeneratedEmails(input.sessionId, donorsToRegenerate);
-      });
+      const deletedCount = await deleteGeneratedEmails(input.sessionId, donorsToRegenerate);
 
       logger.info(`Deleted ${deletedCount} preview emails for session ${input.sessionId}`);
 
@@ -1161,10 +1124,8 @@ export class EmailCampaignsService {
       const finalChatHistory = input.chatHistory;
 
       // Update the session chat history ONLY - do not modify donor lists
-      await wrapDatabaseOperation(async () => {
-        await updateEmailGenerationSession(input.sessionId, organizationId, {
-          chatHistory: finalChatHistory,
-        });
+      await updateEmailGenerationSession(input.sessionId, organizationId, {
+        chatHistory: finalChatHistory,
       });
 
       // Now regenerate emails for preview donors using the same service as preview generation
@@ -1261,9 +1222,7 @@ export class EmailCampaignsService {
     sessionId: number,
     organizationId: string
   ): Promise<EmailGenerationSession> {
-    const session = await wrapDatabaseOperation(async () => {
-      return await getEmailGenerationSessionById(sessionId, organizationId);
-    });
+    const session = await getEmailGenerationSessionById(sessionId, organizationId);
 
     if (!session) {
       throw new TRPCError({
@@ -1289,10 +1248,8 @@ export class EmailCampaignsService {
       { role: 'user' as const, content: newMessage.trim() },
     ];
 
-    await wrapDatabaseOperation(async () => {
-      await updateEmailGenerationSession(sessionId, organizationId, {
-        chatHistory: updatedHistory,
-      });
+    await updateEmailGenerationSession(sessionId, organizationId, {
+      chatHistory: updatedHistory,
     });
 
     logger.info(`[updateChatHistory] Updated chat history for session ${sessionId}`);
@@ -1342,9 +1299,7 @@ export class EmailCampaignsService {
    * Finds existing preview donors from generated emails
    */
   private async findExistingPreviewDonors(sessionId: number): Promise<number[]> {
-    const emails = await wrapDatabaseOperation(async () => {
-      return await getGeneratedEmailsBySessionId(sessionId);
-    });
+    const emails = await getGeneratedEmailsBySessionId(sessionId);
 
     const previewEmails = emails.filter((email) => email.isPreview === true);
     return [...new Set(previewEmails.map((email) => email.donorId))];
@@ -1397,10 +1352,8 @@ export class EmailCampaignsService {
     organizationId: string,
     previewDonorIds: number[]
   ): Promise<void> {
-    await wrapDatabaseOperation(async () => {
-      await updateEmailGenerationSession(sessionId, organizationId, {
-        previewDonorIds,
-      });
+    await updateEmailGenerationSession(sessionId, organizationId, {
+      previewDonorIds,
     });
   }
 
@@ -1525,9 +1478,7 @@ export class EmailCampaignsService {
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
     // Delete existing emails
-    const deletedCount = await wrapDatabaseOperation(async () => {
-      return await deleteGeneratedEmails(session.id, donorsToProcess);
-    });
+    const deletedCount = await deleteGeneratedEmails(session.id, donorsToProcess);
 
     logger.info(`[handleRegenerateAll] Deleted ${deletedCount} existing emails`);
 
@@ -1581,9 +1532,7 @@ export class EmailCampaignsService {
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
     // Delete existing emails
-    const deletedCount = await wrapDatabaseOperation(async () => {
-      return await deleteGeneratedEmails(session.id, donorsToProcess);
-    });
+    const deletedCount = await deleteGeneratedEmails(session.id, donorsToProcess);
 
     logger.info(`[handleGenerateWithNewMessage] Deleted ${deletedCount} existing emails`);
 
@@ -1642,9 +1591,10 @@ export class EmailCampaignsService {
         logger.info(`[saveDraft] Attempting to update existing draft session ${input.sessionId}`);
 
         // First check if the session exists and its current status
-        const existingSession = await wrapDatabaseOperation(async () => {
-          return await getEmailGenerationSessionById(input.sessionId!, organizationId);
-        });
+        const existingSession = await getEmailGenerationSessionById(
+          input.sessionId!,
+          organizationId
+        );
 
         logger.info(`[saveDraft] Existing session lookup result:`, {
           found: !!existingSession,
@@ -1672,9 +1622,11 @@ export class EmailCampaignsService {
           })),
         });
 
-        const updatedSession = await wrapDatabaseOperation(async () => {
-          return await updateEmailGenerationSession(input.sessionId!, organizationId, updateData);
-        });
+        const updatedSession = await updateEmailGenerationSession(
+          input.sessionId!,
+          organizationId,
+          updateData
+        );
 
         if (!updatedSession) {
           logger.error(
@@ -1720,9 +1672,7 @@ export class EmailCampaignsService {
         });
 
         // Create new draft
-        const newSession = await wrapDatabaseOperation(async () => {
-          return await createEmailGenerationSession(newSessionData);
-        });
+        const newSession = await createEmailGenerationSession(newSessionData);
 
         logger.info(`[saveDraft] Successfully created new draft session ${newSession.id}`);
         return { sessionId: newSession.id };
@@ -1754,16 +1704,12 @@ export class EmailCampaignsService {
 
     try {
       // Get all sessions in batch
-      const sessions = await wrapDatabaseOperation(async () => {
-        return await getSessionsByCriteria(organizationId, { sessionIds });
-      });
+      const sessions = await getSessionsByCriteria(organizationId, { sessionIds });
 
       if (sessions.length === 0) return new Map();
 
       // Get email stats for all sessions in batch
-      const emailStats = await wrapDatabaseOperation(async () => {
-        return await getEmailStatsBySessionIds(sessionIds);
-      });
+      const emailStats = await getEmailStatsBySessionIds(sessionIds);
 
       // Create lookup map for email stats
       const emailStatsMap = new Map();
@@ -1865,15 +1811,13 @@ export class EmailCampaignsService {
 
       // Perform batch updates
       if (sessionsToUpdate.length > 0) {
-        await wrapDatabaseOperation(async () => {
-          const updates = sessionsToUpdate.map((update) => ({
-            sessionId: update.id,
-            status: update.status,
-            completedDonors: update.completedDonors,
-            completedAt: update.shouldSetCompletedAt ? new Date() : undefined,
-          }));
-          await updateSessionsBatch(updates);
-        });
+        const updates = sessionsToUpdate.map((update) => ({
+          sessionId: update.id,
+          status: update.status,
+          completedDonors: update.completedDonors,
+          completedAt: update.shouldSetCompletedAt ? new Date() : undefined,
+        }));
+        await updateSessionsBatch(updates);
 
         logger.info(
           `[checkAndUpdateMultipleCampaignCompletion] Updated ${sessionsToUpdate.length} campaigns: ${sessionsToUpdate
@@ -1911,18 +1855,14 @@ export class EmailCampaignsService {
   async saveGeneratedEmail(input: SaveGeneratedEmailInput, organizationId: string) {
     try {
       // Verify the session belongs to the organization
-      const sessionExists = await wrapDatabaseOperation(async () => {
-        return await checkSessionExists(input.sessionId, organizationId);
-      });
+      const sessionExists = await checkSessionExists(input.sessionId, organizationId);
 
       if (!sessionExists) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
       }
 
       // Check if email already exists for this donor in this session
-      const existingEmail = await wrapDatabaseOperation(async () => {
-        return await getEmailBySessionAndDonor(input.sessionId, input.donorId);
-      });
+      const existingEmail = await getEmailBySessionAndDonor(input.sessionId, input.donorId);
 
       // Remove signature from content before saving (only if structuredContent exists)
       const contentWithoutSignature = input.structuredContent
@@ -1957,9 +1897,7 @@ export class EmailCampaignsService {
           updateData.response = input.response;
         }
 
-        const updatedEmail = await wrapDatabaseOperation(async () => {
-          return await updateGeneratedEmail(existingEmail.id, updateData);
-        });
+        const updatedEmail = await updateGeneratedEmail(existingEmail.id, updateData);
         return { success: true, email: updatedEmail };
       } else {
         // Create new email
@@ -1992,9 +1930,7 @@ export class EmailCampaignsService {
           insertData.response = input.response;
         }
 
-        const newEmail = await wrapDatabaseOperation(async () => {
-          return await createGeneratedEmail(insertData);
-        });
+        const newEmail = await createGeneratedEmail(insertData);
         return { success: true, email: newEmail };
       }
     } catch (error) {
@@ -2019,9 +1955,7 @@ export class EmailCampaignsService {
   async retryCampaign(sessionId: number, organizationId: string, userId: string) {
     try {
       // Get the session
-      const session = await wrapDatabaseOperation(async () => {
-        return await getEmailGenerationSessionById(sessionId, organizationId);
-      });
+      const session = await getEmailGenerationSessionById(sessionId, organizationId);
 
       if (!session) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
@@ -2038,17 +1972,13 @@ export class EmailCampaignsService {
       logger.info(`Retrying campaign ${sessionId} with status ${session.status}`);
 
       // Reset status to PENDING and clear error message
-      await wrapDatabaseOperation(async () => {
-        await updateEmailGenerationSession(sessionId, organizationId, {
-          status: EmailGenerationSessionStatus.GENERATING,
-          errorMessage: null,
-        });
+      await updateEmailGenerationSession(sessionId, organizationId, {
+        status: EmailGenerationSessionStatus.GENERATING,
+        errorMessage: null,
       });
 
       // Get donors that don't have approved emails yet
-      const alreadyGeneratedDonorIds = await wrapDatabaseOperation(async () => {
-        return await getDonorIdsWithEmails(sessionId, 'APPROVED');
-      });
+      const alreadyGeneratedDonorIds = await getDonorIdsWithEmails(sessionId, 'APPROVED');
       const selectedDonorIds = session.selectedDonorIds as number[];
       const donorsToGenerate = selectedDonorIds.filter(
         (id) => !alreadyGeneratedDonorIds.includes(id)
@@ -2086,13 +2016,11 @@ export class EmailCampaignsService {
           );
 
           // Update session status to FAILED
-          await wrapDatabaseOperation(async () => {
-            await updateEmailGenerationSession(sessionId, organizationId, {
-              status: EmailGenerationSessionStatus.GENERATING,
-              errorMessage: `Retry failed: ${
-                triggerError instanceof Error ? triggerError.message : String(triggerError)
-              }`,
-            });
+          await updateEmailGenerationSession(sessionId, organizationId, {
+            status: EmailGenerationSessionStatus.GENERATING,
+            errorMessage: `Retry failed: ${
+              triggerError instanceof Error ? triggerError.message : String(triggerError)
+            }`,
           });
 
           throw new TRPCError({
@@ -2102,12 +2030,10 @@ export class EmailCampaignsService {
         }
       } else {
         // All donors already have emails, mark as completed
-        await wrapDatabaseOperation(async () => {
-          await updateEmailGenerationSession(sessionId, organizationId, {
-            status: EmailGenerationSessionStatus.COMPLETED,
-            completedDonors: selectedDonorIds.length,
-            completedAt: new Date(),
-          });
+        await updateEmailGenerationSession(sessionId, organizationId, {
+          status: EmailGenerationSessionStatus.COMPLETED,
+          completedDonors: selectedDonorIds.length,
+          completedAt: new Date(),
         });
 
         logger.info(`Campaign ${sessionId} marked as completed - all donors already have emails`);
@@ -2133,18 +2059,16 @@ export class EmailCampaignsService {
   async fixStuckCampaigns(organizationId: string) {
     try {
       // Get all campaigns that might be stuck (PENDING or IN_PROGRESS)
-      const stuckCampaigns = await wrapDatabaseOperation(async () => {
-        const sessions = await getSessionsByCriteria(organizationId, {
-          statuses: [
-            EmailGenerationSessionStatus.GENERATING,
-            EmailGenerationSessionStatus.READY_TO_SEND,
-          ],
-        });
-        return sessions.map((session) => ({
-          id: session.id,
-          status: session.status,
-        }));
+      const sessions = await getSessionsByCriteria(organizationId, {
+        statuses: [
+          EmailGenerationSessionStatus.GENERATING,
+          EmailGenerationSessionStatus.READY_TO_SEND,
+        ],
       });
+      const stuckCampaigns = sessions.map((session) => ({
+        id: session.id,
+        status: session.status,
+      }));
 
       let fixedCount = 0;
 
@@ -2154,10 +2078,8 @@ export class EmailCampaignsService {
           await this.checkAndUpdateCampaignCompletion(campaign.id, organizationId);
 
           // Check if status changed
-          const updatedCampaign = await wrapDatabaseOperation(async () => {
-            const session = await getEmailGenerationSessionById(campaign.id, organizationId);
-            return session ? { status: session.status } : null;
-          });
+          const session = await getEmailGenerationSessionById(campaign.id, organizationId);
+          const updatedCampaign = session ? { status: session.status } : null;
 
           if (updatedCampaign && updatedCampaign.status !== originalStatus) {
             fixedCount++;

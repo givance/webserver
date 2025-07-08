@@ -1,5 +1,4 @@
 import { logger } from '@/app/lib/logger';
-import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import type { PredictedAction } from '@/app/lib/analysis/types';
 import {
   updateDonorStageClassification as updateDonorStageClassificationData,
@@ -18,12 +17,8 @@ export class DonorAnalysisService {
     stageName: string,
     reasoning?: string
   ): Promise<void> {
-    return await wrapDatabaseOperation(async () => {
-      await updateDonorStageClassificationData(donorId, stageName, reasoning);
-      logger.info(
-        `Updated stage and reasoning for donor ${donorId} to "${stageName}" in database.`
-      );
-    });
+    await updateDonorStageClassificationData(donorId, stageName, reasoning);
+    logger.info(`Updated stage and reasoning for donor ${donorId} to "${stageName}" in database.`);
   }
 
   /**
@@ -34,10 +29,8 @@ export class DonorAnalysisService {
     newStageName: string,
     reasoning?: string
   ): Promise<void> {
-    return await wrapDatabaseOperation(async () => {
-      await updateDonorStageClassificationData(donorId, newStageName, reasoning);
-      logger.info(`Donor ${donorId} transitioned to new stage "${newStageName}".`);
-    });
+    await updateDonorStageClassificationData(donorId, newStageName, reasoning);
+    logger.info(`Donor ${donorId} transitioned to new stage "${newStageName}".`);
   }
 
   /**
@@ -47,9 +40,7 @@ export class DonorAnalysisService {
     donorId: number,
     predictedActions: PredictedAction[]
   ): Promise<void> {
-    return await wrapDatabaseOperation(async () => {
-      await updateDonorPredictedActionsData(donorId, predictedActions);
-      logger.info(`Updated predicted actions for donor ${donorId} in database.`);
-    });
+    await updateDonorPredictedActionsData(donorId, predictedActions);
+    logger.info(`Updated predicted actions for donor ${donorId} in database.`);
   }
 }

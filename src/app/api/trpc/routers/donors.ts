@@ -13,13 +13,7 @@ import {
 import { countListsForDonor } from '@/app/lib/data/donor-lists';
 import { getStaffByIds } from '@/app/lib/data/staff';
 import { type DonorNote } from '@/app/lib/db/schema';
-import {
-  createTRPCError,
-  handleAsync,
-  notFoundError,
-  conflictError,
-  ERROR_MESSAGES,
-} from '@/app/lib/utils/trpc-errors';
+import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES } from '../trpc';
 import {
   idSchema,
   emailSchema,
@@ -299,13 +293,7 @@ export const donorsRouter = router({
     .input(z.object({ email: emailSchema }))
     .output(donorResponseSchema)
     .query(async ({ input, ctx }) => {
-      const donor = await handleAsync(
-        async () => getDonorByEmail(input.email, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.NOT_FOUND('Donor'),
-          errorCode: 'NOT_FOUND',
-        }
-      );
+      const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
 
       if (!donor) {
         throw notFoundError('Donor');
@@ -325,13 +313,7 @@ export const donorsRouter = router({
     .input(donorIdsSchema)
     .output(z.array(donorResponseSchema))
     .query(async ({ input, ctx }) => {
-      const donors = await handleAsync(
-        async () => getDonorsByIds(input.ids, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donors'),
-          logMetadata: { count: input.ids.length },
-        }
-      );
+      const donors = await getDonorsByIds(input.ids, ctx.auth.user.organizationId);
 
       return donors.map(serializeDonor);
     }),
@@ -388,13 +370,7 @@ export const donorsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { id, ...updateData } = input;
 
-      const updated = await handleAsync(
-        async () => updateDonor(id, updateData as any, ctx.auth.user.organizationId), // TODO: Fix type mismatch
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update donor'),
-          logMetadata: { donorId: id },
-        }
-      );
+      const updated = await updateDonor(id, updateData as any, ctx.auth.user.organizationId); // TODO: Fix type mismatch
 
       if (!updated) {
         throw notFoundError('Donor');
@@ -465,13 +441,7 @@ export const donorsRouter = router({
     .input(donorIdsSchema)
     .output(bulkDeleteResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      return await handleAsync(
-        async () => bulkDeleteDonors(input.ids, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk delete donors'),
-          logMetadata: { count: input.ids.length },
-        }
-      );
+      return await bulkDeleteDonors(input.ids, ctx.auth.user.organizationId);
     }),
 
   /**
@@ -485,13 +455,7 @@ export const donorsRouter = router({
     .input(listDonorsSchema.partial())
     .output(z.array(idSchema))
     .query(async ({ input, ctx }) => {
-      const result = await handleAsync(
-        async () => listDonors(input, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('fetch donor IDs'),
-          logMetadata: { filters: input },
-        }
-      );
+      const result = await listDonors(input, ctx.auth.user.organizationId);
 
       return result.donors.map((donor) => donor.id);
     }),
@@ -515,13 +479,7 @@ export const donorsRouter = router({
         throw notFoundError('Donor');
       }
 
-      const count = await handleAsync(
-        async () => countListsForDonor(input.id, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('count donor lists'),
-          logMetadata: { donorId: input.id },
-        }
-      );
+      const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
 
       return { count };
     }),
@@ -558,12 +516,10 @@ export const donorsRouter = router({
         }
       }
 
-      const updatedDonor = await handleAsync(
-        async () => updateDonor(donorId, { assignedToStaffId: staffId }, organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('update assigned staff'),
-          logMetadata: { donorId, staffId },
-        }
+      const updatedDonor = await updateDonor(
+        donorId,
+        { assignedToStaffId: staffId },
+        organizationId
       );
 
       if (!updatedDonor) {
@@ -614,14 +570,7 @@ export const donorsRouter = router({
       }
 
       // Bulk update
-      await handleAsync(
-        async () =>
-          ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('bulk update assigned staff'),
-          logMetadata: { count: validDonorIds.length, staffId },
-        }
-      );
+      await ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId);
 
       return { updated: validDonorIds.length };
     }),
@@ -638,13 +587,7 @@ export const donorsRouter = router({
     .input(listDonorsSchema)
     .output(listDonorsOutputSchema)
     .query(async ({ input, ctx }) => {
-      const result = await handleAsync(
-        async () => listDonors(input, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('list donors'),
-          logMetadata: { filters: input },
-        }
-      );
+      const result = await listDonors(input, ctx.auth.user.organizationId);
 
       return {
         donors: result.donors.map(serializeDonor),
@@ -664,13 +607,7 @@ export const donorsRouter = router({
     .input(listDonorsForCommunicationSchema)
     .output(listDonorsForCommunicationOutputSchema)
     .query(async ({ input, ctx }) => {
-      return await handleAsync(
-        async () => listDonorsForCommunication(input, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('list donors for communication'),
-          logMetadata: { filters: input },
-        }
-      );
+      return await listDonorsForCommunication(input, ctx.auth.user.organizationId);
     }),
 
   /**
@@ -698,31 +635,24 @@ export const donorsRouter = router({
       // Import schemas and db for this specific validation query
       const donorSchema = donors;
 
-      const donorsWithStaff = await handleAsync(
-        async () =>
-          db
-            .select({
-              donorId: donorSchema.id,
-              donorFirstName: donorSchema.firstName,
-              donorLastName: donorSchema.lastName,
-              donorEmail: donorSchema.email,
-              assignedToStaffId: donorSchema.assignedToStaffId,
-              staffFirstName: staff.firstName,
-              staffLastName: staff.lastName,
-              staffEmail: staff.email,
-              hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
-            })
-            .from(donorSchema)
-            .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
-            .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
-            .where(
-              and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))
-            ),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('validate staff email connectivity'),
-          logMetadata: { donorCount: donorIds.length },
-        }
-      );
+      const donorsWithStaff = await db
+        .select({
+          donorId: donorSchema.id,
+          donorFirstName: donorSchema.firstName,
+          donorLastName: donorSchema.lastName,
+          donorEmail: donorSchema.email,
+          assignedToStaffId: donorSchema.assignedToStaffId,
+          staffFirstName: staff.firstName,
+          staffLastName: staff.lastName,
+          staffEmail: staff.email,
+          hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+        })
+        .from(donorSchema)
+        .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
+        .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+        .where(
+          and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))
+        );
 
       // Check for validation errors
       const donorsWithoutStaff = donorsWithStaff
@@ -801,13 +731,10 @@ export const donorsRouter = router({
       };
 
       // Update donor with new note
-      const updatedDonor = await handleAsync(
-        async () =>
-          ctx.services.donors.addNoteToDonor(donorId, newNote, ctx.auth.user.organizationId),
-        {
-          errorMessage: ERROR_MESSAGES.OPERATION_FAILED('add note'),
-          logMetadata: { donorId },
-        }
+      const updatedDonor = await ctx.services.donors.addNoteToDonor(
+        donorId,
+        newNote,
+        ctx.auth.user.organizationId
       );
 
       if (!updatedDonor) {
