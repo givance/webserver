@@ -3,6 +3,8 @@ import { protectedProcedure, router } from '../trpc';
 import { env } from '@/app/lib/env';
 import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
 import { appendSignatureToPlainText } from '@/app/lib/utils/email-with-signature';
+import { getEmailContentWithAuth } from '@/app/lib/data/email-campaigns';
+import { TRPCError } from '@trpc/server';
 
 // Input validation schemas
 const createSessionSchema = z.object({
@@ -189,8 +191,7 @@ const getEmailWithSignatureSchema = z.object({
 });
 
 const getPlainTextEmailWithSignatureSchema = z.object({
-  donorId: z.number(),
-  emailContent: z.string(),
+  emailId: z.number(),
 });
 
 /**
@@ -529,8 +530,18 @@ export const emailCampaignsRouter = router({
   getPlainTextEmailWithSignature: protectedProcedure
     .input(getPlainTextEmailWithSignatureSchema)
     .query(async ({ ctx, input }) => {
-      const contentWithSignature = await appendSignatureToPlainText(input.emailContent, {
-        donorId: input.donorId,
+      // Fetch email content from database with authorization check
+      const email = await getEmailContentWithAuth(input.emailId, ctx.auth.user.organizationId);
+
+      if (!email || !email.emailContent) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Email not found or content is empty',
+        });
+      }
+
+      const contentWithSignature = await appendSignatureToPlainText(email.emailContent, {
+        donorId: email.donorId,
         organizationId: ctx.auth.user.organizationId,
         userId: ctx.auth.user.id,
       });

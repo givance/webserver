@@ -844,3 +844,36 @@ export async function updateSessionsBatch(
     throw new Error('Could not update sessions.');
   }
 }
+
+/**
+ * Gets email content with authorization check
+ */
+export async function getEmailContentWithAuth(
+  emailId: number,
+  organizationId: string
+): Promise<{
+  emailContent: string | null;
+  donorId: number;
+} | null> {
+  try {
+    const [email] = await db
+      .select({
+        emailContent: generatedEmails.emailContent,
+        donorId: generatedEmails.donorId,
+      })
+      .from(generatedEmails)
+      .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+      .where(
+        and(
+          eq(generatedEmails.id, emailId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        )
+      )
+      .limit(1);
+
+    return email || null;
+  } catch (error) {
+    console.error('Failed to get email content with auth:', error);
+    throw new Error('Could not retrieve email content.');
+  }
+}
