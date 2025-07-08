@@ -207,6 +207,11 @@ REQUIREMENTS:
 - DO NOT include any signature, closing, or sign-off - this is added automatically
 - Be specific and avoid general statements
 
+Important instructions:
+- DO NOT use dash, "-", "--" or "—" in the email ever.
+- Try to be as specific as possible, avoid general statements.
+- Pay extra attention to the numbers, you should make sure all numbers you mention are correct and accurate.
+
 Priority order for conflicting instructions:
 1. The user instruction takes the highest priority, if it conflicts with other instructions, the user instruction should always be followed.
 2. The donor notes
