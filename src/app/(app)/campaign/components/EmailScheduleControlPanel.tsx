@@ -129,9 +129,14 @@ export function EmailScheduleControlPanel({
   const handleScheduleSend = async () => {
     setIsProcessing(true);
     try {
+      const x = {
+        sessionId,
+        scheduleConfig: campaign?.session?.scheduleConfig ?? undefined,
+      };
+      console.log('x', x);
       const result = await scheduleEmailSend.mutateAsync({
         sessionId,
-        scheduleConfig: campaign?.session?.scheduleConfig as any,
+        scheduleConfig: campaign?.session?.scheduleConfig ?? undefined,
       });
       toast.success(
         `Successfully scheduled ${result.scheduled} emails. ${result.scheduledForToday} will be sent today.`,

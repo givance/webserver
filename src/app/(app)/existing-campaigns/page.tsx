@@ -33,15 +33,6 @@ import { toast } from 'sonner';
 function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any) {
   const { status, totalEmails, sentEmails, totalDonors, completedDonors } = campaign;
 
-  // Debug logging for campaign status
-  console.log(`[StatusBadge] Campaign ${campaign.id} (${campaign.campaignName}):`, {
-    status,
-    totalEmails,
-    sentEmails,
-    totalDonors,
-    completedDonors,
-  });
-
   // If the campaign failed, show failed status
   if (status === 'FAILED') {
     return <Badge variant="destructive">Failed</Badge>;
@@ -395,7 +386,7 @@ function ExistingCampaignsContent() {
     action: 'draft' | 'send' | 'delete';
   }>({ open: false, campaign: null, action: 'draft' });
 
-  const [customScheduleConfig, setCustomScheduleConfig] = useState<any>(null);
+  const [customScheduleConfig, setCustomScheduleConfig] = useState<any>(undefined);
 
   const {
     listCampaigns,
@@ -438,48 +429,6 @@ function ExistingCampaignsContent() {
       trackingStatsMap.set(stats.sessionId, stats);
     });
   }
-
-  // Debug logging
-  console.log(
-    '[ExistingCampaigns] Campaigns data:',
-    campaigns.map((c) => ({
-      id: c.id,
-      name: c.campaignName,
-      status: c.status,
-      totalDonors: c.totalDonors,
-      completedDonors: c.completedDonors,
-    }))
-  );
-
-  const ActionButtonWrapper = ({
-    disabled,
-    tooltipContent,
-    children,
-    className,
-  }: {
-    disabled: boolean;
-    tooltipContent: string;
-    children: React.ReactNode;
-    className?: string;
-  }) => {
-    if (disabled) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className={`flex items-center ${className || ''}`}>
-              {children}
-              <HelpCircle className="ml-1 h-4 w-4 text-muted-foreground" />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{tooltipContent}</p>
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return <div className={className}>{children}</div>;
-  };
 
   const handleRetryCampaign = async (campaignId: number) => {
     try {
