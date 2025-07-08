@@ -952,6 +952,101 @@ export async function addNoteToDonor(
   }
 }
 
+export async function editDonorNote(
+  donorId: number,
+  noteIndex: number,
+  newContent: string,
+  organizationId: string
+): Promise<Donor> {
+  try {
+    // Get existing donor to retrieve current notes
+    const existingDonor = await getDonorById(donorId, organizationId);
+
+    if (!existingDonor) {
+      throw new Error('Donor not found');
+    }
+
+    // Get existing notes
+    const existingNotes = (existingDonor.notes as DonorNote[]) || [];
+
+    // Validate note index
+    if (noteIndex < 0 || noteIndex >= existingNotes.length) {
+      throw new Error('Note index out of bounds');
+    }
+
+    // Update the note at the specified index
+    const updatedNotes = [...existingNotes];
+    updatedNotes[noteIndex] = {
+      ...updatedNotes[noteIndex],
+      content: newContent,
+    };
+
+    // Update donor with modified notes
+    const result = await db
+      .update(donors)
+      .set({
+        notes: updatedNotes,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+      .returning();
+
+    if (!result[0]) {
+      throw new Error('Failed to edit note');
+    }
+
+    return normalizeDonorNotes(result[0]);
+  } catch (error) {
+    console.error('Failed to edit donor note:', error);
+    throw new Error('Could not edit donor note.');
+  }
+}
+
+export async function deleteDonorNote(
+  donorId: number,
+  noteIndex: number,
+  organizationId: string
+): Promise<Donor> {
+  try {
+    // Get existing donor to retrieve current notes
+    const existingDonor = await getDonorById(donorId, organizationId);
+
+    if (!existingDonor) {
+      throw new Error('Donor not found');
+    }
+
+    // Get existing notes
+    const existingNotes = (existingDonor.notes as DonorNote[]) || [];
+
+    // Validate note index
+    if (noteIndex < 0 || noteIndex >= existingNotes.length) {
+      throw new Error('Note index out of bounds');
+    }
+
+    // Remove the note at the specified index
+    const updatedNotes = existingNotes.filter((_, index) => index !== noteIndex);
+
+    // Update donor with modified notes
+    const result = await db
+      .update(donors)
+      .set({
+        notes: updatedNotes,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)))
+      .returning();
+
+    if (!result[0]) {
+      throw new Error('Failed to delete note');
+    }
+
+    return normalizeDonorNotes(result[0]);
+  } catch (error) {
+    console.error('Failed to delete donor note:', error);
+    throw new Error('Could not delete donor note.');
+  }
+}
+
 export async function listDonorsByCriteria(
   criteria: {
     createdDateFrom?: Date;
