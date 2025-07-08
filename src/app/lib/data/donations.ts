@@ -305,12 +305,12 @@ export async function getMultipleDonorDonationStats(
  * Gets donation statistics for a donor
  * @param donorId - The ID of the donor
  * @param organizationId - The organization ID to filter by
- * @returns Object containing total amount donated and date of last donation
+ * @returns Object containing total amount donated, date of last donation, and donor notes
  */
 export async function getDonorDonationStats(
   donorId: number,
   organizationId: string
-): Promise<{ totalDonated: number; lastDonationDate: Date | null }> {
+): Promise<{ totalDonated: number; lastDonationDate: Date | null; notes: any[] }> {
   try {
     // Get total amount donated
     const totalResult = await db
@@ -330,9 +330,18 @@ export async function getDonorDonationStats(
       .innerJoin(donors, eq(donations.donorId, donors.id))
       .where(and(eq(donations.donorId, donorId), eq(donors.organizationId, organizationId)));
 
+    // Get donor notes
+    const donorResult = await db
+      .select({
+        notes: donors.notes,
+      })
+      .from(donors)
+      .where(and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)));
+
     return {
       totalDonated: totalResult[0]?.total || 0,
       lastDonationDate: lastDonationResult[0]?.lastDate || null,
+      notes: donorResult[0]?.notes || [],
     };
   } catch (error) {
     console.error('Failed to get donor donation stats:', error);
