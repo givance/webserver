@@ -319,11 +319,10 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   const { data: plainTextSignatureData } =
     trpc.emailCampaigns.getPlainTextEmailWithSignature.useQuery(
       {
-        donorId: donorId || 0,
-        emailContent: emailContent || '',
+        emailId: emailId || 0,
       },
       {
-        enabled: !!donorId && !!emailContent && isNewFormat && !isPreviewMode,
+        enabled: !!emailId && isNewFormat && !isPreviewMode,
         staleTime: 10 * 60 * 1000, // Cache for 10 minutes
         gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
         refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
