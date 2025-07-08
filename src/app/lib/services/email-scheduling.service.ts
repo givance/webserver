@@ -300,16 +300,7 @@ export class EmailSchedulingService {
     try {
       // Get schedule config - use campaign-specific config if provided, otherwise use org defaults
       const orgConfig = await this.getOrCreateScheduleConfig(organizationId);
-      const config: ScheduleConfig = campaignScheduleConfig
-        ? {
-            ...orgConfig,
-            ...campaignScheduleConfig,
-            dailySchedules: orgConfig.dailySchedules ?? undefined,
-          }
-        : {
-            ...orgConfig,
-            dailySchedules: orgConfig.dailySchedules ?? undefined,
-          };
+      const config: ScheduleConfig = campaignScheduleConfig || orgConfig;
 
       // First, check if there are any emails at all for this session
       const allEmails = await db

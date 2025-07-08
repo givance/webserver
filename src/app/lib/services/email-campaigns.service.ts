@@ -983,6 +983,7 @@ export class EmailCampaignsService {
           });
 
           // Reschedule the emails with the new configuration if there are unsent emails
+
           if (unsentCount > 0) {
             const rescheduleResult = await schedulingService.scheduleEmailCampaign(
               input.campaignId,
