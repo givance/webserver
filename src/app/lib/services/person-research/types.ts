@@ -1,3 +1,5 @@
+import { type DonorNote } from '@/app/lib/db/schema';
+
 /**
  * Input for person research service
  */
@@ -253,10 +255,10 @@ export interface GoogleSearchAPIResponse {
  * Current date helper
  */
 export function getCurrentDate(): string {
-  return new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+  return new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
 }
 
@@ -339,7 +341,7 @@ export function createEmptyResearchTokenUsage(): ResearchTokenUsage {
 export interface DonorInfo {
   fullName: string;
   location?: string;
-  notes?: string;
+  notes?: DonorNote[];
   email?: string; // NEW: Email for specific queries
   address?: string; // NEW: Address for specific queries
   state?: string; // NEW: State for specific queries when city not available

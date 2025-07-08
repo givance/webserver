@@ -2,6 +2,8 @@
  * Type definitions for WhatsApp AI service
  */
 
+import { type DonorNote } from '@/app/lib/db/schema';
+
 export interface WhatsAppAIRequest {
   message: string;
   organizationId: string;
@@ -46,7 +48,7 @@ export interface DonorDetailsResult {
   hisLastName: string | null;
   herFirstName: string | null;
   herLastName: string | null;
-  notes: string | Array<{ createdAt: string; createdBy: string; content: string }> | null;
+  notes: DonorNote[] | null;
   currentStageName: string | null;
   highPotentialDonor: boolean | null;
   assignedStaff: {

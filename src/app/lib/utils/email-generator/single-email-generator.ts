@@ -7,6 +7,7 @@ import type { DonorStatistics, RawCommunicationThread } from './types';
 import type { DonationWithDetails } from '@/app/lib/data/donations';
 import type { PersonResearchResult } from '@/app/lib/services/person-research/types';
 import { formatDonorName } from '../donor-name-formatter';
+import { type DonorNote } from '@/app/lib/db/schema';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -20,7 +21,7 @@ export interface SingleEmailGeneratorParams {
     firstName: string;
     lastName: string;
     email: string | null;
-    notes: string | object | null;
+    notes: DonorNote[] | null;
     assignedUserId?: string | null;
   };
   organization: {
@@ -216,7 +217,7 @@ Priority order for conflicting instructions:
   let donorContext = `\n\nDONOR: ${formatDonorName(donor)} (${donor.email || 'no email'})`;
 
   if (donor.notes) {
-    donorContext += `\nNotes about this Donor: ${JSON.stringify(donor.notes)}`;
+    donorContext += `\nNotes about this Donor:\n${donor.notes.map((note) => `- ${note.content}`).join('\n')}`;
   }
 
   // Add donation history

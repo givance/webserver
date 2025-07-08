@@ -3,6 +3,7 @@
 import { useDonors } from '@/app/hooks/use-donors';
 import { DonorNameFields } from '@/app/lib/utils/donor-name-formatter';
 import { formatCurrency } from '@/app/lib/utils/format';
+import { type DonorNote } from '@/app/lib/db/schema';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,7 +66,7 @@ export type Donor = DonorNameFields & {
   assignedToStaffId: string | null;
   highPotentialDonor: boolean; // NEW: High potential donor flag from research
   highPotentialDonorRationale?: string | null; // NEW: Rationale from person research
-  notes?: string | Array<{ createdAt: string; createdBy: string; content: string }> | null; // Notes about the donor
+  notes?: DonorNote[] | null; // Notes about the donor
 };
 
 // EmailEditCell component for inline email editing
@@ -102,26 +103,15 @@ function EmailEditCell({ donor }: { donor: Donor }) {
 function NotesEditCell({ donor }: { donor: Donor }) {
   // Extract notes content based on the type
   const getNotesDisplay = () => {
-    if (!donor.notes) return '';
+    if (!donor.notes || donor.notes.length === 0) return '';
 
-    // Handle array format
-    if (Array.isArray(donor.notes)) {
-      if (donor.notes.length === 0) return '';
-      // Show the most recent note (last in array)
-      const latestNote = donor.notes[donor.notes.length - 1];
-      return latestNote.content;
-    }
-
-    // Handle string format (backward compatibility)
-    if (typeof donor.notes === 'string') {
-      return donor.notes;
-    }
-
-    return '';
+    // Show the most recent note (last in array)
+    const latestNote = donor.notes[donor.notes.length - 1];
+    return latestNote.content;
   };
 
   const notesDisplay = getNotesDisplay();
-  const notesCount = Array.isArray(donor.notes) ? donor.notes.length : donor.notes ? 1 : 0;
+  const notesCount = donor.notes ? donor.notes.length : 0;
 
   return (
     <div className="w-full max-w-[300px]">
