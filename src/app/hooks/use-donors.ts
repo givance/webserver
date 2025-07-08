@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { trpc } from "@/app/lib/trpc/client";
-import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import { toast } from "sonner";
-import { logger } from "@/app/lib/logger";
-import type { TRPCClientErrorLike } from "@trpc/client";
+import { trpc } from '@/app/lib/trpc/client';
+import type { inferProcedureInput, inferProcedureOutput } from '@trpc/server';
+import type { AppRouter } from '@/app/api/trpc/routers/_app';
+import { toast } from 'sonner';
+import { logger } from '@/app/lib/logger';
+import type { TRPCClientErrorLike } from '@trpc/client';
 
-type DonorOutput = inferProcedureOutput<AppRouter["donors"]["getByIds"]>[0];
-type ListDonorsInput = inferProcedureInput<AppRouter["donors"]["list"]>;
-type CreateDonorInput = inferProcedureInput<AppRouter["donors"]["create"]>;
-type UpdateDonorInput = inferProcedureInput<AppRouter["donors"]["update"]>;
+type DonorOutput = inferProcedureOutput<AppRouter['donors']['getByIds']>[0];
+type ListDonorsInput = inferProcedureInput<AppRouter['donors']['list']>;
+type CreateDonorInput = inferProcedureInput<AppRouter['donors']['create']>;
+type UpdateDonorInput = inferProcedureInput<AppRouter['donors']['update']>;
 
 /**
  * Hook for managing donors through the tRPC API
@@ -22,14 +22,14 @@ export function useDonors() {
   // Query hooks
   const listDonors = (params: {
     searchTerm?: string;
-    gender?: "male" | "female" | null;
+    gender?: 'male' | 'female' | null;
     assignedToStaffId?: number | null;
     listId?: number;
     onlyResearched?: boolean;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt" | "totalDonated";
-    orderDirection?: "asc" | "desc";
+    orderBy?: 'firstName' | 'lastName' | 'email' | 'createdAt' | 'totalDonated';
+    orderDirection?: 'asc' | 'desc';
   }) => {
     return trpc.donors.list.useQuery(params, {
       // Refetch when window regains focus (e.g., returning from list upload)
@@ -44,14 +44,18 @@ export function useDonors() {
     searchTerm?: string;
     limit?: number;
     offset?: number;
-    orderBy?: "firstName" | "lastName" | "email" | "createdAt";
-    orderDirection?: "asc" | "desc";
+    orderBy?: 'firstName' | 'lastName' | 'email' | 'createdAt';
+    orderDirection?: 'asc' | 'desc';
   }) => {
     return trpc.donors.listForCommunication.useQuery(params, {
-      // Don't refetch automatically
+      // Allow refetching when search term changes
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
+      // Keep queries fresh with a reasonable stale time for search
+      staleTime: 5000, // 5 seconds for search queries
+      // Enable the query to run when params change
+      enabled: true,
     });
   };
 
@@ -118,7 +122,7 @@ export function useDonors() {
   const getAllDonorIds = (filters?: {
     searchTerm?: string;
     state?: string;
-    gender?: "male" | "female" | null;
+    gender?: 'male' | 'female' | null;
     assignedToStaffId?: number | null;
     listId?: number;
     notInAnyList?: boolean;
@@ -149,10 +153,10 @@ export function useDonors() {
   const createMutation = trpc.donors.create.useMutation({
     onSuccess: () => {
       utils.donors.list.invalidate();
-      toast.success("Donor created successfully");
+      toast.success('Donor created successfully');
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to create donor");
+      toast.error(error.message || 'Failed to create donor');
     },
   });
 
@@ -160,10 +164,10 @@ export function useDonors() {
     onSuccess: () => {
       utils.donors.list.invalidate();
       utils.donors.getByIds.invalidate();
-      toast.success("Donor updated successfully");
+      toast.success('Donor updated successfully');
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update donor");
+      toast.error(error.message || 'Failed to update donor');
     },
   });
 
@@ -172,17 +176,17 @@ export function useDonors() {
       utils.donors.list.invalidate();
       utils.donors.getByIds.invalidate();
       utils.lists.invalidate(); // Invalidate lists in case we removed from lists
-      
+
       if (variables.deleteMode === 'fromList') {
-        toast.success("Donor removed from list successfully");
+        toast.success('Donor removed from list successfully');
       } else if (variables.deleteMode === 'fromAllLists') {
-        toast.success("Donor removed from all lists successfully");
+        toast.success('Donor removed from all lists successfully');
       } else {
-        toast.success("Donor deleted successfully");
+        toast.success('Donor deleted successfully');
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete donor");
+      toast.error(error.message || 'Failed to delete donor');
     },
   });
 
@@ -192,15 +196,19 @@ export function useDonors() {
       utils.donors.getByIds.invalidate();
 
       if (result.success > 0 && result.failed === 0) {
-        toast.success(`Successfully deleted ${result.success} donor${result.success === 1 ? "" : "s"}`);
+        toast.success(
+          `Successfully deleted ${result.success} donor${result.success === 1 ? '' : 's'}`
+        );
       } else if (result.success > 0 && result.failed > 0) {
-        toast.warning(`Deleted ${result.success} donors, but ${result.failed} failed. Check errors for details.`);
+        toast.warning(
+          `Deleted ${result.success} donors, but ${result.failed} failed. Check errors for details.`
+        );
       } else {
         toast.error(`Failed to delete all ${result.failed} donors`);
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete donors");
+      toast.error(error.message || 'Failed to delete donors');
     },
   });
 
@@ -213,8 +221,8 @@ export function useDonors() {
       } else {
         toast.success(
           `Batch donor analysis complete! Successful: ${
-            data.results.filter((r) => r.status === "success").length
-          }, Failed: ${data.results.filter((r) => r.status !== "success").length}`
+            data.results.filter((r) => r.status === 'success').length
+          }, Failed: ${data.results.filter((r) => r.status !== 'success').length}`
         );
       }
       utils.donors.list.invalidate();
@@ -228,7 +236,7 @@ export function useDonors() {
       } else {
         toast.error(`Batch analysis failed: ${error.message}`);
       }
-      console.error("Error analyzing donors:", error);
+      console.error('Error analyzing donors:', error);
     },
   });
 
@@ -237,14 +245,16 @@ export function useDonors() {
       toast.success(`Successfully assigned staff to donor ${variables.donorId}.`);
       utils.donors.list.invalidate();
       utils.donors.getByIds.invalidate();
-      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after staff assignment.");
+      logger.info(
+        "Invalidating queries with root key ['donors'] to refetch donor data after staff assignment."
+      );
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
       toast.error(`Failed to assign staff to donor ${variables.donorId}: ${error.message}`);
       console.error("Error updating donor's assigned staff:", error);
       logger.error(
         `Error updating donor ${variables.donorId} assigned staff to ${
-          variables.staffId === null ? "unassigned" : variables.staffId
+          variables.staffId === null ? 'unassigned' : variables.staffId
         }: ${error.message}`
       );
     },
@@ -252,17 +262,21 @@ export function useDonors() {
 
   const bulkUpdateDonorStaffMutation = trpc.donors.bulkUpdateAssignedStaff.useMutation({
     onSuccess: (data, variables) => {
-      toast.success(`Successfully assigned staff to ${data.updated} donor${data.updated !== 1 ? "s" : ""}.`);
+      toast.success(
+        `Successfully assigned staff to ${data.updated} donor${data.updated !== 1 ? 's' : ''}.`
+      );
       utils.donors.list.invalidate();
       utils.donors.getByIds.invalidate();
-      logger.info("Invalidating queries with root key ['donors'] to refetch donor data after bulk staff assignment.");
+      logger.info(
+        "Invalidating queries with root key ['donors'] to refetch donor data after bulk staff assignment."
+      );
     },
     onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
       toast.error(`Failed to assign staff to donors: ${error.message}`);
       console.error("Error bulk updating donors' assigned staff:", error);
       logger.error(
         `Error bulk updating ${variables.donorIds.length} donors assigned staff to ${
-          variables.staffId === null ? "unassigned" : variables.staffId
+          variables.staffId === null ? 'unassigned' : variables.staffId
         }: ${error.message}`
       );
     },
@@ -277,7 +291,7 @@ export function useDonors() {
     try {
       return await createMutation.mutateAsync(input);
     } catch (error) {
-      console.error("Failed to create donor:", error);
+      console.error('Failed to create donor:', error);
       return null;
     }
   };
@@ -291,7 +305,7 @@ export function useDonors() {
     try {
       return await updateMutation.mutateAsync(input);
     } catch (error) {
-      console.error("Failed to update donor:", error);
+      console.error('Failed to update donor:', error);
       return null;
     }
   };
@@ -303,21 +317,21 @@ export function useDonors() {
    * @returns true if deletion was successful, false otherwise
    */
   const deleteDonor = async (
-    id: number, 
+    id: number,
     options?: {
       deleteMode?: 'fromList' | 'fromAllLists' | 'entirely';
       listId?: number;
     }
   ) => {
     try {
-      await deleteMutation.mutateAsync({ 
+      await deleteMutation.mutateAsync({
         id,
         deleteMode: options?.deleteMode,
         listId: options?.listId,
       });
       return true;
     } catch (error) {
-      console.error("Failed to delete donor:", error);
+      console.error('Failed to delete donor:', error);
       return false;
     }
   };
@@ -331,7 +345,7 @@ export function useDonors() {
     try {
       return await bulkDeleteMutation.mutateAsync({ ids });
     } catch (error) {
-      console.error("Failed to bulk delete donors:", error);
+      console.error('Failed to bulk delete donors:', error);
       return null;
     }
   };
@@ -345,7 +359,7 @@ export function useDonors() {
     try {
       return await analyzeDonorsMutation.mutateAsync({ donorIds });
     } catch (error) {
-      console.error("Failed to analyze donors:", error);
+      console.error('Failed to analyze donors:', error);
       return null;
     }
   };
@@ -364,7 +378,7 @@ export function useDonors() {
       });
       return true;
     } catch (error) {
-      console.error("Failed to update donor staff:", error);
+      console.error('Failed to update donor staff:', error);
       return false;
     }
   };
@@ -383,7 +397,7 @@ export function useDonors() {
       });
       return result;
     } catch (error) {
-      console.error("Failed to bulk update donor staff:", error);
+      console.error('Failed to bulk update donor staff:', error);
       return null;
     }
   };
