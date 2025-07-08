@@ -65,14 +65,7 @@ export class PersonResearchService {
           location: donor.address
             ? `${donor.address}${donor.state ? `, ${donor.state}` : ''}`
             : undefined,
-          notes: (() => {
-            if (!donor.notes) return undefined;
-            if (typeof donor.notes === 'string') return donor.notes;
-            if (Array.isArray(donor.notes) && donor.notes.length > 0) {
-              return donor.notes.map((note) => note.content).join('. ');
-            }
-            return undefined;
-          })(),
+          notes: donor.notes || undefined,
           email: donor.email || undefined,
           address: donor.address || undefined,
           state: donor.state || undefined,

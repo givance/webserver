@@ -1,8 +1,8 @@
-import { db } from "@/app/lib/db";
-import { donors, donations, projects, staff } from "@/app/lib/db/schema";
-import { logger } from "@/app/lib/logger";
-import { and, desc, eq, ilike, or, sql, sum, gte, lte, between } from "drizzle-orm";
-import { z } from "zod";
+import { db } from '@/app/lib/db';
+import { donors, donations, projects, staff, type DonorNote } from '@/app/lib/db/schema';
+import { logger } from '@/app/lib/logger';
+import { and, desc, eq, ilike, or, sql, sum, gte, lte, between } from 'drizzle-orm';
+import { z } from 'zod';
 
 /**
  * Database query tools for WhatsApp AI assistant
@@ -27,7 +27,9 @@ export class WhatsAppQueryToolsService {
   > {
     const { name, organizationId, limit = 10 } = params;
 
-    logger.info(`[Query Tools] Finding donors by name: "${name}" in organization ${organizationId}`);
+    logger.info(
+      `[Query Tools] Finding donors by name: "${name}" in organization ${organizationId}`
+    );
 
     try {
       // Search by first name, last name, display name, or email
@@ -78,7 +80,9 @@ export class WhatsAppQueryToolsService {
       logger.info(`[Query Tools] Found ${results.length} donors: ${JSON.stringify(results)}`);
       return results;
     } catch (error) {
-      logger.error(`Error finding donors by name: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error finding donors by name: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -100,7 +104,7 @@ export class WhatsAppQueryToolsService {
     hisLastName: string | null;
     herFirstName: string | null;
     herLastName: string | null;
-    notes: string | Array<{ createdAt: string; createdBy: string; content: string }> | null;
+    notes: DonorNote[] | null;
     currentStageName: string | null;
     highPotentialDonor: boolean | null;
     assignedStaff: {
@@ -207,7 +211,9 @@ export class WhatsAppQueryToolsService {
         lastDonationDate: donor.lastDonationDate,
       };
     } catch (error) {
-      logger.error(`Error getting donor details: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error getting donor details: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -215,7 +221,11 @@ export class WhatsAppQueryToolsService {
   /**
    * Get donation history for a donor
    */
-  async getDonationHistory(params: { donorId: number; organizationId: string; limit?: number }): Promise<
+  async getDonationHistory(params: {
+    donorId: number;
+    organizationId: string;
+    limit?: number;
+  }): Promise<
     Array<{
       id: number;
       date: Date;
@@ -227,7 +237,9 @@ export class WhatsAppQueryToolsService {
   > {
     const { donorId, organizationId, limit = 50 } = params;
 
-    logger.info(`[Query Tools] Getting donation history for donor ${donorId} in organization ${organizationId}`);
+    logger.info(
+      `[Query Tools] Getting donation history for donor ${donorId} in organization ${organizationId}`
+    );
 
     try {
       logger.info(`[Query Tools] === RAW QUERY (getDonationHistory) ===`);
@@ -266,7 +278,9 @@ export class WhatsAppQueryToolsService {
       logger.info(`[Query Tools] Found ${results.length} donations: ${JSON.stringify(results)}`);
       return results;
     } catch (error) {
-      logger.error(`Error getting donation history: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error getting donation history: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -309,7 +323,9 @@ export class WhatsAppQueryToolsService {
 
       return result;
     } catch (error) {
-      logger.error(`Error getting donor statistics: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error getting donor statistics: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -356,7 +372,9 @@ export class WhatsAppQueryToolsService {
       logger.info(`Found ${results.length} top donors for organization ${organizationId}`);
       return results;
     } catch (error) {
-      logger.error(`Error getting top donors: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error getting top donors: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -367,11 +385,11 @@ export class WhatsAppQueryToolsService {
    */
   async executeFlexibleQuery(params: {
     type:
-      | "donor-donations-by-project"
-      | "donor-donations-by-date"
-      | "project-donations"
-      | "donor-project-history"
-      | "custom-donor-search";
+      | 'donor-donations-by-project'
+      | 'donor-donations-by-date'
+      | 'project-donations'
+      | 'donor-project-history'
+      | 'custom-donor-search';
     organizationId: string;
     filters: Record<string, any>;
     limit?: number;
@@ -386,7 +404,7 @@ export class WhatsAppQueryToolsService {
 
     try {
       switch (type) {
-        case "donor-donations-by-project": {
+        case 'donor-donations-by-project': {
           // Find donations by donor name and project name
           const { donorName, projectName } = filters;
 
@@ -415,7 +433,10 @@ export class WhatsAppQueryToolsService {
                       ilike(donors.firstName, `%${donorName}%`),
                       ilike(donors.lastName, `%${donorName}%`),
                       ilike(donors.displayName, `%${donorName}%`),
-                      ilike(sql`CONCAT(${donors.firstName}, ' ', ${donors.lastName})`, `%${donorName}%`)
+                      ilike(
+                        sql`CONCAT(${donors.firstName}, ' ', ${donors.lastName})`,
+                        `%${donorName}%`
+                      )
                     )
                   : sql`true`,
                 projectName ? ilike(projects.name, `%${projectName}%`) : sql`true`
@@ -425,7 +446,7 @@ export class WhatsAppQueryToolsService {
             .limit(limit);
         }
 
-        case "donor-donations-by-date": {
+        case 'donor-donations-by-date': {
           // Find donations by donor and date range
           const { donorName, startDate, endDate } = filters;
 
@@ -453,23 +474,26 @@ export class WhatsAppQueryToolsService {
                       ilike(donors.firstName, `%${donorName}%`),
                       ilike(donors.lastName, `%${donorName}%`),
                       ilike(donors.displayName, `%${donorName}%`),
-                      ilike(sql`CONCAT(${donors.firstName}, ' ', ${donors.lastName})`, `%${donorName}%`)
+                      ilike(
+                        sql`CONCAT(${donors.firstName}, ' ', ${donors.lastName})`,
+                        `%${donorName}%`
+                      )
                     )
                   : sql`true`,
                 startDate && endDate
                   ? between(donations.date, new Date(startDate), new Date(endDate))
                   : startDate
-                  ? gte(donations.date, new Date(startDate))
-                  : endDate
-                  ? lte(donations.date, new Date(endDate))
-                  : sql`true`
+                    ? gte(donations.date, new Date(startDate))
+                    : endDate
+                      ? lte(donations.date, new Date(endDate))
+                      : sql`true`
               )
             )
             .orderBy(desc(donations.date))
             .limit(limit);
         }
 
-        case "project-donations": {
+        case 'project-donations': {
           // Find all donations to a specific project
           const { projectName, startDate, endDate } = filters;
 
@@ -498,17 +522,17 @@ export class WhatsAppQueryToolsService {
                 startDate && endDate
                   ? between(donations.date, new Date(startDate), new Date(endDate))
                   : startDate
-                  ? gte(donations.date, new Date(startDate))
-                  : endDate
-                  ? lte(donations.date, new Date(endDate))
-                  : sql`true`
+                    ? gte(donations.date, new Date(startDate))
+                    : endDate
+                      ? lte(donations.date, new Date(endDate))
+                      : sql`true`
               )
             )
             .orderBy(desc(donations.date), desc(donations.amount))
             .limit(limit);
         }
 
-        case "donor-project-history": {
+        case 'donor-project-history': {
           // Get complete history of a donor's donations to all projects
           const { donorName } = filters;
 
@@ -546,7 +570,7 @@ export class WhatsAppQueryToolsService {
             .limit(limit);
         }
 
-        case "custom-donor-search": {
+        case 'custom-donor-search': {
           // Advanced donor search with multiple criteria
           const { name, email, phone, state, isCouple, highPotential, assignedStaff } = filters;
 
@@ -586,13 +610,18 @@ export class WhatsAppQueryToolsService {
                 email ? ilike(donors.email, `%${email}%`) : sql`true`,
                 phone ? ilike(donors.phone, `%${phone}%`) : sql`true`,
                 state ? ilike(donors.state, `%${state}%`) : sql`true`,
-                typeof isCouple === "boolean" ? eq(donors.isCouple, isCouple) : sql`true`,
-                typeof highPotential === "boolean" ? eq(donors.highPotentialDonor, highPotential) : sql`true`,
+                typeof isCouple === 'boolean' ? eq(donors.isCouple, isCouple) : sql`true`,
+                typeof highPotential === 'boolean'
+                  ? eq(donors.highPotentialDonor, highPotential)
+                  : sql`true`,
                 assignedStaff
                   ? or(
                       ilike(staff.firstName, `%${assignedStaff}%`),
                       ilike(staff.lastName, `%${assignedStaff}%`),
-                      ilike(sql`CONCAT(${staff.firstName}, ' ', ${staff.lastName})`, `%${assignedStaff}%`)
+                      ilike(
+                        sql`CONCAT(${staff.firstName}, ' ', ${staff.lastName})`,
+                        `%${assignedStaff}%`
+                      )
                     )
                   : sql`true`
               )
@@ -621,7 +650,9 @@ export class WhatsAppQueryToolsService {
           throw new Error(`Unknown query type: ${type}`);
       }
     } catch (error) {
-      logger.error(`Error executing flexible query: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error executing flexible query: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -629,36 +660,36 @@ export class WhatsAppQueryToolsService {
 
 // Export schema types for tool definitions
 export const FindDonorsByNameSchema = z.object({
-  name: z.string().describe("The name or partial name to search for"),
-  limit: z.number().optional().default(10).describe("Maximum number of results to return"),
+  name: z.string().describe('The name or partial name to search for'),
+  limit: z.number().optional().default(10).describe('Maximum number of results to return'),
 });
 
 export const GetDonorDetailsSchema = z.object({
-  donorId: z.number().describe("The ID of the donor to get details for"),
+  donorId: z.number().describe('The ID of the donor to get details for'),
 });
 
 export const GetDonationHistorySchema = z.object({
-  donorId: z.number().describe("The ID of the donor to get donation history for"),
-  limit: z.number().optional().default(50).describe("Maximum number of donations to return"),
+  donorId: z.number().describe('The ID of the donor to get donation history for'),
+  limit: z.number().optional().default(50).describe('Maximum number of donations to return'),
 });
 
 export const GetDonorStatisticsSchema = z.object({});
 
 export const GetTopDonorsSchema = z.object({
-  limit: z.number().optional().default(10).describe("Maximum number of top donors to return"),
+  limit: z.number().optional().default(10).describe('Maximum number of top donors to return'),
 });
 
 // New schema for flexible queries
 export const ExecuteFlexibleQuerySchema = z.object({
   type: z
     .enum([
-      "donor-donations-by-project",
-      "donor-donations-by-date",
-      "project-donations",
-      "donor-project-history",
-      "custom-donor-search",
+      'donor-donations-by-project',
+      'donor-donations-by-date',
+      'project-donations',
+      'donor-project-history',
+      'custom-donor-search',
     ])
-    .describe("The type of query to execute"),
-  filters: z.record(z.any()).describe("Query filters as key-value pairs"),
-  limit: z.number().optional().default(50).describe("Maximum number of results to return"),
+    .describe('The type of query to execute'),
+  filters: z.record(z.any()).describe('Query filters as key-value pairs'),
+  limit: z.number().optional().default(50).describe('Maximum number of results to return'),
 });

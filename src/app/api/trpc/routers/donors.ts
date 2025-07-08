@@ -29,6 +29,7 @@ import {
   addressSchema,
   paginationSchema,
   orderingSchema,
+  donorNoteSchema,
 } from '@/app/lib/validation/schemas';
 import { db } from '@/app/lib/db';
 import { staff, staffGmailTokens, donors } from '@/app/lib/db/schema';
@@ -37,15 +38,6 @@ import { and, inArray, eq, sql } from 'drizzle-orm';
 // ============================================================================
 // Schema Definitions
 // ============================================================================
-
-/**
- * Donor note structure for type-safe note handling
- */
-const donorNoteSchema = z.object({
-  createdAt: z.string(),
-  createdBy: z.string(),
-  content: z.string(),
-});
 
 /**
  * Base donor schema for consistent type validation across operations
@@ -72,7 +64,7 @@ const baseDonorSchema = z.object({
   address: addressSchema.nullable(),
   state: z.string().nullable(),
   gender: z.enum(['male', 'female']).nullable(),
-  notes: z.union([z.string().nullable(), z.array(donorNoteSchema)]).nullable(),
+  notes: z.array(donorNoteSchema).nullable(),
   assignedToStaffId: idSchema.nullable(),
   currentStageName: z.string().nullable(),
   classificationReasoning: z.string().nullable(),

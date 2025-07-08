@@ -1,6 +1,6 @@
-import { z } from "zod";
-import { logger } from "@/app/lib/logger";
-import { db } from "@/app/lib/db";
+import { z } from 'zod';
+import { logger } from '@/app/lib/logger';
+import { db } from '@/app/lib/db';
 import {
   donors,
   donations,
@@ -9,11 +9,12 @@ import {
   personResearch,
   projects,
   communicationThreads,
-} from "@/app/lib/db/schema";
-import { eq, and, desc, sql, or } from "drizzle-orm";
-import { createAzure } from "@ai-sdk/azure";
-import { generateText } from "ai";
-import { env } from "@/app/lib/env";
+  type DonorNote,
+} from '@/app/lib/db/schema';
+import { eq, and, desc, sql, or } from 'drizzle-orm';
+import { createAzure } from '@ai-sdk/azure';
+import { generateText } from 'ai';
+import { env } from '@/app/lib/env';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -39,7 +40,7 @@ interface DonorHistory {
     hisLastName: string | null;
     herFirstName: string | null;
     herLastName: string | null;
-    notes: string | Array<{ createdAt: string; createdBy: string; content: string }> | null;
+    notes: DonorNote[] | null;
     currentStageName: string | null;
     highPotentialDonor: boolean | null;
     createdAt: Date;
@@ -57,7 +58,7 @@ interface DonorHistory {
     content: string;
     datetime: Date;
     channel: string;
-    direction: "sent" | "received";
+    direction: 'sent' | 'received';
   }>;
   research: {
     researchTopic: string;
@@ -83,7 +84,10 @@ interface DonorHistory {
 /**
  * Fetch complete donor history including donations, notes, communications, research, and todos
  */
-async function fetchDonorHistory(donorId: number, organizationId: string): Promise<DonorHistory | null> {
+async function fetchDonorHistory(
+  donorId: number,
+  organizationId: string
+): Promise<DonorHistory | null> {
   try {
     // Fetch donor with stats
     const donorResult = await db
@@ -103,7 +107,8 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
       return null;
     }
 
-    const { donor, totalDonated, donationCount, lastDonationDate, firstDonationDate } = donorResult[0];
+    const { donor, totalDonated, donationCount, lastDonationDate, firstDonationDate } =
+      donorResult[0];
 
     // Fetch donations with project details
     const donationsData = await db
@@ -125,7 +130,7 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
         content: communicationContent.content,
         datetime: communicationContent.datetime,
         channel: sql<string>`(SELECT channel FROM communication_threads WHERE id = ${communicationContent.threadId})`,
-        direction: sql<"sent" | "received">`
+        direction: sql<'sent' | 'received'>`
           CASE 
             WHEN ${communicationContent.fromDonorId} = ${donorId} THEN 'sent'
             ELSE 'received'
@@ -133,7 +138,12 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
         `,
       })
       .from(communicationContent)
-      .where(or(eq(communicationContent.fromDonorId, donorId), eq(communicationContent.toDonorId, donorId)))
+      .where(
+        or(
+          eq(communicationContent.fromDonorId, donorId),
+          eq(communicationContent.toDonorId, donorId)
+        )
+      )
       .orderBy(desc(communicationContent.datetime));
 
     // Fetch person research (get live research or most recent)
@@ -146,7 +156,9 @@ async function fetchDonorHistory(donorId: number, organizationId: string): Promi
         updatedAt: personResearch.updatedAt,
       })
       .from(personResearch)
-      .where(and(eq(personResearch.donorId, donorId), eq(personResearch.organizationId, organizationId)))
+      .where(
+        and(eq(personResearch.donorId, donorId), eq(personResearch.organizationId, organizationId))
+      )
       .orderBy(desc(personResearch.isLive), desc(personResearch.updatedAt))
       .limit(1);
 
@@ -191,12 +203,14 @@ async function fetchMultipleDonorHistories(
   const historyMap = new Map<number, DonorHistory>();
 
   // Process donors in parallel
-  const results = await Promise.allSettled(donorIds.map((donorId) => fetchDonorHistory(donorId, organizationId)));
+  const results = await Promise.allSettled(
+    donorIds.map((donorId) => fetchDonorHistory(donorId, organizationId))
+  );
 
   results.forEach((result, index) => {
-    if (result.status === "fulfilled" && result.value) {
+    if (result.status === 'fulfilled' && result.value) {
       historyMap.set(donorIds[index], result.value);
-    } else if (result.status === "rejected") {
+    } else if (result.status === 'rejected') {
       logger.error(`Failed to fetch history for donor ${donorIds[index]}:`, result.reason);
     }
   });
@@ -226,8 +240,8 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   formatted += `\nBasic Information:\n`;
   formatted += `- Name: ${donor.displayName || `${donor.firstName} ${donor.lastName}`}\n`;
   if (donor.isCouple) {
-    formatted += `- Couple: ${donor.hisFirstName || ""} ${donor.hisLastName || ""} & ${donor.herFirstName || ""} ${
-      donor.herLastName || ""
+    formatted += `- Couple: ${donor.hisFirstName || ''} ${donor.hisLastName || ''} & ${donor.herFirstName || ''} ${
+      donor.herLastName || ''
     }\n`;
   }
   formatted += `- Email: ${donor.email}\n`;
@@ -235,7 +249,8 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   if (donor.address) formatted += `- Address: ${donor.address}\n`;
   if (donor.state) formatted += `- State: ${donor.state}\n`;
   if (donor.currentStageName) formatted += `- Current Stage: ${donor.currentStageName}\n`;
-  if (donor.highPotentialDonor !== null) formatted += `- High Potential: ${donor.highPotentialDonor ? "Yes" : "No"}\n`;
+  if (donor.highPotentialDonor !== null)
+    formatted += `- High Potential: ${donor.highPotentialDonor ? 'Yes' : 'No'}\n`;
 
   // Donation summary
   formatted += `\nDonation Summary:\n`;
@@ -264,7 +279,7 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   // Notes
   if (donor.notes && Array.isArray(donor.notes) && donor.notes.length > 0) {
     formatted += `\nNotes:\n`;
-    (donor.notes as any[]).forEach((note) => {
+    donor.notes.forEach((note) => {
       formatted += `- ${note.content} (${new Date(note.createdAt).toLocaleDateString()})\n`;
     });
   }
@@ -280,7 +295,7 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
         formatted += `Summary: ${data.summaries[0]}\n`;
       }
     }
-    formatted += `Version: ${research.version} (${research.isLive ? "Live" : "Historical"})\n`;
+    formatted += `Version: ${research.version} (${research.isLive ? 'Live' : 'Historical'})\n`;
   }
 
   // Recent communications
@@ -293,7 +308,7 @@ function formatDonorHistoryForLLM(donorHistory: DonorHistory): string {
   }
 
   // Active todos
-  const activeTodos = todos.filter((todo) => todo.status !== "COMPLETED");
+  const activeTodos = todos.filter((todo) => todo.status !== 'COMPLETED');
   if (activeTodos.length > 0) {
     formatted += `\nActive Tasks:\n`;
     activeTodos.forEach((todo) => {
@@ -329,8 +344,8 @@ export function createDonorAnalysisTool(
 
         Use this tool when you need to analyze patterns across multiple donors or answer questions that require detailed donor context. Or if the execSQL tool fails, use this tool to try again.`,
       parameters: z.object({
-        donorIds: z.array(z.number()).describe("Array of donor IDs to analyze"),
-        question: z.string().describe("The question to answer about these donors"),
+        donorIds: z.array(z.number()).describe('Array of donor IDs to analyze'),
+        question: z.string().describe('The question to answer about these donors'),
       }),
       execute: async (params: { donorIds: number[]; question: string }) => {
         const { donorIds, question } = params;
@@ -343,19 +358,21 @@ export function createDonorAnalysisTool(
           const donorHistories = await fetchMultipleDonorHistories(donorIds, organizationId);
           const fetchTime = Date.now() - startTime;
 
-          logger.info(`[WhatsApp AI] Fetched history for ${donorHistories.size} donors in ${fetchTime}ms`);
+          logger.info(
+            `[WhatsApp AI] Fetched history for ${donorHistories.size} donors in ${fetchTime}ms`
+          );
 
           if (donorHistories.size === 0) {
             return {
               success: false,
-              error: "No valid donor data found for the provided IDs",
+              error: 'No valid donor data found for the provided IDs',
             };
           }
 
           // Format all donor data for LLM
-          let donorDataFormatted = "";
+          let donorDataFormatted = '';
           donorHistories.forEach((history) => {
-            donorDataFormatted += formatDonorHistoryForLLM(history) + "\n\n";
+            donorDataFormatted += formatDonorHistoryForLLM(history) + '\n\n';
           });
 
           // Create prompt for LLM
@@ -406,7 +423,8 @@ export function createDonorAnalysisTool(
           logger.error(`[WhatsApp AI] Error in donor analysis:`, error);
           return {
             success: false,
-            error: error instanceof Error ? error.message : "Unknown error occurred during analysis",
+            error:
+              error instanceof Error ? error.message : 'Unknown error occurred during analysis',
           };
         }
       },

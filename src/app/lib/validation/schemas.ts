@@ -17,7 +17,12 @@ export const dateStringSchema = z.string().datetime();
 // Common field schemas
 export const nameSchema = z.string().min(1).max(255);
 export const descriptionSchema = z.string();
-export const notesSchema = z.string();
+export const donorNoteSchema = z.object({
+  createdAt: z.string(),
+  createdBy: z.string(),
+  content: z.string(),
+});
+export const notesSchema = z.array(donorNoteSchema);
 export const addressSchema = z.string().max(500);
 export const currencySchema = z.string().length(3).default('USD');
 export const amountSchema = z.number().int().positive();
@@ -163,7 +168,7 @@ export const donorSchemas = {
     address: z.string().optional(),
     state: z.string().length(2).optional(),
     gender: z.enum(['male', 'female']).nullable().optional(),
-    notes: z.string().optional(),
+    notes: notesSchema.optional(),
     assignedToStaffId: idSchema.optional(),
   }),
 
@@ -175,7 +180,7 @@ export const donorSchemas = {
     address: z.string().optional(),
     state: z.string().length(2).optional(),
     gender: z.enum(['male', 'female']).nullable().optional(),
-    notes: z.string().optional(),
+    notes: notesSchema.optional(),
     assignedToStaffId: idSchema.nullable().optional(),
   }),
 

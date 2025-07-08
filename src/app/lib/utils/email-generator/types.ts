@@ -1,7 +1,8 @@
-import { CommunicationHistory as RawCommunicationHistory } from "@/app/lib/data/communications";
-import { DonationWithDetails } from "../../data/donations";
-import { DonorNameFields } from "../donor-name-formatter";
-import { PersonResearchResult } from "../../services/person-research/types";
+import { CommunicationHistory as RawCommunicationHistory } from '@/app/lib/data/communications';
+import { DonationWithDetails } from '../../data/donations';
+import { DonorNameFields } from '../donor-name-formatter';
+import { PersonResearchResult } from '../../services/person-research/types';
+import { type DonorNote } from '@/app/lib/db/schema';
 
 /**
  * Token usage information from AI API calls
@@ -55,13 +56,17 @@ export interface DonorStatistics {
   totalAmount: number;
   firstDonation: { date: Date; amount: number } | null;
   lastDonation: { date: Date; amount: number } | null;
-  donationsByProject: { projectId: number | null; projectName: string | null; totalAmount: number }[];
+  donationsByProject: {
+    projectId: number | null;
+    projectName: string | null;
+    totalAmount: number;
+  }[];
 }
 
 export interface DonorInfo extends DonorNameFields {
   id: number;
   email: string;
-  notes?: string | Array<{ createdAt: string; createdBy: string; content: string }> | null; // User notes about the donor
+  notes?: DonorNote[] | null; // User notes about the donor
   donationHistory?: DonationInfo[]; // Will be processed to add IDs
 }
 
@@ -145,8 +150,6 @@ export interface RawCommunicationThread {
   content?: RawCommunicationContentItem[];
   // Potentially other fields like 'id', 'date', 'type' from the original CommunicationHistory
 }
-
-
 
 export interface EmailGeneratorTool {
   generateEmails: (

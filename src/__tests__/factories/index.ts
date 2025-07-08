@@ -2,11 +2,11 @@
 
 describe('Factory utilities', () => {
   it('should be available for test data creation', () => {
-    expect(true).toBe(true)
-  })
-})
+    expect(true).toBe(true);
+  });
+});
 
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker';
 
 // Simple factory functions for test data creation
 export const createTestOrganization = (overrides: any = {}) => {
@@ -15,8 +15,8 @@ export const createTestOrganization = (overrides: any = {}) => {
     name: faker.company.name(),
     slug: faker.helpers.slugify(faker.company.name()).toLowerCase(),
     ...overrides,
-  }
-}
+  };
+};
 
 export const createTestUser = (overrides: any = {}) => {
   return {
@@ -30,13 +30,13 @@ export const createTestUser = (overrides: any = {}) => {
     dismissedMemories: [],
     stages: ['prospecting', 'cultivation'],
     ...overrides,
-  }
-}
+  };
+};
 
 export const createTestDonor = (organizationId: string, overrides: any = {}) => {
-  const firstName = faker.person.firstName()
-  const lastName = faker.person.lastName()
-  
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
+
   return {
     organizationId,
     firstName,
@@ -50,10 +50,16 @@ export const createTestDonor = (organizationId: string, overrides: any = {}) => 
     country: 'USA',
     displayName: `${firstName} ${lastName}`,
     tags: [faker.lorem.word()],
-    notes: faker.lorem.paragraph(),
+    notes: [
+      {
+        createdAt: new Date().toISOString(),
+        createdBy: 'test-user',
+        content: faker.lorem.paragraph(),
+      },
+    ],
     ...overrides,
-  }
-}
+  };
+};
 
 export const createTestProject = (organizationId: string, overrides: any = {}) => {
   return {
@@ -64,5 +70,5 @@ export const createTestProject = (organizationId: string, overrides: any = {}) =
     goal: faker.number.int({ min: 10000, max: 1000000 }),
     tags: [faker.lorem.word(), faker.lorem.word()],
     ...overrides,
-  }
-}
+  };
+};
