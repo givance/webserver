@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useDonors } from "@/app/hooks/use-donors";
-import { DonorNameFields } from "@/app/lib/utils/donor-name-formatter";
-import { formatCurrency } from "@/app/lib/utils/format";
+import { useDonors } from '@/app/hooks/use-donors';
+import { DonorNameFields } from '@/app/lib/utils/donor-name-formatter';
+import { formatCurrency } from '@/app/lib/utils/format';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,25 +12,31 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Textarea } from "@/components/ui/textarea";
-import { Column, ColumnDef, Row } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal, Star, Trash2, Edit, Save, X } from "lucide-react";
-import { InlineTextEdit } from "@/components/ui/inline-edit";
-import Link from "next/link";
-import { useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Textarea } from '@/components/ui/textarea';
+import { Column, ColumnDef, Row } from '@tanstack/react-table';
+import { ArrowUpDown, MoreHorizontal, Star, Trash2, Edit, Save, X } from 'lucide-react';
+import { InlineTextEdit } from '@/components/ui/inline-edit';
+import Link from 'next/link';
+import { useState } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export type PredictedAction = {
   type: string;
@@ -52,7 +58,7 @@ export type Donor = DonorNameFields & {
   phone: string;
   totalDonated: number;
   lastDonation: string;
-  status: "active" | "inactive";
+  status: 'active' | 'inactive';
   currentStageName: string | null;
   classificationReasoning: string | null;
   predictedActions: PredictedAction[];
@@ -67,9 +73,9 @@ function EmailEditCell({ donor }: { donor: Donor }) {
   const { updateDonor } = useDonors();
 
   const validateEmail = (email: string): string | null => {
-    if (!email) return "Email is required";
+    if (!email) return 'Email is required';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Invalid email format";
+    if (!emailRegex.test(email)) return 'Invalid email format';
     return null;
   };
 
@@ -96,37 +102,35 @@ function EmailEditCell({ donor }: { donor: Donor }) {
 function NotesEditCell({ donor }: { donor: Donor }) {
   // Extract notes content based on the type
   const getNotesDisplay = () => {
-    if (!donor.notes) return "";
-    
+    if (!donor.notes) return '';
+
     // Handle array format
     if (Array.isArray(donor.notes)) {
-      if (donor.notes.length === 0) return "";
+      if (donor.notes.length === 0) return '';
       // Show the most recent note (last in array)
       const latestNote = donor.notes[donor.notes.length - 1];
       return latestNote.content;
     }
-    
+
     // Handle string format (backward compatibility)
     if (typeof donor.notes === 'string') {
       return donor.notes;
     }
-    
-    return "";
+
+    return '';
   };
 
   const notesDisplay = getNotesDisplay();
-  const notesCount = Array.isArray(donor.notes) ? donor.notes.length : (donor.notes ? 1 : 0);
+  const notesCount = Array.isArray(donor.notes) ? donor.notes.length : donor.notes ? 1 : 0;
 
   return (
     <div className="w-full max-w-[300px]">
       <div className="flex items-start justify-between">
         <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
-          {notesDisplay || "No notes"}
+          {notesDisplay || 'No notes'}
         </p>
         {notesCount > 1 && (
-          <span className="text-xs text-muted-foreground ml-2">
-            (+{notesCount - 1} more)
-          </span>
+          <span className="text-xs text-muted-foreground ml-2">(+{notesCount - 1} more)</span>
         )}
       </div>
     </div>
@@ -159,7 +163,8 @@ function DeleteDonorDialog({ donorId }: { donorId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the donor and all associated records.
+              This action cannot be undone. This will permanently delete the donor and all
+              associated records.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -169,7 +174,7 @@ function DeleteDonorDialog({ donorId }: { donorId: string }) {
               className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -185,12 +190,11 @@ export const getColumns = (
   handleUpdateDonorStaff: (donorId: string, staffId: string | null) => Promise<void>
 ): ColumnDef<Donor>[] => [
   {
-    id: "select",
+    id: 'select',
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
@@ -207,10 +211,13 @@ export const getColumns = (
     enableHiding: false,
   },
   {
-    accessorKey: "name",
+    accessorKey: 'name',
     header: ({ column }: { column: Column<Donor> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
@@ -219,7 +226,7 @@ export const getColumns = (
     cell: ({ row }: { row: Row<Donor> }) => (
       <div className="flex items-center gap-2">
         <Link href={`/donors/${row.original.id}`} className="font-medium">
-          {row.getValue("name")}
+          {row.getValue('name')}
         </Link>
         {/* High potential donor badge hidden
         {row.original.highPotentialDonor && (
@@ -250,45 +257,48 @@ export const getColumns = (
     ),
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: 'email',
+    header: 'Email',
     cell: ({ row }: { row: Row<Donor> }) => <EmailEditCell donor={row.original} />,
   },
   {
-    accessorKey: "phone",
-    header: "Phone",
+    accessorKey: 'phone',
+    header: 'Phone',
   },
   {
-    accessorKey: "notes",
-    header: "Notes",
+    accessorKey: 'notes',
+    header: 'Notes',
     cell: ({ row }: { row: Row<Donor> }) => <NotesEditCell donor={row.original} />,
   },
   {
-    accessorKey: "totalDonated",
+    accessorKey: 'totalDonated',
     header: ({ column }: { column: Column<Donor> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Total Donated
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }: { row: Row<Donor> }) => {
-      const amount = row.getValue("totalDonated") as number;
+      const amount = row.getValue('totalDonated') as number;
       return <div>{formatCurrency(amount)}</div>;
     },
   },
   {
-    accessorKey: "lastDonation",
-    header: "Last Donation",
+    accessorKey: 'lastDonation',
+    header: 'Last Donation',
     cell: ({ row }: { row: Row<Donor> }) => {
-      const date = new Date(row.getValue("lastDonation"));
+      const date = new Date(row.getValue('lastDonation'));
       return date.toLocaleDateString();
     },
   },
   {
-    accessorKey: "assignedToStaffId",
-    header: "Assigned Staff",
+    accessorKey: 'assignedToStaffId',
+    header: 'Assigned Staff',
     cell: ({ row }: { row: Row<Donor> }) => {
       const donor = row.original;
       const currentStaffId = donor.assignedToStaffId;
@@ -296,9 +306,9 @@ export const getColumns = (
 
       return (
         <Select
-          value={currentStaffId || "unassigned"}
+          value={currentStaffId || 'unassigned'}
           onValueChange={(value) => {
-            const newStaffId = value === "unassigned" ? null : value;
+            const newStaffId = value === 'unassigned' ? null : value;
             handleUpdateDonorStaff(donor.id, newStaffId);
           }}
         >
@@ -318,7 +328,7 @@ export const getColumns = (
     },
   },
   {
-    id: "actions",
+    id: 'actions',
     cell: ({ row }: { row: Row<Donor> }) => {
       const donor = row.original;
       return (
@@ -326,11 +336,6 @@ export const getColumns = (
           <Link href={`/donations?donorId=${donor.id}`}>
             <Button variant="ghost" size="sm" title="View Donations">
               Donations
-            </Button>
-          </Link>
-          <Link href={`/communications?donorId=${donor.id}`}>
-            <Button variant="ghost" size="sm" title="View Communications">
-              Communications
             </Button>
           </Link>
           <DropdownMenu>
@@ -345,9 +350,6 @@ export const getColumns = (
               </Link>
               <Link href={`/donors/${donor.id}/edit`}>
                 <DropdownMenuItem>Edit</DropdownMenuItem>
-              </Link>
-              <Link href={`/donors/email/${donor.id}`}>
-                <DropdownMenuItem>Send Email</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
               <DeleteDonorDialog donorId={donor.id} />

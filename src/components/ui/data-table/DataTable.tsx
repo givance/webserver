@@ -15,19 +15,26 @@ import {
   PaginationState,
   VisibilityState,
   RowSelectionState,
-} from "@tanstack/react-table";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import React from "react";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings } from "lucide-react";
+} from '@tanstack/react-table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import React from 'react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { type PageSize, PAGE_SIZE_OPTIONS } from "@/app/hooks/use-pagination";
+} from '@/components/ui/dropdown-menu';
+import { type PageSize, PAGE_SIZE_OPTIONS } from '@/app/hooks/use-pagination';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -53,7 +60,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = 'Search...',
   totalItems,
   pageSize,
   pageCount,
@@ -96,7 +103,7 @@ export function DataTable<TData, TValue>({
   const handleSortingChange = React.useCallback(
     (updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
       let newSorting: SortingState;
-      if (typeof updaterOrValue === "function") {
+      if (typeof updaterOrValue === 'function') {
         newSorting = updaterOrValue(sorting);
       } else {
         newSorting = updaterOrValue;
@@ -118,7 +125,7 @@ export function DataTable<TData, TValue>({
       let newSelection: RowSelectionState;
       const currentSelection = rowSelection || rowSelectionState;
 
-      if (typeof updaterOrValue === "function") {
+      if (typeof updaterOrValue === 'function') {
         newSelection = updaterOrValue(currentSelection);
       } else {
         newSelection = updaterOrValue;
@@ -216,13 +223,13 @@ export function DataTable<TData, TValue>({
           variant="outline"
           size="sm"
           onClick={() => handleGoToPage(1)}
-          className={currentPage === 1 ? "font-bold" : ""}
+          className={currentPage === 1 ? 'font-bold' : ''}
         >
           1
         </Button>
       );
       if (startPage > 2) {
-        pageNumbers.push(React.cloneElement(ellipsis, { key: "start-ellipsis" }));
+        pageNumbers.push(React.cloneElement(ellipsis, { key: 'start-ellipsis' }));
       }
     }
 
@@ -233,7 +240,7 @@ export function DataTable<TData, TValue>({
           variant="outline"
           size="sm"
           onClick={() => handleGoToPage(i)}
-          className={currentPage === i ? "font-bold bg-muted" : ""}
+          className={currentPage === i ? 'font-bold bg-muted' : ''}
         >
           {i}
         </Button>
@@ -242,7 +249,7 @@ export function DataTable<TData, TValue>({
 
     if (endPage < pageCount) {
       if (endPage < pageCount - 1) {
-        pageNumbers.push(React.cloneElement(ellipsis, { key: "end-ellipsis" }));
+        pageNumbers.push(React.cloneElement(ellipsis, { key: 'end-ellipsis' }));
       }
       pageNumbers.push(
         <Button
@@ -250,7 +257,7 @@ export function DataTable<TData, TValue>({
           variant="outline"
           size="sm"
           onClick={() => handleGoToPage(pageCount)}
-          className={currentPage === pageCount ? "font-bold" : ""}
+          className={currentPage === pageCount ? 'font-bold' : ''}
         >
           {pageCount}
         </Button>
@@ -260,13 +267,13 @@ export function DataTable<TData, TValue>({
   };
 
   return (
-    <div>
+    <div style={{ listStyle: 'none', display: 'block' }}>
       <div className="flex items-center justify-between py-4">
         {searchKey && (
           <div className="flex-1">
             <Input
               placeholder={searchPlaceholder}
-              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
               onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
               className="max-w-sm"
             />
@@ -315,7 +322,9 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header: Header<TData, unknown>) => {
                   return (
                     <TableHead key={header.id}>
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
                 })}
@@ -325,9 +334,11 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row: Row<TData>) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                   {row.getVisibleCells().map((cell: Cell<TData, unknown>) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
@@ -341,18 +352,21 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4"
+        style={{ listStyle: 'none' }}
+      >
         {isServerSidePagination && totalItems !== undefined && pageSize !== undefined && (
           <div className="text-sm text-muted-foreground">
             Showing {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
-            {" - "}
+            {' - '}
             {Math.min(currentPage * pageSize, totalItems)} of {totalItems} items
           </div>
         )}
         {!isServerSidePagination && table.getFilteredRowModel().rows.length > 0 && (
           <div className="text-sm text-muted-foreground">
-            {table.getFilteredRowModel().rows.length} row(s). Selected {table.getFilteredSelectedRowModel().rows.length}{" "}
-            row(s).
+            {table.getFilteredRowModel().rows.length} row(s). Selected{' '}
+            {table.getFilteredSelectedRowModel().rows.length} row(s).
           </div>
         )}
 
@@ -379,33 +393,58 @@ export function DataTable<TData, TValue>({
             </select>
           </div>
           <div className="flex items-center justify-center text-sm font-medium">
-            Page {isServerSidePagination ? currentPage : table.getState().pagination.pageIndex + 1} of{" "}
-            {isServerSidePagination ? pageCount : table.getPageCount()}
+            Page {isServerSidePagination ? currentPage : table.getState().pagination.pageIndex + 1}{' '}
+            of {isServerSidePagination ? pageCount : table.getPageCount()}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="flex flex-wrap items-center gap-2 justify-center"
+            style={{ listStyle: 'none' }}
+          >
             {isServerSidePagination && pageCount && pageCount > 1 && (
               <>
-                <Button variant="outline" size="sm" onClick={() => handleGoToPage(1)} disabled={!getCanPreviousPage()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGoToPage(1)}
+                  disabled={!getCanPreviousPage()}
+                >
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={!getCanPreviousPage()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={!getCanPreviousPage()}
+                >
                   <ChevronLeft className="h-4 w-4" />
                   <span className="hidden sm:inline">Previous</span>
                 </Button>
               </>
             )}
             {!isServerSidePagination && (
-              <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={!getCanPreviousPage()}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={!getCanPreviousPage()}
+              >
                 Previous
               </Button>
             )}
 
-            <div className="flex flex-wrap gap-1">{renderPageNumbers()}</div>
+            <div className="flex items-center gap-1" style={{ listStyle: 'none' }}>
+              {renderPageNumbers()}
+            </div>
 
             {isServerSidePagination && pageCount && pageCount > 1 && (
               <>
-                <Button variant="outline" size="sm" onClick={handleNextPage} disabled={!getCanNextPage()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={!getCanNextPage()}
+                >
                   <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -420,7 +459,12 @@ export function DataTable<TData, TValue>({
               </>
             )}
             {!isServerSidePagination && (
-              <Button variant="outline" size="sm" onClick={handleNextPage} disabled={!getCanNextPage()}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={!getCanNextPage()}
+              >
                 Next
               </Button>
             )}
