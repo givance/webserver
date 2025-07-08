@@ -1,4 +1,4 @@
-import { TRPCError } from "@trpc/server";
+import { TRPCError } from '@trpc/server';
 import {
   addDonorToThread,
   addMessageToThread,
@@ -11,10 +11,11 @@ import {
   removeDonorFromThread,
   removeStaffFromThread,
   type CommunicationThreadWithDetails,
-} from "@/app/lib/data/communications";
-import { getDonorById } from "@/app/lib/data/donors";
-import { getStaffById } from "@/app/lib/data/staff";
-import { logger } from "@/app/lib/logger";
+} from '@/app/lib/data/communications';
+import { getDonorById } from '@/app/lib/data/donors';
+import { getStaffById } from '@/app/lib/data/staff';
+import { logger } from '@/app/lib/logger';
+import { check, createTRPCError, ERROR_MESSAGES } from '@/app/api/trpc/trpc';
 
 /**
  * Service for handling communication operations
@@ -44,12 +45,9 @@ export class CommunicationsService {
       ...includeDetails,
     });
 
+    check(!thread, 'NOT_FOUND', 'Communication thread not found');
     if (!thread) {
       logger.error(`Communication thread ${threadId} not found`);
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Communication thread not found",
-      });
     }
 
     const belongsToOrg =
@@ -58,11 +56,8 @@ export class CommunicationsService {
 
     if (!belongsToOrg) {
       logger.error(`Thread ${threadId} access denied for organization ${organizationId}`);
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Communication thread does not belong to your organization",
-      });
     }
+    check(!belongsToOrg, 'FORBIDDEN', 'Communication thread does not belong to your organization');
 
     return thread;
   }
@@ -76,7 +71,7 @@ export class CommunicationsService {
    * @returns The created thread
    */
   async createThreadWithParticipants(
-    channel: "email" | "phone" | "text",
+    channel: 'email' | 'phone' | 'text',
     staffIds: number[] | undefined,
     donorIds: number[] | undefined,
     organizationId: string
@@ -87,11 +82,8 @@ export class CommunicationsService {
         const staff = await getStaffById(staffId, organizationId);
         if (!staff) {
           logger.error(`Staff member ${staffId} not found in organization ${organizationId}`);
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: `Staff member ${staffId} not found in your organization`,
-          });
         }
+        check(!staff, 'NOT_FOUND', `Staff member ${staffId} not found in your organization`);
       }
     }
 
@@ -101,11 +93,8 @@ export class CommunicationsService {
         const donor = await getDonorById(donorId, organizationId);
         if (!donor) {
           logger.error(`Donor ${donorId} not found in organization ${organizationId}`);
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: `Donor ${donorId} not found in your organization`,
-          });
         }
+        check(!donor, 'NOT_FOUND', `Donor ${donorId} not found in your organization`);
       }
     }
 
@@ -120,12 +109,12 @@ export class CommunicationsService {
     } catch (error) {
       logger.error(
         `Failed to create communication thread for organization ${organizationId}: ${
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : 'Unknown error'
         }`
       );
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not create communication thread",
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Could not create communication thread',
       });
     }
   }
@@ -138,7 +127,7 @@ export class CommunicationsService {
    */
   async listAuthorizedThreads(
     options: {
-      channel?: "email" | "phone" | "text";
+      channel?: 'email' | 'phone' | 'text';
       staffId?: number | null;
       donorId?: number | null;
       limit?: number;
@@ -177,7 +166,9 @@ export class CommunicationsService {
       return true;
     });
 
-    logger.info(`Listed ${filteredThreads.length} communication threads for organization ${organizationId}`);
+    logger.info(
+      `Listed ${filteredThreads.length} communication threads for organization ${organizationId}`
+    );
     return {
       threads: filteredThreads,
       totalCount: filteredThreads.length,
@@ -221,11 +212,11 @@ export class CommunicationsService {
       return message;
     } catch (error) {
       logger.error(
-        `Failed to add message to thread ${threadId}: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to add message to thread ${threadId}: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not add message to thread",
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Could not add message to thread',
       });
     }
   }
@@ -256,15 +247,17 @@ export class CommunicationsService {
         includeSendersRecipients,
       });
 
-      logger.info(`Retrieved ${messages.length} messages from thread ${threadId} for organization ${organizationId}`);
+      logger.info(
+        `Retrieved ${messages.length} messages from thread ${threadId} for organization ${organizationId}`
+      );
       return messages;
     } catch (error) {
       logger.error(
-        `Failed to get messages from thread ${threadId}: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to get messages from thread ${threadId}: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Could not retrieve messages",
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Could not retrieve messages',
       });
     }
   }
@@ -280,47 +273,39 @@ export class CommunicationsService {
   async addAuthorizedParticipant(
     threadId: number,
     participantId: number,
-    participantType: "staff" | "donor",
+    participantType: 'staff' | 'donor',
     organizationId: string
   ) {
     // Authorize thread access first
     await this.authorizeThreadAccess(threadId, organizationId);
 
     // Verify participant belongs to organization
-    if (participantType === "staff") {
+    if (participantType === 'staff') {
       const staff = await getStaffById(participantId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found in your organization",
-        });
-      }
+      check(!staff, 'NOT_FOUND', 'Staff member not found in your organization');
     } else {
       const donor = await getDonorById(participantId, organizationId);
-      if (!donor) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Donor not found in your organization",
-        });
-      }
+      check(!donor, 'NOT_FOUND', 'Donor not found in your organization');
     }
 
     try {
       const result =
-        participantType === "staff"
+        participantType === 'staff'
           ? await addStaffToThread(threadId, participantId)
           : await addDonorToThread(threadId, participantId);
 
-      logger.info(`Added ${participantType} ${participantId} to thread ${threadId} for organization ${organizationId}`);
+      logger.info(
+        `Added ${participantType} ${participantId} to thread ${threadId} for organization ${organizationId}`
+      );
       return result;
     } catch (error) {
       logger.error(
         `Failed to add ${participantType} to thread ${threadId}: ${
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : 'Unknown error'
         }`
       );
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
         message: `Could not add ${participantType} to thread`,
       });
     }
@@ -337,7 +322,7 @@ export class CommunicationsService {
   async removeAuthorizedParticipant(
     threadId: number,
     participantId: number,
-    participantType: "staff" | "donor",
+    participantType: 'staff' | 'donor',
     organizationId: string
   ) {
     // Authorize thread access first
@@ -345,7 +330,7 @@ export class CommunicationsService {
 
     try {
       const result =
-        participantType === "staff"
+        participantType === 'staff'
           ? await removeStaffFromThread(threadId, participantId)
           : await removeDonorFromThread(threadId, participantId);
 
@@ -356,11 +341,11 @@ export class CommunicationsService {
     } catch (error) {
       logger.error(
         `Failed to remove ${participantType} from thread ${threadId}: ${
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : 'Unknown error'
         }`
       );
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
         message: `Could not remove ${participantType} from thread`,
       });
     }

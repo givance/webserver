@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { logger } from '@/app/lib/logger';
 import { bulkDonorResearchTask } from '@/trigger/jobs/bulkDonorResearch';
 import { getUnresearchedDonorsCount as getUnresearchedDonorsCountData } from '@/app/lib/data/donors';
+import { check, createTRPCError, ERROR_MESSAGES } from '@/app/api/trpc/trpc';
 
 export interface StartBulkResearchInput {
   organizationId: string;
@@ -37,12 +38,11 @@ export class BulkDonorResearchService {
       // Get count of donors that need research
       const donorsToResearchCount = await this.getUnresearchedDonorsCount(organizationId, donorIds);
 
-      if (donorsToResearchCount.unresearchedDonors === 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'No donors found that need research',
-        });
-      }
+      check(
+        donorsToResearchCount.unresearchedDonors === 0,
+        'BAD_REQUEST',
+        'No donors found that need research'
+      );
 
       // Apply limit if specified
       const actualDonorsToResearch = limit
@@ -78,7 +78,7 @@ export class BulkDonorResearchService {
         throw error;
       }
 
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to start bulk donor research',
       });
@@ -101,7 +101,7 @@ export class BulkDonorResearchService {
       logger.error(
         `Failed to get unresearched donors count: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get donor research statistics',
       });

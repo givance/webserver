@@ -38,6 +38,7 @@ import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
 import { EmailSchedulingService } from './email-scheduling.service';
 import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { check, createTRPCError, ERROR_MESSAGES } from '@/app/api/trpc/trpc';
 
 /**
  * Input types for campaign management
@@ -181,12 +182,11 @@ export class EmailCampaignsService {
   async launchCampaign(input: UpdateCampaignInput, organizationId: string, userId: string) {
     try {
       // Validate required fields
-      if (!input.selectedDonorIds || input.selectedDonorIds.length === 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Selected donor IDs are required to launch a campaign',
-        });
-      }
+      check(
+        !input.selectedDonorIds || input.selectedDonorIds.length === 0,
+        'BAD_REQUEST',
+        'Selected donor IDs are required to launch a campaign'
+      );
 
       // First check if there's an existing campaign with the same ID
       const existingCampaign = await getEmailGenerationSessionById(
@@ -194,39 +194,34 @@ export class EmailCampaignsService {
         organizationId
       );
 
-      if (!existingCampaign) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Campaign not found',
-        });
-      }
+      check(!existingCampaign, 'NOT_FOUND', 'Campaign not found');
 
-      let sessionId: number = existingCampaign.id;
+      let sessionId: number = existingCampaign!.id;
 
       // First, count existing emails (both PENDING_APPROVAL and APPROVED) for selected donors
-      const donorIds = await getDonorIdsWithExistingEmails(existingCampaign.id);
+      const donorIds = await getDonorIdsWithExistingEmails(existingCampaign!.id);
       const existingEmailsForSelectedDonors = donorIds.map((donorId) => ({ donorId }));
 
       // Count how many of the selected donors already have emails
       const existingDonorIds = existingEmailsForSelectedDonors.map((e) => e.donorId);
-      const currentCompletedCount = input.selectedDonorIds.filter((id) =>
+      const currentCompletedCount = input.selectedDonorIds!.filter((id) =>
         existingDonorIds.includes(id)
       ).length;
 
       // Determine the appropriate status based on whether emails need to be generated
-      const allEmailsExist = currentCompletedCount === input.selectedDonorIds.length;
+      const allEmailsExist = currentCompletedCount === input.selectedDonorIds!.length;
       const newStatus = allEmailsExist
         ? EmailGenerationSessionStatus.READY_TO_SEND
         : EmailGenerationSessionStatus.GENERATING;
 
       // Update existing campaign with appropriate status
       logger.info(
-        `[launchCampaign] Updating existing campaign ${existingCampaign.id} to ${newStatus} status`,
+        `[launchCampaign] Updating existing campaign ${existingCampaign!.id} to ${newStatus} status`,
         {
-          campaignId: existingCampaign.id,
-          oldStatus: existingCampaign.status,
+          campaignId: existingCampaign!.id,
+          oldStatus: existingCampaign!.status,
           newStatus,
-          totalDonors: input.selectedDonorIds.length,
+          totalDonors: input.selectedDonorIds!.length,
           currentCompletedCount,
           allEmailsExist,
           organizationId,
@@ -235,25 +230,20 @@ export class EmailCampaignsService {
       );
 
       const updatedSession = await updateEmailGenerationSession(
-        existingCampaign.id,
+        existingCampaign!.id,
         organizationId,
         {
           status: newStatus,
-          chatHistory: input.chatHistory ?? existingCampaign.chatHistory,
+          chatHistory: input.chatHistory ?? existingCampaign!.chatHistory,
           selectedDonorIds: input.selectedDonorIds,
-          totalDonors: input.selectedDonorIds?.length,
+          totalDonors: input.selectedDonorIds!.length,
           completedDonors: currentCompletedCount, // Set the initial completed count
         }
       );
 
-      if (!updatedSession) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update session',
-        });
-      }
+      check(!updatedSession, 'INTERNAL_SERVER_ERROR', 'Failed to update session');
 
-      sessionId = updatedSession.id;
+      sessionId = updatedSession!.id;
 
       // Update any PENDING_APPROVAL emails to APPROVED
       await updateEmailStatusBulk(sessionId, 'PENDING_APPROVAL', 'APPROVED', {
@@ -268,7 +258,7 @@ export class EmailCampaignsService {
 
       // Get the list of donors that already have approved emails
       const alreadyGeneratedDonorIds = await getDonorIdsWithEmails(sessionId, 'APPROVED');
-      const donorsToGenerate = input.selectedDonorIds.filter(
+      const donorsToGenerate = input.selectedDonorIds!.filter(
         (id) => !alreadyGeneratedDonorIds.includes(id)
       );
 
@@ -287,12 +277,12 @@ export class EmailCampaignsService {
             previewDonorIds: [], // Will be handled automatically by the background job
             chatHistory:
               input.chatHistory ??
-              (existingCampaign.chatHistory as Array<{
+              (existingCampaign!.chatHistory as Array<{
                 role: 'user' | 'assistant';
                 content: string;
               }>) ??
               [],
-            templateId: input.templateId ?? existingCampaign.templateId ?? undefined,
+            templateId: input.templateId ?? existingCampaign!.templateId ?? undefined,
           });
 
           logger.info(
@@ -312,7 +302,7 @@ export class EmailCampaignsService {
             }`,
           });
 
-          throw new TRPCError({
+          throw createTRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message:
               'Failed to start email generation job. Please check your Trigger.dev configuration.',
@@ -323,8 +313,8 @@ export class EmailCampaignsService {
           `[launchCampaign] All donors already have emails, session ${sessionId} already marked as ${EmailGenerationSessionStatus.READY_TO_SEND} (ready to send)`,
           {
             sessionId,
-            totalDonors: input.selectedDonorIds.length,
-            completedDonors: input.selectedDonorIds.length,
+            totalDonors: input.selectedDonorIds!.length,
+            completedDonors: input.selectedDonorIds!.length,
             organizationId,
             userId,
           }
@@ -334,7 +324,7 @@ export class EmailCampaignsService {
         if (newStatus !== EmailGenerationSessionStatus.READY_TO_SEND) {
           await updateEmailGenerationSession(sessionId, organizationId, {
             status: EmailGenerationSessionStatus.READY_TO_SEND,
-            completedDonors: input.selectedDonorIds?.length,
+            completedDonors: input.selectedDonorIds!.length,
           });
         }
       }
@@ -356,7 +346,7 @@ export class EmailCampaignsService {
         throw error;
       }
 
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to launch email generation campaign',
       });
@@ -388,15 +378,10 @@ export class EmailCampaignsService {
           }
         );
 
-        if (!updatedSession) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Failed to update draft session',
-          });
-        }
+        check(!updatedSession, 'INTERNAL_SERVER_ERROR', 'Failed to update draft session');
 
-        logger.info(`Updated existing draft session ${updatedSession.id} for user ${userId}`);
-        return { sessionId: updatedSession.id };
+        logger.info(`Updated existing draft session ${updatedSession!.id} for user ${userId}`);
+        return { sessionId: updatedSession!.id };
       } else {
         // Create new draft session
         const session = await createEmailGenerationSession({
@@ -417,7 +402,7 @@ export class EmailCampaignsService {
       }
     } catch (error) {
       logger.error('Error in createSession:', error);
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to create session',
       });
@@ -435,12 +420,7 @@ export class EmailCampaignsService {
     try {
       const session = await getEmailGenerationSessionById(sessionId, organizationId);
 
-      if (!session) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Session not found',
-        });
-      }
+      check(!session, 'NOT_FOUND', 'Session not found');
 
       // Get generated emails for this session
       const emails = await getGeneratedEmailsBySessionId(sessionId);
@@ -457,7 +437,7 @@ export class EmailCampaignsService {
           const contentWithSignature = await appendSignatureToEmail(structuredContent, {
             donorId: email.donorId,
             organizationId: organizationId,
-            userId: session.userId,
+            userId: session!.userId,
             customSignature: customSignature, // Pass the custom signature from UI
           });
 
@@ -477,7 +457,7 @@ export class EmailCampaignsService {
       logger.error(
         `Failed to get email generation session: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get email generation session',
       });
@@ -493,19 +473,17 @@ export class EmailCampaignsService {
   async getSessionStatus(sessionId: number, organizationId: string) {
     const session = await getSessionStatusData(sessionId, organizationId);
 
-    if (!session) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
-    }
+    check(!session, 'NOT_FOUND', 'Session not found');
 
     // Failsafe: If status is GENERATING or READY_TO_SEND but all donors are completed, update to COMPLETED
     if (
-      (session.status === EmailGenerationSessionStatus.GENERATING ||
-        session.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
-      session.completedDonors >= session.totalDonors &&
-      session.totalDonors > 0
+      (session!.status === EmailGenerationSessionStatus.GENERATING ||
+        session!.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
+      session!.completedDonors >= session!.totalDonors &&
+      session!.totalDonors > 0
     ) {
       logger.info(
-        `Session ${sessionId} shows as ${session.status} but all donors are completed. Updating to ${EmailGenerationSessionStatus.COMPLETED}.`
+        `Session ${sessionId} shows as ${session!.status} but all donors are completed. Updating to ${EmailGenerationSessionStatus.COMPLETED}.`
       );
 
       await updateEmailGenerationSession(sessionId, organizationId, {
@@ -607,9 +585,7 @@ export class EmailCampaignsService {
     // First, verify the job belongs to the organization
     const campaign = await getEmailGenerationSessionById(campaignId, organizationId);
 
-    if (!campaign) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign not found' });
-    }
+    check(!campaign, 'NOT_FOUND', 'Campaign not found');
 
     // Get all scheduled jobs that need to be cancelled
     const scheduledJobs = await getScheduledEmailJobs(campaignId, organizationId);
@@ -653,32 +629,21 @@ export class EmailCampaignsService {
       // First verify the email exists and belongs to the user's organization
       const existingEmail = await getEmailWithSessionAuth(emailId, organizationId);
 
-      if (!existingEmail) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Email not found',
-        });
-      }
+      check(!existingEmail, 'NOT_FOUND', 'Email not found');
 
-      if (existingEmail.isSent) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Cannot change status of an email that has already been sent',
-        });
-      }
+      check(
+        existingEmail!.isSent,
+        'BAD_REQUEST',
+        'Cannot change status of an email that has already been sent'
+      );
 
       // Update the email status
       const updatedEmail = await updateEmailStatus(emailId, status);
 
-      if (!updatedEmail) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update email status',
-        });
-      }
+      check(!updatedEmail, 'INTERNAL_SERVER_ERROR', 'Failed to update email status');
 
       logger.info(
-        `Updated email ${emailId} status from ${existingEmail.currentStatus} to ${status} for organization ${organizationId}`
+        `Updated email ${emailId} status from ${existingEmail!.currentStatus} to ${status} for organization ${organizationId}`
       );
 
       return {
@@ -691,7 +656,7 @@ export class EmailCampaignsService {
       logger.error(
         `Failed to update email status: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to update email status',
       });
@@ -713,24 +678,14 @@ export class EmailCampaignsService {
       // Validate emailId
       if (!emailId || emailId <= 0) {
         logger.warn(`Invalid emailId provided: ${emailId}`);
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Invalid email ID provided',
-        });
       }
+      check(!emailId || emailId <= 0, 'BAD_REQUEST', 'Invalid email ID provided');
 
       const email = await getEmailWithOrganizationCheck(emailId, organizationId);
-
-      if (!email) {
-        logger.warn(`Email not found for emailId: ${emailId}, organizationId: ${organizationId}`);
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Email not found',
-        });
-      }
+      check(!email, 'NOT_FOUND', 'Email not found');
 
       logger.info(
-        `Successfully retrieved email status for emailId: ${emailId}, isSent: ${email.isSent}`
+        `Successfully retrieved email status for emailId: ${emailId}, isSent: ${email!.isSent}`
       );
       return email;
     } catch (error) {
@@ -738,7 +693,7 @@ export class EmailCampaignsService {
       logger.error(
         `Failed to get email status for emailId: ${emailId}: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get email status',
       });
@@ -756,19 +711,13 @@ export class EmailCampaignsService {
       // First verify the email exists and belongs to the user's organization
       const existingEmail = await getEmailWithSessionAuth(input.emailId, organizationId);
 
-      if (!existingEmail) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Email not found',
-        });
-      }
+      check(!existingEmail, 'NOT_FOUND', 'Email not found');
 
-      if (existingEmail.isSent) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Cannot edit an email that has already been sent',
-        });
-      }
+      check(
+        existingEmail!.isSent,
+        'BAD_REQUEST',
+        'Cannot edit an email that has already been sent'
+      );
 
       // Handle both old and new formats
       const updateData: any = {
@@ -796,12 +745,7 @@ export class EmailCampaignsService {
       // Update the email and reset status to PENDING_APPROVAL since content was edited
       const updatedEmail = await updateGeneratedEmailContent(input.emailId, updateData);
 
-      if (!updatedEmail) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update email',
-        });
-      }
+      check(!updatedEmail, 'INTERNAL_SERVER_ERROR', 'Failed to update email');
 
       logger.info(
         `Updated email ${input.emailId} for organization ${organizationId}: subject="${input.subject}" and reset status to PENDING_APPROVAL`
@@ -811,14 +755,14 @@ export class EmailCampaignsService {
         success: true,
         email: updatedEmail,
         message: 'Email updated successfully and marked for review',
-        sessionId: existingEmail.sessionId,
+        sessionId: existingEmail!.sessionId,
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
       logger.error(
         `Failed to update email: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to update email',
       });
@@ -839,12 +783,7 @@ export class EmailCampaignsService {
         organizationId
       );
 
-      if (!existingCampaign) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Campaign not found',
-        });
-      }
+      check(!existingCampaign, 'NOT_FOUND', 'Campaign not found');
 
       // Check if only schedule config is being updated
       const isOnlyScheduleUpdate =
@@ -856,11 +795,11 @@ export class EmailCampaignsService {
 
       // Don't allow editing other fields if campaign is processing
       if (
-        (existingCampaign.status === EmailGenerationSessionStatus.GENERATING ||
-          existingCampaign.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
+        (existingCampaign!.status === EmailGenerationSessionStatus.GENERATING ||
+          existingCampaign!.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
         !isOnlyScheduleUpdate
       ) {
-        throw new TRPCError({
+        throw createTRPCError({
           code: 'BAD_REQUEST',
           message:
             'Cannot edit campaign content while it is currently processing. You can only update schedule settings.',
@@ -897,12 +836,7 @@ export class EmailCampaignsService {
         updateData
       );
 
-      if (!updatedCampaign) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update campaign',
-        });
-      }
+      check(!updatedCampaign, 'INTERNAL_SERVER_ERROR', 'Failed to update campaign');
 
       // If schedule config was updated and campaign has scheduled emails, reschedule them
       if (input.scheduleConfig !== undefined && isOnlyScheduleUpdate) {
@@ -913,9 +847,7 @@ export class EmailCampaignsService {
           // Get current user ID from the session
           const session = await getEmailGenerationSessionById(input.campaignId, organizationId);
 
-          if (!session) {
-            throw new Error('Session not found for rescheduling');
-          }
+          check(!session, 'NOT_FOUND', 'Session not found for rescheduling');
 
           // First pause the campaign to cancel existing jobs
           try {
@@ -936,7 +868,7 @@ export class EmailCampaignsService {
             const rescheduleResult = await schedulingService.scheduleEmailCampaign(
               input.campaignId,
               organizationId,
-              session.userId,
+              session!.userId,
               input.scheduleConfig
             );
 
@@ -1009,15 +941,10 @@ export class EmailCampaignsService {
       // First verify the session exists and belongs to the user's organization
       const existingSession = await getEmailGenerationSessionById(input.sessionId, organizationId);
 
-      if (!existingSession) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Campaign session not found',
-        });
-      }
+      check(!existingSession, 'NOT_FOUND', 'Campaign session not found');
 
       // Get preview donor IDs from the session
-      const previewDonorIds = (existingSession.previewDonorIds as number[]) || [];
+      const previewDonorIds = (existingSession!.previewDonorIds as number[]) || [];
 
       logger.info(
         `[regenerateAllEmails] Session ${input.sessionId} has previewDonorIds: ${JSON.stringify(previewDonorIds)}`
@@ -1061,7 +988,7 @@ export class EmailCampaignsService {
 
       if (donorsToRegenerate.length === 0) {
         // If no preview donors exist, randomly select from selectedDonorIds
-        const selectedDonorIds = (existingSession.selectedDonorIds as number[]) || [];
+        const selectedDonorIds = (existingSession!.selectedDonorIds as number[]) || [];
         if (selectedDonorIds.length === 0) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -1127,7 +1054,7 @@ export class EmailCampaignsService {
 
       return {
         success: true,
-        sessionId: existingSession.id,
+        sessionId: existingSession!.id,
         deletedEmailsCount: deletedCount,
         regeneratedEmailsCount: successfulCount,
         failedEmailsCount: failedCount,
@@ -1138,7 +1065,7 @@ export class EmailCampaignsService {
       logger.error(
         `Failed to regenerate emails: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to regenerate emails',
       });
@@ -1175,7 +1102,7 @@ export class EmailCampaignsService {
             userId
           );
         default:
-          throw new TRPCError({
+          throw createTRPCError({
             code: 'BAD_REQUEST',
             message: `Invalid mode: ${input.mode}`,
           });
@@ -1185,7 +1112,7 @@ export class EmailCampaignsService {
       logger.error(
         `[smartEmailGeneration] Failed: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to generate emails',
       });
@@ -1202,7 +1129,7 @@ export class EmailCampaignsService {
     const session = await getEmailGenerationSessionById(sessionId, organizationId);
 
     if (!session) {
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'NOT_FOUND',
         message: 'Campaign session not found',
       });

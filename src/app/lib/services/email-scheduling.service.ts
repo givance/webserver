@@ -27,6 +27,7 @@ import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
 import type { InferSelectModel } from 'drizzle-orm';
 import { and, eq, gte, isNull, lt, or, sql, inArray } from 'drizzle-orm';
+import { check, createTRPCError, ERROR_MESSAGES } from '@/app/api/trpc/trpc';
 import {
   calculateSchedule,
   scheduleTasks,
@@ -77,7 +78,7 @@ export class EmailSchedulingService {
       logger.error(
         `Failed to get/create schedule config: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new TRPCError({
+      throw createTRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get schedule configuration',
       });
@@ -110,34 +111,26 @@ export class EmailSchedulingService {
   ) {
     try {
       // Validate daily limit
-      if (
-        updates.dailyLimit !== undefined &&
-        (updates.dailyLimit < 1 || updates.dailyLimit > 500)
-      ) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Daily limit must be between 1 and 500',
-        });
-      }
+      check(
+        updates.dailyLimit !== undefined && (updates.dailyLimit < 1 || updates.dailyLimit > 500),
+        'BAD_REQUEST',
+        'Daily limit must be between 1 and 500'
+      );
 
       // Validate gap minutes
-      if (updates.minGapMinutes !== undefined && updates.minGapMinutes < 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Minimum gap must be at least 0 minutes',
-        });
-      }
+      check(
+        updates.minGapMinutes !== undefined && updates.minGapMinutes < 0,
+        'BAD_REQUEST',
+        'Minimum gap must be at least 0 minutes'
+      );
 
-      if (
+      check(
         updates.maxGapMinutes &&
-        updates.minGapMinutes &&
-        updates.maxGapMinutes < updates.minGapMinutes
-      ) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Maximum gap must be greater than or equal to minimum gap',
-        });
-      }
+          updates.minGapMinutes &&
+          updates.maxGapMinutes < updates.minGapMinutes,
+        'BAD_REQUEST',
+        'Maximum gap must be greater than or equal to minimum gap'
+      );
 
       // Validate allowed days
       if (updates.allowedDays !== undefined) {
