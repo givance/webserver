@@ -636,11 +636,6 @@ export default function DonorProfilePage() {
               ) : (
                 notes.map((note, index) => (
                   <div key={index} className="border rounded-md p-3 bg-muted/30">
-                    <p className="text-sm">{note.content}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(note.createdAt).toLocaleDateString()} at{' '}
-                      {new Date(note.createdAt).toLocaleTimeString()}
-                    </p>
                     {editingNoteIndex === index ? (
                       // Edit mode
                       <div>
