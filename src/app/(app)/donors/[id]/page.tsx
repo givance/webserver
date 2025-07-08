@@ -53,6 +53,7 @@ import {
   X,
   MapPin,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -96,6 +97,8 @@ export default function DonorProfilePage() {
   // Notes editing state
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState('');
+  const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
 
   // Fetch donor data
   const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
@@ -198,6 +201,32 @@ export default function DonorProfilePage() {
     },
   });
 
+  // Edit note mutation
+  const editNoteMutation = trpc.donors.editNote.useMutation({
+    onSuccess: () => {
+      toast.success('Note updated successfully');
+      setEditingNoteIndex(null);
+      setEditingNoteContent('');
+      // Refetch donor data to get updated notes
+      donorQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update note');
+    },
+  });
+
+  // Delete note mutation
+  const deleteNoteMutation = trpc.donors.deleteNote.useMutation({
+    onSuccess: () => {
+      toast.success('Note deleted successfully');
+      // Refetch donor data to get updated notes
+      donorQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete note');
+    },
+  });
+
   // Helper functions for inline editing
   const handleUpdateField = async (field: string, value: any) => {
     try {
@@ -248,6 +277,40 @@ export default function DonorProfilePage() {
   const handleCancelAddNote = () => {
     setNewNoteContent('');
     setIsAddingNote(false);
+  };
+
+  const handleEditNote = (index: number, content: string) => {
+    setEditingNoteIndex(index);
+    setEditingNoteContent(content);
+  };
+
+  const handleSaveEditNote = async () => {
+    if (!editingNoteContent.trim()) {
+      toast.error('Note content cannot be empty');
+      return;
+    }
+
+    if (editingNoteIndex === null) return;
+
+    await editNoteMutation.mutateAsync({
+      donorId,
+      noteIndex: editingNoteIndex,
+      content: editingNoteContent.trim(),
+    });
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteIndex(null);
+    setEditingNoteContent('');
+  };
+
+  const handleDeleteNote = async (index: number) => {
+    if (window.confirm('Are you sure you want to delete this note?')) {
+      await deleteNoteMutation.mutateAsync({
+        donorId,
+        noteIndex: index,
+      });
+    }
   };
 
   // Format notes for display
@@ -573,11 +636,64 @@ export default function DonorProfilePage() {
               ) : (
                 notes.map((note, index) => (
                   <div key={index} className="border rounded-md p-3 bg-muted/30">
-                    <p className="text-sm">{note.content}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(note.createdAt).toLocaleDateString()} at{' '}
-                      {new Date(note.createdAt).toLocaleTimeString()}
-                    </p>
+                    {editingNoteIndex === index ? (
+                      // Edit mode
+                      <div>
+                        <Textarea
+                          value={editingNoteContent}
+                          onChange={(e) => setEditingNoteContent(e.target.value)}
+                          className="min-h-[80px] mb-2"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={handleSaveEditNote}
+                            disabled={!editingNoteContent.trim() || editNoteMutation.isPending}
+                          >
+                            {editNoteMutation.isPending ? 'Saving...' : 'Save'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCancelEditNote}
+                            disabled={editNoteMutation.isPending}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Display mode
+                      <div>
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="text-sm flex-1">{note.content}</p>
+                          <div className="flex gap-1 ml-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditNote(index, note.content)}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteNote(index)}
+                              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                              disabled={deleteNoteMutation.isPending}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(note.createdAt).toLocaleDateString()} at{' '}
+                          {new Date(note.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
