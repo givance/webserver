@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { trpc } from "@/app/lib/trpc/client";
-import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import type { DonationWithDetails } from "@/app/lib/data/donations";
-import { toast } from "sonner";
-import { 
+import { trpc } from '@/app/lib/trpc/client';
+import type { inferProcedureInput, inferProcedureOutput } from '@trpc/server';
+import type { AppRouter } from '@/app/api/trpc/routers/_app';
+import type { DonationWithDetails } from '@/app/lib/data/donations';
+import { toast } from 'sonner';
+import {
   STANDARD_QUERY_OPTIONS,
   createConditionalQueryOptions,
   wrapMutationAsync,
   wrapMutationAsyncBoolean,
   createErrorHandler,
   createCacheInvalidators,
-  createCrossResourceInvalidators
-} from "./utils";
+  createCrossResourceInvalidators,
+} from './utils';
 
-type DonationOutput = inferProcedureOutput<AppRouter["donations"]["getById"]>;
-type ListDonationsInput = inferProcedureInput<AppRouter["donations"]["list"]>;
-type CreateDonationInput = inferProcedureInput<AppRouter["donations"]["create"]>;
-type UpdateDonationInput = inferProcedureInput<AppRouter["donations"]["update"]>;
+type DonationOutput = inferProcedureOutput<AppRouter['donations']['getById']>;
+type ListDonationsInput = inferProcedureInput<AppRouter['donations']['list']>;
+type CreateDonationInput = inferProcedureInput<AppRouter['donations']['create']>;
+type UpdateDonationInput = inferProcedureInput<AppRouter['donations']['update']>;
 
 interface ListDonationsOptions {
   donorId?: number;
@@ -27,8 +27,8 @@ interface ListDonationsOptions {
   endDate?: Date;
   limit?: number;
   offset?: number;
-  orderBy?: "date" | "amount" | "createdAt";
-  orderDirection?: "asc" | "desc";
+  orderBy?: 'date' | 'amount' | 'createdAt';
+  orderDirection?: 'asc' | 'desc';
   includeDonor?: boolean;
   includeProject?: boolean;
 }
@@ -53,10 +53,7 @@ export function useDonations() {
   };
 
   const getDonationById = (id: number) => {
-    return trpc.donations.getById.useQuery(
-      { id },
-      createConditionalQueryOptions(!!id)
-    );
+    return trpc.donations.getById.useQuery({ id }, createConditionalQueryOptions(!!id));
   };
 
   const getDonorStats = (donorId: number) => {
@@ -69,34 +66,34 @@ export function useDonations() {
   // Mutation hooks with consistent error handling and invalidation
   const createMutation = trpc.donations.create.useMutation({
     onSuccess: (data) => {
-      cacheInvalidators.invalidateResource("donations");
-      if (data.donorId) {
+      cacheInvalidators.invalidateResource('donations');
+      if (data?.donorId) {
         crossResourceInvalidators.invalidateDonorRelated(data.donorId);
       }
-      toast.success("Donation created successfully");
+      toast.success('Donation created successfully');
     },
-    onError: createErrorHandler("create donation"),
+    onError: createErrorHandler('create donation'),
   });
 
   const updateMutation = trpc.donations.update.useMutation({
     onSuccess: (data) => {
-      cacheInvalidators.invalidateResource("donations");
-      if (data.donorId) {
+      cacheInvalidators.invalidateResource('donations');
+      if (data?.donorId) {
         crossResourceInvalidators.invalidateDonorRelated(data.donorId);
       }
-      toast.success("Donation updated successfully");
+      toast.success('Donation updated successfully');
     },
-    onError: createErrorHandler("update donation"),
+    onError: createErrorHandler('update donation'),
   });
 
   const deleteMutation = trpc.donations.delete.useMutation({
     onSuccess: (_, variables) => {
-      cacheInvalidators.invalidateResource("donations");
+      cacheInvalidators.invalidateResource('donations');
       // We need to also invalidate donor stats since a donation was deleted
       utils.donations.getDonorStats.invalidate();
-      toast.success("Donation deleted successfully");
+      toast.success('Donation deleted successfully');
     },
-    onError: createErrorHandler("delete donation"),
+    onError: createErrorHandler('delete donation'),
   });
 
   /**
@@ -105,11 +102,7 @@ export function useDonations() {
    * @returns The created donation or null if creation failed
    */
   const createDonation = async (input: CreateDonationInput) => {
-    return wrapMutationAsync(
-      createMutation.mutateAsync,
-      input,
-      "create donation"
-    );
+    return wrapMutationAsync(createMutation.mutateAsync, input, 'create donation');
   };
 
   /**
@@ -118,11 +111,7 @@ export function useDonations() {
    * @returns The updated donation or null if update failed
    */
   const updateDonation = async (input: UpdateDonationInput) => {
-    return wrapMutationAsync(
-      updateMutation.mutateAsync,
-      input,
-      "update donation"
-    );
+    return wrapMutationAsync(updateMutation.mutateAsync, input, 'update donation');
   };
 
   /**
@@ -131,11 +120,7 @@ export function useDonations() {
    * @returns true if deletion was successful, false otherwise
    */
   const deleteDonation = async (id: number) => {
-    return wrapMutationAsyncBoolean(
-      deleteMutation.mutateAsync,
-      { id },
-      "delete donation"
-    );
+    return wrapMutationAsyncBoolean(deleteMutation.mutateAsync, { id }, 'delete donation');
   };
 
   return {
