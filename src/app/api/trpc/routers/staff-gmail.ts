@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import { google } from 'googleapis';
 import { TRPCError } from '@trpc/server';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import {
+  router,
+  protectedProcedure,
+  check,
+  ERROR_MESSAGES,
+  validateNotNullish,
+  createTRPCError,
+} from '../trpc';
 import { db } from '@/app/lib/db';
 import { staffGmailTokens, staff } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -59,7 +66,7 @@ export const staffGmailRouter = router({
         ),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       const scopes = [
         'https://www.googleapis.com/auth/gmail.compose',
@@ -118,25 +125,26 @@ export const staffGmailRouter = router({
         where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       try {
         const { tokens } = await oauth2Client.getToken(input.code);
         oauth2Client.setCredentials(tokens);
 
-        check(
-          !tokens.access_token || !tokens.refresh_token || !tokens.expiry_date || !tokens.scope,
-          'INTERNAL_SERVER_ERROR',
-          'Failed to retrieve all necessary tokens from Google.'
-        );
+        if (!tokens.access_token || !tokens.refresh_token || !tokens.expiry_date || !tokens.scope) {
+          throw createTRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retrieve all necessary tokens from Google.',
+          });
+        }
 
         // Get user's email from Google to store with the token
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
         const profile = await gmail.users.getProfile({ userId: 'me' });
         const emailAddress = profile.data.emailAddress;
 
-        check(
-          !emailAddress,
+        validateNotNullish(
+          emailAddress,
           'INTERNAL_SERVER_ERROR',
           'Failed to retrieve email address from Google.'
         );
@@ -205,7 +213,7 @@ export const staffGmailRouter = router({
         },
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       if (staffMember.gmailToken) {
         return {
@@ -236,7 +244,7 @@ export const staffGmailRouter = router({
         ),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       // Delete the Gmail token for this staff member
       await ctx.services.staffGmail.disconnectStaffGmailToken(input.staffId);

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { TRPCError } from '@trpc/server';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { db } from '@/app/lib/db';
 import { staffMicrosoftTokens, staff } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -47,7 +47,7 @@ export const staffMicrosoftRouter = router({
         ),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       // Generate state parameter with user ID for security
       const state = JSON.stringify({
@@ -105,7 +105,7 @@ export const staffMicrosoftRouter = router({
         where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       try {
         // Exchange code for tokens
@@ -143,8 +143,8 @@ export const staffMicrosoftRouter = router({
         const userInfo = await client.api('/me').select('mail,userPrincipalName').get();
         const emailAddress = userInfo.mail || userInfo.userPrincipalName;
 
-        check(
-          !emailAddress,
+        validateNotNullish(
+          emailAddress,
           'INTERNAL_SERVER_ERROR',
           'Failed to retrieve email address from Microsoft account.'
         );
@@ -216,7 +216,7 @@ export const staffMicrosoftRouter = router({
         },
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       if (staffMember.microsoftToken) {
         return {
@@ -247,7 +247,7 @@ export const staffMicrosoftRouter = router({
         ),
       });
 
-      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
+      validateNotNullish(staffMember, 'NOT_FOUND', 'Staff member not found');
 
       // Delete the Microsoft token for this staff member
       await db.delete(staffMicrosoftTokens).where(eq(staffMicrosoftTokens.staffId, input.staffId));

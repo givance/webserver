@@ -12,7 +12,14 @@ import {
   projectSchemas,
 } from '@/app/lib/validation/schemas';
 import { z } from 'zod';
-import { check, createTRPCError, ERROR_MESSAGES, protectedProcedure, router } from '../trpc';
+import {
+  check,
+  createTRPCError,
+  ERROR_MESSAGES,
+  protectedProcedure,
+  router,
+  validateNotNullish,
+} from '../trpc';
 
 // Schema definitions
 const projectResponseSchema = z.object({
@@ -60,7 +67,11 @@ export const projectsRouter = router({
     .input(projectIdsSchema)
     .output(z.array(projectResponseSchema))
     .query(async ({ input, ctx }) => {
-      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(
+        ctx.auth.user?.organizationId,
+        'UNAUTHORIZED',
+        ERROR_MESSAGES.UNAUTHORIZED
+      );
 
       const projects = await getProjectsByIds(input.ids, ctx.auth.user.organizationId);
 
@@ -85,7 +96,11 @@ export const projectsRouter = router({
     .input(projectSchemas.create)
     .output(projectResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(
+        ctx.auth.user?.organizationId,
+        'UNAUTHORIZED',
+        ERROR_MESSAGES.UNAUTHORIZED
+      );
 
       try {
         return await createProject({
@@ -140,9 +155,9 @@ export const projectsRouter = router({
 
       const updated = await updateProject(id, updateData);
 
-      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Project'));
+      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Project'));
 
-      return updated!;
+      return updated;
     }),
 
   /**
@@ -197,7 +212,11 @@ export const projectsRouter = router({
     .input(listProjectsInputSchema)
     .output(listProjectsResponseSchema)
     .query(async ({ input, ctx }) => {
-      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(
+        ctx.auth.user?.organizationId,
+        'UNAUTHORIZED',
+        ERROR_MESSAGES.UNAUTHORIZED
+      );
 
       return await listProjects(input, ctx.auth.user.organizationId);
     }),

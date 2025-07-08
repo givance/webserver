@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { protectedProcedure, router, check, ERROR_MESSAGES } from '../trpc';
+import { protectedProcedure, router, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { logger } from '@/app/lib/logger';
 import { getDonorById } from '@/app/lib/data/donors';
 import { getOrganizationById } from '@/app/lib/data/organizations';
@@ -14,15 +14,19 @@ async function generateDonorResearchTopic(
 ): Promise<string> {
   // Get donor information
   const donor = await getDonorById(donorId, organizationId);
-  check(
-    !donor,
+  validateNotNullish(
+    donor,
     'NOT_FOUND',
     "The donor you're trying to research doesn't exist in your organization."
   );
 
   // Get organization information
   const organization = await getOrganizationById(organizationId);
-  check(!organization, 'NOT_FOUND', 'Your organization information could not be found.');
+  validateNotNullish(
+    organization,
+    'NOT_FOUND',
+    'Your organization information could not be found.'
+  );
 
   // Build donor name
   const donorName = `${donor.firstName} ${donor.lastName}`.trim();
@@ -85,8 +89,8 @@ export const personResearchRouter = router({
 
       try {
         // Validate user has organization access
-        check(
-          !user.organizationId,
+        validateNotNullish(
+          user.organizationId,
           'FORBIDDEN',
           'You must be part of an organization to conduct research.'
         );
@@ -223,8 +227,8 @@ export const personResearchRouter = router({
 
       try {
         // Validate user has organization access
-        check(
-          !user.organizationId,
+        validateNotNullish(
+          user.organizationId,
           'FORBIDDEN',
           'Organization membership required for donor research'
         );
@@ -326,15 +330,15 @@ export const personResearchRouter = router({
 
       try {
         // Validate user has organization access
-        check(
-          !user.organizationId,
+        validateNotNullish(
+          user.organizationId,
           'FORBIDDEN',
           'Organization membership required for donor research'
         );
 
         // Verify donor belongs to organization
         const donor = await getDonorById(donorId, user.organizationId);
-        check(!donor, 'NOT_FOUND', 'Donor not found in your organization');
+        validateNotNullish(donor, 'NOT_FOUND', 'Donor not found in your organization');
 
         // Get research result
         const result = await ctx.services.personResearch.getPersonResearch(
@@ -406,15 +410,15 @@ export const personResearchRouter = router({
 
       try {
         // Validate user has organization access
-        check(
-          !user.organizationId,
+        validateNotNullish(
+          user.organizationId,
           'FORBIDDEN',
           'Organization membership required for donor research'
         );
 
         // Verify donor belongs to organization
         const donor = await getDonorById(donorId, user.organizationId);
-        check(!donor, 'NOT_FOUND', 'Donor not found in your organization');
+        validateNotNullish(donor, 'NOT_FOUND', 'Donor not found in your organization');
 
         // Get all research versions
         const versions = await ctx.services.personResearch.getAllPersonResearchVersions(
@@ -486,8 +490,8 @@ export const personResearchRouter = router({
 
       try {
         // Validate user has organization access
-        check(
-          !user.organizationId,
+        validateNotNullish(
+          user.organizationId,
           'FORBIDDEN',
           'Organization membership required for bulk donor research'
         );
@@ -547,8 +551,8 @@ export const personResearchRouter = router({
 
     try {
       // Validate user has organization access
-      check(
-        !user.organizationId,
+      validateNotNullish(
+        user.organizationId,
         'FORBIDDEN',
         'Organization membership required for research statistics'
       );

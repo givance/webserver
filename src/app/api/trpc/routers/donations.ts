@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import {
   getDonationById,
@@ -20,7 +20,7 @@ async function authorizeDonationAccess(
   organizationId: string
 ): Promise<DonationWithDetails> {
   const donation = await getDonationById(donationId, { includeDonor: true, includeProject: true });
-  check(!donation, 'NOT_FOUND', 'Donation not found');
+  validateNotNullish(donation, 'NOT_FOUND', 'Donation not found');
 
   check(
     !donation.donor ||
@@ -80,14 +80,18 @@ export const donationsRouter = router({
         includeDonor: input.includeDonor,
         includeProject: input.includeProject,
       });
-      check(!donation, 'NOT_FOUND', 'Donation not found');
+      validateNotNullish(donation, 'NOT_FOUND', 'Donation not found');
       return donation;
     }),
 
   create: protectedProcedure.input(createDonationSchema).mutation(async ({ input, ctx }) => {
     // Verify donor belongs to organization
     const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-    check(!donor, 'NOT_FOUND', "The selected donor doesn't exist in your organization.");
+    validateNotNullish(
+      donor,
+      'NOT_FOUND',
+      "The selected donor doesn't exist in your organization."
+    );
 
     // Verify project belongs to organization
     const project = await getProjectById(input.projectId);
@@ -117,7 +121,11 @@ export const donationsRouter = router({
     // If updating donor or project, verify they belong to the organization
     if (input.donorId) {
       const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-      check(!donor, 'NOT_FOUND', "The new donor you selected doesn't exist in your organization.");
+      validateNotNullish(
+        donor,
+        'NOT_FOUND',
+        "The new donor you selected doesn't exist in your organization."
+      );
     }
 
     if (input.projectId) {
@@ -176,7 +184,11 @@ export const donationsRouter = router({
     .query(async ({ input, ctx }) => {
       // First verify the donor belongs to the organization
       const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-      check(!donor, 'NOT_FOUND', "The selected donor doesn't exist in your organization.");
+      validateNotNullish(
+        donor,
+        'NOT_FOUND',
+        "The selected donor doesn't exist in your organization."
+      );
 
       return getDonorDonationStats(input.donorId, ctx.auth.user.organizationId);
     }),

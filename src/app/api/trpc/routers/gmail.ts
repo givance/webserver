@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '../trpc';
-import { createTRPCError, ERROR_MESSAGES, check } from '../trpc';
+import { createTRPCError, ERROR_MESSAGES, check, validateNotNullish } from '../trpc';
 import { idSchema, emailSchema, gmailSchemas } from '@/app/lib/validation/schemas';
 import { TRPCError } from '@trpc/server';
 
@@ -122,7 +122,7 @@ export const gmailRouter = router({
   disconnectGmail: protectedProcedure
     .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       await ctx.services.gmail.disconnect(ctx.auth.user.id);
 
@@ -151,7 +151,7 @@ export const gmailRouter = router({
     .input(gmailSchemas.authCallback)
     .output(z.object({ success: z.boolean(), message: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       await ctx.services.gmail.handleOAuthCallback(input.code, ctx.auth.user.id);
 
@@ -228,7 +228,7 @@ export const gmailRouter = router({
     .input(sendEmailSchema)
     .output(z.object({ messageId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const messageId = await ctx.services.gmail.sendEmail(
         ctx.auth.user.id,
@@ -264,7 +264,7 @@ export const gmailRouter = router({
     .input(bulkSendSchema)
     .output(bulkSendResponseSchema)
     .mutation(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
     }),
@@ -283,7 +283,7 @@ export const gmailRouter = router({
     .input(listMessagesSchema)
     .output(z.array(messageResponseSchema))
     .query(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await ctx.services.gmail.listMessages(ctx.auth.user.id, input.query, input.maxResults);
     }),
@@ -302,7 +302,7 @@ export const gmailRouter = router({
     .input(listMessagesSchema)
     .output(z.array(threadResponseSchema))
     .query(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await ctx.services.gmail.listThreads(ctx.auth.user.id, input.query, input.maxResults);
     }),
@@ -321,7 +321,7 @@ export const gmailRouter = router({
     .input(z.object({ threadId: z.string() }))
     .output(threadResponseSchema)
     .query(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await ctx.services.gmail.getThread(ctx.auth.user.id, input.threadId);
     }),
@@ -345,7 +345,7 @@ export const gmailRouter = router({
     .input(bulkSendSchema)
     .output(bulkSendResponseSchema)
     .mutation(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
     }),
@@ -358,7 +358,7 @@ export const gmailRouter = router({
     .input(z.object({ emailId: idSchema }))
     .output(z.object({ success: z.boolean(), messageId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      check(!ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       // This is a placeholder - the actual implementation would need to:
       // 1. Fetch the email details from the database using emailId

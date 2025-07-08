@@ -15,7 +15,7 @@ import {
 import { getDonorById } from '@/app/lib/data/donors';
 import { getStaffById } from '@/app/lib/data/staff';
 import { logger } from '@/app/lib/logger';
-import { check, createTRPCError, ERROR_MESSAGES } from '@/app/api/trpc/trpc';
+import { check, createTRPCError, ERROR_MESSAGES, validateNotNullish } from '@/app/api/trpc/trpc';
 
 /**
  * Service for handling communication operations
@@ -45,10 +45,7 @@ export class CommunicationsService {
       ...includeDetails,
     });
 
-    check(!thread, 'NOT_FOUND', 'Communication thread not found');
-    if (!thread) {
-      logger.error(`Communication thread ${threadId} not found`);
-    }
+    validateNotNullish(thread, 'NOT_FOUND', 'Communication thread not found');
 
     const belongsToOrg =
       (thread.staff?.some((s) => s.staff?.organizationId === organizationId) ?? false) ||
@@ -56,8 +53,11 @@ export class CommunicationsService {
 
     if (!belongsToOrg) {
       logger.error(`Thread ${threadId} access denied for organization ${organizationId}`);
+      throw createTRPCError({
+        code: 'FORBIDDEN',
+        message: 'Communication thread does not belong to your organization',
+      });
     }
-    check(!belongsToOrg, 'FORBIDDEN', 'Communication thread does not belong to your organization');
 
     return thread;
   }
@@ -80,10 +80,11 @@ export class CommunicationsService {
     if (staffIds) {
       for (const staffId of staffIds) {
         const staff = await getStaffById(staffId, organizationId);
-        if (!staff) {
-          logger.error(`Staff member ${staffId} not found in organization ${organizationId}`);
-        }
-        check(!staff, 'NOT_FOUND', `Staff member ${staffId} not found in your organization`);
+        validateNotNullish(
+          staff,
+          'NOT_FOUND',
+          `Staff member ${staffId} not found in your organization`
+        );
       }
     }
 
@@ -91,10 +92,7 @@ export class CommunicationsService {
     if (donorIds) {
       for (const donorId of donorIds) {
         const donor = await getDonorById(donorId, organizationId);
-        if (!donor) {
-          logger.error(`Donor ${donorId} not found in organization ${organizationId}`);
-        }
-        check(!donor, 'NOT_FOUND', `Donor ${donorId} not found in your organization`);
+        validateNotNullish(donor, 'NOT_FOUND', `Donor ${donorId} not found in your organization`);
       }
     }
 
@@ -282,10 +280,10 @@ export class CommunicationsService {
     // Verify participant belongs to organization
     if (participantType === 'staff') {
       const staff = await getStaffById(participantId, organizationId);
-      check(!staff, 'NOT_FOUND', 'Staff member not found in your organization');
+      validateNotNullish(staff, 'NOT_FOUND', 'Staff member not found in your organization');
     } else {
       const donor = await getDonorById(participantId, organizationId);
-      check(!donor, 'NOT_FOUND', 'Donor not found in your organization');
+      validateNotNullish(donor, 'NOT_FOUND', 'Donor not found in your organization');
     }
 
     try {

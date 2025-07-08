@@ -13,7 +13,14 @@ import {
 import { countListsForDonor } from '@/app/lib/data/donor-lists';
 import { getStaffByIds } from '@/app/lib/data/staff';
 import { type DonorNote } from '@/app/lib/db/schema';
-import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES, check } from '../trpc';
+import {
+  createTRPCError,
+  notFoundError,
+  conflictError,
+  ERROR_MESSAGES,
+  check,
+  validateNotNullish,
+} from '../trpc';
 import {
   idSchema,
   emailSchema,
@@ -295,9 +302,9 @@ export const donorsRouter = router({
     .query(async ({ input, ctx }) => {
       const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
 
-      check(!donor, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+      validateNotNullish(donor, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      return serializeDonor(donor!);
+      return serializeDonor(donor);
     }),
 
   /**
@@ -370,9 +377,9 @@ export const donorsRouter = router({
 
       const updated = await updateDonor(id, updateData as any, ctx.auth.user.organizationId); // TODO: Fix type mismatch
 
-      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      return serializeDonor(updated!);
+      return serializeDonor(updated);
     }),
 
   /**
@@ -512,7 +519,11 @@ export const donorsRouter = router({
         organizationId
       );
 
-      check(!updatedDonor, 'INTERNAL_SERVER_ERROR', "Failed to update donor's assigned staff");
+      validateNotNullish(
+        updatedDonor,
+        'INTERNAL_SERVER_ERROR',
+        "Failed to update donor's assigned staff"
+      );
 
       return serializeDonor(updatedDonor);
     }),
@@ -720,7 +731,7 @@ export const donorsRouter = router({
         ctx.auth.user.organizationId
       );
 
-      check(!updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
+      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
 
       return serializeDonor(updatedDonor);
     }),

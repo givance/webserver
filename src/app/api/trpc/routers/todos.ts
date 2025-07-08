@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '@/app/api/trpc/trpc';
 import type { UpdateTodoInput } from '@/app/lib/services/todo-service';
-import { createTRPCError, validateOrganizationAccess, ERROR_MESSAGES, check } from '../trpc';
+import {
+  createTRPCError,
+  validateOrganizationAccess,
+  ERROR_MESSAGES,
+  check,
+  validateNotNullish,
+} from '../trpc';
 import { idSchema, todoSchemas, batchResultSchema } from '@/app/lib/validation/schemas';
 
 // Helper to convert Todo dates to ISO strings
@@ -114,7 +120,7 @@ export const todoRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx.auth;
 
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const result = await ctx.services.todos.createTodo({
         ...input,
@@ -164,7 +170,7 @@ export const todoRouter = router({
       const { ids, data } = input;
       const { user } = ctx.auth;
 
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const serviceUpdateData: UpdateTodoInput = { ...data };
       const updatePromises = ids.map((id) => ctx.services.todos.updateTodo(id, serviceUpdateData));
@@ -206,7 +212,7 @@ export const todoRouter = router({
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
 
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const todos = await ctx.services.todos.getTodosByOrganization(user.organizationId, input);
 
@@ -232,7 +238,7 @@ export const todoRouter = router({
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
 
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const grouped = await ctx.services.todos.getTodosGroupedByType(
         user.organizationId,

@@ -15,7 +15,14 @@ import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import 'isomorphic-fetch';
 import { z } from 'zod';
-import { protectedProcedure, router, check, ERROR_MESSAGES } from '../trpc';
+import {
+  protectedProcedure,
+  router,
+  check,
+  ERROR_MESSAGES,
+  validateNotNullish,
+  createTRPCError,
+} from '../trpc';
 import type { Context } from '../context';
 
 // Ensure you have these in your environment variables
@@ -37,8 +44,8 @@ async function getMicrosoftClient(userId: string) {
     where: eq(microsoftOAuthTokens.userId, userId),
   });
 
-  check(
-    !tokenInfo,
+  validateNotNullish(
+    tokenInfo,
     'PRECONDITION_FAILED',
     'Microsoft account not connected. Please connect your Microsoft account first.'
   );
@@ -99,7 +106,7 @@ async function getMicrosoftClientForDonor(
     },
   });
 
-  check(!donorInfo, 'NOT_FOUND', 'Donor not found');
+  validateNotNullish(donorInfo, 'NOT_FOUND', 'Donor not found');
 
   // Step 1: Log donor information
   logger.info(
@@ -238,8 +245,8 @@ async function getMicrosoftClientForDonor(
         where: eq(microsoftOAuthTokens.userId, fallbackUserId),
       });
 
-      check(
-        !fallbackTokenInfo,
+      validateNotNullish(
+        fallbackTokenInfo,
         'PRECONDITION_FAILED',
         'No Microsoft account connected. Please connect your Microsoft account first.'
       );
@@ -290,7 +297,11 @@ async function getMicrosoftClientForDonor(
       }
     }
 
-    check(!microsoftClient, 'INTERNAL_SERVER_ERROR', 'Failed to initialize Microsoft client');
+    validateNotNullish(
+      microsoftClient,
+      'INTERNAL_SERVER_ERROR',
+      'Failed to initialize Microsoft client'
+    );
 
     return { client: microsoftClient, senderInfo };
   } catch (error) {
@@ -308,11 +319,12 @@ export const microsoftRouter = router({
    * Get Microsoft authentication URL
    */
   getMicrosoftAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
-    check(
-      !MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI,
-      'INTERNAL_SERVER_ERROR',
-      'Microsoft OAuth is not configured on the server.'
-    );
+    if (!MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI) {
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Microsoft OAuth is not configured on the server.',
+      });
+    }
 
     // Generate state parameter with user ID for security
     const state = JSON.stringify({
@@ -343,11 +355,12 @@ export const microsoftRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      check(
-        !MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI,
-        'INTERNAL_SERVER_ERROR',
-        'Microsoft OAuth is not configured on the server.'
-      );
+      if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
+        throw createTRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Microsoft OAuth is not configured on the server.',
+        });
+      }
 
       // Parse state to verify user ID
       let stateData: { userId: string; organizationId: string } | null = null;
@@ -362,11 +375,12 @@ export const microsoftRouter = router({
       }
 
       // Verify user ID from state matches authenticated user
-      check(
-        stateData && stateData.userId !== ctx.auth.user.id,
-        'UNAUTHORIZED',
-        'User ID mismatch in OAuth callback.'
-      );
+      if (stateData && stateData.userId !== ctx.auth.user.id) {
+        throw createTRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User ID mismatch in OAuth callback.',
+        });
+      }
 
       try {
         // Exchange code for tokens
@@ -511,9 +525,9 @@ export const microsoftRouter = router({
           where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
         });
 
-        check(!donor, 'NOT_FOUND', 'Donor not found');
+        validateNotNullish(donor, 'NOT_FOUND', 'Donor not found');
 
-        check(!donor.email, 'BAD_REQUEST', 'Donor does not have an email address');
+        validateNotNullish(donor.email, 'BAD_REQUEST', 'Donor does not have an email address');
 
         // Get Microsoft client for this donor
         const { client: microsoftClient, senderInfo } = await getMicrosoftClientForDonor(

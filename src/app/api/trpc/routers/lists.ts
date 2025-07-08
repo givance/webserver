@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import {
   createDonorList,
@@ -147,8 +147,8 @@ export const listsRouter = router({
    */
   getByIdWithMemberCount: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
     const list = await getDonorListWithMemberCount(input.id, ctx.auth.user.organizationId);
-    check(
-      !list,
+    validateNotNullish(
+      list,
       'NOT_FOUND',
       "The donor list you're looking for doesn't exist or has been deleted."
     );
@@ -163,8 +163,8 @@ export const listsRouter = router({
    */
   getByIdWithMembers: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
     const list = await getDonorListWithMembers(input.id, ctx.auth.user.organizationId);
-    check(
-      !list,
+    validateNotNullish(
+      list,
       'NOT_FOUND',
       "The donor list you're looking for doesn't exist or has been deleted."
     );
@@ -200,7 +200,7 @@ export const listsRouter = router({
     const { id, ...updateData } = input;
     try {
       const updated = await updateDonorList(id, updateData, ctx.auth.user.organizationId);
-      check(!updated, 'NOT_FOUND', 'Donor list not found');
+      validateNotNullish(updated, 'NOT_FOUND', 'Donor list not found');
       return updated;
     } catch (error) {
       if (error instanceof Error && error.message.includes('unique constraint')) {
@@ -224,8 +224,8 @@ export const listsRouter = router({
    */
   delete: protectedProcedure.input(deleteListSchema).mutation(async ({ input, ctx }) => {
     const result = await deleteDonorList(input.id, ctx.auth.user.organizationId, input.deleteMode);
-    check(
-      !result.listDeleted,
+    validateNotNullish(
+      result.listDeleted,
       'NOT_FOUND',
       "The donor list you're looking for doesn't exist or has been deleted."
     );
@@ -364,7 +364,7 @@ export const listsRouter = router({
       try {
         // Verify list exists and belongs to organization
         const list = await getDonorListById(input.listId, ctx.auth.user.organizationId);
-        check(!list, 'NOT_FOUND', 'List not found');
+        validateNotNullish(list, 'NOT_FOUND', 'List not found');
 
         // Decode base64 content
         const accountsContent = Buffer.from(input.accountsFile.content, 'base64').toString('utf-8');

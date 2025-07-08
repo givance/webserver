@@ -148,6 +148,28 @@ export function check(condition: boolean, code: TRPCError['code'], message: stri
 }
 
 /**
+ * Type guard that validates a value is not null/undefined and throws a TRPC error if it is
+ *
+ * @param value - The value to validate
+ * @param code - The TRPC error code
+ * @param message - The error message
+ *
+ * @example
+ * const project = await getProject(id);
+ * validateNotNullish(project, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Project'));
+ * // Now TypeScript knows project is not null/undefined
+ */
+export function validateNotNullish<T>(
+  value: T | null | undefined,
+  code: TRPCError['code'],
+  message: string
+): asserts value is T {
+  if (value === null || value === undefined) {
+    throw createTRPCError({ code, message });
+  }
+}
+
+/**
  * Initialization of tRPC backend
  * Should be done only once per backend!
  */

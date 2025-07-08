@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { getStaffById } from '@/app/lib/data/staff';
 
@@ -54,8 +54,8 @@ export const whatsappRouter = router({
       try {
         // Verify staff belongs to organization
         const staff = await getStaffById(staffId, organizationId);
-        check(
-          !staff,
+        validateNotNullish(
+          staff,
           'NOT_FOUND',
           "The staff member you're trying to update doesn't exist in your organization."
         );
@@ -65,8 +65,8 @@ export const whatsappRouter = router({
           phoneNumber
         );
 
-        check(
-          !result,
+        validateNotNullish(
+          result,
           'INTERNAL_SERVER_ERROR',
           'Unable to add the phone number. Please try again.'
         );
@@ -101,8 +101,8 @@ export const whatsappRouter = router({
       try {
         // Verify staff belongs to organization
         const staff = await getStaffById(staffId, organizationId);
-        check(
-          !staff,
+        validateNotNullish(
+          staff,
           'NOT_FOUND',
           "The staff member you're trying to update doesn't exist in your organization."
         );
@@ -110,8 +110,8 @@ export const whatsappRouter = router({
         const permissionService = ctx.services.whatsappPermission;
         const result = await permissionService.removePhoneNumberFromStaff(staffId, phoneNumber);
 
-        check(
-          !result,
+        validateNotNullish(
+          result,
           'INTERNAL_SERVER_ERROR',
           'Unable to remove the phone number. Please try again.'
         );
@@ -281,7 +281,11 @@ export const whatsappRouter = router({
       try {
         // Verify staff belongs to organization
         const staff = await getStaffById(staffId, organizationId);
-        check(!staff, 'NOT_FOUND', "The staff member doesn't exist in your organization.");
+        validateNotNullish(
+          staff,
+          'NOT_FOUND',
+          "The staff member doesn't exist in your organization."
+        );
 
         const historyService = ctx.services.whatsappHistory;
 

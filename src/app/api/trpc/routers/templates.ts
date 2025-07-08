@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '@/app/lib/db';
 import { templates } from '@/app/lib/db/schema';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import { logger } from '@/app/lib/logger';
 
 // Validation schemas
@@ -78,7 +78,11 @@ export const templatesRouter = router({
         .where(eq(templates.id, input.id))
         .limit(1);
 
-      check(!existingTemplate, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
+      validateNotNullish(
+        existingTemplate,
+        'NOT_FOUND',
+        "The template you're trying to update doesn't exist."
+      );
 
       check(
         existingTemplate.organizationId !== ctx.auth.user.organizationId,
@@ -124,7 +128,11 @@ export const templatesRouter = router({
         .where(eq(templates.id, input.id))
         .limit(1);
 
-      check(!existingTemplate, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
+      validateNotNullish(
+        existingTemplate,
+        'NOT_FOUND',
+        "The template you're trying to update doesn't exist."
+      );
 
       check(
         existingTemplate.organizationId !== ctx.auth.user.organizationId,
@@ -164,7 +172,11 @@ export const templatesRouter = router({
         )
         .limit(1);
 
-      check(!template, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
+      validateNotNullish(
+        template,
+        'NOT_FOUND',
+        "The template you're trying to update doesn't exist."
+      );
 
       return template;
     } catch (error) {

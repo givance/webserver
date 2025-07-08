@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { router, protectedProcedure, check, ERROR_MESSAGES, validateNotNullish } from '../trpc';
 import {
   getSessionTrackingStats,
   getMultipleSessionTrackingStats,
@@ -23,7 +23,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching tracking stats for session ${input.sessionId}`);
 
@@ -47,7 +47,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(
         `Fetching tracking stats for ${input.sessionIds.length} sessions: ${input.sessionIds.join(', ')}`
@@ -69,7 +69,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching donor tracking stats for session ${input.sessionId}`);
 
@@ -90,7 +90,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(
         `Fetching email tracking data for email ${input.emailId}, donor ${input.donorId}`
@@ -112,7 +112,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching email tracking data for tracker ${input.emailTrackerId}`);
 
@@ -136,7 +136,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Checking if email has been opened for tracker ${input.emailTrackerId}`);
 
@@ -157,7 +157,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(
         `Fetching email tracking data for session ${input.sessionId}, donor ${input.donorId}`

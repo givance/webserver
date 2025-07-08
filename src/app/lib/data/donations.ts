@@ -5,6 +5,7 @@ import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 import type { Donor } from './donors';
 import type { Project } from './projects';
 import type { PgSelect } from 'drizzle-orm/pg-core';
+import { validateNotNullish, ERROR_MESSAGES } from '../../api/trpc/trpc';
 
 export type Donation = InferSelectModel<typeof donations>;
 export type NewDonation = InferInsertModel<typeof donations>;
