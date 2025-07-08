@@ -220,6 +220,17 @@ const addDonorNoteSchema = z.object({
   content: z.string().min(1, 'Note content is required').max(5000),
 });
 
+const editDonorNoteSchema = z.object({
+  donorId: idSchema,
+  noteIndex: z.number().int().min(0),
+  content: z.string().min(1, 'Note content is required').max(5000),
+});
+
+const deleteDonorNoteSchema = z.object({
+  donorId: idSchema,
+  noteIndex: z.number().int().min(0),
+});
+
 // Output schemas
 const listDonorsOutputSchema = z.object({
   donors: z.array(donorResponseSchema),
@@ -732,6 +743,72 @@ export const donorsRouter = router({
       );
 
       validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
+
+      return serializeDonor(updatedDonor);
+    }),
+
+  /**
+   * Edit an existing note for a donor
+   *
+   * @param donorId - Donor ID
+   * @param noteIndex - Index of the note to edit
+   * @param content - New note content
+   *
+   * @returns Updated donor
+   *
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist or note index is invalid
+   */
+  editNote: protectedProcedure
+    .input(editDonorNoteSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { donorId, noteIndex, content } = input;
+
+      // Verify donor exists
+      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+
+      // Update donor note
+      const updatedDonor = await ctx.services.donors.editDonorNote(
+        donorId,
+        noteIndex,
+        content.trim(),
+        ctx.auth.user.organizationId
+      );
+
+      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to edit note');
+
+      return serializeDonor(updatedDonor);
+    }),
+
+  /**
+   * Delete a note from a donor
+   *
+   * @param donorId - Donor ID
+   * @param noteIndex - Index of the note to delete
+   *
+   * @returns Updated donor
+   *
+   * @throws {TRPCError} NOT_FOUND if donor doesn't exist or note index is invalid
+   */
+  deleteNote: protectedProcedure
+    .input(deleteDonorNoteSchema)
+    .output(donorResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { donorId, noteIndex } = input;
+
+      // Verify donor exists
+      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+
+      // Delete donor note
+      const updatedDonor = await ctx.services.donors.deleteDonorNote(
+        donorId,
+        noteIndex,
+        ctx.auth.user.organizationId
+      );
+
+      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to delete note');
 
       return serializeDonor(updatedDonor);
     }),
