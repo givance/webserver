@@ -481,6 +481,24 @@ export async function getDonorIdsWithEmails(
   }
 }
 
+export async function getDraftSessionById(
+  organizationId: string,
+  sessionId: number
+): Promise<EmailGenerationSession | null> {
+  try {
+    const draft = await db.query.emailGenerationSessions.findFirst({
+      where: and(
+        eq(emailGenerationSessions.organizationId, organizationId),
+        eq(emailGenerationSessions.id, sessionId)
+      ),
+    });
+    return draft || null;
+  } catch (error) {
+    console.error('Failed to get draft session by ID:', error);
+    throw new Error('Could not retrieve draft session.');
+  }
+}
+
 /**
  * Checks if draft session exists by name
  */

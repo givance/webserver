@@ -550,29 +550,6 @@ export class EmailCampaignsService {
       completedAt: session.completedAt,
     }));
 
-    // Check and fix stuck campaigns in batch
-    const campaignsToCheck = campaigns
-      .filter(
-        (campaign) =>
-          campaign.status === EmailGenerationSessionStatus.GENERATING ||
-          campaign.status === EmailGenerationSessionStatus.READY_TO_SEND
-      )
-      .map((campaign) => campaign.id);
-
-    let batchResults = new Map();
-    if (campaignsToCheck.length > 0) {
-      try {
-        batchResults = await this.checkAndUpdateMultipleCampaignCompletion(
-          campaignsToCheck,
-          organizationId
-        );
-      } catch (error) {
-        logger.warn(
-          `Failed to check completion for campaigns ${campaignsToCheck.join(', ')}: ${error}`
-        );
-      }
-    }
-
     // Get email counts for all campaigns in batch
     const allSessionIds = campaigns.map((c) => c.id);
     const stats = await getEmailStatsBySessionIds(allSessionIds);
