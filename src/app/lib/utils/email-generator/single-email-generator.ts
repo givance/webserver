@@ -201,7 +201,7 @@ TASK: Generate an email with the following structure, based on the user instruct
 4. **response**: User-facing summary describing what was delivered
 
 REQUIREMENTS:
-- Tone: Warm, personal, confident
+- Tone: Warm, personal, confident and conversational
 - Use specific donation amounts and dates from the history when relevant andavailable
 - Reference their impact using past donation history when relevant and available
 - DO NOT include any signature, closing, or sign-off - this is added automatically
