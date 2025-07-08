@@ -1,13 +1,13 @@
-import { z } from "zod";
-import { Client } from "@microsoft/microsoft-graph-client";
-import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../trpc";
-import { db } from "@/app/lib/db";
-import { staffMicrosoftTokens, staff } from "@/app/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import "isomorphic-fetch";
+import { z } from 'zod';
+import { Client } from '@microsoft/microsoft-graph-client';
+import { TRPCError } from '@trpc/server';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { db } from '@/app/lib/db';
+import { staffMicrosoftTokens, staff } from '@/app/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import 'isomorphic-fetch';
 
 // Ensure you have these in your environment variables
 const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
@@ -15,13 +15,13 @@ const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI;
 // Staff-specific redirect URI (same domain, different path)
 const STAFF_MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI.replace(
-  "/settings/microsoft/callback",
-  "/settings/microsoft/staff-callback"
+  '/settings/microsoft/callback',
+  '/settings/microsoft/staff-callback'
 );
 
 if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
   console.error(
-    "Missing Microsoft OAuth credentials in environment variables. Staff Microsoft integration will not work."
+    'Missing Microsoft OAuth credentials in environment variables. Staff Microsoft integration will not work.'
   );
 }
 
@@ -33,20 +33,21 @@ export const staffMicrosoftRouter = router({
     .input(z.object({ staffId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       if (!MICROSOFT_CLIENT_ID || !STAFF_MICROSOFT_REDIRECT_URI) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Microsoft OAuth client not configured." });
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Microsoft OAuth client not configured.',
+        });
       }
 
       // Verify staff member exists and belongs to user's organization
       const staffMember = await db.query.staff.findFirst({
-        where: and(eq(staff.id, input.staffId), eq(staff.organizationId, ctx.auth.user.organizationId)),
+        where: and(
+          eq(staff.id, input.staffId),
+          eq(staff.organizationId, ctx.auth.user.organizationId)
+        ),
       });
 
-      if (!staffMember) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found",
-        });
-      }
+      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
 
       // Generate state parameter with user ID for security
       const state = JSON.stringify({
@@ -56,13 +57,13 @@ export const staffMicrosoftRouter = router({
       });
 
       // Microsoft OAuth authorization URL
-      const authUrl = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-      authUrl.searchParams.append("client_id", MICROSOFT_CLIENT_ID);
-      authUrl.searchParams.append("response_type", "code");
-      authUrl.searchParams.append("redirect_uri", STAFF_MICROSOFT_REDIRECT_URI);
-      authUrl.searchParams.append("scope", "offline_access Mail.ReadWrite Mail.Send User.Read");
-      authUrl.searchParams.append("state", state);
-      authUrl.searchParams.append("prompt", "consent");
+      const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
+      authUrl.searchParams.append('client_id', MICROSOFT_CLIENT_ID);
+      authUrl.searchParams.append('response_type', 'code');
+      authUrl.searchParams.append('redirect_uri', STAFF_MICROSOFT_REDIRECT_URI);
+      authUrl.searchParams.append('scope', 'offline_access Mail.ReadWrite Mail.Send User.Read');
+      authUrl.searchParams.append('state', state);
+      authUrl.searchParams.append('prompt', 'consent');
 
       return { authUrl: authUrl.toString() };
     }),
@@ -74,7 +75,10 @@ export const staffMicrosoftRouter = router({
     .input(z.object({ code: z.string(), state: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !STAFF_MICROSOFT_REDIRECT_URI) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Microsoft OAuth client not configured." });
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Microsoft OAuth client not configured.',
+        });
       }
 
       let stateData;
@@ -82,8 +86,8 @@ export const staffMicrosoftRouter = router({
         stateData = JSON.parse(input.state);
       } catch (error) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid state parameter",
+          code: 'BAD_REQUEST',
+          message: 'Invalid state parameter',
         });
       }
 
@@ -92,8 +96,8 @@ export const staffMicrosoftRouter = router({
       // Verify user and staff member
       if (userId !== ctx.auth.user.id || organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Unauthorized to link Microsoft for this staff member",
+          code: 'UNAUTHORIZED',
+          message: 'Unauthorized to link Microsoft for this staff member',
         });
       }
 
@@ -101,34 +105,29 @@ export const staffMicrosoftRouter = router({
         where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
       });
 
-      if (!staffMember) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found",
-        });
-      }
+      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
 
       try {
         // Exchange code for tokens
-        const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+        const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
         const tokenResponse = await fetch(tokenUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
             client_id: MICROSOFT_CLIENT_ID,
             client_secret: MICROSOFT_CLIENT_SECRET,
             code: input.code,
             redirect_uri: STAFF_MICROSOFT_REDIRECT_URI,
-            grant_type: "authorization_code",
+            grant_type: 'authorization_code',
           }).toString(),
         });
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json();
           throw new Error(
-            `Microsoft OAuth error: ${errorData.error_description || errorData.error || "Unknown error"}`
+            `Microsoft OAuth error: ${errorData.error_description || errorData.error || 'Unknown error'}`
           );
         }
 
@@ -141,15 +140,14 @@ export const staffMicrosoftRouter = router({
           },
         });
 
-        const userInfo = await client.api("/me").select("mail,userPrincipalName").get();
+        const userInfo = await client.api('/me').select('mail,userPrincipalName').get();
         const emailAddress = userInfo.mail || userInfo.userPrincipalName;
 
-        if (!emailAddress) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to retrieve email address from Microsoft account.",
-          });
-        }
+        check(
+          !emailAddress,
+          'INTERNAL_SERVER_ERROR',
+          'Failed to retrieve email address from Microsoft account.'
+        );
 
         // Calculate token expiration time
         const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
@@ -164,7 +162,7 @@ export const staffMicrosoftRouter = router({
             refreshToken: tokens.refresh_token,
             expiresAt: expiresAt,
             scope: tokens.scope,
-            tokenType: tokens.token_type || "Bearer",
+            tokenType: tokens.token_type || 'Bearer',
           })
           .onConflictDoUpdate({
             target: staffMicrosoftTokens.staffId,
@@ -174,7 +172,7 @@ export const staffMicrosoftRouter = router({
               refreshToken: tokens.refresh_token,
               expiresAt: expiresAt,
               scope: tokens.scope,
-              tokenType: tokens.token_type || "Bearer",
+              tokenType: tokens.token_type || 'Bearer',
               updatedAt: new Date(),
             },
           });
@@ -187,16 +185,16 @@ export const staffMicrosoftRouter = router({
           email: emailAddress,
         };
       } catch (error: any) {
-        console.error("Error handling staff Microsoft OAuth callback:", error);
+        console.error('Error handling staff Microsoft OAuth callback:', error);
         if (error.response && error.response.data && error.response.data.error_description) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: 'INTERNAL_SERVER_ERROR',
             message: `Microsoft API Error: ${error.response.data.error_description}`,
           });
         }
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error.message || "Failed to process staff Microsoft OAuth callback.",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to process staff Microsoft OAuth callback.',
         });
       }
     }),
@@ -209,18 +207,16 @@ export const staffMicrosoftRouter = router({
     .query(async ({ ctx, input }) => {
       // Verify staff member exists and belongs to user's organization
       const staffMember = await db.query.staff.findFirst({
-        where: and(eq(staff.id, input.staffId), eq(staff.organizationId, ctx.auth.user.organizationId)),
+        where: and(
+          eq(staff.id, input.staffId),
+          eq(staff.organizationId, ctx.auth.user.organizationId)
+        ),
         with: {
           microsoftToken: true,
         },
       });
 
-      if (!staffMember) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found",
-        });
-      }
+      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
 
       if (staffMember.microsoftToken) {
         return {
@@ -233,7 +229,7 @@ export const staffMicrosoftRouter = router({
       return {
         isConnected: false,
         email: null,
-        message: "Microsoft account not connected.",
+        message: 'Microsoft account not connected.',
       };
     }),
 
@@ -245,15 +241,13 @@ export const staffMicrosoftRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Verify staff member exists and belongs to user's organization
       const staffMember = await db.query.staff.findFirst({
-        where: and(eq(staff.id, input.staffId), eq(staff.organizationId, ctx.auth.user.organizationId)),
+        where: and(
+          eq(staff.id, input.staffId),
+          eq(staff.organizationId, ctx.auth.user.organizationId)
+        ),
       });
 
-      if (!staffMember) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Staff member not found",
-        });
-      }
+      check(!staffMember, 'NOT_FOUND', 'Staff member not found');
 
       // Delete the Microsoft token for this staff member
       await db.delete(staffMicrosoftTokens).where(eq(staffMicrosoftTokens.staffId, input.staffId));

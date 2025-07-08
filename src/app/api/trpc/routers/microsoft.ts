@@ -1,22 +1,22 @@
-import { createEmailTracker, createLinkTrackers } from "@/app/lib/data/email-tracking";
-import { db } from "@/app/lib/db";
-import { donors, generatedEmails, microsoftOAuthTokens, staff, users } from "@/app/lib/db/schema";
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
+import { createEmailTracker, createLinkTrackers } from '@/app/lib/data/email-tracking';
+import { db } from '@/app/lib/db';
+import { donors, generatedEmails, microsoftOAuthTokens, staff, users } from '@/app/lib/db/schema';
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
 import {
   createHtmlEmail,
   processEmailContentWithTracking,
   formatSenderField,
-} from "@/app/lib/utils/email-tracking/content-processor";
-import { generateTrackingId } from "@/app/lib/utils/email-tracking/utils";
-import { appendSignatureToEmail } from "@/app/lib/utils/email-with-signature";
-import { Client } from "@microsoft/microsoft-graph-client";
-import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
-import "isomorphic-fetch";
-import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
-import type { Context } from "../context";
+} from '@/app/lib/utils/email-tracking/content-processor';
+import { generateTrackingId } from '@/app/lib/utils/email-tracking/utils';
+import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
+import { Client } from '@microsoft/microsoft-graph-client';
+import { TRPCError } from '@trpc/server';
+import { and, eq } from 'drizzle-orm';
+import 'isomorphic-fetch';
+import { z } from 'zod';
+import { protectedProcedure, router, check, ERROR_MESSAGES } from '../trpc';
+import type { Context } from '../context';
 
 // Ensure you have these in your environment variables
 const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
@@ -24,7 +24,9 @@ const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI; // e.g., https://app.givance.ai/settings/microsoft/callback
 
 if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
-  console.error("Missing Microsoft OAuth credentials in environment variables. Microsoft integration will not work.");
+  console.error(
+    'Missing Microsoft OAuth credentials in environment variables. Microsoft integration will not work.'
+  );
 }
 
 /**
@@ -35,12 +37,11 @@ async function getMicrosoftClient(userId: string) {
     where: eq(microsoftOAuthTokens.userId, userId),
   });
 
-  if (!tokenInfo) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Microsoft account not connected. Please connect your Microsoft account first.",
-    });
-  }
+  check(
+    !tokenInfo,
+    'PRECONDITION_FAILED',
+    'Microsoft account not connected. Please connect your Microsoft account first.'
+  );
 
   try {
     // Create Microsoft Graph client with access token
@@ -52,7 +53,7 @@ async function getMicrosoftClient(userId: string) {
           // Token is expired, need to refresh
           // This would be implemented with the refresh token flow
           // For now, we'll just throw an error
-          done(new Error("Token expired. Please reconnect your Microsoft account."), null);
+          done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
           return;
         }
 
@@ -68,8 +69,8 @@ async function getMicrosoftClient(userId: string) {
       }`
     );
     throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Microsoft token expired. Please reconnect your Microsoft account.",
+      code: 'UNAUTHORIZED',
+      message: 'Microsoft token expired. Please reconnect your Microsoft account.',
     });
   }
 }
@@ -81,7 +82,11 @@ async function getMicrosoftClient(userId: string) {
  * 2. If donor assigned to staff without linked email account → use org default Microsoft account + staff signature
  * 3. If donor not assigned → use org default Microsoft account & signature
  */
-async function getMicrosoftClientForDonor(donorId: number, organizationId: string, fallbackUserId: string) {
+async function getMicrosoftClientForDonor(
+  donorId: number,
+  organizationId: string,
+  fallbackUserId: string
+) {
   // Get donor with staff assignment
   const donorInfo = await db.query.donors.findFirst({
     where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
@@ -94,12 +99,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
     },
   });
 
-  if (!donorInfo) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Donor not found",
-    });
-  }
+  check(!donorInfo, 'NOT_FOUND', 'Donor not found');
 
   // Step 1: Log donor information
   logger.info(
@@ -120,7 +120,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
 
   let microsoftClient;
   let senderInfo: { name: string; email: string | null; signature: string | null } = {
-    name: "Organization",
+    name: 'Organization',
     email: null,
     signature: null,
   };
@@ -144,7 +144,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
             // Token is expired, need to refresh
             // This would be implemented with the refresh token flow
             // For now, we'll just throw an error
-            done(new Error("Token expired. Please reconnect your Microsoft account."), null);
+            done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
             return;
           }
 
@@ -171,7 +171,9 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
     }
     // Case 3: Donor not assigned to staff - check for primary staff
     else {
-      logger.info(`[Microsoft Client Selection] Case 3: Donor not assigned to any staff - Checking for primary staff`);
+      logger.info(
+        `[Microsoft Client Selection] Case 3: Donor not assigned to any staff - Checking for primary staff`
+      );
 
       // Try to get primary staff for the organization
       const primaryStaffInfo = await db.query.staff.findFirst({
@@ -197,7 +199,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
               // Token is expired, need to refresh
               // This would be implemented with the refresh token flow
               // For now, we'll just throw an error
-              done(new Error("Token expired. Please reconnect your Microsoft account."), null);
+              done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
               return;
             }
 
@@ -236,12 +238,11 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
         where: eq(microsoftOAuthTokens.userId, fallbackUserId),
       });
 
-      if (!fallbackTokenInfo) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No Microsoft account connected. Please connect your Microsoft account first.",
-        });
-      }
+      check(
+        !fallbackTokenInfo,
+        'PRECONDITION_FAILED',
+        'No Microsoft account connected. Please connect your Microsoft account first.'
+      );
 
       // Create Microsoft Graph client with fallback user token
       microsoftClient = Client.init({
@@ -252,7 +253,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
             // Token is expired, need to refresh
             // This would be implemented with the refresh token flow
             // For now, we'll just throw an error
-            done(new Error("Token expired. Please reconnect your Microsoft account."), null);
+            done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
             return;
           }
 
@@ -278,7 +279,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
           );
         } else {
           senderInfo = {
-            name: userInfo.firstName || "Organization",
+            name: userInfo.firstName || 'Organization',
             email: userInfo.email,
             signature: null, // Default user doesn't have a signature in our schema
           };
@@ -289,12 +290,7 @@ async function getMicrosoftClientForDonor(donorId: number, organizationId: strin
       }
     }
 
-    if (!microsoftClient) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to initialize Microsoft client",
-      });
-    }
+    check(!microsoftClient, 'INTERNAL_SERVER_ERROR', 'Failed to initialize Microsoft client');
 
     return { client: microsoftClient, senderInfo };
   } catch (error) {
@@ -312,12 +308,11 @@ export const microsoftRouter = router({
    * Get Microsoft authentication URL
    */
   getMicrosoftAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
-    if (!MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Microsoft OAuth is not configured on the server.",
-      });
-    }
+    check(
+      !MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI,
+      'INTERNAL_SERVER_ERROR',
+      'Microsoft OAuth is not configured on the server.'
+    );
 
     // Generate state parameter with user ID for security
     const state = JSON.stringify({
@@ -326,13 +321,13 @@ export const microsoftRouter = router({
     });
 
     // Microsoft OAuth authorization URL
-    const authUrl = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-    authUrl.searchParams.append("client_id", MICROSOFT_CLIENT_ID);
-    authUrl.searchParams.append("response_type", "code");
-    authUrl.searchParams.append("redirect_uri", MICROSOFT_REDIRECT_URI);
-    authUrl.searchParams.append("scope", "offline_access Mail.ReadWrite Mail.Send User.Read");
-    authUrl.searchParams.append("state", state);
-    authUrl.searchParams.append("prompt", "consent");
+    const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
+    authUrl.searchParams.append('client_id', MICROSOFT_CLIENT_ID);
+    authUrl.searchParams.append('response_type', 'code');
+    authUrl.searchParams.append('redirect_uri', MICROSOFT_REDIRECT_URI);
+    authUrl.searchParams.append('scope', 'offline_access Mail.ReadWrite Mail.Send User.Read');
+    authUrl.searchParams.append('state', state);
+    authUrl.searchParams.append('prompt', 'consent');
 
     return { authUrl: authUrl.toString() };
   }),
@@ -348,12 +343,11 @@ export const microsoftRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Microsoft OAuth is not configured on the server.",
-        });
-      }
+      check(
+        !MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI,
+        'INTERNAL_SERVER_ERROR',
+        'Microsoft OAuth is not configured on the server.'
+      );
 
       // Parse state to verify user ID
       let stateData: { userId: string; organizationId: string } | null = null;
@@ -362,38 +356,39 @@ export const microsoftRouter = router({
           stateData = JSON.parse(input.state);
         }
       } catch (error) {
-        logger.error(`Error parsing state: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+          `Error parsing state: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
 
       // Verify user ID from state matches authenticated user
-      if (stateData && stateData.userId !== ctx.auth.user.id) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "User ID mismatch in OAuth callback.",
-        });
-      }
+      check(
+        stateData && stateData.userId !== ctx.auth.user.id,
+        'UNAUTHORIZED',
+        'User ID mismatch in OAuth callback.'
+      );
 
       try {
         // Exchange code for tokens
-        const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+        const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
         const tokenResponse = await fetch(tokenUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
             client_id: MICROSOFT_CLIENT_ID,
             client_secret: MICROSOFT_CLIENT_SECRET,
             code: input.code,
             redirect_uri: MICROSOFT_REDIRECT_URI,
-            grant_type: "authorization_code",
+            grant_type: 'authorization_code',
           }).toString(),
         });
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json();
           throw new Error(
-            `Microsoft OAuth error: ${errorData.error_description || errorData.error || "Unknown error"}`
+            `Microsoft OAuth error: ${errorData.error_description || errorData.error || 'Unknown error'}`
           );
         }
 
@@ -406,11 +401,11 @@ export const microsoftRouter = router({
           },
         });
 
-        const userInfo = await client.api("/me").select("mail,userPrincipalName").get();
+        const userInfo = await client.api('/me').select('mail,userPrincipalName').get();
         const emailAddress = userInfo.mail || userInfo.userPrincipalName;
 
         if (!emailAddress) {
-          throw new Error("Could not retrieve email address from Microsoft account");
+          throw new Error('Could not retrieve email address from Microsoft account');
         }
 
         // Calculate token expiration time
@@ -426,7 +421,7 @@ export const microsoftRouter = router({
             refreshToken: tokens.refresh_token,
             expiresAt: expiresAt,
             scope: tokens.scope,
-            tokenType: tokens.token_type || "Bearer",
+            tokenType: tokens.token_type || 'Bearer',
           })
           .onConflictDoUpdate({
             target: microsoftOAuthTokens.userId,
@@ -436,7 +431,7 @@ export const microsoftRouter = router({
               refreshToken: tokens.refresh_token,
               expiresAt: expiresAt,
               scope: tokens.scope,
-              tokenType: tokens.token_type || "Bearer",
+              tokenType: tokens.token_type || 'Bearer',
               updatedAt: new Date(),
             },
           });
@@ -451,8 +446,8 @@ export const microsoftRouter = router({
       } catch (error: any) {
         logger.error(`Error handling Microsoft OAuth callback: ${error.message || String(error)}`);
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Failed to connect Microsoft account: ${error.message || "Unknown error"}`,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to connect Microsoft account: ${error.message || 'Unknown error'}`,
         });
       }
     }),
@@ -474,7 +469,7 @@ export const microsoftRouter = router({
     return {
       isConnected: false,
       email: null,
-      message: "Microsoft account not connected.",
+      message: 'Microsoft account not connected.',
     };
   }),
 
@@ -489,7 +484,7 @@ export const microsoftRouter = router({
 
     return {
       success: true,
-      message: "Microsoft account disconnected successfully.",
+      message: 'Microsoft account disconnected successfully.',
     };
   }),
 
@@ -516,19 +511,9 @@ export const microsoftRouter = router({
           where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
         });
 
-        if (!donor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Donor not found",
-          });
-        }
+        check(!donor, 'NOT_FOUND', 'Donor not found');
 
-        if (!donor.email) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Donor does not have an email address",
-          });
-        }
+        check(!donor.email, 'BAD_REQUEST', 'Donor does not have an email address');
 
         // Get Microsoft client for this donor
         const { client: microsoftClient, senderInfo } = await getMicrosoftClientForDonor(
@@ -559,7 +544,10 @@ export const microsoftRouter = router({
           userId: userId,
         });
 
-        const processedContent = await processEmailContentWithTracking(contentWithSignature, trackingId);
+        const processedContent = await processEmailContentWithTracking(
+          contentWithSignature,
+          trackingId
+        );
 
         // Save link trackers to database
         if (processedContent.linkTrackers.length > 0) {
@@ -579,7 +567,7 @@ export const microsoftRouter = router({
         const message = {
           subject: subject,
           body: {
-            contentType: "HTML",
+            contentType: 'HTML',
             content: processedContent.htmlContent,
           },
           toRecipients: [
@@ -592,7 +580,7 @@ export const microsoftRouter = router({
         };
 
         // Send email via Microsoft Graph API
-        await microsoftClient.api("/me/sendMail").post({
+        await microsoftClient.api('/me/sendMail').post({
           message,
           saveToSentItems: true,
         });
@@ -618,7 +606,7 @@ export const microsoftRouter = router({
           }`
         );
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to send email: ${error instanceof Error ? error.message : String(error)}`,
         });
       }

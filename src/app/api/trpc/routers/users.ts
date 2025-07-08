@@ -10,7 +10,7 @@ import { db } from '@/app/lib/db';
 import { signatureImages } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { env } from '@/app/lib/env';
-import { createTRPCError, notFoundError, ERROR_MESSAGES } from '../trpc';
+import { createTRPCError, notFoundError, ERROR_MESSAGES, check } from '../trpc';
 import { idSchema } from '@/app/lib/validation/schemas';
 
 // ============================================================================
@@ -127,11 +127,9 @@ export const usersRouter = router({
   getCurrent: protectedProcedure.output(userResponseSchema).query(async ({ ctx }) => {
     const user = await getUserById(ctx.auth.user.id);
 
-    if (!user) {
-      throw notFoundError('User');
-    }
+    check(!user, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-    return serializeUser(user);
+    return serializeUser(user!);
   }),
 
   /**
@@ -150,11 +148,9 @@ export const usersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const updated = await updateUserMemory(ctx.auth.user.id, input.memory);
 
-      if (!updated) {
-        throw notFoundError('User');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-      return serializeUser(updated);
+      return serializeUser(updated!);
     }),
 
   /**
@@ -173,11 +169,9 @@ export const usersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const updated = await addDismissedMemory(ctx.auth.user.id, input.memory);
 
-      if (!updated) {
-        throw notFoundError('User');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-      return serializeUser(updated);
+      return serializeUser(updated!);
     }),
 
   /**
@@ -196,11 +190,9 @@ export const usersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const updated = await updateUserEmailSignature(ctx.auth.user.id, input.signature);
 
-      if (!updated) {
-        throw notFoundError('User');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-      return serializeUser(updated);
+      return serializeUser(updated!);
     }),
 
   /**
@@ -223,12 +215,7 @@ export const usersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { organizationId } = ctx.auth.user;
 
-      if (!organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User must belong to an organization',
-        });
-      }
+      check(!organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
       // Validate file size
       if (input.size > MAX_IMAGE_SIZE) {
@@ -260,12 +247,7 @@ export const usersRouter = router({
         })
         .returning();
 
-      if (!image) {
-        throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to save image',
-        });
-      }
+      check(!image, 'INTERNAL_SERVER_ERROR', 'Failed to save image');
 
       return serializeSignatureImage({
         ...image,
@@ -285,12 +267,7 @@ export const usersRouter = router({
     .query(async ({ ctx }) => {
       const { organizationId } = ctx.auth.user;
 
-      if (!organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User must belong to an organization',
-        });
-      }
+      check(!organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
       const images = await db
         .select({
@@ -328,12 +305,7 @@ export const usersRouter = router({
     .query(async ({ input, ctx }) => {
       const { organizationId } = ctx.auth.user;
 
-      if (!organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User must belong to an organization',
-        });
-      }
+      check(!organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
       const [image] = await db
         .select()
@@ -347,9 +319,7 @@ export const usersRouter = router({
         )
         .limit(1);
 
-      if (!image) {
-        throw notFoundError('Image');
-      }
+      check(!image, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
 
       return serializeSignatureImage({
         id: image.id,
@@ -377,12 +347,7 @@ export const usersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { organizationId } = ctx.auth.user;
 
-      if (!organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User must belong to an organization',
-        });
-      }
+      check(!organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
       const [deleted] = await db
         .delete(signatureImages)
@@ -395,9 +360,7 @@ export const usersRouter = router({
         )
         .returning();
 
-      if (!deleted) {
-        throw notFoundError('Image');
-      }
+      check(!deleted, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
 
       return { success: true };
     }),

@@ -127,6 +127,27 @@ export function validateOrganizationAccess(
 }
 
 /**
+ * Checks a condition and throws a TRPC error if it's true, with logging
+ *
+ * @param condition - The condition to check
+ * @param code - The TRPC error code
+ * @param message - The error message
+ *
+ * @example
+ * // Check if user lacks organization access
+ * check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+ *
+ * @example
+ * // Check if resource not found
+ * check(!project, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Project'));
+ */
+export function check(condition: boolean, code: TRPCError['code'], message: string): void {
+  if (condition) {
+    throw createTRPCError({ code, message });
+  }
+}
+
+/**
  * Initialization of tRPC backend
  * Should be done only once per backend!
  */

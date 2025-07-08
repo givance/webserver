@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
-import { getStaffById } from "@/app/lib/data/staff";
+import { z } from 'zod';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { TRPCError } from '@trpc/server';
+import { getStaffById } from '@/app/lib/data/staff';
 
 // Input validation schemas
 const staffIdSchema = z.object({
@@ -10,7 +10,7 @@ const staffIdSchema = z.object({
 
 const addPhoneNumberSchema = z.object({
   staffId: z.number(),
-  phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
+  phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits'),
 });
 
 const removePhoneNumberSchema = z.object({
@@ -36,8 +36,8 @@ const conversationHistorySchema = z.object({
 });
 
 const processTestMessageSchema = z.object({
-  message: z.string().min(1, "Message cannot be empty"),
-  phoneNumber: z.string().min(10, "Valid phone number required"),
+  message: z.string().min(1, 'Message cannot be empty'),
+  phoneNumber: z.string().min(10, 'Valid phone number required'),
   isTranscribed: z.boolean().default(false),
 });
 
@@ -45,88 +45,91 @@ export const whatsappRouter = router({
   /**
    * Add a phone number to a staff member's WhatsApp permissions
    */
-  addPhoneNumber: protectedProcedure.input(addPhoneNumberSchema).mutation(async ({ input, ctx }) => {
-    const { staffId, phoneNumber } = input;
-    const organizationId = ctx.auth.user.organizationId;
+  addPhoneNumber: protectedProcedure
+    .input(addPhoneNumberSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { staffId, phoneNumber } = input;
+      const organizationId = ctx.auth.user.organizationId;
 
-    try {
-      // Verify staff belongs to organization
-      const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
+      try {
+        // Verify staff belongs to organization
+        const staff = await getStaffById(staffId, organizationId);
+        check(
+          !staff,
+          'NOT_FOUND',
+          "The staff member you're trying to update doesn't exist in your organization."
+        );
+
+        const result = await ctx.services.whatsappPermission.addPhoneNumberToStaff(
+          staffId,
+          phoneNumber
+        );
+
+        check(
+          !result,
+          'INTERNAL_SERVER_ERROR',
+          'Unable to add the phone number. Please try again.'
+        );
+
+        return {
+          success: true,
+          phoneNumber: phoneNumber,
+        };
+      } catch (error) {
+        console.error('Error adding phone number:', error);
+        if (error instanceof TRPCError) throw error;
+
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
+          code: 'INTERNAL_SERVER_ERROR',
+          message:
+            error instanceof Error && error.message.includes('already exists')
+              ? 'This phone number is already associated with the staff member.'
+              : 'Unable to add the phone number. Please try again.',
         });
       }
-
-      const result = await ctx.services.whatsappPermission.addPhoneNumberToStaff(staffId, phoneNumber);
-
-      if (!result) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to add the phone number. Please try again.",
-        });
-      }
-
-      return {
-        success: true,
-        phoneNumber: phoneNumber,
-      };
-    } catch (error) {
-      console.error("Error adding phone number:", error);
-      if (error instanceof TRPCError) throw error;
-
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message:
-          error instanceof Error && error.message.includes("already exists")
-            ? "This phone number is already associated with the staff member."
-            : "Unable to add the phone number. Please try again.",
-      });
-    }
-  }),
+    }),
 
   /**
    * Remove a phone number from a staff member's WhatsApp permissions
    */
-  removePhoneNumber: protectedProcedure.input(removePhoneNumberSchema).mutation(async ({ input, ctx }) => {
-    const { staffId, phoneNumber } = input;
-    const organizationId = ctx.auth.user.organizationId;
+  removePhoneNumber: protectedProcedure
+    .input(removePhoneNumberSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { staffId, phoneNumber } = input;
+      const organizationId = ctx.auth.user.organizationId;
 
-    try {
-      // Verify staff belongs to organization
-      const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
+      try {
+        // Verify staff belongs to organization
+        const staff = await getStaffById(staffId, organizationId);
+        check(
+          !staff,
+          'NOT_FOUND',
+          "The staff member you're trying to update doesn't exist in your organization."
+        );
+
+        const permissionService = ctx.services.whatsappPermission;
+        const result = await permissionService.removePhoneNumberFromStaff(staffId, phoneNumber);
+
+        check(
+          !result,
+          'INTERNAL_SERVER_ERROR',
+          'Unable to remove the phone number. Please try again.'
+        );
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error removing phone number:', error);
+        if (error instanceof TRPCError) throw error;
+
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
+          code: 'INTERNAL_SERVER_ERROR',
+          message:
+            error instanceof Error && error.message.includes('not found')
+              ? 'This phone number is not associated with the staff member.'
+              : 'Unable to remove the phone number. Please try again.',
         });
       }
-
-      const permissionService = ctx.services.whatsappPermission;
-      const result = await permissionService.removePhoneNumberFromStaff(staffId, phoneNumber);
-
-      if (!result) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to remove the phone number. Please try again.",
-        });
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error removing phone number:", error);
-      if (error instanceof TRPCError) throw error;
-
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message:
-          error instanceof Error && error.message.includes("not found")
-            ? "This phone number is not associated with the staff member."
-            : "Unable to remove the phone number. Please try again.",
-      });
-    }
-  }),
+    }),
 
   /**
    * Get all phone numbers associated with a staff member
@@ -138,12 +141,11 @@ export const whatsappRouter = router({
     try {
       // Verify staff belongs to organization
       const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
-        });
-      }
+      check(
+        !staff,
+        'NOT_FOUND',
+        "The staff member you're trying to update doesn't exist in your organization."
+      );
 
       const permissionService = ctx.services.whatsappPermission;
       const phoneNumbers = await permissionService.getStaffPhoneNumbers(staffId);
@@ -153,12 +155,12 @@ export const whatsappRouter = router({
         count: phoneNumbers.length,
       };
     } catch (error) {
-      console.error("Error getting staff phone numbers:", error);
+      console.error('Error getting staff phone numbers:', error);
       if (error instanceof TRPCError) throw error;
 
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get phone numbers",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get phone numbers',
       });
     }
   }),
@@ -173,12 +175,11 @@ export const whatsappRouter = router({
     try {
       // Verify staff belongs to organization
       const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
-        });
-      }
+      check(
+        !staff,
+        'NOT_FOUND',
+        "The staff member you're trying to update doesn't exist in your organization."
+      );
 
       const loggingService = ctx.services.whatsappStaffLogging;
       const activities = await loggingService.getStaffActivityLog(staffId, limit, offset);
@@ -189,12 +190,12 @@ export const whatsappRouter = router({
         hasMore: activities.length === limit,
       };
     } catch (error) {
-      console.error("Error getting activity log:", error);
+      console.error('Error getting activity log:', error);
       if (error instanceof TRPCError) throw error;
 
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get activity log",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get activity log',
       });
     }
   }),
@@ -209,12 +210,11 @@ export const whatsappRouter = router({
     try {
       // Verify staff belongs to organization
       const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member you're trying to update doesn't exist in your organization.",
-        });
-      }
+      check(
+        !staff,
+        'NOT_FOUND',
+        "The staff member you're trying to update doesn't exist in your organization."
+      );
 
       const loggingService = ctx.services.whatsappStaffLogging;
       const stats = await loggingService.getStaffActivityStats(staffId, days);
@@ -224,12 +224,12 @@ export const whatsappRouter = router({
         uniquePhoneNumbers: Array.from(stats.uniquePhoneNumbers),
       };
     } catch (error) {
-      console.error("Error getting activity stats:", error);
+      console.error('Error getting activity stats:', error);
       if (error instanceof TRPCError) throw error;
 
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get activity statistics",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get activity statistics',
       });
     }
   }),
@@ -256,13 +256,15 @@ export const whatsappRouter = router({
           return {
             isAllowed: true,
             staffId: result.staffId,
-            staffName: result.staff ? `${result.staff.firstName} ${result.staff.lastName}` : undefined,
+            staffName: result.staff
+              ? `${result.staff.firstName} ${result.staff.lastName}`
+              : undefined,
           };
         }
 
         return { isAllowed: false };
       } catch (error) {
-        console.error("Error checking phone permission:", error);
+        console.error('Error checking phone permission:', error);
         return { isAllowed: false };
       }
     }),
@@ -270,159 +272,168 @@ export const whatsappRouter = router({
   /**
    * Get conversation history for a staff member with a specific phone number
    */
-  getConversationHistory: protectedProcedure.input(conversationHistorySchema).query(async ({ input, ctx }) => {
-    const { staffId, phoneNumber, limit } = input;
-    const organizationId = ctx.auth.user.organizationId;
+  getConversationHistory: protectedProcedure
+    .input(conversationHistorySchema)
+    .query(async ({ input, ctx }) => {
+      const { staffId, phoneNumber, limit } = input;
+      const organizationId = ctx.auth.user.organizationId;
 
-    try {
-      // Verify staff belongs to organization
-      const staff = await getStaffById(staffId, organizationId);
-      if (!staff) {
+      try {
+        // Verify staff belongs to organization
+        const staff = await getStaffById(staffId, organizationId);
+        check(!staff, 'NOT_FOUND', "The staff member doesn't exist in your organization.");
+
+        const historyService = ctx.services.whatsappHistory;
+
+        const messages = await historyService.getChatHistory(
+          organizationId,
+          staffId,
+          phoneNumber,
+          limit
+        );
+
+        return {
+          messages,
+          count: messages.length,
+        };
+      } catch (error) {
+        console.error('Error getting conversation history:', error);
+        if (error instanceof TRPCError) throw error;
+
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The staff member doesn't exist in your organization.",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to get conversation history',
         });
       }
-
-      const historyService = ctx.services.whatsappHistory;
-
-      const messages = await historyService.getChatHistory(organizationId, staffId, phoneNumber, limit);
-
-      return {
-        messages,
-        count: messages.length,
-      };
-    } catch (error) {
-      console.error("Error getting conversation history:", error);
-      if (error instanceof TRPCError) throw error;
-
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get conversation history",
-      });
-    }
-  }),
+    }),
 
   /**
    * Process a test WhatsApp message (for testing UI)
    * This replicates the exact logic from the WhatsApp webhook
    */
-  processTestMessage: protectedProcedure.input(processTestMessageSchema).mutation(async ({ input, ctx }) => {
-    const { message, phoneNumber, isTranscribed } = input;
-    
-    try {
-      const permissionService = ctx.services.whatsappPermission;
-      const whatsappAI = ctx.services.whatsappAI;
-      const loggingService = ctx.services.whatsappStaffLogging;
-      
-      // Check permissions first (same as webhook)
-      const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
-      
-      if (!permissionResult.isAllowed) {
-        // Log permission denied event
-        await loggingService.logPermissionDenied(
-          phoneNumber,
-          permissionResult.reason || "Unknown reason",
-          message
-        );
-        
-        return {
-          success: false,
-          error: "Sorry, you don't have permission to use this WhatsApp service. Please contact your administrator.",
-          permissionDenied: true,
-        };
-      }
-      
-      const { staffId, organizationId, staff: staffInfo } = permissionResult;
-      
-      // Verify the permission is for the current user's organization
-      if (organizationId !== ctx.auth.user.organizationId) {
-        return {
-          success: false,
-          error: "Permission denied for this organization.",
-          permissionDenied: true,
-        };
-      }
-      
-      // Log message received
-      await loggingService.logMessageReceived(
-        staffId!,
-        organizationId!,
-        phoneNumber,
-        message,
-        isTranscribed ? "audio" : "text",
-        `test-${Date.now()}`
-      );
-      
-      // Process message with AI (same as webhook)
-      const aiResponse = await whatsappAI.processMessage({
-        message,
-        organizationId: organizationId!,
-        staffId: staffId!,
-        fromPhoneNumber: phoneNumber,
-        isTranscribed,
-      });
-      
-      const responseText = aiResponse.response;
-      
-      // Log AI response generated
-      await loggingService.logAIResponseGenerated(
-        staffId!,
-        organizationId!,
-        phoneNumber,
-        message,
-        responseText,
-        aiResponse.tokensUsed
-      );
-      
-      // Log message sent
-      await loggingService.logMessageSent(
-        staffId!,
-        organizationId!,
-        phoneNumber,
-        responseText,
-        aiResponse.tokensUsed
-      );
-      
-      return {
-        success: true,
-        response: responseText,
-        tokensUsed: aiResponse.tokensUsed,
-        staffInfo: {
-          id: staffInfo?.id,
-          name: `${staffInfo?.firstName} ${staffInfo?.lastName}`,
-          email: staffInfo?.email,
-        },
-      };
-    } catch (error) {
-      console.error("Error processing test message:", error);
-      
-      // Try to log the error if we have staff info
-      if (input.phoneNumber) {
-        try {
-          const permissionService = ctx.services.whatsappPermission;
-          const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
-          
-          if (permissionResult.isAllowed && permissionResult.staffId && permissionResult.organizationId) {
-            const loggingService = ctx.services.whatsappStaffLogging;
-            await loggingService.logError(
-              permissionResult.staffId,
-              permissionResult.organizationId,
-              phoneNumber,
-              error instanceof Error ? error.message : String(error),
-              error,
-              "test_message_processing"
-            );
-          }
-        } catch (logError) {
-          console.error("Error logging error:", logError);
+  processTestMessage: protectedProcedure
+    .input(processTestMessageSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { message, phoneNumber, isTranscribed } = input;
+
+      try {
+        const permissionService = ctx.services.whatsappPermission;
+        const whatsappAI = ctx.services.whatsappAI;
+        const loggingService = ctx.services.whatsappStaffLogging;
+
+        // Check permissions first (same as webhook)
+        const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
+
+        if (!permissionResult.isAllowed) {
+          // Log permission denied event
+          await loggingService.logPermissionDenied(
+            phoneNumber,
+            permissionResult.reason || 'Unknown reason',
+            message
+          );
+
+          return {
+            success: false,
+            error:
+              "Sorry, you don't have permission to use this WhatsApp service. Please contact your administrator.",
+            permissionDenied: true,
+          };
         }
+
+        const { staffId, organizationId, staff: staffInfo } = permissionResult;
+
+        // Verify the permission is for the current user's organization
+        if (organizationId !== ctx.auth.user.organizationId) {
+          return {
+            success: false,
+            error: 'Permission denied for this organization.',
+            permissionDenied: true,
+          };
+        }
+
+        // Log message received
+        await loggingService.logMessageReceived(
+          staffId!,
+          organizationId!,
+          phoneNumber,
+          message,
+          isTranscribed ? 'audio' : 'text',
+          `test-${Date.now()}`
+        );
+
+        // Process message with AI (same as webhook)
+        const aiResponse = await whatsappAI.processMessage({
+          message,
+          organizationId: organizationId!,
+          staffId: staffId!,
+          fromPhoneNumber: phoneNumber,
+          isTranscribed,
+        });
+
+        const responseText = aiResponse.response;
+
+        // Log AI response generated
+        await loggingService.logAIResponseGenerated(
+          staffId!,
+          organizationId!,
+          phoneNumber,
+          message,
+          responseText,
+          aiResponse.tokensUsed
+        );
+
+        // Log message sent
+        await loggingService.logMessageSent(
+          staffId!,
+          organizationId!,
+          phoneNumber,
+          responseText,
+          aiResponse.tokensUsed
+        );
+
+        return {
+          success: true,
+          response: responseText,
+          tokensUsed: aiResponse.tokensUsed,
+          staffInfo: {
+            id: staffInfo?.id,
+            name: `${staffInfo?.firstName} ${staffInfo?.lastName}`,
+            email: staffInfo?.email,
+          },
+        };
+      } catch (error) {
+        console.error('Error processing test message:', error);
+
+        // Try to log the error if we have staff info
+        if (input.phoneNumber) {
+          try {
+            const permissionService = ctx.services.whatsappPermission;
+            const permissionResult = await permissionService.checkPhonePermission(phoneNumber);
+
+            if (
+              permissionResult.isAllowed &&
+              permissionResult.staffId &&
+              permissionResult.organizationId
+            ) {
+              const loggingService = ctx.services.whatsappStaffLogging;
+              await loggingService.logError(
+                permissionResult.staffId,
+                permissionResult.organizationId,
+                phoneNumber,
+                error instanceof Error ? error.message : String(error),
+                error,
+                'test_message_processing'
+              );
+            }
+          } catch (logError) {
+            console.error('Error logging error:', logError);
+          }
+        }
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to process message',
+        });
       }
-      
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error ? error.message : "Failed to process message",
-      });
-    }
-  }),
+    }),
 });

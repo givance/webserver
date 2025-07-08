@@ -1,10 +1,10 @@
-import { z } from "zod";
-import { TRPCError } from "@trpc/server";
-import { eq, and, desc } from "drizzle-orm";
-import { db } from "@/app/lib/db";
-import { templates } from "@/app/lib/db/schema";
-import { router, protectedProcedure } from "../trpc";
-import { logger } from "@/app/lib/logger";
+import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
+import { eq, and, desc } from 'drizzle-orm';
+import { db } from '@/app/lib/db';
+import { templates } from '@/app/lib/db/schema';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { logger } from '@/app/lib/logger';
 
 // Validation schemas
 const createTemplateSchema = z.object({
@@ -51,13 +51,17 @@ export const templatesRouter = router({
         })
         .returning();
 
-      logger.info(`Created template ${template.id} for organization ${ctx.auth.user.organizationId}`);
+      logger.info(
+        `Created template ${template.id} for organization ${ctx.auth.user.organizationId}`
+      );
       return template;
     } catch (error) {
-      logger.error(`Failed to create template: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to create template: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to create the template. Please try again.",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Unable to create the template. Please try again.',
       });
     }
   }),
@@ -74,19 +78,13 @@ export const templatesRouter = router({
         .where(eq(templates.id, input.id))
         .limit(1);
 
-      if (!existingTemplate) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The template you're trying to update doesn't exist.",
-        });
-      }
+      check(!existingTemplate, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
 
-      if (existingTemplate.organizationId !== ctx.auth.user.organizationId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You can only update templates from your own organization.",
-        });
-      }
+      check(
+        existingTemplate.organizationId !== ctx.auth.user.organizationId,
+        'FORBIDDEN',
+        'You can only update templates from your own organization.'
+      );
 
       const [updatedTemplate] = await db
         .update(templates)
@@ -104,10 +102,12 @@ export const templatesRouter = router({
       return updatedTemplate;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to update template: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to update template: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to update the template. Please try again.",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Unable to update the template. Please try again.',
       });
     }
   }),
@@ -124,19 +124,13 @@ export const templatesRouter = router({
         .where(eq(templates.id, input.id))
         .limit(1);
 
-      if (!existingTemplate) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The template you're trying to update doesn't exist.",
-        });
-      }
+      check(!existingTemplate, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
 
-      if (existingTemplate.organizationId !== ctx.auth.user.organizationId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You can only delete templates from your own organization.",
-        });
-      }
+      check(
+        existingTemplate.organizationId !== ctx.auth.user.organizationId,
+        'FORBIDDEN',
+        'You can only delete templates from your own organization.'
+      );
 
       await db.delete(templates).where(eq(templates.id, input.id));
 
@@ -144,10 +138,12 @@ export const templatesRouter = router({
       return { id: input.id };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to delete template: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to delete template: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to delete the template. Please try again.",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Unable to delete the template. Please try again.',
       });
     }
   }),
@@ -160,23 +156,25 @@ export const templatesRouter = router({
       const [template] = await db
         .select()
         .from(templates)
-        .where(and(eq(templates.id, input.id), eq(templates.organizationId, ctx.auth.user.organizationId)))
+        .where(
+          and(
+            eq(templates.id, input.id),
+            eq(templates.organizationId, ctx.auth.user.organizationId)
+          )
+        )
         .limit(1);
 
-      if (!template) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The template you're trying to update doesn't exist.",
-        });
-      }
+      check(!template, 'NOT_FOUND', "The template you're trying to update doesn't exist.");
 
       return template;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to get template: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to get template: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unable to retrieve the template. Please try again.",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Unable to retrieve the template. Please try again.',
       });
     }
   }),
@@ -198,14 +196,18 @@ export const templatesRouter = router({
         .where(whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0])
         .orderBy(desc(templates.createdAt));
 
-      logger.info(`Listed ${templatesList.length} templates for organization ${ctx.auth.user.organizationId}`);
+      logger.info(
+        `Listed ${templatesList.length} templates for organization ${ctx.auth.user.organizationId}`
+      );
       return templatesList;
     } catch (error) {
       if (error instanceof TRPCError) throw error;
-      logger.error(`Failed to list templates: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to list templates",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to list templates',
       });
     }
   }),

@@ -1,6 +1,6 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
+import { z } from 'zod';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { TRPCError } from '@trpc/server';
 import {
   getDonationById,
   createDonation,
@@ -10,31 +10,26 @@ import {
   getDonorDonationStats,
   getMultipleDonorDonationStats,
   type DonationWithDetails,
-} from "@/app/lib/data/donations";
-import { getDonorById, getDonorsByIds } from "@/app/lib/data/donors";
-import { getProjectById } from "@/app/lib/data/projects";
+} from '@/app/lib/data/donations';
+import { getDonorById, getDonorsByIds } from '@/app/lib/data/donors';
+import { getProjectById } from '@/app/lib/data/projects';
 
 // Helper function to authorize donation access
-async function authorizeDonationAccess(donationId: number, organizationId: string): Promise<DonationWithDetails> {
+async function authorizeDonationAccess(
+  donationId: number,
+  organizationId: string
+): Promise<DonationWithDetails> {
   const donation = await getDonationById(donationId, { includeDonor: true, includeProject: true });
-  if (!donation) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Donation not found",
-    });
-  }
+  check(!donation, 'NOT_FOUND', 'Donation not found');
 
-  if (
+  check(
     !donation.donor ||
-    !donation.project ||
-    donation.donor.organizationId !== organizationId ||
-    donation.project.organizationId !== organizationId
-  ) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You don't have permission to access this donation.",
-    });
-  }
+      !donation.project ||
+      donation.donor.organizationId !== organizationId ||
+      donation.project.organizationId !== organizationId,
+    'FORBIDDEN',
+    "You don't have permission to access this donation."
+  );
   return donation;
 }
 
@@ -52,7 +47,7 @@ const createDonationSchema = z.object({
   amount: z.number().min(0), // Amount in cents
   donorId: z.number(),
   projectId: z.number(),
-  currency: z.string().length(3).default("USD"),
+  currency: z.string().length(3).default('USD'),
 });
 
 const updateDonationSchema = z.object({
@@ -71,8 +66,8 @@ const listDonationsSchema = z.object({
   endDate: z.date().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  orderBy: z.enum(["date", "amount", "createdAt"]).optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
+  orderBy: z.enum(['date', 'amount', 'createdAt']).optional(),
+  orderDirection: z.enum(['asc', 'desc']).optional(),
   includeDonor: z.boolean().optional(),
   includeProject: z.boolean().optional(),
 });
@@ -85,41 +80,30 @@ export const donationsRouter = router({
         includeDonor: input.includeDonor,
         includeProject: input.includeProject,
       });
-      if (!donation) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Donation not found",
-        });
-      }
+      check(!donation, 'NOT_FOUND', 'Donation not found');
       return donation;
     }),
 
   create: protectedProcedure.input(createDonationSchema).mutation(async ({ input, ctx }) => {
     // Verify donor belongs to organization
     const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The selected donor doesn't exist in your organization.",
-      });
-    }
+    check(!donor, 'NOT_FOUND', "The selected donor doesn't exist in your organization.");
 
     // Verify project belongs to organization
     const project = await getProjectById(input.projectId);
-    if (!project || project.organizationId !== ctx.auth.user.organizationId) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The selected project doesn't exist in your organization.",
-      });
-    }
+    check(
+      !project || project.organizationId !== ctx.auth.user.organizationId,
+      'NOT_FOUND',
+      "The selected project doesn't exist in your organization."
+    );
 
     try {
       return await createDonation(input);
     } catch (e) {
-      if (e instanceof Error && e.message.includes("Ensure donor and project exist")) {
+      if (e instanceof Error && e.message.includes('Ensure donor and project exist')) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Unable to create donation. Please verify the donor and project selections.",
+          code: 'BAD_REQUEST',
+          message: 'Unable to create donation. Please verify the donor and project selections.',
         });
       }
       throw e;
@@ -133,32 +117,25 @@ export const donationsRouter = router({
     // If updating donor or project, verify they belong to the organization
     if (input.donorId) {
       const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-      if (!donor) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The new donor you selected doesn't exist in your organization.",
-        });
-      }
+      check(!donor, 'NOT_FOUND', "The new donor you selected doesn't exist in your organization.");
     }
 
     if (input.projectId) {
       const project = await getProjectById(input.projectId);
-      if (!project || project.organizationId !== ctx.auth.user.organizationId) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "The new project you selected doesn't exist in your organization.",
-        });
-      }
+      check(
+        !project || project.organizationId !== ctx.auth.user.organizationId,
+        'NOT_FOUND',
+        "The new project you selected doesn't exist in your organization."
+      );
     }
 
     const { id, ...updateData } = input;
     const updated = await updateDonation(id, updateData);
-    if (!updated) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The donation you're looking for doesn't exist or has been deleted.",
-      });
-    }
+    check(
+      !updated,
+      'NOT_FOUND',
+      "The donation you're looking for doesn't exist or has been deleted."
+    );
     return updated;
   }),
 
@@ -170,8 +147,8 @@ export const donationsRouter = router({
       await deleteDonation(input.id);
     } catch {
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to delete the donation. Please try again.",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to delete the donation. Please try again.',
       });
     }
   }),
@@ -194,18 +171,15 @@ export const donationsRouter = router({
     };
   }),
 
-  getDonorStats: protectedProcedure.input(z.object({ donorId: z.number() })).query(async ({ input, ctx }) => {
-    // First verify the donor belongs to the organization
-    const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
-    if (!donor) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The selected donor doesn't exist in your organization.",
-      });
-    }
+  getDonorStats: protectedProcedure
+    .input(z.object({ donorId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      // First verify the donor belongs to the organization
+      const donor = await getDonorById(input.donorId, ctx.auth.user.organizationId);
+      check(!donor, 'NOT_FOUND', "The selected donor doesn't exist in your organization.");
 
-    return getDonorDonationStats(input.donorId, ctx.auth.user.organizationId);
-  }),
+      return getDonorDonationStats(input.donorId, ctx.auth.user.organizationId);
+    }),
 
   getMultipleDonorStats: protectedProcedure
     .input(z.object({ donorIds: z.array(z.number()) }))
@@ -215,10 +189,10 @@ export const donationsRouter = router({
 
       // Check if we got all the requested donors
       if (donors.length !== input.donorIds.length) {
-        const foundIds = new Set(donors.map(d => d.id));
-        const missingIds = input.donorIds.filter(id => !foundIds.has(id));
+        const foundIds = new Set(donors.map((d) => d.id));
+        const missingIds = input.donorIds.filter((id) => !foundIds.has(id));
         throw new TRPCError({
-          code: "NOT_FOUND",
+          code: 'NOT_FOUND',
           message: `Donors not found in your organization: ${missingIds.join(', ')}`,
         });
       }

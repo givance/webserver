@@ -19,7 +19,7 @@ import {
   updateStaff,
   updateStaffSignature,
 } from '@/app/lib/data/staff';
-import { createTRPCError, ERROR_MESSAGES, notFoundError } from '../trpc';
+import { createTRPCError, ERROR_MESSAGES, notFoundError, check } from '../trpc';
 import {
   emailSchema,
   idSchema,
@@ -170,15 +170,9 @@ export const staffRouter = router({
     .query(async ({ input, ctx }) => {
       const staff = await getStaffByEmail(input.email, ctx.auth.user.organizationId);
 
-      if (!staff) {
-        throw createTRPCError({
-          code: 'NOT_FOUND',
-          message: `No staff member found with email: ${input.email}`,
-          logLevel: 'info',
-        });
-      }
+      check(!staff, 'NOT_FOUND', `No staff member found with email: ${input.email}`);
 
-      return staff;
+      return staff!;
     }),
 
   /**
@@ -202,12 +196,7 @@ export const staffRouter = router({
     .input(createStaffInputSchema)
     .output(staffResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       try {
         return await createStaff({
@@ -252,11 +241,9 @@ export const staffRouter = router({
 
       const updated = await updateStaff(id, updateData, ctx.auth.user.organizationId);
 
-      if (!updated) {
-        throw notFoundError('Staff member');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -327,9 +314,7 @@ export const staffRouter = router({
       // First verify staff member exists
       const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
 
-      if (!staff) {
-        throw notFoundError('Staff member');
-      }
+      check(!staff, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
       // Get all donors assigned to this staff member
       return await listDonors(
@@ -369,11 +354,9 @@ export const staffRouter = router({
         ctx.auth.user.organizationId
       );
 
-      if (!updated) {
-        throw notFoundError('Staff member');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -393,27 +376,19 @@ export const staffRouter = router({
       // Check if staff member exists and has Gmail connected
       const staffWithGmail = await getStaffWithGmailById(input.id, ctx.auth.user.organizationId);
 
-      if (!staffWithGmail) {
-        throw notFoundError('Staff member');
-      }
+      check(!staffWithGmail, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      if (!staffWithGmail.gmailToken) {
-        throw createTRPCError({
-          code: 'CONFLICT',
-          message:
-            'This staff member must connect their Gmail account before being set as primary sender.',
-          logLevel: 'info',
-          metadata: { staffId: input.id },
-        });
-      }
+      check(
+        !staffWithGmail!.gmailToken,
+        'CONFLICT',
+        'This staff member must connect their Gmail account before being set as primary sender.'
+      );
 
       const updated = await setPrimaryStaff(input.id, ctx.auth.user.organizationId);
 
-      if (!updated) {
-        throw notFoundError('Staff member');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -431,11 +406,9 @@ export const staffRouter = router({
     .mutation(async ({ input, ctx }) => {
       const updated = await unsetPrimaryStaff(input.id, ctx.auth.user.organizationId);
 
-      if (!updated) {
-        throw notFoundError('Staff member');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -468,9 +441,7 @@ export const staffRouter = router({
       // Verify staff member exists
       const staff = await getStaffById(input.staffId, ctx.auth.user.organizationId);
 
-      if (!staff) {
-        throw notFoundError('Staff member');
-      }
+      check(!staff, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
       const { staffId, subject, content, category, metadata } = input;
 
@@ -500,9 +471,7 @@ export const staffRouter = router({
       // Verify staff member exists
       const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
 
-      if (!staff) {
-        throw notFoundError('Staff member');
-      }
+      check(!staff, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
       const [examples, count] = await Promise.all([
         getEmailExamplesByStaffId(input.id, ctx.auth.user.organizationId),
@@ -527,11 +496,9 @@ export const staffRouter = router({
     .query(async ({ input, ctx }) => {
       const example = await getEmailExampleById(input.id, ctx.auth.user.organizationId);
 
-      if (!example) {
-        throw notFoundError('Email example');
-      }
+      check(!example, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Email example'));
 
-      return example;
+      return example!;
     }),
 
   /**
@@ -556,17 +523,13 @@ export const staffRouter = router({
       // Verify example exists
       const existing = await getEmailExampleById(id, ctx.auth.user.organizationId);
 
-      if (!existing) {
-        throw notFoundError('Email example');
-      }
+      check(!existing, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Email example'));
 
       const updated = await updateEmailExample(id, updateData, ctx.auth.user.organizationId);
 
-      if (!updated) {
-        throw notFoundError('Email example');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Email example'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -583,9 +546,7 @@ export const staffRouter = router({
       // Verify example exists
       const existing = await getEmailExampleById(input.id, ctx.auth.user.organizationId);
 
-      if (!existing) {
-        throw notFoundError('Email example');
-      }
+      check(!existing, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Email example'));
 
       await deleteEmailExample(input.id, ctx.auth.user.organizationId);
     }),

@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { z } from 'zod';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
 import {
   getSessionTrackingStats,
   getMultipleSessionTrackingStats,
@@ -8,8 +8,8 @@ import {
   hasEmailBeenOpened,
   getEmailTrackingByEmailAndDonor,
   getEmailTrackingBySessionAndDonor,
-} from "@/app/lib/data/email-tracking";
-import { logger } from "@/app/lib/logger";
+} from '@/app/lib/data/email-tracking';
+import { logger } from '@/app/lib/logger';
 
 export const emailTrackingRouter = router({
   /**
@@ -23,9 +23,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching tracking stats for session ${input.sessionId}`);
 
@@ -49,11 +47,11 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching tracking stats for ${input.sessionIds.length} sessions: ${input.sessionIds.join(', ')}`);
+      logger.info(
+        `Fetching tracking stats for ${input.sessionIds.length} sessions: ${input.sessionIds.join(', ')}`
+      );
 
       const stats = await getMultipleSessionTrackingStats(input.sessionIds);
 
@@ -71,9 +69,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching donor tracking stats for session ${input.sessionId}`);
 
@@ -94,11 +90,11 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching email tracking data for email ${input.emailId}, donor ${input.donorId}`);
+      logger.info(
+        `Fetching email tracking data for email ${input.emailId}, donor ${input.donorId}`
+      );
 
       const trackingData = await getEmailTrackingByEmailAndDonor(input.emailId, input.donorId);
 
@@ -116,9 +112,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Fetching email tracking data for tracker ${input.emailTrackerId}`);
 
@@ -142,9 +136,7 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       logger.info(`Checking if email has been opened for tracker ${input.emailTrackerId}`);
 
@@ -165,11 +157,11 @@ export const emailTrackingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
-      if (!user?.organizationId) {
-        throw new Error("User must belong to an organization");
-      }
+      check(!user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching email tracking data for session ${input.sessionId}, donor ${input.donorId}`);
+      logger.info(
+        `Fetching email tracking data for session ${input.sessionId}, donor ${input.donorId}`
+      );
 
       const trackingData = await getEmailTrackingBySessionAndDonor(input.sessionId, input.donorId);
 

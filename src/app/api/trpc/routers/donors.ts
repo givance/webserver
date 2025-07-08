@@ -13,7 +13,7 @@ import {
 import { countListsForDonor } from '@/app/lib/data/donor-lists';
 import { getStaffByIds } from '@/app/lib/data/staff';
 import { type DonorNote } from '@/app/lib/db/schema';
-import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES } from '../trpc';
+import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES, check } from '../trpc';
 import {
   idSchema,
   emailSchema,
@@ -295,11 +295,9 @@ export const donorsRouter = router({
     .query(async ({ input, ctx }) => {
       const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
 
-      if (!donor) {
-        throw notFoundError('Donor');
-      }
+      check(!donor, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      return serializeDonor(donor);
+      return serializeDonor(donor!);
     }),
 
   /**
@@ -372,11 +370,9 @@ export const donorsRouter = router({
 
       const updated = await updateDonor(id, updateData as any, ctx.auth.user.organizationId); // TODO: Fix type mismatch
 
-      if (!updated) {
-        throw notFoundError('Donor');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      return serializeDonor(updated);
+      return serializeDonor(updated!);
     }),
 
   /**
@@ -475,9 +471,7 @@ export const donorsRouter = router({
     .query(async ({ input, ctx }) => {
       // Verify donor exists
       const donorResults = await getDonorsByIds([input.id], ctx.auth.user.organizationId);
-      if (donorResults.length === 0) {
-        throw notFoundError('Donor');
-      }
+      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
       const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
 
@@ -503,17 +497,13 @@ export const donorsRouter = router({
 
       // Verify donor
       const donorResults = await getDonorsByIds([donorId], organizationId);
-      if (donorResults.length === 0) {
-        throw notFoundError('Donor');
-      }
+      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
       const donor = donorResults[0];
 
       // Verify staff if provided
       if (staffId !== null) {
         const staffResults = await getStaffByIds([staffId], organizationId);
-        if (staffResults.length === 0) {
-          throw notFoundError('Staff member');
-        }
+        check(staffResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
       }
 
       const updatedDonor = await updateDonor(
@@ -522,12 +512,7 @@ export const donorsRouter = router({
         organizationId
       );
 
-      if (!updatedDonor) {
-        throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: "Failed to update donor's assigned staff",
-        });
-      }
+      check(!updatedDonor, 'INTERNAL_SERVER_ERROR', "Failed to update donor's assigned staff");
 
       return serializeDonor(updatedDonor);
     }),
@@ -556,18 +541,18 @@ export const donorsRouter = router({
       // Verify staff if provided
       if (staffId !== null) {
         const staffResults = await getStaffByIds([staffId], organizationId);
-        if (staffResults.length === 0) {
-          throw notFoundError('Staff member');
-        }
+        check(staffResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
       }
 
       // Verify donors belong to organization
       const validDonors = await getDonorsByIds(donorIds, organizationId);
       const validDonorIds = validDonors.map((d) => d.id);
 
-      if (validDonorIds.length === 0) {
-        throw notFoundError('No valid donors found in your organization');
-      }
+      check(
+        validDonorIds.length === 0,
+        'NOT_FOUND',
+        ERROR_MESSAGES.NOT_FOUND('No valid donors found in your organization')
+      );
 
       // Bulk update
       await ctx.services.donors.bulkUpdateAssignedStaff(validDonorIds, staffId, organizationId);
@@ -718,9 +703,7 @@ export const donorsRouter = router({
 
       // Verify donor exists
       const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
-      if (donorResults.length === 0) {
-        throw notFoundError('Donor');
-      }
+      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
       const donor = donorResults[0];
 
       // Create new note
@@ -737,12 +720,7 @@ export const donorsRouter = router({
         ctx.auth.user.organizationId
       );
 
-      if (!updatedDonor) {
-        throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to add note',
-        });
-      }
+      check(!updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
 
       return serializeDonor(updatedDonor);
     }),

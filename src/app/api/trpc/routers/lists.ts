@@ -1,6 +1,6 @@
-import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
+import { z } from 'zod';
+import { router, protectedProcedure, check, ERROR_MESSAGES } from '../trpc';
+import { TRPCError } from '@trpc/server';
 import {
   createDonorList,
   getDonorListById,
@@ -17,10 +17,10 @@ import {
   getDonorsExclusiveToList,
   bulkUpdateListMembersStaff,
   type ListDeletionMode,
-} from "../../../lib/data/donor-lists";
-import { listDonorsByCriteria } from "../../../lib/data/donors";
-import { processCSVFiles } from "../../../lib/utils/csv-import";
-import { donorListCriteriaSchemas } from "../../../lib/validation/schemas";
+} from '../../../lib/data/donor-lists';
+import { listDonorsByCriteria } from '../../../lib/data/donors';
+import { processCSVFiles } from '../../../lib/utils/csv-import';
+import { donorListCriteriaSchemas } from '../../../lib/validation/schemas';
 
 /**
  * Input validation schemas for donor list operations
@@ -35,7 +35,7 @@ const listIdsSchema = z.object({
 
 const deleteListSchema = z.object({
   id: z.number(),
-  deleteMode: z.enum(["listOnly", "withExclusiveDonors", "withAllDonors"]).default("listOnly"),
+  deleteMode: z.enum(['listOnly', 'withExclusiveDonors', 'withAllDonors']).default('listOnly'),
 });
 
 const createListSchema = z.object({
@@ -56,8 +56,8 @@ const listListsSchema = z.object({
   isActive: z.boolean().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
-  orderBy: z.enum(["name", "createdAt", "updatedAt", "memberCount"]).optional(),
-  orderDirection: z.enum(["asc", "desc"]).optional(),
+  orderBy: z.enum(['name', 'createdAt', 'updatedAt', 'memberCount']).optional(),
+  orderDirection: z.enum(['asc', 'desc']).optional(),
   includeMemberCount: z.boolean().optional(),
 });
 
@@ -119,9 +119,9 @@ export const listsRouter = router({
         createdBy: ctx.auth.user.id,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("unique constraint")) {
+      if (error instanceof Error && error.message.includes('unique constraint')) {
         throw new TRPCError({
-          code: "CONFLICT",
+          code: 'CONFLICT',
           message: `A list named "${input.name}" already exists. Please choose a different name.`,
         });
       }
@@ -147,12 +147,11 @@ export const listsRouter = router({
    */
   getByIdWithMemberCount: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
     const list = await getDonorListWithMemberCount(input.id, ctx.auth.user.organizationId);
-    if (!list) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The donor list you're looking for doesn't exist or has been deleted.",
-      });
-    }
+    check(
+      !list,
+      'NOT_FOUND',
+      "The donor list you're looking for doesn't exist or has been deleted."
+    );
     return list;
   }),
 
@@ -164,12 +163,11 @@ export const listsRouter = router({
    */
   getByIdWithMembers: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
     const list = await getDonorListWithMembers(input.id, ctx.auth.user.organizationId);
-    if (!list) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The donor list you're looking for doesn't exist or has been deleted.",
-      });
-    }
+    check(
+      !list,
+      'NOT_FOUND',
+      "The donor list you're looking for doesn't exist or has been deleted."
+    );
     return list;
   }),
 
@@ -202,18 +200,15 @@ export const listsRouter = router({
     const { id, ...updateData } = input;
     try {
       const updated = await updateDonorList(id, updateData, ctx.auth.user.organizationId);
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Donor list not found",
-        });
-      }
+      check(!updated, 'NOT_FOUND', 'Donor list not found');
       return updated;
     } catch (error) {
-      if (error instanceof Error && error.message.includes("unique constraint")) {
+      if (error instanceof Error && error.message.includes('unique constraint')) {
         throw new TRPCError({
-          code: "CONFLICT",
-          message: updateData.name ? `A list named "${updateData.name}" already exists. Please choose a different name.` : "A list with this name already exists. Please choose a different name.",
+          code: 'CONFLICT',
+          message: updateData.name
+            ? `A list named "${updateData.name}" already exists. Please choose a different name.`
+            : 'A list with this name already exists. Please choose a different name.',
         });
       }
       throw error;
@@ -229,12 +224,11 @@ export const listsRouter = router({
    */
   delete: protectedProcedure.input(deleteListSchema).mutation(async ({ input, ctx }) => {
     const result = await deleteDonorList(input.id, ctx.auth.user.organizationId, input.deleteMode);
-    if (!result.listDeleted) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "The donor list you're looking for doesn't exist or has been deleted.",
-      });
-    }
+    check(
+      !result.listDeleted,
+      'NOT_FOUND',
+      "The donor list you're looking for doesn't exist or has been deleted."
+    );
     return result;
   }),
 
@@ -248,20 +242,25 @@ export const listsRouter = router({
    */
   addDonors: protectedProcedure.input(addDonorsSchema).mutation(async ({ input, ctx }) => {
     try {
-      return await addDonorsToList(input.listId, input.donorIds, ctx.auth.user.id, ctx.auth.user.organizationId);
+      return await addDonorsToList(
+        input.listId,
+        input.donorIds,
+        ctx.auth.user.id,
+        ctx.auth.user.organizationId
+      );
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message.includes("not found")) {
+        if (error.message.includes('not found')) {
           throw new TRPCError({
-            code: "NOT_FOUND",
+            code: 'NOT_FOUND',
             message: "The list or one of the donors you're trying to add doesn't exist.",
           });
         }
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: error.message.includes("already") 
-            ? "Some donors are already in this list."
-            : "Unable to add donors to the list. Please check your selection.",
+          code: 'BAD_REQUEST',
+          message: error.message.includes('already')
+            ? 'Some donors are already in this list.'
+            : 'Unable to add donors to the list. Please check your selection.',
         });
       }
       throw error;
@@ -279,9 +278,9 @@ export const listsRouter = router({
     try {
       return await removeDonorsFromList(input.listId, input.donorIds, ctx.auth.user.organizationId);
     } catch (error) {
-      if (error instanceof Error && error.message.includes("not found")) {
+      if (error instanceof Error && error.message.includes('not found')) {
         throw new TRPCError({
-          code: "NOT_FOUND",
+          code: 'NOT_FOUND',
           message: error.message,
         });
       }
@@ -295,36 +294,40 @@ export const listsRouter = router({
    * @returns Array of unique donor IDs from all specified lists
    * @throws NOT_FOUND if any lists don't exist or don't belong to the organization
    */
-  getDonorIdsFromLists: protectedProcedure.input(getDonorIdsFromListsSchema).query(async ({ input, ctx }) => {
-    try {
-      return await getDonorIdsFromLists(input.listIds, ctx.auth.user.organizationId);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("not belong")) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Some lists do not belong to your organization",
-        });
+  getDonorIdsFromLists: protectedProcedure
+    .input(getDonorIdsFromListsSchema)
+    .query(async ({ input, ctx }) => {
+      try {
+        return await getDonorIdsFromLists(input.listIds, ctx.auth.user.organizationId);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('not belong')) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Some lists do not belong to your organization',
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
-  }),
+    }),
 
   /**
    * Get lists that contain a specific donor
    * @param input.donorId - The donor ID to find lists for
    * @returns Array of lists containing the specified donor
    */
-  getListsForDonor: protectedProcedure.input(getListsForDonorSchema).query(async ({ input, ctx }) => {
-    try {
-      const lists = await getListsForDonor(input.donorId, ctx.auth.user.organizationId);
-      return lists;
-    } catch (error) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get lists for donor",
-      });
-    }
-  }),
+  getListsForDonor: protectedProcedure
+    .input(getListsForDonorSchema)
+    .query(async ({ input, ctx }) => {
+      try {
+        const lists = await getListsForDonor(input.donorId, ctx.auth.user.organizationId);
+        return lists;
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to get lists for donor',
+        });
+      }
+    }),
 
   /**
    * Get the count of donors that are exclusively in a specific list
@@ -333,18 +336,21 @@ export const listsRouter = router({
    */
   getExclusiveDonorCount: protectedProcedure.input(listIdSchema).query(async ({ input, ctx }) => {
     try {
-      const exclusiveDonorIds = await getDonorsExclusiveToList(input.id, ctx.auth.user.organizationId);
+      const exclusiveDonorIds = await getDonorsExclusiveToList(
+        input.id,
+        ctx.auth.user.organizationId
+      );
       return { count: exclusiveDonorIds.length };
     } catch (error) {
-      if (error instanceof Error && error.message.includes("not found")) {
+      if (error instanceof Error && error.message.includes('not found')) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "List not found",
+          code: 'NOT_FOUND',
+          message: 'List not found',
         });
       }
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to get exclusive donor count",
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get exclusive donor count',
       });
     }
   }),
@@ -352,47 +358,44 @@ export const listsRouter = router({
   /**
    * Upload and process CSV files to import donors and pledges into a list
    */
-  uploadAndProcessFiles: protectedProcedure.input(uploadFilesSchema).mutation(async ({ input, ctx }) => {
-    try {
-      // Verify list exists and belongs to organization
-      const list = await getDonorListById(input.listId, ctx.auth.user.organizationId);
-      if (!list) {
+  uploadAndProcessFiles: protectedProcedure
+    .input(uploadFilesSchema)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify list exists and belongs to organization
+        const list = await getDonorListById(input.listId, ctx.auth.user.organizationId);
+        check(!list, 'NOT_FOUND', 'List not found');
+
+        // Decode base64 content
+        const accountsContent = Buffer.from(input.accountsFile.content, 'base64').toString('utf-8');
+        const pledgesContent = input.pledgesFile
+          ? Buffer.from(input.pledgesFile.content, 'base64').toString('utf-8')
+          : null;
+
+        // Log file info for debugging
+        console.log(`Received file: ${input.accountsFile.name}`);
+        console.log(`Base64 content length: ${input.accountsFile.content.length}`);
+        console.log(`Decoded content length: ${accountsContent.length} characters`);
+        console.log(`Line count check: ${accountsContent.split('\n').length} lines`);
+
+        // Process the CSV files
+        const result = await processCSVFiles({
+          accountsCSV: accountsContent,
+          pledgesCSV: pledgesContent,
+          organizationId: ctx.auth.user.organizationId,
+          listId: input.listId,
+          userId: ctx.auth.user.id,
+        });
+
+        return result;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "List not found",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to process files',
         });
       }
-
-      // Decode base64 content
-      const accountsContent = Buffer.from(input.accountsFile.content, "base64").toString("utf-8");
-      const pledgesContent = input.pledgesFile
-        ? Buffer.from(input.pledgesFile.content, "base64").toString("utf-8")
-        : null;
-
-      // Log file info for debugging
-      console.log(`Received file: ${input.accountsFile.name}`);
-      console.log(`Base64 content length: ${input.accountsFile.content.length}`);
-      console.log(`Decoded content length: ${accountsContent.length} characters`);
-      console.log(`Line count check: ${accountsContent.split('\n').length} lines`);
-
-      // Process the CSV files
-      const result = await processCSVFiles({
-        accountsCSV: accountsContent,
-        pledgesCSV: pledgesContent,
-        organizationId: ctx.auth.user.organizationId,
-        listId: input.listId,
-        userId: ctx.auth.user.id,
-      });
-
-      return result;
-    } catch (error) {
-      if (error instanceof TRPCError) throw error;
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error ? error.message : "Failed to process files",
-      });
-    }
-  }),
+    }),
 
   /**
    * Preview donors that match the specified criteria
@@ -417,8 +420,8 @@ export const listsRouter = router({
         return result;
       } catch (error) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Failed to preview donors by criteria",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to preview donors by criteria',
         });
       }
     }),
@@ -446,7 +449,7 @@ export const listsRouter = router({
         });
 
         if (!newList) {
-          throw new Error("Failed to create list");
+          throw new Error('Failed to create list');
         }
 
         // Step 2: Get donors that match the criteria
@@ -455,22 +458,30 @@ export const listsRouter = router({
         if (donorsResult.donors.length > 0) {
           // Step 3: Add all matching donors to the list
           const donorIds = donorsResult.donors.map((donor) => donor.id);
-          await addDonorsToList(newList.id, donorIds, ctx.auth.user.id, ctx.auth.user.organizationId);
+          await addDonorsToList(
+            newList.id,
+            donorIds,
+            ctx.auth.user.id,
+            ctx.auth.user.organizationId
+          );
         }
 
         // Return the list with member count
-        const listWithMemberCount = await getDonorListWithMemberCount(newList.id, ctx.auth.user.organizationId);
+        const listWithMemberCount = await getDonorListWithMemberCount(
+          newList.id,
+          ctx.auth.user.organizationId
+        );
         return listWithMemberCount;
       } catch (error) {
-        if (error instanceof Error && error.message.includes("unique constraint")) {
+        if (error instanceof Error && error.message.includes('unique constraint')) {
           throw new TRPCError({
-            code: "CONFLICT",
-            message: "A list with this name already exists in your organization",
+            code: 'CONFLICT',
+            message: 'A list with this name already exists in your organization',
           });
         }
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Failed to create list by criteria",
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to create list by criteria',
         });
       }
     }),
@@ -493,8 +504,9 @@ export const listsRouter = router({
         return result;
       } catch (error) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Failed to bulk update staff assignment",
+          code: 'INTERNAL_SERVER_ERROR',
+          message:
+            error instanceof Error ? error.message : 'Failed to bulk update staff assignment',
         });
       }
     }),

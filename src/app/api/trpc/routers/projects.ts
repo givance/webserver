@@ -1,22 +1,18 @@
-import { z } from 'zod';
-import { router, protectedProcedure } from '../trpc';
 import {
-  getProjectById,
-  getProjectsByIds,
   createProject,
-  updateProject,
   deleteProject,
+  getProjectsByIds,
   listProjects,
+  updateProject,
 } from '@/app/lib/data/projects';
-import { createTRPCError, notFoundError, conflictError, ERROR_MESSAGES } from '../trpc';
 import {
   idSchema,
-  nameSchema,
-  descriptionSchema,
-  paginationSchema,
   orderingSchema,
+  paginationSchema,
   projectSchemas,
 } from '@/app/lib/validation/schemas';
+import { z } from 'zod';
+import { check, createTRPCError, ERROR_MESSAGES, protectedProcedure, router } from '../trpc';
 
 // Schema definitions
 const projectResponseSchema = z.object({
@@ -64,12 +60,7 @@ export const projectsRouter = router({
     .input(projectIdsSchema)
     .output(z.array(projectResponseSchema))
     .query(async ({ input, ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       const projects = await getProjectsByIds(input.ids, ctx.auth.user.organizationId);
 
@@ -94,12 +85,7 @@ export const projectsRouter = router({
     .input(projectSchemas.create)
     .output(projectResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       try {
         return await createProject({
@@ -154,11 +140,9 @@ export const projectsRouter = router({
 
       const updated = await updateProject(id, updateData);
 
-      if (!updated) {
-        throw notFoundError('Project');
-      }
+      check(!updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Project'));
 
-      return updated;
+      return updated!;
     }),
 
   /**
@@ -213,12 +197,7 @@ export const projectsRouter = router({
     .input(listProjectsInputSchema)
     .output(listProjectsResponseSchema)
     .query(async ({ input, ctx }) => {
-      if (!ctx.auth.user?.organizationId) {
-        throw createTRPCError({
-          code: 'UNAUTHORIZED',
-          message: ERROR_MESSAGES.UNAUTHORIZED,
-        });
-      }
+      check(!ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       return await listProjects(input, ctx.auth.user.organizationId);
     }),
