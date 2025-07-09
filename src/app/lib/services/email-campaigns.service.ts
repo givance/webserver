@@ -1,6 +1,7 @@
 import { PREVIEW_DONOR_COUNT } from '@/app/(app)/campaign/steps/write-instruction-step/constants';
 import {
   checkSessionExists,
+  countEmailsBySession,
   countSessionsByOrganization,
   createEmailGenerationSession,
   createGeneratedEmail,
@@ -453,8 +454,14 @@ export class EmailCampaignsService {
         })
       );
 
+      // Get actual email count from database instead of using stored completedDonors
+      const actualEmailCount = await countEmailsBySession(sessionId);
+
       return {
-        session,
+        session: {
+          ...session,
+          completedDonors: actualEmailCount,
+        },
         emails: emailsWithSignatures,
       };
     } catch (error) {
@@ -480,11 +487,14 @@ export class EmailCampaignsService {
 
     validateNotNullish(session, 'NOT_FOUND', 'Session not found');
 
+    // Get actual email count from database instead of using stored completedDonors
+    const actualEmailCount = await countEmailsBySession(sessionId);
+
     // Failsafe: If status is GENERATING or READY_TO_SEND but all donors are completed, update to COMPLETED
     if (
       (session.status === EmailGenerationSessionStatus.GENERATING ||
         session.status === EmailGenerationSessionStatus.READY_TO_SEND) &&
-      session.completedDonors >= session.totalDonors &&
+      actualEmailCount >= session.totalDonors &&
       session.totalDonors > 0
     ) {
       logger.info(
@@ -499,10 +509,14 @@ export class EmailCampaignsService {
       return {
         ...session,
         status: EmailGenerationSessionStatus.COMPLETED,
+        completedDonors: actualEmailCount,
       };
     }
 
-    return session;
+    return {
+      ...session,
+      completedDonors: actualEmailCount,
+    };
   }
 
   /**

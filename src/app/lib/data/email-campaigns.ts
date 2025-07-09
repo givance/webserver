@@ -457,6 +457,22 @@ export async function countEmailsBySessionAndStatus(
 }
 
 /**
+ * Counts total emails by session (all statuses)
+ */
+export async function countEmailsBySession(sessionId: number): Promise<number> {
+  try {
+    const result = await db
+      .select({ count: count() })
+      .from(generatedEmails)
+      .where(eq(generatedEmails.sessionId, sessionId));
+    return result[0]?.count || 0;
+  } catch (error) {
+    console.error('Failed to count emails by session:', error);
+    throw new Error('Could not count emails.');
+  }
+}
+
+/**
  * Gets donor IDs with emails for a session
  */
 export async function getDonorIdsWithEmails(

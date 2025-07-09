@@ -1,13 +1,14 @@
-import { task, logger as triggerLogger } from "@trigger.dev/sdk/v3";
-import { z } from "zod";
-import { db } from "@/app/lib/db";
+import { task, logger as triggerLogger } from '@trigger.dev/sdk/v3';
+import { z } from 'zod';
+import { db } from '@/app/lib/db';
 import {
   emailGenerationSessions,
   generatedEmails,
   EmailGenerationSessionStatus,
-} from "@/app/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { UnifiedSmartEmailGenerationService } from "@/app/lib/services/unified-smart-email-generation.service";
+} from '@/app/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { UnifiedSmartEmailGenerationService } from '@/app/lib/services/unified-smart-email-generation.service';
+import { countEmailsBySession } from '@/app/lib/data/email-campaigns';
 
 // Define the payload schema using Zod
 const generateBulkEmailsPayloadSchema = z.object({
@@ -18,7 +19,7 @@ const generateBulkEmailsPayloadSchema = z.object({
   previewDonorIds: z.array(z.number()),
   chatHistory: z.array(
     z.object({
-      role: z.enum(["user", "assistant"]),
+      role: z.enum(['user', 'assistant']),
       content: z.string(),
     })
   ),
@@ -33,7 +34,7 @@ type GenerateBulkEmailsPayload = z.infer<typeof generateBulkEmailsPayloadSchema>
  * Trigger job for generating bulk emails for all selected donors
  */
 export const generateBulkEmailsTask = task({
-  id: "generate-bulk-emails",
+  id: 'generate-bulk-emails',
   run: async (payload: GenerateBulkEmailsPayload, { ctx }) => {
     const {
       sessionId,
@@ -71,29 +72,32 @@ export const generateBulkEmailsTask = task({
       const donorsWithExistingEmails = new Set(existingEmails.map((email) => email.donorId));
 
       // Filter selected donors to only those without existing emails
-      const donorIdsToGenerate = selectedDonorIds.filter(id => !donorsWithExistingEmails.has(id));
+      const donorIdsToGenerate = selectedDonorIds.filter((id) => !donorsWithExistingEmails.has(id));
 
       if (donorIdsToGenerate.length === 0) {
         triggerLogger.info(
           `All donors already have generated emails for session ${sessionId}. Updating session status to COMPLETED.`
         );
 
+        // Get actual count of emails from database
+        const actualEmailCount = await countEmailsBySession(sessionId);
+
         // Update session status to COMPLETED since all emails already exist
         await db
           .update(emailGenerationSessions)
           .set({
             status: EmailGenerationSessionStatus.COMPLETED,
-            completedDonors: selectedDonorIds.length,
+            completedDonors: actualEmailCount,
             completedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(emailGenerationSessions.id, sessionId));
 
         return {
-          status: "success",
+          status: 'success',
           sessionId,
           emailsGenerated: 0,
-          message: "All emails were already generated",
+          message: 'All emails were already generated',
         };
       }
 
@@ -103,12 +107,12 @@ export const generateBulkEmailsTask = task({
 
       // Use the unified service to generate emails
       const unifiedService = new UnifiedSmartEmailGenerationService();
-      
+
       const generationResult = await unifiedService.generateSmartEmailsForCampaign({
         organizationId,
         sessionId: String(sessionId),
         chatHistory: chatHistory as Array<{ role: string; content: string }>,
-        donorIds: donorIdsToGenerate.map(id => String(id))
+        donorIds: donorIdsToGenerate.map((id) => String(id)),
       });
 
       triggerLogger.info(
@@ -116,14 +120,17 @@ export const generateBulkEmailsTask = task({
       );
 
       // Count successful generations
-      const successfulGenerations = generationResult.results.filter(r => r.email !== null).length;
+      const successfulGenerations = generationResult.results.filter((r) => r.email !== null).length;
+
+      // Get actual count of emails from database (more accurate than frontend counting)
+      const actualEmailCount = await countEmailsBySession(sessionId);
 
       // Update session status based on results
       await db
         .update(emailGenerationSessions)
         .set({
           status: EmailGenerationSessionStatus.READY_TO_SEND,
-          completedDonors: donorsWithExistingEmails.size + successfulGenerations,
+          completedDonors: actualEmailCount,
           updatedAt: new Date(),
         })
         .where(eq(emailGenerationSessions.id, sessionId));
@@ -133,21 +140,24 @@ export const generateBulkEmailsTask = task({
       );
 
       return {
-        status: "success",
+        status: 'success',
         sessionId,
         emailsGenerated: successfulGenerations,
         totalTokensUsed: generationResult.totalTokensUsed,
         message: `Generated ${successfulGenerations} emails successfully`,
       };
     } catch (error) {
-      triggerLogger.error(`Error in generateBulkEmailsTask for session ${sessionId}:`, error as any);
+      triggerLogger.error(
+        `Error in generateBulkEmailsTask for session ${sessionId}:`,
+        error as any
+      );
 
       // Update session with error
       await db
         .update(emailGenerationSessions)
         .set({
           status: EmailGenerationSessionStatus.READY_TO_SEND,
-          errorMessage: error instanceof Error ? error.message : "Unknown error occurred",
+          errorMessage: error instanceof Error ? error.message : 'Unknown error occurred',
           updatedAt: new Date(),
         })
         .where(eq(emailGenerationSessions.id, sessionId));
