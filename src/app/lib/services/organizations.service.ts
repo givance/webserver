@@ -15,6 +15,11 @@ import { logger } from '@/app/lib/logger';
 import { env } from '@/app/lib/env';
 import { createAzure } from '@ai-sdk/azure';
 import { generateText } from 'ai';
+import {
+  createNotFoundError,
+  createValidationError,
+  ErrorHandler,
+} from '@/app/lib/utils/error-handler';
 
 /**
  * Input types for organization operations
@@ -44,11 +49,13 @@ export class OrganizationsService {
    * @throws TRPCError if organization not found
    */
   async getOrganization(organizationId: string) {
-    const organization = await getOrganizationById(organizationId);
-    if (!organization) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
-    }
-    return organization;
+    return await ErrorHandler.wrapOperation(async () => {
+      const organization = await getOrganizationById(organizationId);
+      if (!organization) {
+        throw createNotFoundError('Organization', organizationId);
+      }
+      return organization;
+    });
   }
 
   /**
@@ -61,7 +68,7 @@ export class OrganizationsService {
     // Fetch current organization data
     const currentOrganization = await getOrganizationById(organizationId);
     if (!currentOrganization) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
+      throw createNotFoundError('Organization', organizationId);
     }
 
     const oldUrl = currentOrganization.websiteUrl;
@@ -70,7 +77,7 @@ export class OrganizationsService {
     // Update the organization in the database
     const updated = await updateOrganization(organizationId, input);
     if (!updated) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
+      throw createNotFoundError('Organization', organizationId);
     }
 
     // Website crawling is disabled - skip crawl trigger
@@ -127,19 +134,19 @@ export class OrganizationsService {
     // Get current user and their memory
     const user = await getUserById(userId);
     if (!user || !user.memory) {
-      throw new Error('User not found or has no memory items');
+      throw createNotFoundError('User', userId);
     }
 
     // Get the memory item to move
     const memoryItem = user.memory[input.memoryIndex];
     if (!memoryItem) {
-      throw new Error('Memory item not found');
+      throw createValidationError('Memory item not found');
     }
 
     // Get current organization and its memory
     const organization = await getOrganizationById(organizationId);
     if (!organization) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
+      throw createNotFoundError('Organization', organizationId);
     }
 
     // Add memory item to organization memory
@@ -180,12 +187,14 @@ export class OrganizationsService {
    * @returns The updated organization
    */
   async updateOrganizationDonorJourney(organizationId: string, journey: DonorJourney) {
-    const updated = await updateDonorJourney(organizationId, journey);
-    if (!updated) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
-    }
-    logger.info(`Successfully updated donor journey for organization ${organizationId}`);
-    return updated;
+    return await ErrorHandler.wrapOperation(async () => {
+      const updated = await updateDonorJourney(organizationId, journey);
+      if (!updated) {
+        throw createNotFoundError('Organization', organizationId);
+      }
+      logger.info(`Successfully updated donor journey for organization ${organizationId}`);
+      return updated;
+    });
   }
 
   /**
@@ -220,21 +229,23 @@ export class OrganizationsService {
    * @returns The updated organization with processed journey
    */
   async processAndUpdateDonorJourney(organizationId: string, journeyText: string) {
-    // Process the journey description using the DonorJourneyService
-    const journeyGraph = await DonorJourneyService.processJourney(journeyText);
+    return await ErrorHandler.wrapOperation(async () => {
+      // Process the journey description using the DonorJourneyService
+      const journeyGraph = await DonorJourneyService.processJourney(journeyText);
 
-    // Save both the text and generated graph
-    const updated = await updateDonorJourney(organizationId, journeyGraph);
-    await updateDonorJourneyText(organizationId, journeyText);
+      // Save both the text and generated graph
+      const updated = await updateDonorJourney(organizationId, journeyGraph);
+      await updateDonorJourneyText(organizationId, journeyText);
 
-    if (!updated) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
-    }
+      if (!updated) {
+        throw createNotFoundError('Organization', organizationId);
+      }
 
-    logger.info(
-      `Successfully processed and updated donor journey for organization ${organizationId} with ${journeyGraph.nodes.length} nodes and ${journeyGraph.edges.length} edges`
-    );
-    return updated;
+      logger.info(
+        `Successfully processed and updated donor journey for organization ${organizationId} with ${journeyGraph.nodes.length} nodes and ${journeyGraph.edges.length} edges`
+      );
+      return updated;
+    });
   }
 
   /**
@@ -245,7 +256,7 @@ export class OrganizationsService {
   async generateShortDescription(organizationId: string): Promise<string> {
     const organization = await getOrganizationById(organizationId);
     if (!organization) {
-      throw new Error(`Organization with ID ${organizationId} not found`);
+      throw createNotFoundError('Organization', organizationId);
     }
 
     const azure = createAzure({

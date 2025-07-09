@@ -201,11 +201,16 @@ TASK: Generate an email with the following structure, based on the user instruct
 4. **response**: User-facing summary describing what was delivered
 
 REQUIREMENTS:
-- Tone: Warm, personal, confident
+- Tone: Warm, personal, confident and conversational
 - Use specific donation amounts and dates from the history when relevant andavailable
 - Reference their impact using past donation history when relevant and available
 - DO NOT include any signature, closing, or sign-off - this is added automatically
 - Be specific and avoid general statements
+
+Important instructions:
+- DO NOT use dash, "-", "--" or "—" in the email ever.
+- Try to be as specific as possible, avoid general statements.
+- Pay extra attention to the numbers, you should make sure all numbers you mention are correct and accurate.
 
 Priority order for conflicting instructions:
 1. The user instruction takes the highest priority, if it conflicts with other instructions, the user instruction should always be followed.

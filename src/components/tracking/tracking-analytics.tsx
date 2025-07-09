@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, MousePointer, Mail, TrendingUp, Users, Activity } from "lucide-react";
-import { useSessionTracking } from "@/app/hooks/use-email-tracking";
-import { formatDistanceToNow } from "date-fns";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Eye, MousePointer, Mail, TrendingUp, Users, Activity } from 'lucide-react';
+import { useSessionTracking } from '@/app/hooks/use-email-tracking';
+import { formatDistanceToNowLocal } from '@/app/lib/utils/format';
 
 interface TrackingAnalyticsProps {
   sessionId: number;
@@ -46,7 +46,9 @@ export function TrackingAnalytics({ sessionId, className }: TrackingAnalyticsPro
           <CardDescription>Error loading tracking data</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Unable to load tracking analytics. Please try refreshing the page.</p>
+          <p className="text-muted-foreground">
+            Unable to load tracking analytics. Please try refreshing the page.
+          </p>
         </CardContent>
       </Card>
     );
@@ -63,7 +65,9 @@ export function TrackingAnalytics({ sessionId, className }: TrackingAnalyticsPro
           <CardDescription>No tracking data available</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No tracking data found for this communication session.</p>
+          <p className="text-muted-foreground">
+            No tracking data found for this communication session.
+          </p>
         </CardContent>
       </Card>
     );
@@ -163,13 +167,16 @@ export function TrackingAnalytics({ sessionId, className }: TrackingAnalyticsPro
             {donorStats && donorStats.length > 0 ? (
               <div className="space-y-3">
                 {donorStats.map((donor) => (
-                  <div key={donor.donorId} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={donor.donorId}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div className="flex-1">
                       <div className="font-medium">{donor.donorName}</div>
                       <div className="text-sm text-muted-foreground">{donor.donorEmail}</div>
                       {donor.lastOpenedAt && (
                         <div className="text-xs text-green-600">
-                          Last opened {formatDistanceToNow(new Date(donor.lastOpenedAt))} ago
+                          Last opened {formatDistanceToNowLocal(donor.lastOpenedAt)} ago
                         </div>
                       )}
                     </div>
@@ -183,7 +190,10 @@ export function TrackingAnalytics({ sessionId, className }: TrackingAnalyticsPro
                         <div className="text-xs text-muted-foreground">Clicks</div>
                       </div>
                       <div>
-                        <Badge variant={donor.uniqueOpens > 0 ? "default" : "secondary"} className="text-xs">
+                        <Badge
+                          variant={donor.uniqueOpens > 0 ? 'default' : 'secondary'}
+                          className="text-xs"
+                        >
                           {donor.openRate.toFixed(0)}%
                         </Badge>
                       </div>

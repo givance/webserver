@@ -158,4 +158,106 @@ export class ErrorHandler {
 
     return dbErrorKeywords.some((keyword) => message.includes(keyword));
   }
+
+  /**
+   * Creates a standardized not found error
+   * @param resourceType - The type of resource (e.g., 'Donor', 'Project')
+   * @param resourceId - The ID of the resource
+   * @returns A properly formatted TRPCError
+   */
+  static handleNotFoundError(resourceType: string, resourceId: string | number): TRPCError {
+    const context: ErrorContext = {
+      resourceType,
+      resourceId,
+    };
+
+    return this.createError(
+      'NOT_FOUND',
+      `${resourceType} with ID ${resourceId} not found`,
+      context
+    );
+  }
+
+  /**
+   * Wraps an operation with standardized error handling
+   * @param operation - The operation to wrap
+   * @param context - Additional context for error logging
+   * @param customMessage - Custom error message for unknown errors
+   * @returns The result of the operation or throws a TRPCError
+   */
+  static async wrapOperation<T>(
+    operation: () => Promise<T>,
+    context?: ErrorContext,
+    customMessage?: string
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      // Re-throw TRPCError as-is
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Handle database errors
+      if (error instanceof Error && this.isDatabaseError(error)) {
+        throw this.handleDatabaseError(error, context);
+      }
+
+      // Handle generic errors
+      if (error instanceof Error) {
+        throw this.createError(
+          'INTERNAL_SERVER_ERROR',
+          customMessage || 'An unexpected error occurred',
+          context,
+          error
+        );
+      }
+
+      // Handle non-Error objects
+      throw this.createError(
+        'INTERNAL_SERVER_ERROR',
+        customMessage || 'An unexpected error occurred',
+        context
+      );
+    }
+  }
+}
+
+/**
+ * Convenience function to create a not found error
+ */
+export function createNotFoundError(resourceType: string, resourceId: string | number): TRPCError {
+  return ErrorHandler.handleNotFoundError(resourceType, resourceId);
+}
+
+/**
+ * Convenience function to create an authorization error
+ */
+export function createAuthorizationError(message: string): TRPCError {
+  return ErrorHandler.createError('FORBIDDEN', message);
+}
+
+/**
+ * Convenience function to create an authentication error
+ */
+export function createAuthenticationError(message: string): TRPCError {
+  return ErrorHandler.createError('UNAUTHORIZED', message);
+}
+
+/**
+ * Convenience function to create a validation error
+ */
+export function createValidationError(message: string): TRPCError {
+  return ErrorHandler.createError('BAD_REQUEST', message);
+}
+
+/**
+ * Convenience function to wrap database operations
+ */
+export function wrapDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  context?: ErrorContext,
+  customMessage?: string
+): Promise<T> {
+  return ErrorHandler.wrapOperation(operation, context, customMessage);
 }

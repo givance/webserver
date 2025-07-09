@@ -53,13 +53,12 @@ function CampaignStepsComponent({
 
   // Initialize state with existing campaign data if in edit mode
   // Determine the right step based on existing data:
-  // - If chatHistory exists, go to Write Instructions (step 2)
-  // - If templateId exists, go to Write Instructions (step 2)
+  // - If chatHistory exists with any messages, go to Write Instructions (step 2)
   // - Otherwise, go to Template Selection (step 1)
   const getInitialStep = () => {
     if (editMode) {
-      if (existingCampaignData?.chatHistory?.length) {
-        return 2; // Go to Write Instructions step
+      if (existingCampaignData?.chatHistory && existingCampaignData.chatHistory.length > 0) {
+        return 2; // Go to Write Instructions step (chat page)
       } else {
         return 1; // Go to Template Selection step
       }

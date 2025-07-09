@@ -5,6 +5,7 @@ import { getUserMemories } from '@/app/lib/data/users';
 import { getDonorsByIds } from '@/app/lib/data/donors';
 import { logger } from '@/app/lib/logger';
 import { PersonResearchService } from '@/app/lib/services/person-research.service';
+import { ErrorHandler } from '@/app/lib/utils/error-handler';
 import fs from 'fs/promises';
 import path from 'path';
 import {
@@ -130,7 +131,12 @@ export class AgenticEmailGenerationService {
       logger.error(
         `[AGENTIC SERVICE ERROR] Error: ${error instanceof Error ? error.message : String(error)}`
       );
-      throw new Error('Failed to start agentic email generation flow');
+      throw ErrorHandler.createError(
+        'INTERNAL_SERVER_ERROR',
+        'Failed to start agentic email generation flow',
+        { operation: 'startAgenticFlow', organizationId, userId },
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 

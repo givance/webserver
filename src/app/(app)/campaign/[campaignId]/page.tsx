@@ -1,28 +1,31 @@
-"use client";
+'use client';
 
-import { useCommunications } from "@/app/hooks/use-communications";
-import { useDonors } from "@/app/hooks/use-donors";
-import { useStaff } from "@/app/hooks/use-staff";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, AlertTriangle, ArrowLeft, Edit } from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { EmailScheduleControlPanel } from "../components/EmailScheduleControlPanel";
-import { EmailScheduleViewer } from "../components/EmailScheduleViewer";
-import { EmailStatsViewer } from "../components/EmailStatsViewer";
+import { useCommunications } from '@/app/hooks/use-communications';
+import { useDonors } from '@/app/hooks/use-donors';
+import { useStaff } from '@/app/hooks/use-staff';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertCircle, AlertTriangle, ArrowLeft, Edit } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { EmailScheduleControlPanel } from '../components/EmailScheduleControlPanel';
+import { EmailScheduleViewer } from '../components/EmailScheduleViewer';
+import { EmailStatsViewer } from '../components/EmailStatsViewer';
 // Removed EmailScheduleSettings - moved to organization settings
-import { useDonorStaffEmailValidation } from "@/app/hooks/use-donor-validation";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import React, { useMemo } from "react";
-import { BaseGeneratedEmail, EmailListViewer } from "../components/EmailListViewer";
+import { useDonorStaffEmailValidation } from '@/app/hooks/use-donor-validation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import React, { useMemo, useState } from 'react';
+import { BaseGeneratedEmail, EmailListViewer } from '../components/EmailListViewer';
 
 export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
   const campaignId = Number(params.campaignId);
+
+  // State for controlling recipients list expansion (initially expanded)
+  const [isRecipientsExpanded, setIsRecipientsExpanded] = useState(true);
 
   const { getSession, getEmailSchedule } = useCommunications();
   const { listStaff, getPrimaryStaff } = useStaff();
@@ -34,7 +37,7 @@ export default function CampaignDetailPage() {
     error: sessionError,
   } = getSession({
     sessionId: campaignId,
-    signature: "",
+    signature: '',
   });
 
   // Fetch staff data for assignment display
@@ -46,7 +49,6 @@ export default function CampaignDetailPage() {
   // Get primary staff for email fallback
   const { data: primaryStaff } = getPrimaryStaff();
 
-
   // Get schedule data
   const { data: scheduleData, isLoading: isLoadingSchedule } = getEmailSchedule(
     { sessionId: campaignId },
@@ -55,14 +57,18 @@ export default function CampaignDetailPage() {
 
   // Get donor IDs from session data
   const donorIds = useMemo((): number[] => {
-    if (!sessionData?.session?.selectedDonorIds || !Array.isArray(sessionData.session.selectedDonorIds)) {
+    if (
+      !sessionData?.session?.selectedDonorIds ||
+      !Array.isArray(sessionData.session.selectedDonorIds)
+    ) {
       return [];
     }
     return sessionData.session.selectedDonorIds;
   }, [sessionData?.session?.selectedDonorIds]);
 
   // Use the validation hook
-  const { data: validationResult, isLoading: isValidating } = useDonorStaffEmailValidation(donorIds);
+  const { data: validationResult, isLoading: isValidating } =
+    useDonorStaffEmailValidation(donorIds);
 
   // Fetch donor data
   const { getDonorsQuery } = useDonors();
@@ -89,8 +95,8 @@ export default function CampaignDetailPage() {
       reasoning: email.reasoning || undefined,
       // Type cast status to proper union type
       status:
-        email.status === "PENDING_APPROVAL" || email.status === "APPROVED"
-          ? (email.status as "PENDING_APPROVAL" | "APPROVED")
+        email.status === 'PENDING_APPROVAL' || email.status === 'APPROVED'
+          ? (email.status as 'PENDING_APPROVAL' | 'APPROVED')
           : undefined,
     }));
   }, [sessionData?.emails]);
@@ -130,7 +136,11 @@ export default function CampaignDetailPage() {
     return (
       <div className="container mx-auto py-8">
         <p className="text-red-500">Error loading campaign: {sessionError.message}</p>
-        <Button variant="outline" onClick={() => router.push("/existing-campaigns")} className="mt-4">
+        <Button
+          variant="outline"
+          onClick={() => router.push('/existing-campaigns')}
+          className="mt-4"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Campaigns
         </Button>
@@ -142,7 +152,11 @@ export default function CampaignDetailPage() {
     return (
       <div className="container mx-auto py-8">
         <p className="text-red-500">Campaign not found</p>
-        <Button variant="outline" onClick={() => router.push("/existing-campaigns")} className="mt-4">
+        <Button
+          variant="outline"
+          onClick={() => router.push('/existing-campaigns')}
+          className="mt-4"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Campaigns
         </Button>
@@ -151,18 +165,18 @@ export default function CampaignDetailPage() {
   }
 
   const { session } = sessionData;
-  const canEdit = session.status !== "GENERATING";
+  const canEdit = session.status !== 'GENERATING';
   const hasSchedule = scheduleData && scheduleData.stats.total > 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "DRAFT":
+      case 'DRAFT':
         return <Badge variant="outline">Draft</Badge>;
-      case "GENERATING":
+      case 'GENERATING':
         return <Badge variant="default">Generating</Badge>;
-      case "READY_TO_SEND":
+      case 'READY_TO_SEND':
         return <Badge>Ready to Send</Badge>;
-      case "COMPLETED":
+      case 'COMPLETED':
         return <Badge variant="default">Completed</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
@@ -175,11 +189,14 @@ export default function CampaignDetailPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => router.push("/existing-campaigns")}>
+            <Button variant="outline" size="sm" onClick={() => router.push('/existing-campaigns')}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Link href={`/campaign/edit/${campaignId}`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/campaign/edit/${campaignId}`}
+              className="hover:text-primary transition-colors"
+            >
               <h1 className="text-2xl font-bold cursor-pointer">{session.jobName}</h1>
             </Link>
             {getStatusBadge(session.status)}
@@ -206,7 +223,9 @@ export default function CampaignDetailPage() {
         <div className="mb-6">
           <Alert className="border-blue-200 bg-blue-50">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Validating email setup for all donors in this campaign...</AlertDescription>
+            <AlertDescription>
+              Validating email setup for all donors in this campaign...
+            </AlertDescription>
           </Alert>
         </div>
       )}
@@ -221,20 +240,21 @@ export default function CampaignDetailPage() {
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validationResult.donorsWithoutStaff.length > 0 && (
                     <li>
-                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s) don&apos;t have assigned
-                      staff members
+                      <strong>{validationResult.donorsWithoutStaff.length}</strong> donor(s)
+                      don&apos;t have assigned staff members
                     </li>
                   )}
                   {validationResult.donorsWithStaffButNoEmail.length > 0 && (
                     <li>
-                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s) have staff members
-                      without connected Gmail accounts
+                      <strong>{validationResult.donorsWithStaffButNoEmail.length}</strong> donor(s)
+                      have staff members without connected Gmail accounts
                     </li>
                   )}
                 </ul>
                 <p className="text-sm">
-                  These issues need to be resolved before emails can be scheduled. Please assign staff to all donors and
-                  ensure all staff have connected their Gmail accounts in Settings.
+                  These issues need to be resolved before emails can be scheduled. Please assign
+                  staff to all donors and ensure all staff have connected their Gmail accounts in
+                  Settings.
                 </p>
               </div>
             </AlertDescription>
@@ -243,7 +263,7 @@ export default function CampaignDetailPage() {
       )}
 
       {/* Main Content */}
-      <Tabs defaultValue={hasSchedule ? "stats" : "emails"} className="space-y-4">
+      <Tabs defaultValue={hasSchedule ? 'stats' : 'emails'} className="space-y-4">
         <TabsList>
           {hasSchedule && <TabsTrigger value="schedule">Schedule</TabsTrigger>}
           {hasSchedule && <TabsTrigger value="stats">Statistics</TabsTrigger>}
@@ -273,29 +293,39 @@ export default function CampaignDetailPage() {
 
         {/* Emails Tab */}
         <TabsContent value="emails">
-          <EmailListViewer
-            emails={typedEmails}
-            donors={typedDonors}
-            referenceContexts={referenceContexts}
-            showSearch={true}
-            showPagination={true}
-            showStaffAssignment={true}
-            showEditButton={true}
-            emailsPerPage={20}
-            emptyStateTitle="No emails generated yet"
-            emptyStateDescription="This campaign doesn't have any generated emails yet."
-            sessionId={campaignId}
-            getStaffName={(staffId) => {
-              if (!staffId || !staffData?.staff) return "Unassigned";
-              const staff = staffData.staff.find((s) => s.id === staffId);
-              return staff ? `${staff.firstName} ${staff.lastName}` : "Unknown Staff";
-            }}
-            getStaffDetails={(staffId) => {
-              if (!staffId || !staffData?.staff) return null;
-              return staffData.staff.find((s) => s.id === staffId) || null;
-            }}
-            primaryStaff={primaryStaff || null}
-          />
+          <div className="h-[600px] bg-background border rounded-lg overflow-hidden">
+            <div className="h-full overflow-hidden p-3 text-xs [&_button]:text-xs [&_button]:px-2 [&_button]:py-1 [&_button]:h-auto [&_p]:text-xs [&_span]:text-xs [&_div]:text-xs">
+              <EmailListViewer
+                emails={typedEmails}
+                donors={typedDonors}
+                referenceContexts={referenceContexts}
+                showSearch={true}
+                showPagination={true}
+                showTracking={false}
+                showStaffAssignment={true}
+                showSendButton={false}
+                showEditButton={true}
+                showDonorTooltips={true}
+                emailsPerPage={20}
+                maxHeight="100%"
+                emptyStateTitle="No emails generated yet"
+                emptyStateDescription="This campaign doesn't have any generated emails yet."
+                sessionId={campaignId}
+                isRecipientsExpanded={isRecipientsExpanded}
+                onRecipientsExpandedChange={setIsRecipientsExpanded}
+                getStaffName={(staffId) => {
+                  if (!staffId || !staffData?.staff) return 'Unassigned';
+                  const staff = staffData.staff.find((s) => s.id === staffId);
+                  return staff ? `${staff.firstName} ${staff.lastName}` : 'Unknown Staff';
+                }}
+                getStaffDetails={(staffId) => {
+                  if (!staffId || !staffData?.staff) return null;
+                  return staffData.staff.find((s) => s.id === staffId) || null;
+                }}
+                primaryStaff={primaryStaff || null}
+              />
+            </div>
+          </div>
         </TabsContent>
 
         {/* Settings Tab removed - moved to organization settings */}
