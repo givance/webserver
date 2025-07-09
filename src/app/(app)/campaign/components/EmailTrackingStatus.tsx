@@ -1,9 +1,9 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Eye, MousePointer, MapPin, Clock } from "lucide-react";
-import { useEmailTrackingBySession } from "@/app/hooks/use-email-tracking";
-import { formatDistanceToNow } from "date-fns";
-import React from "react";
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Eye, MousePointer, MapPin, Clock } from 'lucide-react';
+import { useEmailTrackingBySession } from '@/app/hooks/use-email-tracking';
+import { formatDistanceToNowLocal } from '@/app/lib/utils/format';
+import React from 'react';
 
 interface EmailTrackingStatusProps {
   emailId: number;
@@ -11,9 +11,17 @@ interface EmailTrackingStatusProps {
   sessionId?: number;
 }
 
-export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ emailId, donorId, sessionId }: EmailTrackingStatusProps) {
+export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({
+  emailId,
+  donorId,
+  sessionId,
+}: EmailTrackingStatusProps) {
   // Always use the session-based approach since that's the one that works
-  const { data: trackingData, isLoading, error } = useEmailTrackingBySession(sessionId ?? 0, donorId);
+  const {
+    data: trackingData,
+    isLoading,
+    error,
+  } = useEmailTrackingBySession(sessionId ?? 0, donorId);
 
   // Debug logging - commented out to reduce console noise
   // console.log("[EmailTrackingStatus] Props:", { emailId, donorId, sessionId });
@@ -48,11 +56,11 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
         <div className="space-y-3">
           {/* Status Header */}
           <div className="flex items-center gap-2">
-            <Badge variant={hasOpens ? "default" : "outline"} className="text-xs">
-              {hasOpens ? "Opened" : "Sent"}
+            <Badge variant={hasOpens ? 'default' : 'outline'} className="text-xs">
+              {hasOpens ? 'Opened' : 'Sent'}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              Sent {formatDistanceToNow(new Date(emailTracker.sentAt))} ago
+              Sent {formatDistanceToNowLocal(emailTracker.sentAt)} ago
             </span>
           </div>
 
@@ -61,7 +69,7 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
                 <Eye className="h-4 w-4" />
-                Email Opened ({opens.length} time{opens.length !== 1 ? "s" : ""})
+                Email Opened ({opens.length} time{opens.length !== 1 ? 's' : ''})
               </div>
 
               <div className="space-y-2 ml-6">
@@ -69,8 +77,10 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
                   <div key={index} className="text-xs text-muted-foreground space-y-1">
                     <div className="flex items-center gap-2">
                       <Clock className="h-3 w-3" />
-                      <span>{formatDistanceToNow(new Date(open.openedAt))} ago</span>
-                      <span className="text-muted-foreground/60">({new Date(open.openedAt).toLocaleString()})</span>
+                      <span>{formatDistanceToNowLocal(open.openedAt)} ago</span>
+                      <span className="text-muted-foreground/60">
+                        ({new Date(open.openedAt).toLocaleString()})
+                      </span>
                     </div>
                     {open.ipAddress && (
                       <div className="flex items-center gap-2">
@@ -79,14 +89,16 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
                       </div>
                     )}
                     {open.userAgent && (
-                      <div className="text-muted-foreground/60 max-w-md truncate">{open.userAgent}</div>
+                      <div className="text-muted-foreground/60 max-w-md truncate">
+                        {open.userAgent}
+                      </div>
                     )}
                   </div>
                 ))}
 
                 {opens.length > 3 && (
                   <div className="text-xs text-muted-foreground ml-6">
-                    ... and {opens.length - 3} more open{opens.length - 3 !== 1 ? "s" : ""}
+                    ... and {opens.length - 3} more open{opens.length - 3 !== 1 ? 's' : ''}
                   </div>
                 )}
               </div>
@@ -98,7 +110,7 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-400">
                 <MousePointer className="h-4 w-4" />
-                Links Clicked ({clicks.length} time{clicks.length !== 1 ? "s" : ""})
+                Links Clicked ({clicks.length} time{clicks.length !== 1 ? 's' : ''})
               </div>
 
               <div className="space-y-2 ml-6">
@@ -106,8 +118,10 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
                   <div key={index} className="text-xs text-muted-foreground space-y-1">
                     <div className="flex items-center gap-2">
                       <Clock className="h-3 w-3" />
-                      <span>{formatDistanceToNow(new Date(click.clickedAt))} ago</span>
-                      <span className="text-muted-foreground/60">({new Date(click.clickedAt).toLocaleString()})</span>
+                      <span>{formatDistanceToNowLocal(click.clickedAt)} ago</span>
+                      <span className="text-muted-foreground/60">
+                        ({new Date(click.clickedAt).toLocaleString()})
+                      </span>
                     </div>
                     {click.ipAddress && (
                       <div className="flex items-center gap-2">
@@ -120,7 +134,7 @@ export const EmailTrackingStatus = React.memo(function EmailTrackingStatus({ ema
 
                 {clicks.length > 2 && (
                   <div className="text-xs text-muted-foreground ml-6">
-                    ... and {clicks.length - 2} more click{clicks.length - 2 !== 1 ? "s" : ""}
+                    ... and {clicks.length - 2} more click{clicks.length - 2 !== 1 ? 's' : ''}
                   </div>
                 )}
               </div>

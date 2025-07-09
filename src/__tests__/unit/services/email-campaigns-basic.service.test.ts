@@ -3,23 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { logger } from '@/app/lib/logger';
 
 // Mock dependencies
-jest.mock('@/app/lib/db', () => ({
-  db: {
-    query: {
-      emailGenerationSessions: {
-        findFirst: jest.fn(),
-      },
-      generatedEmails: {
-        findFirst: jest.fn(),
-      },
-    },
-    select: jest.fn().mockReturnValue({
-      from: jest.fn().mockReturnValue({
-        where: jest.fn().mockResolvedValue([])
-      })
-    }),
-  },
-}));
+jest.mock('@/app/lib/data/email-campaigns');
 jest.mock('@/app/lib/logger');
 jest.mock('@/trigger/jobs/generateBulkEmails', () => ({
   generateBulkEmailsTask: {
@@ -27,7 +11,7 @@ jest.mock('@/trigger/jobs/generateBulkEmails', () => ({
   },
 }));
 
-import { db } from '@/app/lib/db';
+import * as emailCampaignsData from '@/app/lib/data/email-campaigns';
 import { generateBulkEmailsTask } from '@/trigger/jobs/generateBulkEmails';
 
 describe('EmailCampaignsService - Basic Tests', () => {
@@ -47,20 +31,18 @@ describe('EmailCampaignsService - Basic Tests', () => {
         completedDonors: 10,
       };
 
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(mockSession);
+      (emailCampaignsData.getSessionStatus as jest.Mock).mockResolvedValue(mockSession);
 
       const result = await service.getSessionStatus(1, 'org123');
 
-      expect(db.query.emailGenerationSessions.findFirst).toHaveBeenCalled();
+      expect(emailCampaignsData.getSessionStatus).toHaveBeenCalled();
       expect(result).toEqual(mockSession);
     });
 
     it('should throw NOT_FOUND when session does not exist', async () => {
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(null);
+      (emailCampaignsData.getSessionStatus as jest.Mock).mockResolvedValue(null);
 
-      await expect(
-        service.getSessionStatus(999, 'org123')
-      ).rejects.toMatchObject({
+      await expect(service.getSessionStatus(999, 'org123')).rejects.toMatchObject({
         code: 'NOT_FOUND',
         message: 'Session not found',
       });
@@ -69,16 +51,12 @@ describe('EmailCampaignsService - Basic Tests', () => {
 
   describe('getEmailStatus', () => {
     it('should validate email ID', async () => {
-      await expect(
-        service.getEmailStatus(0, 'org123')
-      ).rejects.toMatchObject({
+      await expect(service.getEmailStatus(0, 'org123')).rejects.toMatchObject({
         code: 'BAD_REQUEST',
         message: 'Invalid email ID provided',
       });
 
-      await expect(
-        service.getEmailStatus(-1, 'org123')
-      ).rejects.toMatchObject({
+      await expect(service.getEmailStatus(-1, 'org123')).rejects.toMatchObject({
         code: 'BAD_REQUEST',
         message: 'Invalid email ID provided',
       });
@@ -87,11 +65,9 @@ describe('EmailCampaignsService - Basic Tests', () => {
 
   describe('retryCampaign', () => {
     it('should throw NOT_FOUND when session does not exist', async () => {
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(null);
+      (emailCampaignsData.getEmailGenerationSessionById as jest.Mock).mockResolvedValue(null);
 
-      await expect(
-        service.retryCampaign(999, 'org123', 'user123')
-      ).rejects.toMatchObject({
+      await expect(service.retryCampaign(999, 'org123', 'user123')).rejects.toMatchObject({
         code: 'NOT_FOUND',
         message: 'Session not found',
       });
@@ -104,11 +80,11 @@ describe('EmailCampaignsService - Basic Tests', () => {
         organizationId: 'org123',
       };
 
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(mockSession);
+      (emailCampaignsData.getEmailGenerationSessionById as jest.Mock).mockResolvedValue(
+        mockSession
+      );
 
-      await expect(
-        service.retryCampaign(1, 'org123', 'user123')
-      ).rejects.toMatchObject({
+      await expect(service.retryCampaign(1, 'org123', 'user123')).rejects.toMatchObject({
         code: 'BAD_REQUEST',
         message: 'Cannot retry campaign with status: COMPLETED',
       });
@@ -135,7 +111,7 @@ describe('EmailCampaignsService - Basic Tests', () => {
 
   describe('saveGeneratedEmail', () => {
     it('should throw NOT_FOUND when session does not exist', async () => {
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(null);
+      (emailCampaignsData.getEmailGenerationSessionById as jest.Mock).mockResolvedValue(null);
 
       const input = {
         sessionId: 999,
@@ -145,9 +121,7 @@ describe('EmailCampaignsService - Basic Tests', () => {
         referenceContexts: {},
       };
 
-      await expect(
-        service.saveGeneratedEmail(input, 'org123')
-      ).rejects.toMatchObject({
+      await expect(service.saveGeneratedEmail(input, 'org123')).rejects.toMatchObject({
         code: 'NOT_FOUND',
         message: 'Session not found',
       });
@@ -156,11 +130,9 @@ describe('EmailCampaignsService - Basic Tests', () => {
 
   describe('deleteCampaign', () => {
     it('should throw NOT_FOUND when campaign does not exist', async () => {
-      (db.query.emailGenerationSessions.findFirst as jest.Mock).mockResolvedValue(null);
+      (emailCampaignsData.getEmailGenerationSessionById as jest.Mock).mockResolvedValue(null);
 
-      await expect(
-        service.deleteCampaign(999, 'org123')
-      ).rejects.toMatchObject({
+      await expect(service.deleteCampaign(999, 'org123')).rejects.toMatchObject({
         code: 'NOT_FOUND',
         message: 'Campaign not found',
       });
@@ -169,8 +141,10 @@ describe('EmailCampaignsService - Basic Tests', () => {
 
   describe('checkAndUpdateCampaignCompletion', () => {
     it('should handle missing session gracefully', async () => {
-      // The db.select mock is already configured to return empty array for no sessions found
-      
+      // Mock the data functions to return empty results
+      (emailCampaignsData.getSessionsByCriteria as jest.Mock).mockResolvedValue([]);
+      (emailCampaignsData.updateSessionsBatch as jest.Mock).mockResolvedValue(undefined);
+
       // Should not throw
       await service.checkAndUpdateCampaignCompletion(999, 'org123');
 
@@ -182,7 +156,7 @@ describe('EmailCampaignsService - Basic Tests', () => {
     it('should return result when no stuck campaigns', async () => {
       // Create a service instance and mock checkAndUpdateCampaignCompletion
       service.checkAndUpdateCampaignCompletion = jest.fn().mockResolvedValue(undefined);
-      
+
       // Mock returning empty array (no stuck campaigns)
       jest.spyOn(service as any, 'fixStuckCampaigns').mockResolvedValue({
         success: true,
@@ -192,7 +166,7 @@ describe('EmailCampaignsService - Basic Tests', () => {
       });
 
       const result = await service.fixStuckCampaigns('org123');
-      
+
       expect(result).toEqual({
         success: true,
         fixedCount: 0,

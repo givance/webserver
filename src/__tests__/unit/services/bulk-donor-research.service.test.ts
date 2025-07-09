@@ -1,4 +1,7 @@
-import { BulkDonorResearchService, type StartBulkResearchInput } from '@/app/lib/services/bulk-donor-research.service';
+import {
+  BulkDonorResearchService,
+  type StartBulkResearchInput,
+} from '@/app/lib/services/bulk-donor-research.service';
 import { TRPCError } from '@trpc/server';
 import { db } from '@/app/lib/db';
 import { logger } from '@/app/lib/logger';
@@ -78,7 +81,9 @@ describe('BulkDonorResearchService', () => {
         limit: undefined,
       });
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Starting bulk donor research for organization org123 - 50 donors to research')
+        expect.stringContaining(
+          'Starting bulk donor research for organization org123 - 50 donors to research'
+        )
       );
     });
 
@@ -152,7 +157,9 @@ describe('BulkDonorResearchService', () => {
     });
 
     it('should handle task trigger failures', async () => {
-      (bulkDonorResearchTask.trigger as jest.Mock).mockRejectedValue(new Error('Task trigger failed'));
+      (bulkDonorResearchTask.trigger as jest.Mock).mockRejectedValue(
+        new Error('Task trigger failed')
+      );
 
       await expect(service.startBulkResearch(input)).rejects.toThrow(TRPCError);
       await expect(service.startBulkResearch(input)).rejects.toMatchObject({
@@ -186,10 +193,10 @@ describe('BulkDonorResearchService', () => {
             if (callCount === 1) {
               return Promise.resolve([{ count: 100 }]); // Total donors
             } else {
-              return Promise.resolve([{ count: 30 }]);  // Unresearched donors
+              return Promise.resolve([{ count: 30 }]); // Unresearched donors
             }
-          }
-        })
+          },
+        }),
       }));
     });
 
@@ -227,8 +234,8 @@ describe('BulkDonorResearchService', () => {
           where: () => {
             callCount++;
             return Promise.resolve([]); // No donors for both calls
-          }
-        })
+          },
+        }),
       }));
 
       const result = await service.getUnresearchedDonorsCount('org123');
@@ -243,7 +250,7 @@ describe('BulkDonorResearchService', () => {
     it('should handle database errors', async () => {
       // Create a completely new service instance for this test
       const errorService = new BulkDonorResearchService();
-      
+
       // Mock the db.select to throw an error
       (db.select as jest.Mock).mockImplementation(() => {
         throw new Error('Database error');
@@ -251,9 +258,11 @@ describe('BulkDonorResearchService', () => {
 
       await expect(errorService.getUnresearchedDonorsCount('org123')).rejects.toThrow(TRPCError);
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to get unresearched donors count: Database error')
+        expect.stringContaining(
+          'Failed to get unresearched donors count: Could not get donor research statistics.'
+        )
       );
-      
+
       // Reset the mock after the test
       (db.select as jest.Mock).mockImplementation(mockSelect);
     });

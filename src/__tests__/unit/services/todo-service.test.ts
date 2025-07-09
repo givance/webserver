@@ -1,4 +1,8 @@
-import { TodoService, type CreateTodoInput, type UpdateTodoInput } from '@/app/lib/services/todo-service';
+import {
+  TodoService,
+  type CreateTodoInput,
+  type UpdateTodoInput,
+} from '@/app/lib/services/todo-service';
 import { db } from '@/app/lib/db';
 import { getDonorById } from '@/app/lib/data/donors';
 import type { PredictedAction } from '@/app/lib/analysis/types';
@@ -87,7 +91,7 @@ describe('TodoService', () => {
       const result = await todoService.createTodo(input);
 
       expect(mockInsert).toHaveBeenCalled();
-      expect(result).toEqual([expectedTodo]);
+      expect(result).toEqual(expectedTodo);
     });
 
     it('should use provided priority', async () => {
@@ -104,7 +108,7 @@ describe('TodoService', () => {
 
       const result = await todoService.createTodo(input);
 
-      expect(result[0].priority).toBe('HIGH');
+      expect(result.priority).toBe('HIGH');
     });
 
     it('should handle optional fields', async () => {
@@ -123,10 +127,10 @@ describe('TodoService', () => {
 
       const result = await todoService.createTodo(input);
 
-      expect(result[0].dueDate).toEqual(input.dueDate);
-      expect(result[0].scheduledDate).toEqual(input.scheduledDate);
-      expect(result[0].donorId).toBe(123);
-      expect(result[0].staffId).toBe(456);
+      expect(result.dueDate).toEqual(input.dueDate);
+      expect(result.scheduledDate).toEqual(input.scheduledDate);
+      expect(result.donorId).toBe(123);
+      expect(result.staffId).toBe(456);
     });
   });
 
@@ -174,7 +178,11 @@ describe('TodoService', () => {
 
       mockReturning.mockResolvedValue(expectedTodos);
 
-      const result = await todoService.createTodosFromPredictedActions(donorId, organizationId, predictedActions);
+      const result = await todoService.createTodosFromPredictedActions(
+        donorId,
+        organizationId,
+        predictedActions
+      );
 
       expect(getDonorById).toHaveBeenCalledWith(donorId, organizationId);
       expect(mockInsert).toHaveBeenCalled();
@@ -185,9 +193,9 @@ describe('TodoService', () => {
     it('should throw error if donor not found', async () => {
       (getDonorById as jest.Mock).mockResolvedValue(null);
 
-      await expect(
-        todoService.createTodosFromPredictedActions(999, 'org123', [])
-      ).rejects.toThrow('Donor 999 not found');
+      await expect(todoService.createTodosFromPredictedActions(999, 'org123', [])).rejects.toThrow(
+        'Donor 999 not found'
+      );
     });
   });
 
@@ -206,7 +214,7 @@ describe('TodoService', () => {
       const result = await todoService.updateTodo(todoId, input);
 
       expect(mockUpdate).toHaveBeenCalled();
-      expect(result).toEqual([updatedTodo]);
+      expect(result).toEqual(updatedTodo);
     });
 
     it('should remove organizationId from update data', async () => {
@@ -235,7 +243,7 @@ describe('TodoService', () => {
       const result = await todoService.deleteTodo(todoId);
 
       expect(mockDelete).toHaveBeenCalled();
-      expect(result).toEqual([deletedTodo]);
+      expect(result).toEqual(deletedTodo);
     });
   });
 

@@ -9,7 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow, isToday, isTomorrow } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
+import { formatDistanceToNowLocal } from '@/app/lib/utils/format';
 import { AlertCircle, Calendar, CheckCircle2, Clock, Send, Timer, XCircle } from 'lucide-react';
 
 interface EmailScheduleViewerProps {
@@ -168,7 +169,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                   <>
                     {formatScheduledTime(nextScheduledTime)}
                     <span className="text-xs text-muted-foreground">
-                      ({formatDistanceToNow(new Date(nextScheduledTime), { addSuffix: true })})
+                      (in {formatDistanceToNowLocal(nextScheduledTime)})
                     </span>
                   </>
                 ) : (
@@ -214,7 +215,7 @@ export function EmailScheduleViewer({ sessionId, className }: EmailScheduleViewe
                     <span className="text-xs text-muted-foreground">
                       Sent{' '}
                       {email.actualSendTime &&
-                        formatDistanceToNow(new Date(email.actualSendTime), { addSuffix: true })}
+                        formatDistanceToNowLocal(email.actualSendTime) + ' ago'}
                     </span>
                   </div>
                 );

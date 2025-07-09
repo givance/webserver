@@ -220,7 +220,18 @@ describe('donorsRouter', () => {
         email: 'new.donor@example.com',
       });
       expect(mockDonorsData.createDonor).toHaveBeenCalledWith({
-        ...createInput,
+        firstName: 'New',
+        lastName: 'Donor',
+        email: 'new.donor@example.com',
+        phone: '+1234567890',
+        address: '456 Oak St',
+        city: 'Los Angeles',
+        state: 'CA',
+        postalCode: '90001',
+        country: 'USA',
+        gender: 'female',
+        isAnonymous: false,
+        isOrganization: false,
         organizationId: 'org-1',
       });
     });
@@ -275,6 +286,8 @@ describe('donorsRouter', () => {
       mockDonorsData.createDonor.mockResolvedValue({
         ...mockDonor,
         ...orgInput,
+        isOrganization: true,
+        organizationName: 'Test Corp',
       });
 
       const result = await caller.create(orgInput);
@@ -615,7 +628,7 @@ describe('donorsRouter', () => {
     it('should add a note to donor', async () => {
       const mockDonorsService = {
         bulkUpdateAssignedStaff: jest.fn(),
-        addNoteTodonor: jest.fn(),
+        addNoteToDonor: jest.fn(),
       };
 
       const ctx = createProtectedTestContext({
@@ -642,14 +655,14 @@ describe('donorsRouter', () => {
         ],
       };
 
-      mockDonorsService.addNoteTodonor.mockResolvedValue(updatedDonor);
+      mockDonorsService.addNoteToDonor.mockResolvedValue(updatedDonor);
 
       const result = await caller.addNote({
         donorId: 1,
         content: noteContent,
       });
 
-      expect(mockDonorsService.addNoteTodonor).toHaveBeenCalledWith(
+      expect(mockDonorsService.addNoteToDonor).toHaveBeenCalledWith(
         1,
         expect.objectContaining({
           createdBy: 'user-1',
@@ -664,7 +677,7 @@ describe('donorsRouter', () => {
     it('should append to existing notes', async () => {
       const mockDonorsService = {
         bulkUpdateAssignedStaff: jest.fn(),
-        addNoteTodonor: jest.fn(),
+        addNoteToDonor: jest.fn(),
       };
 
       const ctx = createProtectedTestContext({
@@ -700,14 +713,14 @@ describe('donorsRouter', () => {
         ],
       };
 
-      mockDonorsService.addNoteTodonor.mockResolvedValue(updatedDonor);
+      mockDonorsService.addNoteToDonor.mockResolvedValue(updatedDonor);
 
       const result = await caller.addNote({
         donorId: 1,
         content: 'New note',
       });
 
-      expect(mockDonorsService.addNoteTodonor).toHaveBeenCalledWith(
+      expect(mockDonorsService.addNoteToDonor).toHaveBeenCalledWith(
         1,
         expect.objectContaining({
           createdBy: 'user-1',
