@@ -16,7 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "tsx src/app/lib/db/migrate.ts",
+    "db:migrate": "drizzle-kit migrate",
     "import:boruch": "tsx data/boruch/run_import_optimized.ts",
     "trigger:dev": "pnpm dlx trigger.dev@latest dev",
     "trigger:deploy": "pnpm dlx trigger.dev@latest deploy",

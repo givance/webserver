@@ -39,7 +39,9 @@ import { runs } from '@trigger.dev/sdk/v3';
 import { TRPCError } from '@trpc/server';
 import { EmailSchedulingService } from './email-scheduling.service';
 import { UnifiedSmartEmailGenerationService } from './unified-smart-email-generation.service';
+import { SmartEmailGenerationService } from '@/app/lib/smart-email-generation/services/smart-email-generation.service';
 import { check, createTRPCError, ERROR_MESSAGES, validateNotNullish } from '@/app/api/trpc/trpc';
+import { env } from '@/app/lib/env';
 
 /**
  * Input types for campaign management
@@ -1456,6 +1458,18 @@ export class EmailCampaignsService {
       existingChatHistory
     );
 
+    // Check if we should use the agentic flow
+    if (env.USE_AGENTIC_FLOW) {
+      return await this.handleAgenticConversation(
+        input,
+        session,
+        organizationId,
+        userId,
+        updatedChatHistory
+      );
+    }
+
+    // Original flow: always generate emails
     // Get donors to regenerate
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
@@ -2033,5 +2047,234 @@ export class EmailCampaignsService {
         message: 'Failed to fix stuck campaigns',
       });
     }
+  }
+
+  /**
+   * Handle conversation using the agentic flow
+   */
+  private async handleAgenticConversation(
+    input: SmartEmailGenerationInput,
+    session: EmailGenerationSession,
+    organizationId: string,
+    userId: string,
+    updatedChatHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+  ): Promise<SmartEmailGenerationResponse> {
+    const smartEmailService = new SmartEmailGenerationService();
+
+    // Check if we have an existing smart email session
+    const smartSessionKey = `smart_session_${session.id}`;
+    let smartSessionId = (session as any).smartSessionId;
+
+    try {
+      if (!smartSessionId) {
+        // First message - start a new smart email flow
+        logger.info('[EmailCampaignsService] Starting new smart email session');
+
+        // Get donor IDs from the session
+        const donorIds = (session.selectedDonorIds as number[]) || [];
+
+        // Extract the initial instruction from chat history
+        const userMessages = updatedChatHistory
+          .filter((msg) => msg.role === 'user')
+          .map((msg) => msg.content);
+        const initialInstruction = userMessages[userMessages.length - 1] || input.newMessage;
+
+        const { sessionId: newSmartSessionId, response } =
+          await smartEmailService.startSmartEmailFlow({
+            organizationId,
+            userId,
+            donorIds,
+            initialInstruction: initialInstruction || '',
+          });
+
+        smartSessionId = newSmartSessionId;
+
+        // Store the smart session ID in the email generation session
+        await updateEmailGenerationSession(session.id, organizationId, {
+          smartSessionId,
+        } as any);
+
+        // Add AI response to chat history
+        await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+
+        // Check if conversation is complete
+        if (!response.shouldContinue) {
+          return await this.generateEmailsFromSmartSession(
+            session,
+            organizationId,
+            smartSessionId,
+            response.content
+          );
+        }
+
+        return {
+          success: true,
+          sessionId: session.id,
+          chatHistory: await this.getChatHistory(session.id, organizationId),
+          generatedEmailsCount: 0,
+          deletedEmailsCount: 0,
+          failedEmailsCount: 0,
+          message: response.content,
+        };
+      } else {
+        // Continue existing conversation
+        logger.info(`[EmailCampaignsService] Continuing smart email session ${smartSessionId}`);
+
+        const { response, isComplete, finalInstruction } =
+          await smartEmailService.continueConversation({
+            sessionId: smartSessionId,
+            userMessage: input.newMessage!,
+            organizationId,
+            userId,
+          });
+
+        // Add AI response to chat history
+        await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+
+        // Check if user is explicitly asking to generate emails
+        const userWantsToGenerate =
+          input.newMessage!.toLowerCase().includes('generate') ||
+          input.newMessage!.toLowerCase().includes('create') ||
+          input.newMessage!.toLowerCase().includes('write');
+
+        // Generate emails if conversation is complete or user explicitly asks
+        if (isComplete || (userWantsToGenerate && finalInstruction)) {
+          return await this.generateEmailsFromSmartSession(
+            session,
+            organizationId,
+            smartSessionId,
+            response.content
+          );
+        }
+
+        return {
+          success: true,
+          sessionId: session.id,
+          chatHistory: await this.getChatHistory(session.id, organizationId),
+          generatedEmailsCount: 0,
+          deletedEmailsCount: 0,
+          failedEmailsCount: 0,
+          message: response.content,
+        };
+      }
+    } catch (error) {
+      logger.error('[EmailCampaignsService] Error in agentic conversation:', error);
+
+      // Fall back to regular generation on error
+      const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
+      const { successfulCount, failedCount } = await this.generateEmailsForDonors(
+        session.id,
+        organizationId,
+        donorsToProcess,
+        updatedChatHistory
+      );
+
+      return {
+        success: true,
+        sessionId: session.id,
+        chatHistory: updatedChatHistory,
+        generatedEmailsCount: successfulCount,
+        deletedEmailsCount: 0,
+        failedEmailsCount: failedCount,
+        message: `Generated ${successfulCount} emails`,
+      };
+    }
+  }
+
+  /**
+   * Generate emails from a completed smart email session
+   */
+  private async generateEmailsFromSmartSession(
+    session: EmailGenerationSession,
+    organizationId: string,
+    smartSessionId: string,
+    aiResponse: string
+  ): Promise<SmartEmailGenerationResponse> {
+    const smartEmailService = new SmartEmailGenerationService();
+
+    // Get the final instruction from the smart session
+    const sessionState = await smartEmailService.getSessionState({
+      sessionId: smartSessionId,
+      organizationId,
+      userId: session.userId,
+    });
+
+    const finalInstruction = sessionState.session.finalInstruction;
+    if (!finalInstruction) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No final instruction found in smart email session',
+      });
+    }
+
+    // Get updated chat history including the final instruction
+    const existingChatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    const enhancedChatHistory = [
+      ...existingChatHistory,
+      { role: 'user' as const, content: finalInstruction },
+    ];
+
+    // Update session chat history
+    await updateEmailGenerationSession(session.id, organizationId, {
+      chatHistory: enhancedChatHistory,
+    });
+
+    // Get donors to process
+    const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
+
+    // Delete existing emails
+    await deleteGeneratedEmails(session.id, donorsToProcess);
+
+    // Generate emails with the enhanced instruction
+    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
+      session.id,
+      organizationId,
+      donorsToProcess,
+      enhancedChatHistory
+    );
+
+    return {
+      success: true,
+      sessionId: session.id,
+      chatHistory: enhancedChatHistory,
+      generatedEmailsCount: successfulCount,
+      deletedEmailsCount: donorsToProcess.length,
+      failedEmailsCount: failedCount,
+      message: `${aiResponse}\n\nGenerated ${successfulCount} emails successfully!`,
+    };
+  }
+
+  /**
+   * Add AI response to chat history
+   */
+  private async addAIResponseToChatHistory(
+    sessionId: number,
+    organizationId: string,
+    aiResponse: string
+  ): Promise<void> {
+    const session = await getEmailGenerationSessionById(sessionId, organizationId);
+    if (!session) return;
+
+    const chatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    chatHistory.push({ role: 'assistant', content: aiResponse });
+
+    await updateEmailGenerationSession(sessionId, organizationId, {
+      chatHistory,
+    });
+  }
+
+  /**
+   * Get chat history for a session
+   */
+  private async getChatHistory(
+    sessionId: number,
+    organizationId: string
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+    const session = await getEmailGenerationSessionById(sessionId, organizationId);
+    if (!session) return [];
+
+    return (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
   }
 }

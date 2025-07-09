@@ -1,24 +1,25 @@
-import { router } from "../trpc";
-import { exampleRouter } from "./example";
-import { organizationsRouter } from "./organizations";
-import { donorsRouter } from "./donors";
-import { projectsRouter } from "./projects";
-import { staffRouter } from "./staff";
-import { donationsRouter } from "./donations";
-import { communicationsRouter } from "./communications";
-import { usersRouter } from "./users";
-import { analysisRouter } from "./analysis";
-import { todoRouter } from "./todos";
-import { gmailRouter } from "./gmail";
-import { staffGmailRouter } from "./staff-gmail";
-import { microsoftRouter } from "./microsoft";
-import { staffMicrosoftRouter } from "./staff-microsoft";
-import { emailTrackingRouter } from "./email-tracking";
-import { templatesRouter } from "./templates";
-import { listsRouter } from "./lists";
-import { personResearchRouter } from "./person-research";
-import { whatsappRouter } from "./whatsapp";
-import { emailCampaignsRouter } from "./email-campaigns";
+import { router } from '../trpc';
+import { exampleRouter } from './example';
+import { organizationsRouter } from './organizations';
+import { donorsRouter } from './donors';
+import { projectsRouter } from './projects';
+import { staffRouter } from './staff';
+import { donationsRouter } from './donations';
+import { communicationsRouter } from './communications';
+import { usersRouter } from './users';
+import { analysisRouter } from './analysis';
+import { todoRouter } from './todos';
+import { gmailRouter } from './gmail';
+import { staffGmailRouter } from './staff-gmail';
+import { microsoftRouter } from './microsoft';
+import { staffMicrosoftRouter } from './staff-microsoft';
+import { emailTrackingRouter } from './email-tracking';
+import { templatesRouter } from './templates';
+import { listsRouter } from './lists';
+import { personResearchRouter } from './person-research';
+import { whatsappRouter } from './whatsapp';
+import { emailCampaignsRouter } from './email-campaigns';
+import { smartEmailGenerationRouter } from './smart-email-generation';
 
 /**
  * Root router for the tRPC API
@@ -45,6 +46,7 @@ export const appRouter = router({
   personResearch: personResearchRouter,
   whatsapp: whatsappRouter,
   emailCampaigns: emailCampaignsRouter,
+  smartEmailGeneration: smartEmailGenerationRouter,
 });
 
 // Export type definition of API
