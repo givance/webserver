@@ -303,7 +303,7 @@ export default function CampaignDetailPage() {
                 showPagination={true}
                 showTracking={false}
                 showStaffAssignment={true}
-                showSendButton={false}
+                showSendButton={true}
                 showEditButton={true}
                 showDonorTooltips={true}
                 emailsPerPage={20}

@@ -1,16 +1,8 @@
 import { useCommunications } from '@/app/hooks/use-communications';
+import { trpc } from '@/app/lib/trpc/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Check, Clock, Sparkles, AlertCircle, Info, HelpCircle } from 'lucide-react';
-import { DonorTooltip } from './DonorTooltip';
-import Link from 'next/link';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { EmailEditModal } from './EmailEditModal';
-import { EmailSendButton } from './EmailSendButton';
-import { EmailTrackingStatus } from './EmailTrackingStatus';
-import { EmailEnhanceButton } from './EmailEnhanceButton';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +14,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { trpc } from '@/app/lib/trpc/client';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AlertCircle, Check, Clock, Edit, HelpCircle, Info, Send } from 'lucide-react';
+import Link from 'next/link';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { DonorTooltip } from './DonorTooltip';
+import { EmailEditModal } from './EmailEditModal';
+import { EmailEnhanceButton } from './EmailEnhanceButton';
+import { EmailSendButton } from './EmailSendButton';
+import { EmailTrackingStatus } from './EmailTrackingStatus';
 
 interface EmailPiece {
   piece: string;
@@ -244,7 +245,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
 
-  const { getEmailStatus } = useCommunications();
+  const { getEmailStatus, sendBulkEmails } = useCommunications();
 
   // Determine which format to use - memoized to prevent re-computations
   const isNewFormat = useMemo(() => {
@@ -452,6 +453,47 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                       )}
                     </Button>
                   )}
+                {emailId && showSendButton && !emailStatus?.isSent && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        console.log('Sending email to', donorName);
+                        const result = await sendBulkEmails.mutateAsync({
+                          sessionId: sessionId || 0,
+                          emailIds: [emailId],
+                        });
+                        if (result.failed.length > 0) {
+                          toast.error(
+                            `Failed to send email to ${donorName}: ${result.failed[0].error}`
+                          );
+                        } else {
+                          toast.success(`Email sent successfully to ${donorName}`);
+                        }
+                      } catch (error) {
+                        console.error('Error sending email:', error);
+                        const errorMessage =
+                          error instanceof Error ? error.message : 'Unknown error occurred';
+                        toast.error(`Failed to send email to ${donorName}: ${errorMessage}`);
+                      }
+                    }}
+                    disabled={sendBulkEmails.isPending}
+                    className="flex items-center gap-1.5 h-7 text-xs px-2"
+                  >
+                    {sendBulkEmails.isPending ? (
+                      <>
+                        <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-3 w-3" />
+                        Send
+                      </>
+                    )}
+                  </Button>
+                )}
                 <EmailEnhanceButton
                   emailId={emailId || 0}
                   sessionId={sessionId}

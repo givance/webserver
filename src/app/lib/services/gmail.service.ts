@@ -297,10 +297,17 @@ export class GmailService {
         : undefined
     );
 
+    // Encode for Gmail API (same as sendSingleEmailTask)
+    const encodedMessage = Buffer.from(message, 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
     // Send email
     const response = await gmail.users.messages.send({
       userId: 'me',
-      requestBody: { raw: message },
+      requestBody: { raw: encodedMessage },
     });
 
     logger.info('Email sent via Gmail', {

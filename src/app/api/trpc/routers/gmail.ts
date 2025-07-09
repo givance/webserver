@@ -266,7 +266,32 @@ export const gmailRouter = router({
     .mutation(async ({ ctx, input }) => {
       validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
+      try {
+        const result = await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
+
+        // If all emails failed, throw an error to inform the frontend
+        if (result.failed.length > 0 && result.successful.length === 0) {
+          const errorMessages = result.failed.map((f) => `Email ${f.id}: ${f.error}`).join('; ');
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `All emails failed to send: ${errorMessages}`,
+          });
+        }
+
+        return result;
+      } catch (error) {
+        // Handle specific Gmail errors
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        // Handle other errors
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to send bulk emails: ${errorMessage}`,
+        });
+      }
     }),
 
   /**
