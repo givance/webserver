@@ -583,7 +583,7 @@ export class EmailCampaignsService {
       return {
         ...campaign,
         status: updatedData?.status ?? campaign.status,
-        completedDonors: updatedData?.completedDonors ?? campaign.completedDonors,
+        completedDonors: emailCount.totalEmails, // Use actual database count instead of stored field
         sentEmails: emailCount.sentEmails,
         totalEmails: emailCount.totalEmails,
       };

@@ -399,19 +399,36 @@ function ExistingCampaignsContent() {
   } = useCommunications();
 
   // Get Gmail connection status
-  const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery();
+  const { data: gmailStatus } = trpc.gmail.getGmailConnectionStatus.useQuery(undefined, {
+    refetchInterval: 5000, // Refresh every 5 seconds
+    staleTime: 4000,
+    refetchOnWindowFocus: false,
+  });
 
   // Get schedule configuration
-  const { data: scheduleConfig } = getScheduleConfig();
+  const { data: scheduleConfig } = getScheduleConfig(undefined, {
+    refetchInterval: 5000, // Refresh every 5 seconds
+    staleTime: 4000,
+    refetchOnWindowFocus: false,
+  });
 
   const {
     data: campaignsResponse,
     isLoading,
     error,
-  } = listCampaigns({
-    limit: pageSize,
-    offset: (currentPage - 1) * pageSize,
-  });
+  } = listCampaigns(
+    {
+      limit: pageSize,
+      offset: (currentPage - 1) * pageSize,
+    },
+    {
+      refetchInterval: 5000, // Refresh every 5 seconds
+      staleTime: 4000, // Consider data stale after 4 seconds
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    }
+  );
 
   const campaigns = campaignsResponse?.campaigns || [];
   const totalCount = campaignsResponse?.totalCount || 0;
@@ -809,6 +826,12 @@ function ExistingCampaignsContent() {
         currentPage={currentPage}
         onPageChange={handlePageChange}
         title="Existing Campaigns"
+        ctaButton={
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span>Auto-refreshing every 5s</span>
+          </div>
+        }
       />
     </div>
   );
