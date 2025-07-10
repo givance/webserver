@@ -1,0 +1,2 @@
+ALTER TYPE "public"."email_generation_session_status" ADD VALUE 'RUNNING' BEFORE 'COMPLETED';--> statement-breakpoint
+ALTER TYPE "public"."email_generation_session_status" ADD VALUE 'PAUSED' BEFORE 'COMPLETED';

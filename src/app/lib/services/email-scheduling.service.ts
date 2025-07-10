@@ -566,16 +566,29 @@ export class EmailSchedulingService {
         `Scheduled ${scheduleResult.scheduledTasks.length} emails for session ${sessionId}. Today: ${scheduledForToday}, Later: ${scheduledForLater}`
       );
 
-      // Save campaign-specific schedule config if provided
-      if (campaignScheduleConfig) {
-        await db
-          .update(emailGenerationSessions)
-          .set({
-            scheduleConfig: campaignScheduleConfig,
-            updatedAt: new Date(),
-          })
-          .where(eq(emailGenerationSessions.id, sessionId));
+      // Get current session status
+      const [currentSession] = await db
+        .select({ status: emailGenerationSessions.status })
+        .from(emailGenerationSessions)
+        .where(eq(emailGenerationSessions.id, sessionId))
+        .limit(1);
+
+      // Update campaign status and save campaign-specific schedule config if provided
+      // Only set to RUNNING if it's not currently PAUSED (to preserve manual pause state)
+      const updateData: any = {
+        scheduleConfig: campaignScheduleConfig || null,
+        updatedAt: new Date(),
+      };
+
+      // Only update status to RUNNING if it's not already PAUSED
+      if (currentSession && currentSession.status !== 'PAUSED') {
+        updateData.status = 'RUNNING';
       }
+
+      await db
+        .update(emailGenerationSessions)
+        .set(updateData)
+        .where(eq(emailGenerationSessions.id, sessionId));
 
       return {
         scheduled: scheduleResult.scheduledTasks.length,
@@ -656,6 +669,15 @@ export class EmailSchedulingService {
 
       const actualPausedCount = pausedEmailsResult.length;
 
+      // Update session status to PAUSED
+      await db
+        .update(emailGenerationSessions)
+        .set({
+          status: 'PAUSED',
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, sessionId));
+
       logger.info(
         `Paused campaign ${sessionId}, cancelled ${scheduledJobs.length} jobs, paused ${actualPausedCount} emails`
       );
@@ -735,6 +757,15 @@ export class EmailSchedulingService {
         userId,
         campaign[0]?.scheduleConfig as any
       );
+
+      // Explicitly set status to RUNNING when resuming
+      await db
+        .update(emailGenerationSessions)
+        .set({
+          status: 'RUNNING',
+          updatedAt: new Date(),
+        })
+        .where(eq(emailGenerationSessions.id, sessionId));
 
       logger.info(`Resumed campaign ${sessionId}, rescheduled ${result.scheduled} emails`);
 

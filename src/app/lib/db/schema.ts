@@ -544,6 +544,8 @@ export const emailGenerationSessionStatusEnum = pgEnum('email_generation_session
   'DRAFT',
   'GENERATING',
   'READY_TO_SEND',
+  'RUNNING',
+  'PAUSED',
   'COMPLETED',
 ]);
 
@@ -552,6 +554,8 @@ export const EmailGenerationSessionStatus = {
   DRAFT: 'DRAFT' as const,
   GENERATING: 'GENERATING' as const,
   READY_TO_SEND: 'READY_TO_SEND' as const,
+  RUNNING: 'RUNNING' as const,
+  PAUSED: 'PAUSED' as const,
   COMPLETED: 'COMPLETED' as const,
 } as const;
 
@@ -587,7 +591,7 @@ export const emailGenerationSessions = pgTable('email_generation_sessions', {
   chatHistory: jsonb('chat_history').notNull(), // Array of chat messages
   selectedDonorIds: jsonb('selected_donor_ids').notNull(), // Array of donor IDs
   previewDonorIds: jsonb('preview_donor_ids').notNull(), // Array of donor IDs used for preview
-  status: emailGenerationSessionStatusEnum('status').notNull().default('DRAFT'), // 'DRAFT', 'GENERATING', 'READY_TO_SEND', 'COMPLETED'
+  status: emailGenerationSessionStatusEnum('status').notNull().default('DRAFT'), // 'DRAFT', 'GENERATING', 'READY_TO_SEND', 'RUNNING', 'PAUSED', 'COMPLETED'
   triggerJobId: text('trigger_job_id'), // ID of the trigger job
   totalDonors: integer('total_donors').notNull(),
   completedDonors: integer('completed_donors').default(0).notNull(),

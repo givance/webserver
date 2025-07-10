@@ -79,6 +79,23 @@ function getEnhancedStatusBadge(campaign: ExistingCampaign, trackingStats?: any)
     );
   }
 
+  // Check for new RUNNING and PAUSED statuses
+  if (status === 'RUNNING') {
+    return (
+      <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
+        Running
+      </Badge>
+    );
+  }
+
+  if (status === 'PAUSED') {
+    return (
+      <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50">
+        Paused
+      </Badge>
+    );
+  }
+
   // All emails generated, check sending status
   if (totalEmails > 0) {
     // All emails sent
@@ -598,7 +615,9 @@ function ExistingCampaignsContent() {
         const allEmailsGenerated =
           campaign.completedDonors >= campaign.totalDonors && campaign.totalDonors > 0;
         const isProcessing =
-          (campaign.status === 'IN_PROGRESS' || campaign.status === 'GENERATING') &&
+          (campaign.status === 'IN_PROGRESS' ||
+            campaign.status === 'GENERATING' ||
+            campaign.status === 'RUNNING') &&
           !allEmailsGenerated;
         const isCompleted = campaign.status === 'COMPLETED' || allEmailsGenerated;
         const hasFailed = campaign.status === 'FAILED';
@@ -612,29 +631,42 @@ function ExistingCampaignsContent() {
           tooltipContent = 'Please connect your Gmail account in Settings to enable this action.';
         }
 
-        const showSaveToDraft = isCompleted || isProcessing;
-        const showScheduleSend = isCompleted || isProcessing;
+        const showSaveToDraft = isCompleted || campaign.status === 'READY_TO_SEND';
+        const showScheduleSend =
+          campaign.status === 'READY_TO_SEND' ||
+          (campaign.status === 'PAUSED' && campaign.totalEmails > 0);
         const showRetry = hasFailed || campaign.status === 'PENDING';
 
         // Determine disabled states and tooltips for each button
         const saveToDraftDisabled = isDisabled || !showSaveToDraft;
-        const scheduleSendDisabled = isDisabled || !showScheduleSend;
+        const scheduleSendDisabled =
+          !isGmailConnected ||
+          (!showScheduleSend &&
+            campaign.status !== 'READY_TO_SEND' &&
+            campaign.status !== 'PAUSED');
         const retryDisabled = !showRetry;
 
         const getSaveToDraftTooltip = () => {
-          if (!showSaveToDraft) return 'Campaign must be completed or processing to save to drafts';
-          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (!showSaveToDraft)
+            return 'Campaign must be ready to send or completed to save to drafts';
+          if (campaign.status === 'RUNNING')
+            return 'Campaign is currently running and cannot be modified';
+          if (campaign.status === 'PAUSED')
+            return 'Campaign is paused and cannot be saved to drafts';
           if (!isGmailConnected)
             return 'Please connect your Gmail account in Settings to enable this action';
           return 'Save to drafts';
         };
 
         const getScheduleSendTooltip = () => {
-          if (!showScheduleSend) return 'Campaign must be completed or processing to schedule send';
-          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (campaign.status === 'RUNNING') return 'Campaign is already running';
+          if (campaign.status === 'PAUSED') return 'Resume campaign to continue sending';
+          if (campaign.status === 'COMPLETED') return 'Campaign has already been completed';
+          if (!showScheduleSend && campaign.status !== 'READY_TO_SEND')
+            return 'Campaign must be ready to send';
           if (!isGmailConnected)
             return 'Please connect your Gmail account in Settings to enable this action';
-          return 'Schedule send';
+          return campaign.status === 'READY_TO_SEND' ? 'Launch campaign' : 'Schedule send';
         };
 
         const getRetryTooltip = () => {

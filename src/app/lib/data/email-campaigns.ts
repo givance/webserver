@@ -833,7 +833,7 @@ export async function updateEmailSendStatus(
 export async function updateSessionsBatch(
   updates: Array<{
     sessionId: number;
-    status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'COMPLETED';
+    status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'RUNNING' | 'PAUSED' | 'COMPLETED';
     completedDonors: number;
     completedAt?: Date;
   }>

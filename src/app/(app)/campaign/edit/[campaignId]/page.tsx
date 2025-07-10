@@ -32,10 +32,10 @@ export default function EditCampaignPage() {
 
     if (sessionData) {
       // Check if campaign is still processing
-      // Block editing if the campaign is actively generating emails
-      // All other statuses (DRAFT, READY_TO_SEND, COMPLETED) are allowed for editing
-      if (sessionData.session.status === 'GENERATING') {
-        toast.error('Cannot edit campaign while emails are being generated');
+      // Block editing if the campaign is actively generating emails or running
+      // Allow editing for PAUSED campaigns (to edit unsent emails)
+      if (sessionData.session.status === 'GENERATING' || sessionData.session.status === 'RUNNING') {
+        toast.error('Cannot edit campaign while it is generating or actively sending');
         router.push('/existing-campaigns');
         return;
       }

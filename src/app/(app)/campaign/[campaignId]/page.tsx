@@ -165,7 +165,7 @@ export default function CampaignDetailPage() {
   }
 
   const { session } = sessionData;
-  const canEdit = session.status !== 'GENERATING';
+  const canEdit = session.status !== 'GENERATING' && session.status !== 'RUNNING';
   const hasSchedule = scheduleData && scheduleData.stats.total > 0;
 
   const getStatusBadge = (status: string) => {
@@ -176,6 +176,10 @@ export default function CampaignDetailPage() {
         return <Badge variant="default">Generating</Badge>;
       case 'READY_TO_SEND':
         return <Badge>Ready to Send</Badge>;
+      case 'RUNNING':
+        return <Badge variant="default">Running</Badge>;
+      case 'PAUSED':
+        return <Badge variant="secondary">Paused</Badge>;
       case 'COMPLETED':
         return <Badge variant="default">Completed</Badge>;
       default:

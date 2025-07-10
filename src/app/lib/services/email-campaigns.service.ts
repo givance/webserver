@@ -874,6 +874,7 @@ export class EmailCampaignsService {
           const session = await getEmailGenerationSessionById(input.campaignId, organizationId);
 
           validateNotNullish(session, 'NOT_FOUND', 'Session not found for rescheduling');
+          const campaignStatus = session.status;
 
           // First pause the campaign to cancel existing jobs
           try {
@@ -890,7 +891,7 @@ export class EmailCampaignsService {
 
           // Reschedule the emails with the new configuration if there are unsent emails
 
-          if (unsentCount > 0) {
+          if (unsentCount > 0 && campaignStatus === 'RUNNING') {
             const rescheduleResult = await schedulingService.scheduleEmailCampaign(
               input.campaignId,
               organizationId,
@@ -1654,7 +1655,7 @@ export class EmailCampaignsService {
       const results = new Map();
       const sessionsToUpdate: Array<{
         id: number;
-        status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'COMPLETED';
+        status: 'DRAFT' | 'GENERATING' | 'READY_TO_SEND' | 'RUNNING' | 'PAUSED' | 'COMPLETED';
         completedDonors: number;
         shouldSetCompletedAt: boolean;
       }> = [];
