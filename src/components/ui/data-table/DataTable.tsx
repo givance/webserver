@@ -27,13 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import React from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { type PageSize, PAGE_SIZE_OPTIONS } from '@/app/hooks/use-pagination';
 
 interface DataTableProps<TData, TValue> {
@@ -89,14 +83,18 @@ export function DataTable<TData, TValue>({
 
   const isServerSideSorting = onSortingChange !== undefined;
 
-  const pagination = React.useMemo<PaginationState | undefined>(() => {
+  const pagination = React.useMemo<PaginationState>(() => {
     if (isServerSidePagination) {
       return {
         pageIndex: currentPage - 1,
         pageSize: pageSize,
       };
     }
-    return undefined;
+    // Default pagination state for client-side pagination
+    return {
+      pageIndex: 0,
+      pageSize: 10,
+    };
   }, [isServerSidePagination, currentPage, pageSize]);
 
   // Handle sorting changes for server-side sorting
@@ -279,32 +277,6 @@ export function DataTable<TData, TValue>({
             />
           </div>
         )}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto">
-              <Settings className="h-4 w-4 mr-2" />
-              View
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {title && (

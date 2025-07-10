@@ -10,6 +10,8 @@ import { trpc } from '@/app/lib/trpc/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table/DataTable';
+import { Separator } from '@/components/ui/separator';
+import { Clock, Mail, Pause, Play } from 'lucide-react';
 import { CampaignScheduleConfig } from '../campaign/components/CampaignScheduleConfig';
 import {
   Dialog,
@@ -19,11 +21,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ColumnDef } from '@tanstack/react-table';
-import { Edit, Eye, FileText, HelpCircle, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { Edit, Eye, FileText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { Suspense, useState } from 'react';
@@ -165,43 +177,69 @@ function CampaignProgress({
   const generated = campaign.totalEmails;
   const sent = campaign.sentEmails;
   const opened = trackingStats?.uniqueOpens || 0;
+  const unsent = generated - sent;
 
-  const sentPercentage = generated > 0 ? (sent / generated) * 100 : 0;
-  const openedPercentage = sent > 0 ? (opened / sent) * 100 : 0;
+  const openedPercentage = generated > 0 ? (opened / generated) * 100 : 0;
+  const sentNotOpenedPercentage = generated > 0 ? ((sent - opened) / generated) * 100 : 0;
+  const unsentPercentage = generated > 0 ? (unsent / generated) * 100 : 0;
 
   return (
-    <div className="space-y-2 min-w-[280px]">
-      <div className="grid grid-cols-3 gap-4 text-center">
-        <div>
-          <div className="text-lg font-semibold text-green-600">{generated}</div>
-          <div className="text-xs text-muted-foreground">Generated</div>
+    <div className="space-y-2">
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Total:</span>
+          <span className="font-medium">{generated}</span>
         </div>
-        <div>
-          <div className="text-lg font-semibold text-blue-600">{sent}</div>
-          <div className="text-xs text-muted-foreground">Sent ({sentPercentage.toFixed(0)}%)</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Sent:</span>
+          <span className="font-medium text-blue-600">{sent}</span>
         </div>
-        <div>
-          <div className="text-lg font-semibold text-purple-600">{isLoading ? '...' : opened}</div>
-          <div className="text-xs text-muted-foreground">
-            Opened {sent > 0 ? `(${openedPercentage.toFixed(0)}%)` : '(0%)'}
-          </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Opened:</span>
+          <span className="font-medium text-purple-600">{isLoading ? '...' : opened}</span>
         </div>
       </div>
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs w-14 text-blue-600">Sent</span>
-          <Progress value={sentPercentage} className="flex-1 h-2" />
-          <span className="text-xs text-muted-foreground w-8">{sentPercentage.toFixed(0)}%</span>
+      <div className="w-full max-w-[300px]">
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden flex">
+          {/* Opened segment */}
+          {openedPercentage > 0 && (
+            <div
+              className="bg-purple-600 h-full transition-all duration-300"
+              style={{ width: `${openedPercentage}%` }}
+              title={`Opened: ${opened} (${openedPercentage.toFixed(0)}%)`}
+            />
+          )}
+          {/* Sent but not opened segment */}
+          {sentNotOpenedPercentage > 0 && (
+            <div
+              className="bg-blue-600 h-full transition-all duration-300"
+              style={{ width: `${sentNotOpenedPercentage}%` }}
+              title={`Sent but not opened: ${sent - opened} (${sentNotOpenedPercentage.toFixed(0)}%)`}
+            />
+          )}
+          {/* Unsent segment */}
+          {unsentPercentage > 0 && (
+            <div
+              className="bg-gray-300 h-full transition-all duration-300"
+              style={{ width: `${unsentPercentage}%` }}
+              title={`Unsent: ${unsent} (${unsentPercentage.toFixed(0)}%)`}
+            />
+          )}
         </div>
-        {sent > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs w-14 text-purple-600">Opened</span>
-            <Progress value={openedPercentage} className="flex-1 h-2" />
-            <span className="text-xs text-muted-foreground w-8">
-              {openedPercentage.toFixed(0)}%
-            </span>
+        <div className="flex items-center gap-4 mt-1">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-purple-600 rounded-sm" />
+            <span className="text-xs text-muted-foreground">Opened</span>
           </div>
-        )}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-600 rounded-sm" />
+            <span className="text-xs text-muted-foreground">Sent</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gray-300 rounded-sm" />
+            <span className="text-xs text-muted-foreground">Unsent</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -259,7 +297,13 @@ function ConfirmationDialog({
 
   const actionText = action === 'draft' ? 'save as drafts' : action === 'send' ? 'send' : 'delete';
   const actionTitle =
-    action === 'draft' ? 'Save to Draft' : action === 'send' ? 'Schedule Send' : 'Delete Campaign';
+    action === 'draft'
+      ? 'Save to Draft'
+      : action === 'send'
+        ? campaign?.status === 'PAUSED'
+          ? 'Resume Campaign'
+          : 'Schedule Send'
+        : 'Delete Campaign';
 
   const unsentCount = campaign.totalEmails - campaign.sentEmails;
   const openedCount = trackingStats?.uniqueOpens || 0;
@@ -398,6 +442,9 @@ function ExistingCampaignsContent() {
   }>({ open: false, campaign: null, action: 'draft' });
 
   const [customScheduleConfig, setCustomScheduleConfig] = useState<any>(undefined);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [resumeCampaignId, setResumeCampaignId] = useState<number | null>(null);
+  const [isProcessingResume, setIsProcessingResume] = useState(false);
 
   const {
     listCampaigns,
@@ -405,6 +452,7 @@ function ExistingCampaignsContent() {
     scheduleEmailSend,
     deleteCampaign,
     retryCampaign,
+    resumeEmailSending,
     getScheduleConfig,
     getEmailSchedule,
     isLoadingSaveToDraft,
@@ -462,6 +510,33 @@ function ExistingCampaignsContent() {
     });
   }
 
+  // Group campaigns by status
+  const groupedCampaigns = campaigns.reduce(
+    (groups, campaign) => {
+      const status = getEnhancedStatusBadge(campaign, trackingStatsMap.get(campaign.id));
+      const statusText = status.props.children;
+
+      if (
+        statusText === 'Running' ||
+        statusText === 'In Progress' ||
+        statusText.includes('Generating')
+      ) {
+        groups.active.push(campaign);
+      } else if (statusText === 'Ready to Send' || statusText === 'Paused') {
+        groups.ready.push(campaign);
+      } else {
+        groups.other.push(campaign);
+      }
+
+      return groups;
+    },
+    {
+      active: [] as ExistingCampaign[],
+      ready: [] as ExistingCampaign[],
+      other: [] as ExistingCampaign[],
+    }
+  );
+
   const handleRetryCampaign = async (campaignId: number) => {
     const promise = retryCampaign({ campaignId });
     toast.promise(promise, {
@@ -489,7 +564,33 @@ function ExistingCampaignsContent() {
       toast.error('Please connect your Gmail account first in Settings');
       return;
     }
-    setConfirmationDialog({ open: true, campaign, action: 'send' });
+
+    // For paused campaigns, show resume dialog instead
+    if (campaign.status === 'PAUSED') {
+      setResumeCampaignId(campaign.id);
+      setShowResumeDialog(true);
+    } else {
+      setConfirmationDialog({ open: true, campaign, action: 'send' });
+    }
+  };
+
+  const handleResume = async () => {
+    if (!resumeCampaignId) return;
+
+    setIsProcessingResume(true);
+    try {
+      const result = await resumeEmailSending({ sessionId: resumeCampaignId });
+      toast.success(
+        `Resumed campaign. ${result.rescheduled} emails scheduled. ${result.scheduledForToday} will be sent today.`,
+        { duration: 5000 }
+      );
+      setShowResumeDialog(false);
+      setResumeCampaignId(null);
+    } catch (error) {
+      toast.error('Failed to resume campaign');
+    } finally {
+      setIsProcessingResume(false);
+    }
   };
 
   const handleConfirmAction = async (sendType?: 'all' | 'unsent') => {
@@ -571,7 +672,7 @@ function ExistingCampaignsContent() {
         const campaign = row.original;
         const { totalDonors, completedDonors } = campaign;
         return (
-          <div className="text-center">
+          <div>
             <div className="text-sm font-medium">{totalDonors}</div>
             <div className="text-xs text-muted-foreground">
               {completedDonors}/{totalDonors} processed
@@ -635,7 +736,6 @@ function ExistingCampaignsContent() {
         const showScheduleSend =
           campaign.status === 'READY_TO_SEND' ||
           (campaign.status === 'PAUSED' && campaign.totalEmails > 0);
-        const showRetry = hasFailed || campaign.status === 'PENDING';
 
         // Determine disabled states and tooltips for each button
         const saveToDraftDisabled = isDisabled || !showSaveToDraft;
@@ -644,7 +744,6 @@ function ExistingCampaignsContent() {
           (!showScheduleSend &&
             campaign.status !== 'READY_TO_SEND' &&
             campaign.status !== 'PAUSED');
-        const retryDisabled = !showRetry;
 
         const getSaveToDraftTooltip = () => {
           if (!showSaveToDraft)
@@ -660,18 +759,13 @@ function ExistingCampaignsContent() {
 
         const getScheduleSendTooltip = () => {
           if (campaign.status === 'RUNNING') return 'Campaign is already running';
-          if (campaign.status === 'PAUSED') return 'Resume campaign to continue sending';
+          if (campaign.status === 'PAUSED') return 'Resume campaign';
           if (campaign.status === 'COMPLETED') return 'Campaign has already been completed';
           if (!showScheduleSend && campaign.status !== 'READY_TO_SEND')
             return 'Campaign must be ready to send';
           if (!isGmailConnected)
             return 'Please connect your Gmail account in Settings to enable this action';
           return campaign.status === 'READY_TO_SEND' ? 'Launch campaign' : 'Schedule send';
-        };
-
-        const getRetryTooltip = () => {
-          if (!showRetry) return 'Retry is only available for failed or pending campaigns';
-          return 'Retry campaign';
         };
 
         return (
@@ -745,31 +839,18 @@ function ExistingCampaignsContent() {
                       disabled={scheduleSendDisabled}
                       className="h-8 w-8"
                     >
-                      <Send className="h-4 w-4" />
-                      <span className="sr-only">Schedule send</span>
+                      {campaign.status === 'PAUSED' ? (
+                        <Play className="h-4 w-4" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {campaign.status === 'PAUSED' ? 'Resume campaign' : 'Schedule send'}
+                      </span>
                     </Button>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>{getScheduleSendTooltip()}</TooltipContent>
-              </Tooltip>
-
-              {/* Retry button - always show, disable when not applicable */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={retryDisabled ? 'cursor-not-allowed' : ''}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={retryDisabled ? undefined : () => handleRetryCampaign(campaign.id)}
-                      disabled={retryDisabled}
-                      className="h-8 w-8"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span className="sr-only">Retry campaign</span>
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{getRetryTooltip()}</TooltipContent>
               </Tooltip>
 
               {/* Delete button - always enabled */}
@@ -820,14 +901,56 @@ function ExistingCampaignsContent() {
     setCurrentPage(1); // Reset to first page when page size changes
   };
 
+  // Create sections for grouped campaigns
+  const CampaignSection = ({
+    title,
+    icon,
+    campaigns,
+  }: {
+    title: string;
+    icon: React.ReactNode;
+    campaigns: ExistingCampaign[];
+  }) => {
+    if (campaigns.length === 0) return null;
+
+    return (
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          {icon}
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <span className="text-sm text-muted-foreground">({campaigns.length})</span>
+        </div>
+        <DataTable columns={columns} data={campaigns} />
+      </div>
+    );
+  };
+
   return (
     <div className="p-6">
+      {/* Resume Campaign Dialog */}
+      <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resume Campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reschedule all remaining emails with fresh delays starting from now. The
+              same gap settings (1-3 minutes between emails) will be maintained.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingResume}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResume} disabled={isProcessingResume}>
+              {isProcessingResume ? 'Resuming...' : 'Resume Campaign'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ConfirmationDialog
         {...confirmationDialog}
         onOpenChange={(open) => {
           setConfirmationDialog({ ...confirmationDialog, open });
           if (!open) {
-            // Reset custom schedule config when closing
             setCustomScheduleConfig(null);
           }
         }}
@@ -843,22 +966,45 @@ function ExistingCampaignsContent() {
         customScheduleConfig={customScheduleConfig}
         onScheduleConfigChange={setCustomScheduleConfig}
       />
-      <DataTable
-        columns={columns}
-        data={campaigns}
-        totalItems={totalCount}
-        pageCount={pageCount}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        onPageChange={handlePageChange}
-        title="Existing Campaigns"
-        ctaButton={
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <span>Auto-refreshing every 5s</span>
-          </div>
-        }
+
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Email Campaigns</h1>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span>Auto-refreshing every 5s</span>
+        </div>
+      </div>
+
+      <CampaignSection
+        title="Running / In Progress"
+        icon={<Play className="h-4 w-4 text-blue-600" />}
+        campaigns={groupedCampaigns.active}
       />
+
+      {groupedCampaigns.active.length > 0 && groupedCampaigns.ready.length > 0 && (
+        <Separator className="my-4" />
+      )}
+
+      <CampaignSection
+        title="Ready to Send"
+        icon={<Mail className="h-4 w-4 text-purple-600" />}
+        campaigns={groupedCampaigns.ready}
+      />
+
+      {(groupedCampaigns.active.length > 0 || groupedCampaigns.ready.length > 0) &&
+        groupedCampaigns.other.length > 0 && <Separator className="my-4" />}
+
+      <CampaignSection
+        title="Other Campaigns"
+        icon={<Clock className="h-4 w-4 text-gray-600" />}
+        campaigns={groupedCampaigns.other}
+      />
+
+      {campaigns.length === 0 && !isLoading && (
+        <div className="text-center py-8 text-muted-foreground">
+          No campaigns found. Create your first campaign to get started.
+        </div>
+      )}
     </div>
   );
 }
