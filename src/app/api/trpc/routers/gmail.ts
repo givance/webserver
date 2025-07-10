@@ -267,7 +267,11 @@ export const gmailRouter = router({
       validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
       try {
-        const result = await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
+        const result = await ctx.services.gmail.sendBulkEmails(
+          ctx.auth.user.id,
+          input,
+          ctx.auth.user.organizationId
+        );
 
         // If all emails failed, throw an error to inform the frontend
         if (result.failed.length > 0 && result.successful.length === 0) {

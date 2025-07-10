@@ -284,12 +284,6 @@ function ConfirmationDialog({
                       : ''}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Gmail account:</span>
-                  <span className="text-sm text-muted-foreground">
-                    {userEmail || 'Not connected'}
-                  </span>
-                </div>
 
                 {action === 'send' && (
                   <div className="space-y-3">

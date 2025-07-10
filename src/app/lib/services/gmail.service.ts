@@ -1,6 +1,7 @@
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
 import { EmailCampaignsService } from '@/app/lib/services/email-campaigns.service';
+import { EmailSendingService } from '@/app/lib/services/email-sending.service';
 import { createEmailTracker, createLinkTrackers } from '@/app/lib/data/email-tracking';
 import {
   createHtmlEmail,
@@ -96,6 +97,7 @@ export interface EmailParseResult {
 export class GmailService {
   private oauth2Client: any;
   private emailCampaignsService: EmailCampaignsService;
+  private emailSendingService: EmailSendingService;
 
   constructor() {
     if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REDIRECT_URI) {
@@ -109,6 +111,7 @@ export class GmailService {
     }
 
     this.emailCampaignsService = new EmailCampaignsService();
+    this.emailSendingService = new EmailSendingService();
   }
 
   /**
@@ -325,72 +328,75 @@ export class GmailService {
    */
   async sendBulkEmails(
     userId: string,
-    options: BulkSendEmailOptions
+    options: BulkSendEmailOptions,
+    organizationId?: string
   ): Promise<{ successful: number[]; failed: Array<{ id: number; error: string }> }> {
-    const { sessionId, emailIds, trackLinks = false, appendSignature = true } = options;
+    const { sessionId, emailIds } = options;
 
-    // Get emails to send
-    const emails = await getGeneratedEmailsForSending(sessionId, emailIds);
+    // If organizationId is not provided, we need to get it from the session
+    if (!organizationId) {
+      // Get the first email to determine the organization
+      const emails = await getGeneratedEmailsForSending(sessionId, emailIds);
+      if (emails.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'No emails found for the specified session and IDs',
+        });
+      }
 
-    if (emails.length === 0) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: 'No emails found for the specified session and IDs',
-      });
+      // Get organization from the first donor
+      const donor = await getDonorByIdData(emails[0].donorId);
+      if (!donor) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Donor not found for email',
+        });
+      }
+      organizationId = donor.organizationId;
     }
 
     const successful: number[] = [];
     const failed: Array<{ id: number; error: string }> = [];
 
-    // Send emails sequentially to avoid rate limits
-    for (const email of emails) {
+    // Send emails sequentially using the EmailSendingService
+    for (const emailId of emailIds) {
       try {
-        const trackingId = generateTrackingId();
-
-        // Get donor info
-        const donor = await getDonorByIdData(email.donorId);
-
-        if (!donor) {
-          failed.push({ id: email.id, error: 'Donor not found' });
-          continue;
-        }
-
-        // Send email
-        await this.sendEmail(
+        const result = await this.emailSendingService.sendEmail({
+          emailId,
+          sessionId,
+          organizationId,
           userId,
-          {
-            to: donor.email,
-            subject: email.subject,
-            body: email.emailContent || email.structuredContent?.toString() || '',
-            isHtml: true,
-          },
-          {
-            sessionId,
-            emailId: email.id,
-            trackingId,
-            trackLinks,
-            appendSignature,
-          }
-        );
+        });
 
-        // Mark as successful
-        successful.push(email.id);
+        if (result.status === 'sent') {
+          successful.push(emailId);
+        } else if (result.status === 'failed') {
+          failed.push({
+            id: emailId,
+            error: result.error || 'Email send failed',
+          });
+        }
+        // For other statuses like 'already_sent' or 'cancelled', we'll count as successful
+        // since the email doesn't need to be sent again
+        else {
+          successful.push(emailId);
+        }
 
         // Small delay to avoid rate limits
         await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error: any) {
-        logger.error('Failed to send email', {
-          emailId: email.id,
+        logger.error('Failed to send email via EmailSendingService', {
+          emailId,
           error: error.message,
         });
         failed.push({
-          id: email.id,
+          id: emailId,
           error: error.message || 'Failed to send email',
         });
       }
     }
 
-    logger.info('Bulk email send completed', {
+    logger.info('Bulk email send completed via EmailSendingService', {
       sessionId,
       successful: successful.length,
       failed: failed.length,
