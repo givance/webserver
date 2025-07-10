@@ -433,7 +433,10 @@ const DEFAULT_PAGE_SIZE = 20;
 
 function ExistingCampaignsContent() {
   const router = useRouter();
-  const [currentPage, setCurrentPage] = useState(1);
+  // Separate pagination states for each section
+  const [activePage, setActivePage] = useState(1);
+  const [readyPage, setReadyPage] = useState(1);
+  const [otherPage, setOtherPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [confirmationDialog, setConfirmationDialog] = useState<{
     open: boolean;
@@ -475,30 +478,79 @@ function ExistingCampaignsContent() {
     refetchOnWindowFocus: false,
   });
 
+  // Three separate API calls for each section with server-side filtering
   const {
-    data: campaignsResponse,
-    isLoading,
-    error,
+    data: activeResponse,
+    isLoading: isLoadingActive,
+    error: activeError,
   } = listCampaigns(
     {
       limit: pageSize,
-      offset: (currentPage - 1) * pageSize,
+      offset: (activePage - 1) * pageSize,
+      statusGroup: 'active',
     },
     {
-      refetchInterval: 5000, // Refresh every 5 seconds
-      staleTime: 4000, // Consider data stale after 4 seconds
+      refetchInterval: 5000,
+      staleTime: 4000,
       refetchOnWindowFocus: false,
       refetchOnMount: true,
       refetchOnReconnect: true,
     }
   );
 
-  const campaigns = campaignsResponse?.campaigns || [];
-  const totalCount = campaignsResponse?.totalCount || 0;
-  const pageCount = Math.ceil(totalCount / pageSize);
+  const {
+    data: readyResponse,
+    isLoading: isLoadingReady,
+    error: readyError,
+  } = listCampaigns(
+    {
+      limit: pageSize,
+      offset: (readyPage - 1) * pageSize,
+      statusGroup: 'ready',
+    },
+    {
+      refetchInterval: 5000,
+      staleTime: 4000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    }
+  );
+
+  const {
+    data: otherResponse,
+    isLoading: isLoadingOther,
+    error: otherError,
+  } = listCampaigns(
+    {
+      limit: pageSize,
+      offset: (otherPage - 1) * pageSize,
+      statusGroup: 'other',
+    },
+    {
+      refetchInterval: 5000,
+      staleTime: 4000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    }
+  );
+
+  const activeCampaigns = activeResponse?.campaigns || [];
+  const readyCampaigns = readyResponse?.campaigns || [];
+  const otherCampaigns = otherResponse?.campaigns || [];
+
+  const activeTotalCount = activeResponse?.totalCount || 0;
+  const readyTotalCount = readyResponse?.totalCount || 0;
+  const otherTotalCount = otherResponse?.totalCount || 0;
+
+  const activePageCount = Math.ceil(activeTotalCount / pageSize);
+  const readyPageCount = Math.ceil(readyTotalCount / pageSize);
+  const otherPageCount = Math.ceil(otherTotalCount / pageSize);
 
   // Get tracking stats for all campaigns in batch
-  const sessionIds = campaigns.map((c) => c.id);
+  const allCampaigns = [...activeCampaigns, ...readyCampaigns, ...otherCampaigns];
+  const sessionIds = allCampaigns.map((c) => c.id);
   const { data: batchTrackingStats, isLoading: isLoadingStats } =
     useMultipleSessionTrackingStats(sessionIds);
 
@@ -509,33 +561,6 @@ function ExistingCampaignsContent() {
       trackingStatsMap.set(stats.sessionId, stats);
     });
   }
-
-  // Group campaigns by status
-  const groupedCampaigns = campaigns.reduce(
-    (groups, campaign) => {
-      const status = getEnhancedStatusBadge(campaign, trackingStatsMap.get(campaign.id));
-      const statusText = status.props.children;
-
-      if (
-        statusText === 'Running' ||
-        statusText === 'In Progress' ||
-        statusText.includes('Generating')
-      ) {
-        groups.active.push(campaign);
-      } else if (statusText === 'Ready to Send' || statusText === 'Paused') {
-        groups.ready.push(campaign);
-      } else {
-        groups.other.push(campaign);
-      }
-
-      return groups;
-    },
-    {
-      active: [] as ExistingCampaign[],
-      ready: [] as ExistingCampaign[],
-      other: [] as ExistingCampaign[],
-    }
-  );
 
   const handleRetryCampaign = async (campaignId: number) => {
     const promise = retryCampaign({ campaignId });
@@ -875,7 +900,15 @@ function ExistingCampaignsContent() {
     },
   ];
 
-  if (isLoading) {
+  const isLoading = isLoadingActive || isLoadingReady || isLoadingOther;
+  const error = activeError || readyError || otherError;
+
+  if (
+    isLoading &&
+    activeCampaigns.length === 0 &&
+    readyCampaigns.length === 0 &&
+    otherCampaigns.length === 0
+  ) {
     return (
       <div className="p-6">
         <Skeleton className="h-10 w-1/4 mb-4" />
@@ -892,35 +925,55 @@ function ExistingCampaignsContent() {
     );
   }
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
-    setCurrentPage(1); // Reset to first page when page size changes
+    // Reset all pages to first page when page size changes
+    setActivePage(1);
+    setReadyPage(1);
+    setOtherPage(1);
   };
 
-  // Create sections for grouped campaigns
+  // Create sections for grouped campaigns with pagination
   const CampaignSection = ({
     title,
     icon,
     campaigns,
+    totalCount,
+    pageCount,
+    currentPage,
+    onPageChange,
+    isLoading,
   }: {
     title: string;
     icon: React.ReactNode;
     campaigns: ExistingCampaign[];
+    totalCount: number;
+    pageCount: number;
+    currentPage: number;
+    onPageChange: (page: number) => void;
+    isLoading?: boolean;
   }) => {
-    if (campaigns.length === 0) return null;
+    if (totalCount === 0 && !isLoading) return null;
 
     return (
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           {icon}
           <h3 className="text-lg font-semibold">{title}</h3>
-          <span className="text-sm text-muted-foreground">({campaigns.length})</span>
+          <span className="text-sm text-muted-foreground">({totalCount})</span>
+          {isLoading && <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
-        <DataTable columns={columns} data={campaigns} />
+        <DataTable
+          columns={columns}
+          data={campaigns}
+          totalItems={totalCount}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={handlePageSizeChange}
+          showPagination={totalCount > pageSize}
+        />
       </div>
     );
   };
@@ -978,29 +1031,43 @@ function ExistingCampaignsContent() {
       <CampaignSection
         title="Running / In Progress"
         icon={<Play className="h-4 w-4 text-blue-600" />}
-        campaigns={groupedCampaigns.active}
+        campaigns={activeCampaigns}
+        totalCount={activeTotalCount}
+        pageCount={activePageCount}
+        currentPage={activePage}
+        onPageChange={setActivePage}
+        isLoading={isLoadingActive}
       />
 
-      {groupedCampaigns.active.length > 0 && groupedCampaigns.ready.length > 0 && (
-        <Separator className="my-4" />
-      )}
+      {activeTotalCount > 0 && readyTotalCount > 0 && <Separator className="my-4" />}
 
       <CampaignSection
         title="Ready to Send"
         icon={<Mail className="h-4 w-4 text-purple-600" />}
-        campaigns={groupedCampaigns.ready}
+        campaigns={readyCampaigns}
+        totalCount={readyTotalCount}
+        pageCount={readyPageCount}
+        currentPage={readyPage}
+        onPageChange={setReadyPage}
+        isLoading={isLoadingReady}
       />
 
-      {(groupedCampaigns.active.length > 0 || groupedCampaigns.ready.length > 0) &&
-        groupedCampaigns.other.length > 0 && <Separator className="my-4" />}
+      {(activeTotalCount > 0 || readyTotalCount > 0) && otherTotalCount > 0 && (
+        <Separator className="my-4" />
+      )}
 
       <CampaignSection
         title="Other Campaigns"
         icon={<Clock className="h-4 w-4 text-gray-600" />}
-        campaigns={groupedCampaigns.other}
+        campaigns={otherCampaigns}
+        totalCount={otherTotalCount}
+        pageCount={otherPageCount}
+        currentPage={otherPage}
+        onPageChange={setOtherPage}
+        isLoading={isLoadingOther}
       />
 
-      {campaigns.length === 0 && !isLoading && (
+      {activeTotalCount === 0 && readyTotalCount === 0 && otherTotalCount === 0 && !isLoading && (
         <div className="text-center py-8 text-muted-foreground">
           No campaigns found. Create your first campaign to get started.
         </div>

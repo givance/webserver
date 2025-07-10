@@ -48,6 +48,7 @@ const listCampaignsSchema = z.object({
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   status: z.enum(['DRAFT', 'GENERATING', 'READY_TO_SEND', 'COMPLETED']).optional(),
+  statusGroup: z.enum(['active', 'ready', 'other']).optional(),
 });
 
 const deleteCampaignSchema = z.object({

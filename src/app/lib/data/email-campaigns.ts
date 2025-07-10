@@ -117,13 +117,21 @@ export async function listEmailGenerationSessions(
     limit?: number;
     offset?: number;
     status?: keyof typeof EmailGenerationSessionStatus;
+    statuses?: (keyof typeof EmailGenerationSessionStatus)[];
   } = {}
 ): Promise<{ sessions: EmailGenerationSession[]; totalCount: number }> {
   try {
-    const { limit = 10, offset = 0, status } = options;
+    const { limit = 10, offset = 0, status, statuses } = options;
 
     const whereClauses = [eq(emailGenerationSessions.organizationId, organizationId)];
-    if (status) {
+
+    // Support both single status and multiple statuses
+    if (statuses && statuses.length > 0) {
+      const statusCondition = or(...statuses.map((s) => eq(emailGenerationSessions.status, s)));
+      if (statusCondition) {
+        whereClauses.push(statusCondition);
+      }
+    } else if (status) {
       whereClauses.push(eq(emailGenerationSessions.status, status));
     }
 
@@ -660,11 +668,19 @@ export async function checkEmailExists(sessionId: number, donorId: number): Prom
  */
 export async function countSessionsByOrganization(
   organizationId: string,
-  status?: keyof typeof EmailGenerationSessionStatus
+  status?: keyof typeof EmailGenerationSessionStatus,
+  statuses?: (keyof typeof EmailGenerationSessionStatus)[]
 ): Promise<number> {
   try {
     const whereClauses = [eq(emailGenerationSessions.organizationId, organizationId)];
-    if (status) {
+
+    // Support both single status and multiple statuses
+    if (statuses && statuses.length > 0) {
+      const statusCondition = or(...statuses.map((s) => eq(emailGenerationSessions.status, s)));
+      if (statusCondition) {
+        whereClauses.push(statusCondition);
+      }
+    } else if (status) {
       whereClauses.push(eq(emailGenerationSessions.status, status));
     }
 

@@ -64,6 +64,7 @@ export interface ListCampaignsInput {
   limit?: number;
   offset?: number;
   status?: keyof typeof EmailGenerationSessionStatus;
+  statusGroup?: 'active' | 'ready' | 'other';
 }
 
 export interface UpdateEmailInput {
@@ -528,13 +529,23 @@ export class EmailCampaignsService {
    * @returns Campaigns list with counts
    */
   async listCampaigns(input: ListCampaignsInput, organizationId: string) {
-    const { limit = 10, offset = 0, status } = input;
+    const { limit = 10, offset = 0, status, statusGroup } = input;
+
+    // For status groups, we need to fetch more broadly and filter after
+    // because the display status is computed from multiple factors
+    let statuses: (keyof typeof EmailGenerationSessionStatus)[] | undefined;
+    if (statusGroup) {
+      // Fetch all statuses and filter after based on computed status
+      statuses = undefined; // We'll filter after fetching
+    }
 
     // Get campaigns without email counts first
+    // When using statusGroup, we need to fetch more to account for filtering
     const campaignsResult = await listEmailGenerationSessions(organizationId, {
-      limit,
-      offset,
+      limit: statusGroup ? 1000 : limit, // Fetch more when filtering by group
+      offset: statusGroup ? 0 : offset,
       status,
+      statuses,
     });
 
     const campaigns = campaignsResult.sessions.map((session) => ({
@@ -591,9 +602,95 @@ export class EmailCampaignsService {
       };
     });
 
-    const totalCount = await countSessionsByOrganization(organizationId, status);
+    // If statusGroup is specified, we need to filter campaigns based on their computed status
+    // This is necessary because the actual campaign status (Running, In Progress, etc.)
+    // is derived from multiple factors including email counts and completion status
+    let filteredCampaigns = campaignsWithCounts;
+    if (statusGroup) {
+      filteredCampaigns = campaignsWithCounts.filter((campaign) => {
+        const derivedStatus = this.getDerivedCampaignStatus(campaign);
 
-    return { campaigns: campaignsWithCounts, totalCount };
+        switch (statusGroup) {
+          case 'active':
+            return ['Running', 'In Progress', 'Generating'].includes(derivedStatus);
+          case 'ready':
+            return ['Ready to Send', 'Paused'].includes(derivedStatus);
+          case 'other':
+            return ['Draft', 'Completed'].includes(derivedStatus);
+          default:
+            return true;
+        }
+      });
+    }
+
+    // When using statusGroup, we need different handling
+    if (statusGroup) {
+      // Apply pagination to the filtered results
+      const startIndex = offset || 0;
+      const endIndex = startIndex + (limit || 10);
+      const paginatedCampaigns = filteredCampaigns.slice(startIndex, endIndex);
+      const totalFilteredCount = filteredCampaigns.length;
+
+      return { campaigns: paginatedCampaigns, totalCount: totalFilteredCount };
+    } else {
+      // When not using statusGroup, return the results as-is with proper count
+      const totalCount = await countSessionsByOrganization(organizationId, status, statuses);
+      return { campaigns: campaignsWithCounts, totalCount };
+    }
+  }
+
+  /**
+   * Determines the derived status of a campaign based on multiple factors
+   */
+  private getDerivedCampaignStatus(campaign: any): string {
+    const { status, totalEmails, sentEmails, totalDonors, completedDonors } = campaign;
+
+    // If it's a draft, show draft status
+    if (status === 'DRAFT') {
+      return 'Draft';
+    }
+
+    // If still generating emails (actively generating or in progress)
+    if (completedDonors < totalDonors && status !== 'COMPLETED') {
+      return 'Generating';
+    }
+
+    // If status shows as generating but all donors are completed, treat as ready
+    if (status === 'GENERATING' && completedDonors >= totalDonors && totalDonors > 0) {
+      return 'Ready to Send';
+    }
+
+    // Check for new RUNNING and PAUSED statuses
+    if (status === 'RUNNING') {
+      return 'Running';
+    }
+
+    if (status === 'PAUSED') {
+      return 'Paused';
+    }
+
+    // All emails generated, check sending status
+    if (totalEmails > 0) {
+      // All emails sent
+      if (sentEmails === totalEmails) {
+        return 'Completed';
+      }
+
+      // Some emails sent, some not
+      if (sentEmails > 0) {
+        return 'In Progress';
+      }
+
+      // No emails sent yet, but all generated
+      return 'Ready to Send';
+    }
+
+    // Fallback cases
+    if (status === 'COMPLETED') {
+      return 'Completed';
+    }
+
+    return 'Unknown';
   }
 
   /**

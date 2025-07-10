@@ -48,6 +48,7 @@ interface DataTableProps<TData, TValue> {
   enableRowSelection?: boolean;
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: (selection: RowSelectionState) => void;
+  showPagination?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -68,6 +69,7 @@ export function DataTable<TData, TValue>({
   enableRowSelection,
   rowSelection,
   onRowSelectionChange,
+  showPagination = true,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -324,125 +326,128 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4"
-        style={{ listStyle: 'none' }}
-      >
-        {isServerSidePagination && totalItems !== undefined && pageSize !== undefined && (
-          <div className="text-sm text-muted-foreground">
-            Showing {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
-            {' - '}
-            {Math.min(currentPage * pageSize, totalItems)} of {totalItems} items
-          </div>
-        )}
-        {!isServerSidePagination && table.getFilteredRowModel().rows.length > 0 && (
-          <div className="text-sm text-muted-foreground">
-            {table.getFilteredRowModel().rows.length} row(s). Selected{' '}
-            {table.getFilteredSelectedRowModel().rows.length} row(s).
-          </div>
-        )}
+      {showPagination && (
+        <div
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4"
+          style={{ listStyle: 'none' }}
+        >
+          {isServerSidePagination && totalItems !== undefined && pageSize !== undefined && (
+            <div className="text-sm text-muted-foreground">
+              Showing {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
+              {' - '}
+              {Math.min(currentPage * pageSize, totalItems)} of {totalItems} items
+            </div>
+          )}
+          {!isServerSidePagination && table.getFilteredRowModel().rows.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              {table.getFilteredRowModel().rows.length} row(s). Selected{' '}
+              {table.getFilteredSelectedRowModel().rows.length} row(s).
+            </div>
+          )}
 
-        <div className="flex flex-wrap gap-6">
-          <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium">Rows per page</p>
-            <select
-              value={isServerSidePagination ? pageSize : table.getState().pagination.pageSize}
-              onChange={(e) => {
-                const newSize = Number(e.target.value) as PageSize;
-                if (isServerSidePagination && onPageSizeChange) {
-                  onPageSizeChange(newSize);
-                } else {
-                  table.setPageSize(Number(e.target.value));
-                }
-              }}
-              className="h-8 w-[70px] text-sm font-medium rounded-md border border-input bg-background px-2 py-1"
+          <div className="flex flex-wrap gap-6">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm font-medium">Rows per page</p>
+              <select
+                value={isServerSidePagination ? pageSize : table.getState().pagination.pageSize}
+                onChange={(e) => {
+                  const newSize = Number(e.target.value) as PageSize;
+                  if (isServerSidePagination && onPageSizeChange) {
+                    onPageSizeChange(newSize);
+                  } else {
+                    table.setPageSize(Number(e.target.value));
+                  }
+                }}
+                className="h-8 w-[70px] text-sm font-medium rounded-md border border-input bg-background px-2 py-1"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-center text-sm font-medium">
+              Page{' '}
+              {isServerSidePagination ? currentPage : table.getState().pagination.pageIndex + 1} of{' '}
+              {isServerSidePagination ? pageCount : table.getPageCount()}
+            </div>
+
+            <div
+              className="flex flex-wrap items-center gap-2 justify-center"
+              style={{ listStyle: 'none' }}
             >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center justify-center text-sm font-medium">
-            Page {isServerSidePagination ? currentPage : table.getState().pagination.pageIndex + 1}{' '}
-            of {isServerSidePagination ? pageCount : table.getPageCount()}
-          </div>
-
-          <div
-            className="flex flex-wrap items-center gap-2 justify-center"
-            style={{ listStyle: 'none' }}
-          >
-            {isServerSidePagination && pageCount && pageCount > 1 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGoToPage(1)}
-                  disabled={!getCanPreviousPage()}
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
+              {isServerSidePagination && pageCount && pageCount > 1 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGoToPage(1)}
+                    disabled={!getCanPreviousPage()}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={!getCanPreviousPage()}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Previous</span>
+                  </Button>
+                </>
+              )}
+              {!isServerSidePagination && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handlePreviousPage}
                   disabled={!getCanPreviousPage()}
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline">Previous</span>
+                  Previous
                 </Button>
-              </>
-            )}
-            {!isServerSidePagination && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviousPage}
-                disabled={!getCanPreviousPage()}
-              >
-                Previous
-              </Button>
-            )}
+              )}
 
-            <div className="flex items-center gap-1" style={{ listStyle: 'none' }}>
-              {renderPageNumbers()}
-            </div>
+              <div className="flex items-center gap-1" style={{ listStyle: 'none' }}>
+                {renderPageNumbers()}
+              </div>
 
-            {isServerSidePagination && pageCount && pageCount > 1 && (
-              <>
+              {isServerSidePagination && pageCount && pageCount > 1 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={!getCanNextPage()}
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGoToPage(pageCount)}
+                    disabled={!getCanNextPage()}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              {!isServerSidePagination && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleNextPage}
                   disabled={!getCanNextPage()}
                 >
-                  <span className="hidden sm:inline">Next</span>
-                  <ChevronRight className="h-4 w-4" />
+                  Next
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGoToPage(pageCount)}
-                  disabled={!getCanNextPage()}
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {!isServerSidePagination && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={!getCanNextPage()}
-              >
-                Next
-              </Button>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
