@@ -83,7 +83,7 @@ export class ToolRegistry {
    */
   private registerTool(name: string, tool: any): void {
     this.tools.set(name, tool);
-    logger.info(`[ToolRegistry] Registered tool: ${name}`);
+    // Don't log on every import - tools are registered once at startup
   }
 
   /**

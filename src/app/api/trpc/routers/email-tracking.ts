@@ -25,7 +25,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching tracking stats for session ${input.sessionId}`);
+      logger.debug(`Fetching tracking stats for session ${input.sessionId}`);
 
       const stats = await getSessionTrackingStats(input.sessionId);
 
@@ -49,7 +49,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(
+      logger.debug(
         `Fetching tracking stats for ${input.sessionIds.length} sessions: ${input.sessionIds.join(', ')}`
       );
 
@@ -71,7 +71,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching donor tracking stats for session ${input.sessionId}`);
+      logger.debug(`Fetching donor tracking stats for session ${input.sessionId}`);
 
       const donorStats = await getDonorTrackingStatsForSession(input.sessionId);
 
@@ -92,7 +92,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(
+      logger.debug(
         `Fetching email tracking data for email ${input.emailId}, donor ${input.donorId}`
       );
 
@@ -114,7 +114,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Fetching email tracking data for tracker ${input.emailTrackerId}`);
+      logger.debug(`Fetching email tracking data for tracker ${input.emailTrackerId}`);
 
       const trackingData = await getEmailTrackingData(input.emailTrackerId);
 
@@ -138,7 +138,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(`Checking if email has been opened for tracker ${input.emailTrackerId}`);
+      logger.debug(`Checking if email has been opened for tracker ${input.emailTrackerId}`);
 
       const hasBeenOpened = await hasEmailBeenOpened(input.emailTrackerId);
 
@@ -159,7 +159,7 @@ export const emailTrackingRouter = router({
       const { user } = ctx.auth;
       validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      logger.info(
+      logger.debug(
         `Fetching email tracking data for session ${input.sessionId}, donor ${input.donorId}`
       );
 
