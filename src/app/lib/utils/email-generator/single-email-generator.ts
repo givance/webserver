@@ -129,10 +129,10 @@ export async function generateSingleEmail(
 
   try {
     const result = await generateObject({
-      model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+      model: azure(env.AZURE_OPENAI_O3_DEPLOYMENT_NAME),
       schema: emailSchema,
       prompt,
-      temperature: 0.7,
+      temperature: 1,
     });
 
     logger.info(`[SingleEmailGenerator] system prompt: ${prompt}`);

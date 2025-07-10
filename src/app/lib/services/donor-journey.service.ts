@@ -1,9 +1,9 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateObject } from "ai";
-import type { DonorJourney } from "@/app/lib/data/organizations";
-import { z } from "zod";
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateObject } from 'ai';
+import type { DonorJourney } from '@/app/lib/data/organizations';
+import { z } from 'zod';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -90,10 +90,10 @@ export class DonorJourneyService {
    */
   static async processJourney(description: string): Promise<DonorJourney> {
     try {
-      logger.info("Processing donor journey description");
+      logger.info('Processing donor journey description');
 
       const { object: journey } = await generateObject({
-        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: donorJourneySchema,
         prompt: `Based on this donor journey description, generate a graph structure with nodes representing stages and edges representing transitions. Each node and edge must have a descriptive properties object.
 
@@ -102,7 +102,7 @@ ${description}`,
         system: SYSTEM_PROMPT,
       });
 
-      logger.info("Successfully processed donor journey", {
+      logger.info('Successfully processed donor journey', {
         nodeCount: journey.nodes.length,
         edgeCount: journey.edges.length,
       });
@@ -112,7 +112,7 @@ ${description}`,
 
       return journey;
     } catch (error) {
-      logger.error("Failed to process donor journey:", error);
+      logger.error('Failed to process donor journey:', error);
       throw error;
     }
   }
@@ -121,20 +121,20 @@ ${description}`,
    * Validates the structure of a donor journey object
    */
   private static isValidDonorJourney(journey: any): journey is DonorJourney {
-    if (!journey || typeof journey !== "object") return false;
+    if (!journey || typeof journey !== 'object') return false;
     if (!Array.isArray(journey.nodes) || !Array.isArray(journey.edges)) return false;
 
     // Validate nodes
     const validNodes = journey.nodes.every((node: any) =>
       Boolean(
         node &&
-          typeof node === "object" &&
-          typeof node.id === "string" &&
-          typeof node.label === "string" &&
+          typeof node === 'object' &&
+          typeof node.id === 'string' &&
+          typeof node.label === 'string' &&
           node.properties &&
-          typeof node.properties === "object" &&
-          typeof node.properties.description === "string" &&
-          typeof node.properties.actions === "object" &&
+          typeof node.properties === 'object' &&
+          typeof node.properties.description === 'string' &&
+          typeof node.properties.actions === 'object' &&
           Array.isArray(node.properties.actions)
       )
     );
@@ -145,14 +145,14 @@ ${description}`,
     const validEdges = journey.edges.every((edge: any) =>
       Boolean(
         edge &&
-          typeof edge === "object" &&
-          typeof edge.id === "string" &&
-          typeof edge.source === "string" &&
-          typeof edge.target === "string" &&
-          typeof edge.label === "string" &&
+          typeof edge === 'object' &&
+          typeof edge.id === 'string' &&
+          typeof edge.source === 'string' &&
+          typeof edge.target === 'string' &&
+          typeof edge.label === 'string' &&
           edge.properties &&
-          typeof edge.properties === "object" &&
-          typeof edge.properties.description === "string"
+          typeof edge.properties === 'object' &&
+          typeof edge.properties.description === 'string'
       )
     );
 

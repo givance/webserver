@@ -1,8 +1,8 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateObject } from "ai";
-import { z } from "zod";
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import {
   QueryGenerationInput,
   QueryGenerationResult,
@@ -10,7 +10,7 @@ import {
   TokenUsage,
   createEmptyTokenUsage,
   DonorInfo,
-} from "./types";
+} from './types';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -20,8 +20,8 @@ const azure = createAzure({
 
 // Query generation response schema
 const QueryGenerationSchema = z.object({
-  rationale: z.string().describe("Brief explanation of why these queries are relevant"),
-  query: z.array(z.string()).describe("A list of search queries"),
+  rationale: z.string().describe('Brief explanation of why these queries are relevant'),
+  query: z.array(z.string()).describe('A list of search queries'),
 });
 
 /**
@@ -36,10 +36,10 @@ export class QueryGenerationService {
   async generateQueries(input: QueryGenerationInput): Promise<QueryGenerationResult> {
     const { researchTopic, maxQueries, isFollowUp, previousQueries = [], donorInfo } = input;
 
-    const queryType = isFollowUp ? "follow-up" : "initial";
+    const queryType = isFollowUp ? 'follow-up' : 'initial';
     const previousContext = isFollowUp
-      ? ` (after ${previousQueries.length} previous queries: [${previousQueries.join(", ")}])`
-      : "";
+      ? ` (after ${previousQueries.length} previous queries: [${previousQueries.join(', ')}])`
+      : '';
 
     logger.info(
       `Generating ${queryType} queries for topic "${researchTopic}"${previousContext} - max ${maxQueries} queries`
@@ -55,7 +55,7 @@ export class QueryGenerationService {
         if (location) {
           specificQueries.push({
             query: `${donorInfo.fullName} ${location}`,
-            rationale: "Direct search using full name and location for precise identification",
+            rationale: 'Direct search using full name and location for precise identification',
           });
         }
 
@@ -63,19 +63,24 @@ export class QueryGenerationService {
         if (donorInfo.email) {
           specificQueries.push({
             query: `${donorInfo.fullName} ${donorInfo.email}`,
-            rationale: "Direct search using full name and email address for precise identification",
+            rationale: 'Direct search using full name and email address for precise identification',
           });
         }
       }
 
-      const prompt = this.buildQueryGenerationPrompt(researchTopic, maxQueries, isFollowUp, previousQueries);
+      const prompt = this.buildQueryGenerationPrompt(
+        researchTopic,
+        maxQueries,
+        isFollowUp,
+        previousQueries
+      );
 
       logger.debug(
         `Sending query generation request to AI model for ${queryType} queries on topic: "${researchTopic}"`
       );
 
       const result = await generateObject({
-        model: azure(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: QueryGenerationSchema,
         prompt,
         temperature: 0.7, // Allow some creativity in query generation
@@ -103,8 +108,10 @@ export class QueryGenerationService {
       logger.info(
         `Generated ${queries.length} ${queryType} queries for topic "${researchTopic}": [${queries
           .map((q) => q.query)
-          .join(", ")}] (tokens: ${tokenUsage.totalTokens})${
-          specificQueries.length > 0 ? ` (${specificQueries.length} specific name-based queries included)` : ""
+          .join(', ')}] (tokens: ${tokenUsage.totalTokens})${
+          specificQueries.length > 0
+            ? ` (${specificQueries.length} specific name-based queries included)`
+            : ''
         }`
       );
 
@@ -119,7 +126,9 @@ export class QueryGenerationService {
           error instanceof Error ? error.message : String(error)
         }`
       );
-      throw new Error(`Query generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Query generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -154,7 +163,7 @@ Examples of GOOD vs BAD queries:
       prompt += `
 
 FOLLOW-UP CONTEXT:
-- You already searched: [${previousQueries.join(", ")}]
+- You already searched: [${previousQueries.join(', ')}]
 - Now generate different, simple queries to find more info
 - Don't repeat what you already searched
 - Keep it natural and short - just like humans would search for more details`;

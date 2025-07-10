@@ -1,9 +1,9 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateObject } from "ai";
-import { z } from "zod";
-import { ReflectionInput, ReflectionResult, TokenUsage, createEmptyTokenUsage } from "./types";
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateObject } from 'ai';
+import { z } from 'zod';
+import { ReflectionInput, ReflectionResult, TokenUsage, createEmptyTokenUsage } from './types';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -13,9 +13,13 @@ const azure = createAzure({
 
 // Reflection response schema
 const ReflectionSchema = z.object({
-  is_sufficient: z.boolean().describe("Whether the information is sufficient to answer the question"),
-  knowledge_gap: z.string().describe("Description of what information is missing or needs clarification"),
-  follow_up_queries: z.array(z.string()).describe("Specific questions to address knowledge gaps"),
+  is_sufficient: z
+    .boolean()
+    .describe('Whether the information is sufficient to answer the question'),
+  knowledge_gap: z
+    .string()
+    .describe('Description of what information is missing or needs clarification'),
+  follow_up_queries: z.array(z.string()).describe('Specific questions to address knowledge gaps'),
 });
 
 /**
@@ -37,7 +41,11 @@ export class ReflectionService {
     );
     const totalWords = summaries.reduce(
       (sum, summary) =>
-        sum + summary.sources.reduce((sourceSum, source) => sourceSum + (source.crawledContent?.wordCount || 0), 0),
+        sum +
+        summary.sources.reduce(
+          (sourceSum, source) => sourceSum + (source.crawledContent?.wordCount || 0),
+          0
+        ),
       0
     );
 
@@ -49,7 +57,7 @@ export class ReflectionService {
       const prompt = this.buildReflectionPrompt(researchTopic, summaries);
 
       const result = await generateObject({
-        model: azure(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: ReflectionSchema,
         prompt,
         temperature: 0.1, // Low temperature for analytical reasoning
@@ -82,7 +90,9 @@ export class ReflectionService {
           error instanceof Error ? error.message : String(error)
         }`
       );
-      throw new Error(`Reflection analysis failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Reflection analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -107,7 +117,7 @@ export class ReflectionService {
 
         return summaryText;
       })
-      .join("\n\n");
+      .join('\n\n');
 
     return `You are analyzing research completeness for: "${researchTopic}".
 

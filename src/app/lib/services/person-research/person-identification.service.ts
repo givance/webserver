@@ -1,8 +1,8 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateObject } from "ai";
-import { z } from "zod";
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import {
   TokenUsage,
   createEmptyTokenUsage,
@@ -10,7 +10,7 @@ import {
   EnhancedSearchResult,
   PersonIdentity,
   VerificationResult,
-} from "./types";
+} from './types';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -21,25 +21,40 @@ const azure = createAzure({
 // Schema for person identity extraction
 const PersonIdentitySchema = z.object({
   fullName: z.string().describe("The person's full name"),
-  probableAge: z.string().optional().describe("Estimated age range or exact age if known"),
-  location: z.string().optional().describe("Current location, city, state, or country if known"),
-  profession: z.string().optional().describe("Current or primary profession or industry"),
-  education: z.string().optional().describe("Educational background if known"),
-  organizations: z.string().optional().describe("Organizations, companies, or institutions they're affiliated with"),
-  keyIdentifiers: z.array(z.string()).describe("Unique identifying information that can distinguish this person"),
-  confidence: z.number().min(0).max(1).describe("Confidence score from 0-1 on the extracted identity information"),
-  reasoning: z.string().describe("Reasoning behind the identity extraction and confidence score"),
+  probableAge: z.string().optional().describe('Estimated age range or exact age if known'),
+  location: z.string().optional().describe('Current location, city, state, or country if known'),
+  profession: z.string().optional().describe('Current or primary profession or industry'),
+  education: z.string().optional().describe('Educational background if known'),
+  organizations: z
+    .string()
+    .optional()
+    .describe("Organizations, companies, or institutions they're affiliated with"),
+  keyIdentifiers: z
+    .array(z.string())
+    .describe('Unique identifying information that can distinguish this person'),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Confidence score from 0-1 on the extracted identity information'),
+  reasoning: z.string().describe('Reasoning behind the identity extraction and confidence score'),
 });
 
 // Schema for content verification
 const VerificationSchema = z.object({
-  isRelevant: z.boolean().describe("Whether this content is about the same person we're researching"),
-  confidence: z.number().min(0).max(1).describe("Confidence score from 0-1"),
-  matchingIdentifiers: z.array(z.string()).describe("Identifiers that match between the person and content"),
+  isRelevant: z
+    .boolean()
+    .describe("Whether this content is about the same person we're researching"),
+  confidence: z.number().min(0).max(1).describe('Confidence score from 0-1'),
+  matchingIdentifiers: z
+    .array(z.string())
+    .describe('Identifiers that match between the person and content'),
   contradictions: z
     .array(z.string())
-    .describe("Any contradicting information that suggests this is a different person"),
-  reasoning: z.string().describe("Detailed reasoning explaining why this content is or isn't about the same person"),
+    .describe('Any contradicting information that suggests this is a different person'),
+  reasoning: z
+    .string()
+    .describe("Detailed reasoning explaining why this content is or isn't about the same person"),
 });
 
 /**
@@ -62,7 +77,7 @@ export class PersonIdentificationService {
       const prompt = this.buildIdentityExtractionPrompt(donorInfo, initialSearchResults);
 
       const result = await generateObject({
-        model: azure(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: PersonIdentitySchema,
         prompt,
         temperature: 0.2, // Lower temperature for factual extraction
@@ -77,7 +92,8 @@ export class PersonIdentificationService {
 
       const identity: PersonIdentity = {
         ...result.object,
-        extractedFrom: initialSearchResults.length > 0 ? "donor data and initial search" : "donor data only",
+        extractedFrom:
+          initialSearchResults.length > 0 ? 'donor data and initial search' : 'donor data only',
       };
 
       logger.info(
@@ -101,8 +117,8 @@ export class PersonIdentificationService {
           location: donorInfo.location,
           keyIdentifiers: [],
           confidence: 0.1,
-          reasoning: "Failed to extract detailed identity information",
-          extractedFrom: "donor data only (extraction failed)",
+          reasoning: 'Failed to extract detailed identity information',
+          extractedFrom: 'donor data only (extraction failed)',
         },
         tokenUsage: createEmptyTokenUsage(),
       };
@@ -126,7 +142,7 @@ export class PersonIdentificationService {
       const prompt = this.buildVerificationPrompt(identity, searchResult);
 
       const result = await generateObject({
-        model: azure(env.MID_MODEL),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: VerificationSchema,
         prompt,
         temperature: 0.1, // Very low temperature for factual verification
@@ -146,7 +162,7 @@ export class PersonIdentificationService {
       };
 
       logger.debug(
-        `Verification result for ${resultIdentifier}: ${verification.isRelevant ? "RELEVANT" : "NOT RELEVANT"} with ${
+        `Verification result for ${resultIdentifier}: ${verification.isRelevant ? 'RELEVANT' : 'NOT RELEVANT'} with ${
           verification.confidence * 100
         }% confidence (${tokenUsage.totalTokens} tokens used)`
       );
@@ -163,8 +179,8 @@ export class PersonIdentificationService {
           isRelevant: false,
           confidence: 0.5,
           matchingIdentifiers: [],
-          contradictions: ["Verification failed due to error"],
-          reasoning: `Verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          contradictions: ['Verification failed due to error'],
+          reasoning: `Verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           sourceUrl: searchResult.link,
           sourceTitle: searchResult.title,
         },
@@ -184,8 +200,8 @@ export class PersonIdentificationService {
 
 DONOR INFORMATION:
 - Full Name: ${donorInfo.fullName}
-${donorInfo.location ? `- Location: ${donorInfo.location}` : ""}
-${donorInfo.notes ? `- Additional Notes: ${donorInfo.notes}` : ""}
+${donorInfo.location ? `- Location: ${donorInfo.location}` : ''}
+${donorInfo.notes ? `- Additional Notes: ${donorInfo.notes}` : ''}
 
 TASK:
 1. Extract specific identity details from the provided information
@@ -210,7 +226,7 @@ IMPORTANT:
         // Add crawled content if available
         if (result.crawledContent?.crawlSuccess && result.crawledContent.text) {
           prompt += `\n- Full Content: ${result.crawledContent.text.substring(0, 1000)}${
-            result.crawledContent.text.length > 1000 ? "..." : ""
+            result.crawledContent.text.length > 1000 ? '...' : ''
           }`;
         }
       });
@@ -222,19 +238,22 @@ IMPORTANT:
   /**
    * Builds prompt for verifying if search result is about the same person
    */
-  private buildVerificationPrompt(identity: PersonIdentity, searchResult: EnhancedSearchResult): string {
+  private buildVerificationPrompt(
+    identity: PersonIdentity,
+    searchResult: EnhancedSearchResult
+  ): string {
     let prompt = `Determine if the following search result is about the same person whose identity information is provided below.
 
 PERSON IDENTITY:
 - Full Name: ${identity.fullName}
-${identity.probableAge ? `- Probable Age: ${identity.probableAge}` : ""}
-${identity.location ? `- Location: ${identity.location}` : ""}
-${identity.profession ? `- Profession: ${identity.profession}` : ""}
-${identity.education ? `- Education: ${identity.education}` : ""}
-${identity.organizations ? `- Organizations: ${identity.organizations}` : ""}
+${identity.probableAge ? `- Probable Age: ${identity.probableAge}` : ''}
+${identity.location ? `- Location: ${identity.location}` : ''}
+${identity.profession ? `- Profession: ${identity.profession}` : ''}
+${identity.education ? `- Education: ${identity.education}` : ''}
+${identity.organizations ? `- Organizations: ${identity.organizations}` : ''}
 
 KEY IDENTIFIERS (unique characteristics of this person):
-${identity.keyIdentifiers.map((id: string) => `- ${id}`).join("\n")}
+${identity.keyIdentifiers.map((id: string) => `- ${id}`).join('\n')}
 
 SEARCH RESULT TO VERIFY:
 - Title: ${searchResult.title}
@@ -244,7 +263,7 @@ SEARCH RESULT TO VERIFY:
     // Add crawled content if available
     if (searchResult.crawledContent?.crawlSuccess && searchResult.crawledContent.text) {
       prompt += `\n\nFULL PAGE CONTENT:
-${searchResult.crawledContent.text.substring(0, 2500)}${searchResult.crawledContent.text.length > 2500 ? "..." : ""}`;
+${searchResult.crawledContent.text.substring(0, 2500)}${searchResult.crawledContent.text.length > 2500 ? '...' : ''}`;
     }
 
     prompt += `\n\nTASK:

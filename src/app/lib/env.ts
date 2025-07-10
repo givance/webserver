@@ -1,6 +1,6 @@
 // src/env.mjs
-import { createEnv } from "@t3-oss/env-nextjs";
-import { z } from "zod";
+import { createEnv } from '@t3-oss/env-nextjs';
+import { z } from 'zod';
 
 export const env = createEnv({
   /*
@@ -23,18 +23,26 @@ export const env = createEnv({
     AZURE_OPENAI_API_KEY: z.string().min(1),
     AZURE_OPENAI_ENDPOINT: z.string().min(1),
     AZURE_OPENAI_RESOURCE_NAME: z.string().min(1),
-    AZURE_OPENAI_DEPLOYMENT_NAME: z.string().min(1),
+    AZURE_OPENAI_DEPLOYMENT_NAME: z.string().min(1).default('gpt-4.1'),
+    AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME: z.string().min(1).default('gpt-4.1'),
+    AZURE_OPENAI_O3_DEPLOYMENT_NAME: z.string().min(1).default('gpt-o3'),
     GOOGLE_SEARCH_API_KEY: z.string().min(1),
     GOOGLE_SEARCH_ENGINE_ID: z.string().min(1).optional(),
     USE_AGENTIC_FLOW: z
       .string()
-      .transform((val) => val === "true")
+      .transform((val) => val === 'true')
       .optional(),
-    MICROSOFT_CLIENT_ID: z.string().optional().default("placeholder-client-id"),
-    MICROSOFT_CLIENT_SECRET: z.string().optional().default("placeholder-client-secret"),
-    MICROSOFT_REDIRECT_URI: z.string().optional().default("http://localhost:3000/settings/microsoft/callback"),
-    WHATSAPP_TOKEN: z.string().optional().default("placeholder-whatsapp-token"),
-    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional().default("placeholder-whatsapp-verify-token"),
+    MICROSOFT_CLIENT_ID: z.string().optional().default('placeholder-client-id'),
+    MICROSOFT_CLIENT_SECRET: z.string().optional().default('placeholder-client-secret'),
+    MICROSOFT_REDIRECT_URI: z
+      .string()
+      .optional()
+      .default('http://localhost:3000/settings/microsoft/callback'),
+    WHATSAPP_TOKEN: z.string().optional().default('placeholder-whatsapp-token'),
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z
+      .string()
+      .optional()
+      .default('placeholder-whatsapp-verify-token'),
   },
   /*
    * Environment variables available on the client (and server).
@@ -69,6 +77,8 @@ export const env = createEnv({
     AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_RESOURCE_NAME: process.env.AZURE_OPENAI_RESOURCE_NAME,
     AZURE_OPENAI_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
+    AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME,
+    AZURE_OPENAI_O3_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_O3_DEPLOYMENT_NAME,
     GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     USE_AGENTIC_FLOW: process.env.USE_AGENTIC_FLOW,

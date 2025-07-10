@@ -1,9 +1,9 @@
-import { generateObject } from "ai";
-import { createAzure } from "@ai-sdk/azure";
-import { logger } from "@/app/lib/logger";
-import { env } from "@/app/lib/env";
-import { PersonResearchData, TokenUsage, WebSearchResult } from "./types";
-import { z } from "zod";
+import { generateObject } from 'ai';
+import { createAzure } from '@ai-sdk/azure';
+import { logger } from '@/app/lib/logger';
+import { env } from '@/app/lib/env';
+import { PersonResearchData, TokenUsage, WebSearchResult } from './types';
+import { z } from 'zod';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -34,16 +34,18 @@ export class StructuredDataExtractionService {
   }): Promise<{ structuredData: PersonResearchData; tokenUsage: TokenUsage }> {
     const { answer, summaries, researchTopic } = params;
 
-    logger.info("Extracting structured data from person research results");
+    logger.info('Extracting structured data from person research results');
 
     try {
       // Combine all summary text for analysis
       const allSummaryText = summaries
         .map((summary) => {
-          const sourcesText = summary.sources.map((source) => `- ${source.title}: ${source.snippet}`).join("\n");
+          const sourcesText = summary.sources
+            .map((source) => `- ${source.title}: ${source.snippet}`)
+            .join('\n');
           return `Query: ${summary.query}\nSummary: ${summary.summary}\nSources:\n${sourcesText}`;
         })
-        .join("\n\n");
+        .join('\n\n');
 
       const prompt = `You are an expert analyst tasked with extracting structured data about a person from research results.
 
@@ -76,7 +78,7 @@ Based on the research above, extract the following structured information:
 Be conservative in your assessments and clearly indicate when information is inferred vs. explicitly stated.`;
 
       const result = await generateObject({
-        model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+        model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: PersonResearchDataSchema,
         prompt,
         temperature: 0.1, // Low temperature for consistent structured extraction
@@ -103,7 +105,9 @@ Be conservative in your assessments and clearly indicate when information is inf
 
       return { structuredData, tokenUsage };
     } catch (error) {
-      logger.error(`Structured data extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Structured data extraction failed: ${error instanceof Error ? error.message : String(error)}`
+      );
 
       // Return safe defaults on error
       const defaultData: PersonResearchData = {
@@ -111,7 +115,7 @@ Be conservative in your assessments and clearly indicate when information is inf
         employer: null,
         estimatedIncome: null,
         highPotentialDonor: false,
-        highPotentialDonorRationale: "Unable to assess due to data extraction error.",
+        highPotentialDonorRationale: 'Unable to assess due to data extraction error.',
       };
 
       const defaultTokenUsage: TokenUsage = {

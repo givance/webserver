@@ -100,7 +100,7 @@ export class SummarizeForGenerationTool {
 
       // Generate the summary using AI
       const result = await generateObject({
-        model: this.azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+        model: this.azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
         schema: summarySchema,
         prompt: analysisPrompt,
         temperature: 0.3, // Lower temperature for more focused analysis
