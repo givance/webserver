@@ -396,6 +396,10 @@ function ExistingCampaignsContent() {
     retryCampaign,
     getScheduleConfig,
     getEmailSchedule,
+    isLoadingSaveToDraft,
+    isLoadingScheduleEmailSend,
+    isLoadingDeleteCampaign,
+    isLoadingRetryCampaign,
   } = useCommunications();
 
   // Get Gmail connection status
@@ -448,17 +452,13 @@ function ExistingCampaignsContent() {
   }
 
   const handleRetryCampaign = async (campaignId: number) => {
-    try {
-      const promise = retryCampaign.mutateAsync({ campaignId });
-      toast.promise(promise, {
-        loading: 'Retrying campaign...',
-        success: (data: any) => data?.message || 'Campaign retry initiated successfully!',
-        error: 'Failed to retry campaign. Please check your Trigger.dev configuration.',
-      });
-      await promise;
-    } catch (error) {
-      // Toast will show the error
-    }
+    const promise = retryCampaign({ campaignId });
+    toast.promise(promise, {
+      loading: 'Retrying campaign...',
+      success: (data: any) => data?.message || 'Campaign retry initiated successfully!',
+      error: 'Failed to retry campaign. Please check your Trigger.dev configuration.',
+    });
+    await promise;
   };
 
   const handleDeleteCampaign = (campaign: ExistingCampaign) => {
@@ -489,14 +489,14 @@ function ExistingCampaignsContent() {
     try {
       let promise: Promise<any> | undefined;
       if (action === 'draft') {
-        promise = saveToDraft.mutateAsync({ sessionId: campaign.id });
+        promise = saveToDraft({ sessionId: campaign.id });
         toast.promise(promise, {
           loading: 'Saving to drafts...',
           success: 'Emails saved to drafts successfully!',
           error: (err) => err?.message || 'Failed to save to drafts.',
         });
       } else if (action === 'send') {
-        promise = scheduleEmailSend.mutateAsync({
+        promise = scheduleEmailSend({
           sessionId: campaign.id,
           scheduleConfig: customScheduleConfig,
         });
@@ -516,7 +516,7 @@ function ExistingCampaignsContent() {
           },
         });
       } else if (action === 'delete') {
-        promise = deleteCampaign.mutateAsync({ campaignId: campaign.id });
+        promise = deleteCampaign({ campaignId: campaign.id });
         toast.promise(promise, {
           loading: 'Deleting campaign...',
           success: 'Campaign deleted successfully!',
@@ -532,10 +532,10 @@ function ExistingCampaignsContent() {
   };
 
   const isLoadingAction =
-    saveToDraft.isPending ||
-    scheduleEmailSend.isPending ||
-    deleteCampaign.isPending ||
-    retryCampaign.isPending;
+    isLoadingSaveToDraft ||
+    isLoadingScheduleEmailSend ||
+    isLoadingDeleteCampaign ||
+    isLoadingRetryCampaign;
 
   const columns: ColumnDef<ExistingCampaign>[] = [
     {

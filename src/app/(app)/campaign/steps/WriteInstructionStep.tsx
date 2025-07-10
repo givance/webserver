@@ -247,7 +247,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
     setIsStartingBulkGeneration(true);
     try {
-      const response = await launchCampaign.mutateAsync({
+      const response = await launchCampaign({
         campaignId: sessionId!,
         campaignName,
         chatHistory: chatState.chatMessages,
@@ -315,7 +315,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       try {
         setEmailGenerationLoading(emailGeneration, 'generating', true);
 
-        const response = await smartEmailGeneration.mutateAsync({
+        const response = await smartEmailGeneration({
           sessionId,
           mode: 'generate_with_new_message',
           newMessage: enhanceInstruction,

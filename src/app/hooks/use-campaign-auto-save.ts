@@ -65,7 +65,7 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
             chatHistory: data.chatHistory,
           };
 
-          const result = await saveDraft.mutateAsync(payload);
+          const result = await saveDraft(payload);
 
           // Update session ID if this was a new draft
           if (!data.sessionId && result.sessionId && onSessionIdChange) {
@@ -104,7 +104,7 @@ export function useCampaignAutoSave(options: UseCampaignAutoSaveOptions = {}) {
           chatHistory: data.chatHistory,
         };
 
-        const result = await saveDraft.mutateAsync(payload);
+        const result = await saveDraft(payload);
 
         // Update session ID if this was a new draft
         if (!data.sessionId && result.sessionId && onSessionIdChange) {

@@ -48,7 +48,7 @@ export function EmailEnhanceButton({
 }: EmailEnhanceButtonProps) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState('');
-  const { smartEmailGeneration, getSession } = useCommunications();
+  const { smartEmailGeneration, getSession, isLoadingSmartEmailGeneration } = useCommunications();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleEnhance = async () => {
@@ -68,7 +68,7 @@ export function EmailEnhanceButton({
         setOpen(false);
       } else if (!isPreviewMode && sessionId) {
         // Normal mode: Use smartEmailGeneration with generate_with_new_message mode
-        const result = await smartEmailGeneration.mutateAsync({
+        const result = await smartEmailGeneration({
           sessionId,
           mode: 'generate_with_new_message',
           newMessage: instruction,
@@ -174,9 +174,9 @@ export function EmailEnhanceButton({
             </Button>
             <Button
               onClick={handleEnhance}
-              disabled={smartEmailGeneration.isPending || !instruction.trim()}
+              disabled={isLoadingSmartEmailGeneration || !instruction.trim()}
             >
-              {smartEmailGeneration.isPending ? 'Enhancing...' : 'Enhance Email'}
+              {isLoadingSmartEmailGeneration ? 'Enhancing...' : 'Enhance Email'}
             </Button>
           </DialogFooter>
         </DialogContent>

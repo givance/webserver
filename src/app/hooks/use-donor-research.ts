@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { trpc } from "@/app/lib/trpc/client";
-import { useState } from "react";
-import { toast } from "sonner";
+import { trpc } from '@/app/lib/trpc/client';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Types for donor research
@@ -103,7 +103,7 @@ export function useDonorResearch(): UseDonorResearchReturn {
     },
     onSuccess: (data) => {
       setIsLoading(false);
-      toast.success("Research completed successfully!");
+      toast.success('Research completed successfully!');
 
       // Invalidate queries to refetch data
       if (data.data.donorId) {
@@ -116,7 +116,7 @@ export function useDonorResearch(): UseDonorResearchReturn {
     },
     onError: (error) => {
       setIsLoading(false);
-      const errorMessage = error.message || "Research failed. Please try again.";
+      const errorMessage = error.message || 'Research failed. Please try again.';
       setError(errorMessage);
       toast.error(`Research failed: ${errorMessage}`);
     },
@@ -127,7 +127,8 @@ export function useDonorResearch(): UseDonorResearchReturn {
       await conductResearchMutation.mutateAsync({ donorId });
     } catch (error) {
       // Error is already handled in onError callback
-      console.error("Research failed:", error);
+      console.error('Research failed:', error);
+      throw error;
     }
   };
 
@@ -155,7 +156,8 @@ export function useDonorResearch(): UseDonorResearchReturn {
  * Simplified hook that focuses on a single donor
  */
 export function useDonorResearchData(donorId: number) {
-  const { getResearchQuery, getVersionsQuery, conductResearch, isLoading, error } = useDonorResearch();
+  const { getResearchQuery, getVersionsQuery, conductResearch, isLoading, error } =
+    useDonorResearch();
 
   const researchQuery = getResearchQuery(donorId);
   const versionsQuery = getVersionsQuery(donorId);

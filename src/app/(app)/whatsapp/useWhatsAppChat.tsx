@@ -1,11 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
-import { trpc } from "@/app/lib/trpc/client";
-import { toast } from "sonner";
+import { useState, useCallback, useEffect } from 'react';
+import { useWhatsApp } from '@/app/hooks/use-whatsapp';
+import { trpc } from '@/app/lib/trpc/client';
+import { toast } from 'sonner';
 
 interface ChatMessage {
   id: string;
   content: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   timestamp: Date;
   isTranscribed?: boolean;
   tokensUsed?: {
@@ -19,29 +20,19 @@ export function useWhatsAppChat(phoneNumber: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const utils = trpc.useUtils();
+  const { processTestMessage, checkPhonePermission, getConversationHistory } = useWhatsApp();
 
   // Check phone permission to get staff ID
-  const { data: permissionData } = trpc.whatsapp.checkPhonePermission.useQuery(
-    { phoneNumber },
-    { enabled: !!phoneNumber && phoneNumber.length >= 10 }
-  );
+  const { data: permissionData } = checkPhonePermission(phoneNumber);
 
   // Load conversation history
-  const { data: conversationHistory } = trpc.whatsapp.getConversationHistory.useQuery(
-    {
-      staffId:
-        permissionData?.isAllowed && "staffId" in permissionData && permissionData.staffId ? permissionData.staffId : 0,
-      phoneNumber: phoneNumber,
-      limit: 50,
-    },
-    {
-      enabled: !!permissionData?.isAllowed && "staffId" in permissionData && !!permissionData.staffId && !!phoneNumber,
-    }
+  const { data: conversationHistory } = getConversationHistory(
+    permissionData?.isAllowed && 'staffId' in permissionData && permissionData.staffId
+      ? permissionData.staffId
+      : 0,
+    phoneNumber,
+    50
   );
-
-  // Process test message mutation
-  const processTestMessage = trpc.whatsapp.processTestMessage.useMutation();
 
   // Convert history to chat messages
   useEffect(() => {
@@ -49,7 +40,7 @@ export function useWhatsAppChat(phoneNumber: string) {
       const chatMessages: ChatMessage[] = conversationHistory.messages.map((msg) => ({
         id: msg.id.toString(),
         content: msg.content,
-        role: msg.role as "user" | "assistant",
+        role: msg.role as 'user' | 'assistant',
         timestamp: new Date(msg.createdAt),
         isTranscribed: false, // We don't store this in history currently
         tokensUsed: msg.tokensUsed || undefined,
@@ -61,8 +52,8 @@ export function useWhatsAppChat(phoneNumber: string) {
   const sendMessage = useCallback(
     async (message: string, isTranscribed: boolean) => {
       if (!phoneNumber || phoneNumber.length < 10) {
-        toast.error("Invalid phone number", {
-          description: "Please enter a valid phone number",
+        toast.error('Invalid phone number', {
+          description: 'Please enter a valid phone number',
         });
         return;
       }
@@ -73,25 +64,21 @@ export function useWhatsAppChat(phoneNumber: string) {
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
         content: message,
-        role: "user",
+        role: 'user',
         timestamp: new Date(),
         isTranscribed,
       };
       setMessages((prev) => [...prev, userMessage]);
 
       try {
-        const result = await processTestMessage.mutateAsync({
-          message,
-          phoneNumber,
-          isTranscribed,
-        });
+        const result = await processTestMessage(message, phoneNumber, isTranscribed);
 
-        if (result.success && "response" in result) {
+        if (result.success && 'response' in result) {
           // Add assistant response
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
             content: result.response,
-            role: "assistant",
+            role: 'assistant',
             timestamp: new Date(),
             tokensUsed: result.tokensUsed,
           };
@@ -99,24 +86,24 @@ export function useWhatsAppChat(phoneNumber: string) {
 
           // Show staff info if available
           if (result.staffInfo) {
-            toast.success("Message processed", {
+            toast.success('Message processed', {
               description: `Staff: ${result.staffInfo.name}`,
             });
           }
-        } else if ("error" in result) {
+        } else if ('error' in result) {
           // Remove the user message on error
           setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
 
-          toast.error(result.permissionDenied ? "Permission Denied" : "Error", {
-            description: result.error || "Failed to process message",
+          toast.error(result.permissionDenied ? 'Permission Denied' : 'Error', {
+            description: result.error || 'Failed to process message',
           });
         }
       } catch (error) {
         // Remove the user message on error
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
 
-        toast.error("Error", {
-          description: error instanceof Error ? error.message : "Failed to send message",
+        toast.error('Error', {
+          description: error instanceof Error ? error.message : 'Failed to send message',
         });
       } finally {
         setIsLoading(false);
@@ -135,6 +122,7 @@ export function useWhatsAppChat(phoneNumber: string) {
     sendMessage,
     clearMessages,
     isAllowed: permissionData?.isAllowed || false,
-    staffName: permissionData && "staffName" in permissionData ? permissionData.staffName : undefined,
+    staffName:
+      permissionData && 'staffName' in permissionData ? permissionData.staffName : undefined,
   };
 }

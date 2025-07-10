@@ -50,7 +50,7 @@ export function ReviewAndSendStep({
   const handleScheduleSend = async () => {
     setIsScheduling(true);
     try {
-      const result = await scheduleEmailSend.mutateAsync({
+      const result = await scheduleEmailSend({
         sessionId,
         scheduleConfig: campaignScheduleConfig,
       });

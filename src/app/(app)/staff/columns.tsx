@@ -1,7 +1,19 @@
-import { ColumnDef, Column, Row } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Trash2, Mail, MailX, FileText, Link2, User, MessageSquare, Edit2, Save, X } from "lucide-react";
-import Link from "next/link";
+import { ColumnDef, Column, Row } from '@tanstack/react-table';
+import { Button } from '@/components/ui/button';
+import {
+  ArrowUpDown,
+  Trash2,
+  Mail,
+  MailX,
+  FileText,
+  Link2,
+  User,
+  MessageSquare,
+  Edit2,
+  Save,
+  X,
+} from 'lucide-react';
+import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -21,28 +33,28 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { useState, useEffect } from "react";
-import { SignatureEditor, SignaturePreview } from "@/components/signature";
-import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
-import DOMPurify from "dompurify";
-import { cn } from "@/lib/utils";
-import { useStaff } from "@/app/hooks/use-staff";
-import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal } from "lucide-react";
-import { trpc } from "@/app/lib/trpc/client";
-import { toast } from "sonner";
-import { Switch } from "@/components/ui/switch";
-import { InlineTextEdit } from "@/components/ui/inline-edit";
+} from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useState, useEffect } from 'react';
+import { SignatureEditor, SignaturePreview } from '@/components/signature';
+import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
+import DOMPurify from 'dompurify';
+import { cn } from '@/lib/utils';
+import { useStaff } from '@/app/hooks/use-staff';
+import { Badge } from '@/components/ui/badge';
+import { MoreHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
+import { InlineTextEdit } from '@/components/ui/inline-edit';
+import { trpc } from '@/app/lib/trpc/client';
 
 export type Staff = {
   id: string | number;
@@ -72,42 +84,22 @@ function PrimaryStaffToggle({
   isPrimary: boolean;
   hasGmailToken: boolean;
 }) {
-  const utils = trpc.useUtils();
-
-  const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
-      toast.success("Staff member set as primary");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to set as primary");
-    },
-  });
-
-  const unsetPrimaryMutation = trpc.staff.unsetPrimary.useMutation({
-    onSuccess: () => {
-      utils.staff.list.invalidate();
-      toast.success("Primary status removed");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to remove primary status");
-    },
-  });
+  const { setPrimary, unsetPrimary, isSettingPrimary, isUnsettingPrimary } = useStaff();
 
   const handleToggle = async (checked: boolean) => {
     if (checked && !hasGmailToken) {
-      toast.error("Only staff members with connected Gmail accounts can be set as primary");
+      toast.error('Only staff members with connected Gmail accounts can be set as primary');
       return;
     }
 
     if (checked) {
-      await setPrimaryMutation.mutateAsync({ id: Number(staffId) });
+      await setPrimary(Number(staffId));
     } else {
-      await unsetPrimaryMutation.mutateAsync({ id: Number(staffId) });
+      await unsetPrimary(Number(staffId));
     }
   };
 
-  const isLoading = setPrimaryMutation.isPending || unsetPrimaryMutation.isPending;
+  const isLoading = isSettingPrimary || isUnsettingPrimary;
   const isDisabled = isLoading || (!isPrimary && !hasGmailToken);
 
   return (
@@ -123,7 +115,9 @@ function PrimaryStaffToggle({
           Primary
         </Badge>
       )}
-      {!hasGmailToken && !isPrimary && <span className="text-xs text-gray-500">Gmail required</span>}
+      {!hasGmailToken && !isPrimary && (
+        <span className="text-xs text-gray-500">Gmail required</span>
+      )}
     </div>
   );
 }
@@ -150,7 +144,8 @@ function DeleteStaffButton({ staffId }: { staffId: string | number }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the staff member and all associated data.
+            This action cannot be undone. This will permanently delete the staff member and all
+            associated data.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -160,7 +155,7 @@ function DeleteStaffButton({ staffId }: { staffId: string | number }) {
             className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -175,11 +170,11 @@ function SimpleGmailConnectButton({ staffId }: { staffId: string | number }) {
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        toast.error("Could not get Gmail authentication URL. Please try again.");
+        toast.error('Could not get Gmail authentication URL. Please try again.');
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to initiate Gmail connection. Please try again.");
+      toast.error(error.message || 'Failed to initiate Gmail connection. Please try again.');
     },
   });
 
@@ -238,8 +233,8 @@ function HoverDisconnectButton({ staffId, email }: { staffId: string | number; e
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Gmail Account</AlertDialogTitle>
             <AlertDialogDescription>
-              This will disconnect the Gmail account &quot;{email}&quot; from this staff member. They will no longer be
-              able to send emails through their connected account.
+              This will disconnect the Gmail account &quot;{email}&quot; from this staff member.
+              They will no longer be able to send emails through their connected account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -249,7 +244,7 @@ function HoverDisconnectButton({ staffId, email }: { staffId: string | number; e
               className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
               disabled={isDisconnecting}
             >
-              {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -281,8 +276,8 @@ function GmailDisconnectButton({ staffId }: { staffId: string | number }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Disconnect Gmail Account</AlertDialogTitle>
           <AlertDialogDescription>
-            This will disconnect the Gmail account from this staff member. They will no longer be able to send emails
-            through their connected account.
+            This will disconnect the Gmail account from this staff member. They will no longer be
+            able to send emails through their connected account.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -292,7 +287,7 @@ function GmailDisconnectButton({ staffId }: { staffId: string | number }) {
             className="bg-orange-500 hover:bg-orange-700 focus:ring-orange-500"
             disabled={isDisconnecting}
           >
-            {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+            {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -311,34 +306,23 @@ function SignatureEditModal({
   staffName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [signature, setSignature] = useState(currentSignature || "");
+  const [signature, setSignature] = useState(currentSignature || '');
   const [showCodeView, setShowCodeView] = useState(false);
-  const utils = trpc.useUtils();
-
-  const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
-    onSuccess: () => {
-      toast.success("Signature updated successfully");
-      setOpen(false);
-      // Invalidate the staff list to refresh the UI
-      utils.staff.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update signature");
-    },
-  });
+  const { updateSignature, isUpdatingSignature } = useStaff();
 
   const handleSave = async () => {
     // Sanitize HTML before saving
-    const sanitizedSignature = signature ? sanitizeHtml(signature) : "";
-    
-    await updateSignatureMutation.mutateAsync({
+    const sanitizedSignature = signature ? sanitizeHtml(signature) : '';
+
+    await updateSignature({
       id: Number(staffId),
       signature: sanitizedSignature || undefined,
     });
+    setOpen(false);
   };
 
   const handleCancel = () => {
-    setSignature(currentSignature || "");
+    setSignature(currentSignature || '');
     setShowCodeView(false);
     setOpen(false);
   };
@@ -347,7 +331,7 @@ function SignatureEditModal({
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (newOpen) {
-      setSignature(currentSignature || "");
+      setSignature(currentSignature || '');
       setShowCodeView(false);
     }
   };
@@ -364,8 +348,8 @@ function SignatureEditModal({
         <DialogHeader>
           <DialogTitle>Edit Email Signature</DialogTitle>
           <DialogDescription>
-            Update the email signature for {staffName}. This signature will be automatically included in emails sent on
-            their behalf.
+            Update the email signature for {staffName}. This signature will be automatically
+            included in emails sent on their behalf.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-6 mt-4">
@@ -378,10 +362,7 @@ function SignatureEditModal({
             />
           </div>
           <div>
-            <SignaturePreview 
-              signature={signature}
-              staffName={staffName}
-            />
+            <SignaturePreview signature={signature} staffName={staffName} />
           </div>
         </div>
         <DialogFooter>
@@ -389,9 +370,9 @@ function SignatureEditModal({
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateSignatureMutation.isPending}>
+          <Button onClick={handleSave} disabled={isUpdatingSignature}>
             <Save className="h-4 w-4 mr-2" />
-            {updateSignatureMutation.isPending ? "Saving..." : "Save"}
+            {isUpdatingSignature ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -410,34 +391,23 @@ function SignatureEditMenuItem({
   staffName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [signature, setSignature] = useState(currentSignature || "");
+  const [signature, setSignature] = useState(currentSignature || '');
   const [showCodeView, setShowCodeView] = useState(false);
-  const utils = trpc.useUtils();
-
-  const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
-    onSuccess: () => {
-      toast.success("Signature updated successfully");
-      setOpen(false);
-      // Invalidate the staff list to refresh the UI
-      utils.staff.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update signature");
-    },
-  });
+  const { updateSignature, isUpdatingSignature } = useStaff();
 
   const handleSave = async () => {
     // Sanitize HTML before saving
-    const sanitizedSignature = signature ? sanitizeHtml(signature) : "";
-    
-    await updateSignatureMutation.mutateAsync({
+    const sanitizedSignature = signature ? sanitizeHtml(signature) : '';
+
+    await updateSignature({
       id: Number(staffId),
       signature: sanitizedSignature || undefined,
     });
+    setOpen(false);
   };
 
   const handleCancel = () => {
-    setSignature(currentSignature || "");
+    setSignature(currentSignature || '');
     setShowCodeView(false);
     setOpen(false);
   };
@@ -446,7 +416,7 @@ function SignatureEditMenuItem({
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (newOpen) {
-      setSignature(currentSignature || "");
+      setSignature(currentSignature || '');
       setShowCodeView(false);
     }
   };
@@ -463,8 +433,8 @@ function SignatureEditMenuItem({
         <DialogHeader>
           <DialogTitle>Edit Email Signature</DialogTitle>
           <DialogDescription>
-            Update the email signature for {staffName}. This signature will be automatically included in emails sent on
-            their behalf.
+            Update the email signature for {staffName}. This signature will be automatically
+            included in emails sent on their behalf.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-6 mt-4">
@@ -477,10 +447,7 @@ function SignatureEditMenuItem({
             />
           </div>
           <div>
-            <SignaturePreview 
-              signature={signature}
-              staffName={staffName}
-            />
+            <SignaturePreview signature={signature} staffName={staffName} />
           </div>
         </div>
         <DialogFooter>
@@ -488,9 +455,9 @@ function SignatureEditMenuItem({
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateSignatureMutation.isPending}>
+          <Button onClick={handleSave} disabled={isUpdatingSignature}>
             <Save className="h-4 w-4 mr-2" />
-            {updateSignatureMutation.isPending ? "Saving..." : "Save"}
+            {isUpdatingSignature ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -501,7 +468,7 @@ function SignatureEditMenuItem({
 // EmailEditCell component for inline email editing
 function EmailEditCell({ staff }: { staff: Staff }) {
   const { updateStaff } = useStaff();
-  
+
   return (
     <InlineTextEdit
       value={staff.email}
@@ -511,17 +478,17 @@ function EmailEditCell({ staff }: { staff: Staff }) {
             id: Number(staff.id),
             email: value,
           });
-          toast.success("Email updated");
+          toast.success('Email updated');
         } catch (error) {
-          toast.error("Failed to update email");
+          toast.error('Failed to update email');
           throw error;
         }
       }}
       type="email"
       validation={(email) => {
-        if (!email) return "Email is required";
+        if (!email) return 'Email is required';
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) return "Invalid email format";
+        if (!emailRegex.test(email)) return 'Invalid email format';
         return null;
       }}
       className="text-sm text-slate-500"
@@ -531,29 +498,55 @@ function EmailEditCell({ staff }: { staff: Staff }) {
 
 // SignatureDisplay component to show HTML signatures
 function SignatureDisplay({ signature }: { signature: string }) {
-  const [sanitizedHtml, setSanitizedHtml] = useState("");
+  const [sanitizedHtml, setSanitizedHtml] = useState('');
   const [isHtml, setIsHtml] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && signature) {
+    if (typeof window !== 'undefined' && signature) {
       // Check if signature contains HTML tags
       const hasHtmlTags = /<[^>]+>/.test(signature);
       setIsHtml(hasHtmlTags);
-      
+
       if (hasHtmlTags) {
         const config = {
           ALLOWED_TAGS: [
-            'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'img', 
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'ul', 'ol', 'li', 'blockquote', 'span', 'div'
+            'p',
+            'br',
+            'strong',
+            'b',
+            'em',
+            'i',
+            'u',
+            'a',
+            'img',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'ul',
+            'ol',
+            'li',
+            'blockquote',
+            'span',
+            'div',
           ],
           ALLOWED_ATTR: [
-            'href', 'src', 'alt', 'title', 'width', 'height', 
-            'target', 'rel', 'class', 'style'
+            'href',
+            'src',
+            'alt',
+            'title',
+            'width',
+            'height',
+            'target',
+            'rel',
+            'class',
+            'style',
           ],
           ALLOWED_PROTOCOLS: ['http', 'https', 'mailto', 'tel'],
           FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
-          FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+          FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
         };
 
         const clean = DOMPurify.sanitize(signature, config);
@@ -567,24 +560,24 @@ function SignatureDisplay({ signature }: { signature: string }) {
     return (
       <div className="text-xs text-slate-400 max-w-xs truncate">
         {signature?.slice(0, 50)}
-        {signature && signature.length > 50 ? "..." : ""}
+        {signature && signature.length > 50 ? '...' : ''}
       </div>
     );
   }
 
   // For HTML signatures
   return (
-    <div 
+    <div
       className={cn(
-        "text-xs text-slate-400 max-w-xs overflow-hidden",
-        "prose prose-xs max-w-none",
-        "prose-p:m-0 prose-p:leading-normal",
-        "prose-headings:m-0 prose-headings:text-xs",
-        "[&_*]:text-xs [&_*]:text-slate-400",
-        "[&_a]:text-slate-500 [&_a]:no-underline",
-        "[&_img]:hidden", // Hide images in the table view
-        "[&_br]:hidden", // Hide line breaks to save space
-        "line-clamp-2" // Limit to 2 lines
+        'text-xs text-slate-400 max-w-xs overflow-hidden',
+        'prose prose-xs max-w-none',
+        'prose-p:m-0 prose-p:leading-normal',
+        'prose-headings:m-0 prose-headings:text-xs',
+        '[&_*]:text-xs [&_*]:text-slate-400',
+        '[&_a]:text-slate-500 [&_a]:no-underline',
+        '[&_img]:hidden', // Hide images in the table view
+        '[&_br]:hidden', // Hide line breaks to save space
+        'line-clamp-2' // Limit to 2 lines
       )}
       dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />
@@ -593,10 +586,13 @@ function SignatureDisplay({ signature }: { signature: string }) {
 
 export const columns: ColumnDef<Staff>[] = [
   {
-    id: "name",
+    id: 'name',
     header: ({ column }: { column: Column<Staff> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
@@ -621,18 +617,18 @@ export const columns: ColumnDef<Staff>[] = [
     accessorFn: (row: Staff) => `${row.firstName} ${row.lastName}`,
   },
   {
-    id: "status",
-    header: "Status",
+    id: 'status',
+    header: 'Status',
     cell: ({ row }: { row: Row<Staff> }) => (
-      <Badge variant={row.original.isRealPerson ? "default" : "secondary"}>
-        {row.original.isRealPerson ? "Active" : "Inactive"}
+      <Badge variant={row.original.isRealPerson ? 'default' : 'secondary'}>
+        {row.original.isRealPerson ? 'Active' : 'Inactive'}
       </Badge>
     ),
-    accessorFn: (row: Staff) => (row.isRealPerson ? "Active" : "Inactive"),
+    accessorFn: (row: Staff) => (row.isRealPerson ? 'Active' : 'Inactive'),
   },
   {
-    id: "primary",
-    header: "Primary",
+    id: 'primary',
+    header: 'Primary',
     cell: ({ row }: { row: Row<Staff> }) => (
       <PrimaryStaffToggle
         staffId={row.original.id}
@@ -640,25 +636,27 @@ export const columns: ColumnDef<Staff>[] = [
         hasGmailToken={!!row.original.gmailToken}
       />
     ),
-    accessorFn: (row: Staff) => (row.isPrimary ? "Primary" : "Not primary"),
+    accessorFn: (row: Staff) => (row.isPrimary ? 'Primary' : 'Not primary'),
   },
   {
-    id: "gmailAccount",
-    header: "Gmail",
+    id: 'gmailAccount',
+    header: 'Gmail',
     cell: ({ row }: { row: Row<Staff> }) => {
       const hasLinkedAccount = row.original.gmailToken !== null;
 
       if (hasLinkedAccount && row.original.gmailToken?.email) {
-        return <HoverDisconnectButton staffId={row.original.id} email={row.original.gmailToken.email} />;
+        return (
+          <HoverDisconnectButton staffId={row.original.id} email={row.original.gmailToken.email} />
+        );
       }
 
       return <SimpleGmailConnectButton staffId={row.original.id} />;
     },
-    accessorFn: (row: Staff) => (row.gmailToken ? "Connected" : "Not connected"),
+    accessorFn: (row: Staff) => (row.gmailToken ? 'Connected' : 'Not connected'),
   },
   {
-    id: "signature",
-    header: "Signature",
+    id: 'signature',
+    header: 'Signature',
     cell: ({ row }: { row: Row<Staff> }) => {
       const hasSignature = row.original.signature && row.original.signature.trim().length > 0;
       const staffName = `${row.original.firstName} ${row.original.lastName}`;
@@ -667,15 +665,15 @@ export const columns: ColumnDef<Staff>[] = [
         <div className="flex items-center gap-2">
           <div
             className={`flex items-center justify-center w-6 h-6 rounded-full ${
-              hasSignature ? "bg-blue-100" : "bg-slate-100"
+              hasSignature ? 'bg-blue-100' : 'bg-slate-100'
             }`}
           >
-            <FileText className={`h-3 w-3 ${hasSignature ? "text-blue-600" : "text-slate-400"}`} />
+            <FileText className={`h-3 w-3 ${hasSignature ? 'text-blue-600' : 'text-slate-400'}`} />
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className={`text-sm ${hasSignature ? "text-blue-700" : "text-slate-500"}`}>
-                {hasSignature ? "Set" : "Not set"}
+              <span className={`text-sm ${hasSignature ? 'text-blue-700' : 'text-slate-500'}`}>
+                {hasSignature ? 'Set' : 'Not set'}
               </span>
               <SignatureEditModal
                 staffId={row.original.id}
@@ -683,25 +681,23 @@ export const columns: ColumnDef<Staff>[] = [
                 staffName={staffName}
               />
             </div>
-            {hasSignature && (
-              <SignatureDisplay signature={row.original.signature || ""} />
-            )}
+            {hasSignature && <SignatureDisplay signature={row.original.signature || ''} />}
           </div>
         </div>
       );
     },
-    accessorFn: (row: Staff) => (row.signature ? "Set" : "Not set"),
+    accessorFn: (row: Staff) => (row.signature ? 'Set' : 'Not set'),
   },
   {
-    accessorKey: "createdAt",
-    header: "Created",
+    accessorKey: 'createdAt',
+    header: 'Created',
     cell: ({ row }: { row: Row<Staff> }) => {
-      const date = new Date(row.getValue("createdAt"));
+      const date = new Date(row.getValue('createdAt'));
       return <div className="text-sm text-slate-600">{date.toLocaleDateString()}</div>;
     },
   },
   {
-    id: "actions",
+    id: 'actions',
     cell: ({ row }: { row: Row<Staff> }) => {
       const hasLinkedAccount = row.original.gmailToken !== null;
 

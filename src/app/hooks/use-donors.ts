@@ -11,6 +11,9 @@ type DonorOutput = inferProcedureOutput<AppRouter['donors']['getByIds']>[0];
 type ListDonorsInput = inferProcedureInput<AppRouter['donors']['list']>;
 type CreateDonorInput = inferProcedureInput<AppRouter['donors']['create']>;
 type UpdateDonorInput = inferProcedureInput<AppRouter['donors']['update']>;
+type AddNoteInput = inferProcedureInput<AppRouter['donors']['addNote']>;
+type EditNoteInput = inferProcedureInput<AppRouter['donors']['editNote']>;
+type DeleteNoteInput = inferProcedureInput<AppRouter['donors']['deleteNote']>;
 
 /**
  * Hook for managing donors through the tRPC API
@@ -282,6 +285,49 @@ export function useDonors() {
     },
   });
 
+  // Note mutations
+  const addNoteMutation = trpc.donors.addNote.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success('Note added successfully');
+      // Invalidate the specific donor query to refetch with updated notes
+      utils.donors.getByIds.invalidate({ ids: [variables.donorId] });
+      logger.info(`Note added to donor ${variables.donorId}`);
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to add note: ${error.message}`);
+      console.error('Error adding note to donor:', error);
+      logger.error(`Error adding note to donor ${variables.donorId}: ${error.message}`);
+    },
+  });
+
+  const editNoteMutation = trpc.donors.editNote.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success('Note updated successfully');
+      // Invalidate the specific donor query to refetch with updated notes
+      utils.donors.getByIds.invalidate({ ids: [variables.donorId] });
+      logger.info(`Note edited for donor ${variables.donorId}`);
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to update note: ${error.message}`);
+      console.error('Error editing note for donor:', error);
+      logger.error(`Error editing note for donor ${variables.donorId}: ${error.message}`);
+    },
+  });
+
+  const deleteNoteMutation = trpc.donors.deleteNote.useMutation({
+    onSuccess: (data, variables) => {
+      toast.success('Note deleted successfully');
+      // Invalidate the specific donor query to refetch with updated notes
+      utils.donors.getByIds.invalidate({ ids: [variables.donorId] });
+      logger.info(`Note deleted from donor ${variables.donorId}`);
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>, variables) => {
+      toast.error(`Failed to delete note: ${error.message}`);
+      console.error('Error deleting note from donor:', error);
+      logger.error(`Error deleting note from donor ${variables.donorId}: ${error.message}`);
+    },
+  });
+
   /**
    * Create a new donor
    * @param input The donor data to create
@@ -402,6 +448,52 @@ export function useDonors() {
     }
   };
 
+  /**
+   * Add a note to a donor
+   * @param donorId The ID of the donor
+   * @param content The note content
+   * @returns The updated donor or null if failed
+   */
+  const addNote = async (donorId: number, content: string) => {
+    try {
+      return await addNoteMutation.mutateAsync({ donorId, content });
+    } catch (error) {
+      console.error('Failed to add note:', error);
+      return null;
+    }
+  };
+
+  /**
+   * Edit an existing note for a donor
+   * @param donorId The ID of the donor
+   * @param noteIndex The index of the note to edit
+   * @param content The new note content
+   * @returns The updated donor or null if failed
+   */
+  const editNote = async (donorId: number, noteIndex: number, content: string) => {
+    try {
+      return await editNoteMutation.mutateAsync({ donorId, noteIndex, content });
+    } catch (error) {
+      console.error('Failed to edit note:', error);
+      return null;
+    }
+  };
+
+  /**
+   * Delete a note from a donor
+   * @param donorId The ID of the donor
+   * @param noteIndex The index of the note to delete
+   * @returns The updated donor or null if failed
+   */
+  const deleteNote = async (donorId: number, noteIndex: number) => {
+    try {
+      return await deleteNoteMutation.mutateAsync({ donorId, noteIndex });
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+      return null;
+    }
+  };
+
   return {
     // Query functions
     getDonorQuery,
@@ -421,6 +513,9 @@ export function useDonors() {
     analyzeDonors,
     updateDonorStaff,
     bulkUpdateDonorStaff,
+    addNote,
+    editNote,
+    deleteNote,
 
     // Loading states
     isCreating: createMutation.isPending,
@@ -430,6 +525,9 @@ export function useDonors() {
     isAnalyzing: analyzeDonorsMutation.isPending,
     isUpdatingStaff: updateDonorStaffMutation.isPending,
     isBulkUpdatingStaff: bulkUpdateDonorStaffMutation.isPending,
+    isAddingNote: addNoteMutation.isPending,
+    isEditingNote: editNoteMutation.isPending,
+    isDeletingNote: deleteNoteMutation.isPending,
 
     // Mutation results
     createResult: createMutation.data,

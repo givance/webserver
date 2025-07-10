@@ -1,11 +1,14 @@
-"use client";
+'use client';
 
-import { trpc } from "@/app/lib/trpc/client";
-import { type InferSelectModel } from "drizzle-orm";
-import { organizations } from "@/app/lib/db/schema";
-import { useCallback } from "react";
-import { toast } from "sonner";
-import type { DonorJourney, DonorJourneyNode, DonorJourneyEdge } from "@/app/lib/data/organizations";
+import { trpc } from '@/app/lib/trpc/client';
+import { type InferSelectModel } from 'drizzle-orm';
+import { organizations } from '@/app/lib/db/schema';
+import { toast } from 'sonner';
+import type {
+  DonorJourney,
+  DonorJourneyNode,
+  DonorJourneyEdge,
+} from '@/app/lib/data/organizations';
 
 type Organization = InferSelectModel<typeof organizations>;
 
@@ -99,186 +102,155 @@ export function useOrganization() {
   const { data: donorJourneyText } = getDonorJourneyText();
 
   // Donor Journey operations
-  const updateDonorJourney = useCallback(
-    async (journey: DonorJourney) => {
-      try {
-        await updateDonorJourneyMutation.mutateAsync(journey);
-        toast.success("Donor journey updated successfully");
-      } catch (error) {
-        console.error("Failed to update donor journey:", error);
-        toast.error("Failed to update donor journey. Please try again.");
-      }
-    },
-    [updateDonorJourneyMutation]
-  );
-
-  const updateDonorJourneyText = useCallback(
-    async (text: string) => {
-      try {
-        await updateDonorJourneyTextMutation.mutateAsync(text);
-        toast.success("Donor journey text updated successfully");
-      } catch (error) {
-        console.error("Failed to update donor journey text:", error);
-        toast.error("Failed to update donor journey text. Please try again.");
-      }
-    },
-    [updateDonorJourneyTextMutation]
-  );
-
-  const addDonorJourneyNode = useCallback(
-    async (node: DonorJourneyNode) => {
-      try {
-        const currentJourney = donorJourney || { nodes: [], edges: [] };
-        const updatedJourney = {
-          ...currentJourney,
-          nodes: [...currentJourney.nodes, node],
-        };
-        await updateDonorJourneyMutation.mutateAsync(updatedJourney);
-        toast.success("Node added successfully");
-      } catch (error) {
-        console.error("Failed to add node:", error);
-        toast.error("Failed to add node. Please try again.");
-      }
-    },
-    [donorJourney, updateDonorJourneyMutation]
-  );
-
-  const addDonorJourneyEdge = useCallback(
-    async (edge: DonorJourneyEdge) => {
-      try {
-        const currentJourney = donorJourney || { nodes: [], edges: [] };
-        const updatedJourney = {
-          ...currentJourney,
-          edges: [...currentJourney.edges, edge],
-        };
-        await updateDonorJourneyMutation.mutateAsync(updatedJourney);
-        toast.success("Edge added successfully");
-      } catch (error) {
-        console.error("Failed to add edge:", error);
-        toast.error("Failed to add edge. Please try again.");
-      }
-    },
-    [donorJourney, updateDonorJourneyMutation]
-  );
-
-  const removeDonorJourneyNode = useCallback(
-    async (nodeId: string) => {
-      try {
-        const currentJourney = donorJourney || { nodes: [], edges: [] };
-        const updatedJourney = {
-          nodes: currentJourney.nodes.filter((node) => node.id !== nodeId),
-          edges: currentJourney.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
-        };
-        await updateDonorJourneyMutation.mutateAsync(updatedJourney);
-        toast.success("Node removed successfully");
-      } catch (error) {
-        console.error("Failed to remove node:", error);
-        toast.error("Failed to remove node. Please try again.");
-      }
-    },
-    [donorJourney, updateDonorJourneyMutation]
-  );
-
-  const removeDonorJourneyEdge = useCallback(
-    async (edgeId: string) => {
-      try {
-        const currentJourney = donorJourney || { nodes: [], edges: [] };
-        const updatedJourney = {
-          ...currentJourney,
-          edges: currentJourney.edges.filter((edge) => edge.id !== edgeId),
-        };
-        await updateDonorJourneyMutation.mutateAsync(updatedJourney);
-        toast.success("Edge removed successfully");
-      } catch (error) {
-        console.error("Failed to remove edge:", error);
-        toast.error("Failed to remove edge. Please try again.");
-      }
-    },
-    [donorJourney, updateDonorJourneyMutation]
-  );
-
-  const addMemoryItem = useCallback(
-    async (memoryItem: string) => {
-      try {
-        const currentMemory = organization?.memory || [];
-        const newMemory = [...currentMemory, memoryItem];
-        await updateMutation.mutateAsync({ memory: newMemory });
-        toast.success("Memory added successfully");
-      } catch (error) {
-        console.error("Failed to add memory:", error);
-        toast.error("Failed to add memory. Please try again.");
-      }
-    },
-    [organization?.memory, updateMutation]
-  );
-
-  const updateMemoryItem = useCallback(
-    async (index: number, newMemory: string) => {
-      try {
-        const currentMemory = organization?.memory || [];
-        const updatedMemory = [...currentMemory];
-        updatedMemory[index] = newMemory;
-        await updateMutation.mutateAsync({ memory: updatedMemory });
-        toast.success("Memory updated successfully");
-      } catch (error) {
-        console.error("Failed to update memory:", error);
-        toast.error("Failed to update memory. Please try again.");
-      }
-    },
-    [organization?.memory, updateMutation]
-  );
-
-  const deleteMemoryItem = useCallback(
-    async (index: number) => {
-      try {
-        const currentMemory = organization?.memory || [];
-        const updatedMemory = currentMemory.filter((_, i) => i !== index);
-        await updateMutation.mutateAsync({ memory: updatedMemory });
-        toast.success("Memory deleted successfully");
-      } catch (error) {
-        console.error("Failed to delete memory:", error);
-        toast.error("Failed to delete memory. Please try again.");
-      }
-    },
-    [organization?.memory, updateMutation]
-  );
-
-  const moveMemoryFromUser = useCallback(
-    async (memoryIndex: number) => {
-      try {
-        await moveFromUserMutation.mutateAsync({ memoryIndex });
-        toast.success("Memory moved to organization successfully");
-      } catch (error) {
-        console.error("Failed to move memory:", error);
-        toast.error("Failed to move memory to organization. Please try again.");
-      }
-    },
-    [moveFromUserMutation]
-  );
-
-  const processDonorJourney = useCallback(
-    async (text: string) => {
-      try {
-        await processDonorJourneyMutation.mutateAsync(text);
-      } catch (error) {
-        console.error("Failed to process donor journey:", error);
-        throw error;
-      }
-    },
-    [processDonorJourneyMutation]
-  );
-
-  const generateShortDescription = useCallback(async () => {
+  const updateDonorJourney = async (journey: DonorJourney) => {
     try {
-      const result = await generateShortDescriptionMutation.mutateAsync();
-      toast.success("Short description generated successfully");
-      return result;
+      await updateDonorJourneyMutation.mutateAsync(journey);
+      toast.success('Donor journey updated successfully');
     } catch (error) {
-      console.error("Failed to generate short description:", error);
-      toast.error("Failed to generate short description. Please try again.");
+      console.error('Failed to update donor journey:', error);
+      toast.error('Failed to update donor journey. Please try again.');
+    }
+  };
+
+  const updateDonorJourneyText = async (text: string) => {
+    try {
+      await updateDonorJourneyTextMutation.mutateAsync(text);
+      toast.success('Donor journey text updated successfully');
+    } catch (error) {
+      console.error('Failed to update donor journey text:', error);
+      toast.error('Failed to update donor journey text. Please try again.');
+    }
+  };
+
+  const addDonorJourneyNode = async (node: DonorJourneyNode) => {
+    try {
+      const currentJourney = donorJourney || { nodes: [], edges: [] };
+      const updatedJourney = {
+        ...currentJourney,
+        nodes: [...currentJourney.nodes, node],
+      };
+      await updateDonorJourneyMutation.mutateAsync(updatedJourney);
+      toast.success('Node added successfully');
+    } catch (error) {
+      console.error('Failed to add node:', error);
+      toast.error('Failed to add node. Please try again.');
+    }
+  };
+
+  const addDonorJourneyEdge = async (edge: DonorJourneyEdge) => {
+    try {
+      const currentJourney = donorJourney || { nodes: [], edges: [] };
+      const updatedJourney = {
+        ...currentJourney,
+        edges: [...currentJourney.edges, edge],
+      };
+      await updateDonorJourneyMutation.mutateAsync(updatedJourney);
+      toast.success('Edge added successfully');
+    } catch (error) {
+      console.error('Failed to add edge:', error);
+      toast.error('Failed to add edge. Please try again.');
+    }
+  };
+
+  const removeDonorJourneyNode = async (nodeId: string) => {
+    try {
+      const currentJourney = donorJourney || { nodes: [], edges: [] };
+      const updatedJourney = {
+        nodes: currentJourney.nodes.filter((node) => node.id !== nodeId),
+        edges: currentJourney.edges.filter(
+          (edge) => edge.source !== nodeId && edge.target !== nodeId
+        ),
+      };
+      await updateDonorJourneyMutation.mutateAsync(updatedJourney);
+      toast.success('Node removed successfully');
+    } catch (error) {
+      console.error('Failed to remove node:', error);
+      toast.error('Failed to remove node. Please try again.');
+    }
+  };
+
+  const removeDonorJourneyEdge = async (edgeId: string) => {
+    try {
+      const currentJourney = donorJourney || { nodes: [], edges: [] };
+      const updatedJourney = {
+        ...currentJourney,
+        edges: currentJourney.edges.filter((edge) => edge.id !== edgeId),
+      };
+      await updateDonorJourneyMutation.mutateAsync(updatedJourney);
+      toast.success('Edge removed successfully');
+    } catch (error) {
+      console.error('Failed to remove edge:', error);
+      toast.error('Failed to remove edge. Please try again.');
+    }
+  };
+
+  const addMemoryItem = async (memoryItem: string) => {
+    try {
+      const currentMemory = organization?.memory || [];
+      const newMemory = [...currentMemory, memoryItem];
+      await updateMutation.mutateAsync({ memory: newMemory });
+      toast.success('Memory added successfully');
+    } catch (error) {
+      console.error('Failed to add memory:', error);
+      toast.error('Failed to add memory. Please try again.');
+    }
+  };
+
+  const updateMemoryItem = async (index: number, newMemory: string) => {
+    try {
+      const currentMemory = organization?.memory || [];
+      const updatedMemory = [...currentMemory];
+      updatedMemory[index] = newMemory;
+      await updateMutation.mutateAsync({ memory: updatedMemory });
+      toast.success('Memory updated successfully');
+    } catch (error) {
+      console.error('Failed to update memory:', error);
+      toast.error('Failed to update memory. Please try again.');
+    }
+  };
+
+  const deleteMemoryItem = async (index: number) => {
+    try {
+      const currentMemory = organization?.memory || [];
+      const updatedMemory = currentMemory.filter((_, i) => i !== index);
+      await updateMutation.mutateAsync({ memory: updatedMemory });
+      toast.success('Memory deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete memory:', error);
+      toast.error('Failed to delete memory. Please try again.');
+    }
+  };
+
+  const moveMemoryFromUser = async (memoryIndex: number) => {
+    try {
+      await moveFromUserMutation.mutateAsync({ memoryIndex });
+      toast.success('Memory moved to organization successfully');
+    } catch (error) {
+      console.error('Failed to move memory:', error);
+      toast.error('Failed to move memory to organization. Please try again.');
+    }
+  };
+
+  const processDonorJourney = async (text: string) => {
+    try {
+      await processDonorJourneyMutation.mutateAsync(text);
+    } catch (error) {
+      console.error('Failed to process donor journey:', error);
       throw error;
     }
-  }, [generateShortDescriptionMutation]);
+  };
+
+  const generateShortDescription = async () => {
+    try {
+      const result = await generateShortDescriptionMutation.mutateAsync();
+      toast.success('Short description generated successfully');
+      return result;
+    } catch (error) {
+      console.error('Failed to generate short description:', error);
+      toast.error('Failed to generate short description. Please try again.');
+      throw error;
+    }
+  };
 
   return {
     // Query functions
@@ -287,7 +259,14 @@ export function useOrganization() {
     getDonorJourneyText,
 
     // Mutation functions
-    updateOrganization: updateMutation.mutateAsync,
+    updateOrganization: async (input: UpdateOrganizationInput) => {
+      try {
+        return await updateMutation.mutateAsync(input);
+      } catch (error) {
+        console.error('Failed to update organization:', error);
+        throw error;
+      }
+    },
     moveMemoryFromUser,
 
     // Donor Journey operations

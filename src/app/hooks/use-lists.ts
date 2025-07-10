@@ -1,28 +1,30 @@
-"use client";
+'use client';
 
-import { trpc } from "@/app/lib/trpc/client";
-import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
-import type { AppRouter } from "@/app/api/trpc/routers/_app";
-import { toast } from "sonner";
-import type { ListDeletionMode } from "@/app/lib/data/donor-lists";
-import { 
+import { trpc } from '@/app/lib/trpc/client';
+import type { inferProcedureInput, inferProcedureOutput } from '@trpc/server';
+import type { AppRouter } from '@/app/api/trpc/routers/_app';
+import { toast } from 'sonner';
+import type { ListDeletionMode } from '@/app/lib/data/donor-lists';
+import {
   STANDARD_QUERY_OPTIONS,
   createConditionalQueryOptions,
   wrapMutationAsync,
   wrapMutationAsyncBoolean,
   createErrorHandler,
   createCacheInvalidators,
-  createCrossResourceInvalidators
-} from "./utils";
+  createCrossResourceInvalidators,
+} from './utils';
 
 // Type inference for better type safety
-type DonorListOutput = inferProcedureOutput<AppRouter["lists"]["getByIds"]>[0];
-type DonorListWithMemberCountOutput = inferProcedureOutput<AppRouter["lists"]["getByIdWithMemberCount"]>;
-type DonorListWithMembersOutput = inferProcedureOutput<AppRouter["lists"]["getByIdWithMembers"]>;
-type ListDonorListsInput = inferProcedureInput<AppRouter["lists"]["list"]>;
-type CreateDonorListInput = inferProcedureInput<AppRouter["lists"]["create"]>;
-type UpdateDonorListInput = inferProcedureInput<AppRouter["lists"]["update"]>;
-type UploadFilesInput = inferProcedureInput<AppRouter["lists"]["uploadAndProcessFiles"]>;
+type DonorListOutput = inferProcedureOutput<AppRouter['lists']['getByIds']>[0];
+type DonorListWithMemberCountOutput = inferProcedureOutput<
+  AppRouter['lists']['getByIdWithMemberCount']
+>;
+type DonorListWithMembersOutput = inferProcedureOutput<AppRouter['lists']['getByIdWithMembers']>;
+type ListDonorListsInput = inferProcedureInput<AppRouter['lists']['list']>;
+type CreateDonorListInput = inferProcedureInput<AppRouter['lists']['create']>;
+type UpdateDonorListInput = inferProcedureInput<AppRouter['lists']['update']>;
+type UploadFilesInput = inferProcedureInput<AppRouter['lists']['uploadAndProcessFiles']>;
 
 /**
  * Hook for managing donor lists through the tRPC API
@@ -40,10 +42,7 @@ export function useLists() {
 
   // Get donor list query hook - uses getByIds internally for consistency
   const getDonorListQuery = (id: number) => {
-    const query = trpc.lists.getByIds.useQuery(
-      { ids: [id] },
-      createConditionalQueryOptions(!!id)
-    );
+    const query = trpc.lists.getByIds.useQuery({ ids: [id] }, createConditionalQueryOptions(!!id));
 
     // Transform the response to return a single list instead of an array
     return {
@@ -54,24 +53,15 @@ export function useLists() {
 
   // Get multiple donor lists query hook
   const getDonorListsQuery = (ids: number[]) =>
-    trpc.lists.getByIds.useQuery(
-      { ids },
-      createConditionalQueryOptions(ids.length > 0)
-    );
+    trpc.lists.getByIds.useQuery({ ids }, createConditionalQueryOptions(ids.length > 0));
 
   // Get donor list with member count query hook
   const getDonorListWithMemberCountQuery = (id: number) =>
-    trpc.lists.getByIdWithMemberCount.useQuery(
-      { id },
-      createConditionalQueryOptions(!!id)
-    );
+    trpc.lists.getByIdWithMemberCount.useQuery({ id }, createConditionalQueryOptions(!!id));
 
   // Get donor list with members query hook
   const getDonorListWithMembersQuery = (id: number) =>
-    trpc.lists.getByIdWithMembers.useQuery(
-      { id },
-      createConditionalQueryOptions(!!id)
-    );
+    trpc.lists.getByIdWithMembers.useQuery({ id }, createConditionalQueryOptions(!!id));
 
   // Get donor IDs from lists query hook
   const getDonorIdsFromListsQuery = (listIds: number[]) =>
@@ -82,10 +72,7 @@ export function useLists() {
 
   // Get lists for donor query hook
   const getListsForDonorQuery = (donorId: number) =>
-    trpc.lists.getListsForDonor.useQuery(
-      { donorId },
-      createConditionalQueryOptions(!!donorId)
-    );
+    trpc.lists.getListsForDonor.useQuery({ donorId }, createConditionalQueryOptions(!!donorId));
 
   // Mutation hooks
   const createMutation = trpc.lists.create.useMutation({
@@ -101,10 +88,14 @@ export function useLists() {
 
   const updateMutation = trpc.lists.update.useMutation({
     onSuccess: (data) => {
-      // Invalidate the getByIds cache 
+      // Invalidate the getByIds cache
       utils.lists.getByIds.invalidate();
-      utils.lists.getByIdWithMemberCount.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
-      utils.lists.getByIdWithMembers.setData({ id: data.id }, (old) => (old ? { ...old, ...data } : undefined));
+      utils.lists.getByIdWithMemberCount.setData({ id: data.id }, (old) =>
+        old ? { ...old, ...data } : undefined
+      );
+      utils.lists.getByIdWithMembers.setData({ id: data.id }, (old) =>
+        old ? { ...old, ...data } : undefined
+      );
 
       // Invalidate list view to refresh it
       utils.lists.list.invalidate();
@@ -121,9 +112,9 @@ export function useLists() {
       utils.lists.list.invalidate();
       utils.lists.list.refetch();
 
-      let message = "List deleted successfully!";
+      let message = 'List deleted successfully!';
       if (result.donorsDeleted > 0) {
-        message = `List deleted along with ${result.donorsDeleted} donor${result.donorsDeleted !== 1 ? "s" : ""}!`;
+        message = `List deleted along with ${result.donorsDeleted} donor${result.donorsDeleted !== 1 ? 's' : ''}!`;
       }
 
       toast.success(message);
@@ -137,49 +128,51 @@ export function useLists() {
     onSuccess: (data, variables) => {
       // Invalidate list-related queries
       crossResourceInvalidators.invalidateListRelated(variables.listId);
-      
+
       // Invalidate getListsForDonor for all affected donors
       variables.donorIds.forEach((donorId) => {
-        cacheInvalidators.invalidateAndRefetch("lists", ["getListsForDonor"]);
+        cacheInvalidators.invalidateAndRefetch('lists', ['getListsForDonor']);
       });
 
       const addedCount = data.length;
       const skippedCount = variables.donorIds.length - addedCount;
 
       if (addedCount > 0) {
-        toast.success(`Added ${addedCount} donor${addedCount !== 1 ? "s" : ""} to list!`);
+        toast.success(`Added ${addedCount} donor${addedCount !== 1 ? 's' : ''} to list!`);
       }
       if (skippedCount > 0) {
-        toast.info(`${skippedCount} donor${skippedCount !== 1 ? "s were" : " was"} already in the list.`);
+        toast.info(
+          `${skippedCount} donor${skippedCount !== 1 ? 's were' : ' was'} already in the list.`
+        );
       }
     },
-    onError: createErrorHandler("add donors to list"),
+    onError: createErrorHandler('add donors to list'),
   });
 
   const removeDonorsMutation = trpc.lists.removeDonors.useMutation({
     onSuccess: (removedCount, variables) => {
       // Invalidate list-related queries
       crossResourceInvalidators.invalidateListRelated(variables.listId);
-      
+
       // Invalidate getListsForDonor for all affected donors
       variables.donorIds.forEach((donorId) => {
-        cacheInvalidators.invalidateAndRefetch("lists", ["getListsForDonor"]);
+        cacheInvalidators.invalidateAndRefetch('lists', ['getListsForDonor']);
       });
 
       if (removedCount > 0) {
-        toast.success(`Removed ${removedCount} donor${removedCount !== 1 ? "s" : ""} from list!`);
+        toast.success(`Removed ${removedCount} donor${removedCount !== 1 ? 's' : ''} from list!`);
       } else {
-        toast.info("No donors were removed from the list.");
+        toast.info('No donors were removed from the list.');
       }
     },
-    onError: createErrorHandler("remove donors from list"),
+    onError: createErrorHandler('remove donors from list'),
   });
 
   const uploadFilesMutation = trpc.lists.uploadAndProcessFiles.useMutation({
     onSuccess: (result, variables) => {
       // Invalidate list-related queries
       crossResourceInvalidators.invalidateListRelated(variables.listId);
-      
+
       // Also invalidate donors since we imported new ones
       crossResourceInvalidators.invalidateDonorRelated();
 
@@ -195,15 +188,15 @@ export function useLists() {
         // Show skip details if any records were skipped
         const skipDetails = summary.skipBreakdown
           .map((item) => `${item.count} ${item.reason.toLowerCase()}`)
-          .join(", ");
+          .join(', ');
         toast.info(`Skipped ${summary.skipped} records: ${skipDetails}`);
       }
 
       if (result.errors.length > 0) {
-        console.warn("Import errors:", result.errors);
+        console.warn('Import errors:', result.errors);
       }
     },
-    onError: createErrorHandler("upload and process files"),
+    onError: createErrorHandler('upload and process files'),
   });
 
   const createByCriteriaMutation = trpc.lists.createByCriteria.useMutation({
@@ -214,48 +207,73 @@ export function useLists() {
       if (result) {
         toast.success(
           `Successfully created list "${result.name}" with ${result.memberCount} donor${
-            result.memberCount !== 1 ? "s" : ""
+            result.memberCount !== 1 ? 's' : ''
           }`
         );
       }
     },
-    onError: createErrorHandler("create list by criteria"),
+    onError: createErrorHandler('create list by criteria'),
   });
 
   const bulkUpdateMembersStaffMutation = trpc.lists.bulkUpdateMembersStaff.useMutation({
     onSuccess: (result, variables) => {
       // Invalidate list-related queries
       crossResourceInvalidators.invalidateListRelated(variables.listId);
-      
+
       // Also invalidate donor queries since staff assignments have changed
       crossResourceInvalidators.invalidateDonorRelated();
 
       toast.success(
-        `Successfully updated staff assignment for ${result.updated} donor${result.updated !== 1 ? "s" : ""}`
+        `Successfully updated staff assignment for ${result.updated} donor${result.updated !== 1 ? 's' : ''}`
       );
     },
-    onError: createErrorHandler("bulk update staff assignment"),
+    onError: createErrorHandler('bulk update staff assignment'),
   });
 
   // Helper functions for easier use
   const createList = async (data: CreateDonorListInput) => {
-    return createMutation.mutateAsync(data);
+    try {
+      return await createMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Failed to create list:', error);
+      throw error;
+    }
   };
 
   const updateList = async (data: UpdateDonorListInput) => {
-    return updateMutation.mutateAsync(data);
+    try {
+      return await updateMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Failed to update list:', error);
+      throw error;
+    }
   };
 
-  const deleteList = async (id: number, deleteMode: ListDeletionMode = "listOnly") => {
-    return deleteMutation.mutateAsync({ id, deleteMode });
+  const deleteList = async (id: number, deleteMode: ListDeletionMode = 'listOnly') => {
+    try {
+      return await deleteMutation.mutateAsync({ id, deleteMode });
+    } catch (error) {
+      console.error('Failed to delete list:', error);
+      throw error;
+    }
   };
 
   const addDonorsToList = async (listId: number, donorIds: number[]) => {
-    return addDonorsMutation.mutateAsync({ listId, donorIds });
+    try {
+      return await addDonorsMutation.mutateAsync({ listId, donorIds });
+    } catch (error) {
+      console.error('Failed to add donors to list:', error);
+      throw error;
+    }
   };
 
   const removeDonorsFromList = async (listId: number, donorIds: number[]) => {
-    return removeDonorsMutation.mutateAsync({ listId, donorIds });
+    try {
+      return await removeDonorsMutation.mutateAsync({ listId, donorIds });
+    } catch (error) {
+      console.error('Failed to remove donors from list:', error);
+      throw error;
+    }
   };
 
   const uploadFilesToList = async (data: {
@@ -263,7 +281,12 @@ export function useLists() {
     accountsFile: { name: string; content: string };
     pledgesFile?: { name: string; content: string };
   }) => {
-    return uploadFilesMutation.mutateAsync(data);
+    try {
+      return await uploadFilesMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Failed to upload files to list:', error);
+      throw error;
+    }
   };
 
   const createListByCriteria = async (data: {

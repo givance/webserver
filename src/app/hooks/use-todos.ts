@@ -1,15 +1,13 @@
-import { trpc } from "@/app/lib/trpc/client";
-import { useCallback } from "react";
-import type { Todo } from "@/app/types/todo";
+import { trpc } from '@/app/lib/trpc/client';
+import type { Todo } from '@/app/types/todo';
 
 export function useTodos() {
   const utils = trpc.useUtils();
 
-  const { data: groupedTodos, isLoading: isLoadingGroupedTodos } = trpc.todos.getGroupedByType.useQuery<
-    Record<string, Todo[]>
-  >({
-    statusesToExclude: ["COMPLETED", "CANCELLED"],
-  });
+  const { data: groupedTodos, isLoading: isLoadingGroupedTodos } =
+    trpc.todos.getGroupedByType.useQuery<Record<string, Todo[]>>({
+      statusesToExclude: ['COMPLETED', 'CANCELLED'],
+    });
 
   const createTodoMutation = trpc.todos.create.useMutation({
     onSuccess: () => {
@@ -40,32 +38,36 @@ export function useTodos() {
     },
   });
 
-  const createTodo = useCallback(
-    async (input: Parameters<typeof createTodoMutation.mutateAsync>[0]) => {
+  const createTodo = async (input: Parameters<typeof createTodoMutation.mutateAsync>[0]) => {
+    try {
       return await createTodoMutation.mutateAsync(input);
-    },
-    [createTodoMutation]
-  );
+    } catch (error) {
+      console.error('Failed to create todo:', error);
+      throw error;
+    }
+  };
 
-  const updateTodo = useCallback(
-    async (input: Parameters<typeof updateTodoMutation.mutateAsync>[0]) => {
+  const updateTodo = async (input: Parameters<typeof updateTodoMutation.mutateAsync>[0]) => {
+    try {
       return await updateTodoMutation.mutateAsync(input);
-    },
-    [updateTodoMutation]
-  );
+    } catch (error) {
+      console.error('Failed to update todo:', error);
+      throw error;
+    }
+  };
 
-  const updateTodoStatus = useCallback(
-    async (todoId: number, status: string, completedDate?: Date | null) => {
+  const updateTodoStatus = async (todoId: number, status: string, completedDate?: Date | null) => {
+    try {
       const input: Parameters<typeof updateTodoMutation.mutateAsync>[0] = {
         id: todoId,
         status,
       };
-      if (status.toUpperCase() === "COMPLETED") {
+      if (status.toUpperCase() === 'COMPLETED') {
         input.completedDate = completedDate instanceof Date ? completedDate : new Date();
       } else if (
-        status.toUpperCase() === "CANCELLED" ||
-        status.toUpperCase() === "IN_PROGRESS" ||
-        status.toUpperCase() === "OPEN"
+        status.toUpperCase() === 'CANCELLED' ||
+        status.toUpperCase() === 'IN_PROGRESS' ||
+        status.toUpperCase() === 'OPEN'
       ) {
         // When moving to a non-completed state, ensure completedDate is cleared if it was set
         // The backend input for update allows completedDate to be explicitly set to null to clear it.
@@ -75,28 +77,36 @@ export function useTodos() {
         // For now, let's assume backend handles it or we add explicit null later.
       }
       return await updateTodoMutation.mutateAsync(input);
-    },
-    [updateTodoMutation]
-  );
+    } catch (error) {
+      console.error('Failed to update todo status:', error);
+      throw error;
+    }
+  };
 
-  const pushTodoScheduledDate = useCallback(
-    async (todoId: number, days: number) => {
+  const pushTodoScheduledDate = async (todoId: number, days: number) => {
+    try {
       const newScheduledDate = new Date();
       newScheduledDate.setDate(newScheduledDate.getDate() + days);
       return await updateTodoMutation.mutateAsync({
         id: todoId,
         scheduledDate: newScheduledDate,
       });
-    },
-    [updateTodoMutation]
-  );
+    } catch (error) {
+      console.error('Failed to push todo scheduled date:', error);
+      throw error;
+    }
+  };
 
-  const bulkUpdateTodosStatus = useCallback(
-    async (todoIds: number[], status: string, completedDate?: Date | null) => {
-      const data: Parameters<typeof updateManyTodosMutation.mutateAsync>[0]["data"] = {
+  const bulkUpdateTodosStatus = async (
+    todoIds: number[],
+    status: string,
+    completedDate?: Date | null
+  ) => {
+    try {
+      const data: Parameters<typeof updateManyTodosMutation.mutateAsync>[0]['data'] = {
         status,
       };
-      if (status.toUpperCase() === "COMPLETED") {
+      if (status.toUpperCase() === 'COMPLETED') {
         data.completedDate = completedDate instanceof Date ? completedDate : new Date();
       } else {
         // If moving to a non-completed state, and we want to ensure completedDate is cleared,
@@ -104,28 +114,34 @@ export function useTodos() {
         data.completedDate = null;
       }
       return await updateManyTodosMutation.mutateAsync({ ids: todoIds, data });
-    },
-    [updateManyTodosMutation]
-  );
+    } catch (error) {
+      console.error('Failed to bulk update todos status:', error);
+      throw error;
+    }
+  };
 
-  const bulkPushTodosScheduledDate = useCallback(
-    async (todoIds: number[], days: number) => {
+  const bulkPushTodosScheduledDate = async (todoIds: number[], days: number) => {
+    try {
       const newScheduledDate = new Date();
       newScheduledDate.setDate(newScheduledDate.getDate() + days);
-      const data: Parameters<typeof updateManyTodosMutation.mutateAsync>[0]["data"] = {
+      const data: Parameters<typeof updateManyTodosMutation.mutateAsync>[0]['data'] = {
         scheduledDate: newScheduledDate,
       };
       return await updateManyTodosMutation.mutateAsync({ ids: todoIds, data });
-    },
-    [updateManyTodosMutation]
-  );
+    } catch (error) {
+      console.error('Failed to bulk push todos scheduled date:', error);
+      throw error;
+    }
+  };
 
-  const deleteTodo = useCallback(
-    async (input: Parameters<typeof deleteTodoMutation.mutateAsync>[0]) => {
+  const deleteTodo = async (input: Parameters<typeof deleteTodoMutation.mutateAsync>[0]) => {
+    try {
       return await deleteTodoMutation.mutateAsync(input);
-    },
-    [deleteTodoMutation]
-  );
+    } catch (error) {
+      console.error('Failed to delete todo:', error);
+      throw error;
+    }
+  };
 
   return {
     groupedTodos,
@@ -137,9 +153,11 @@ export function useTodos() {
     bulkUpdateTodosStatus,
     bulkPushTodosScheduledDate,
     deleteTodo,
-    createTodoMutation,
-    updateTodoMutation,
-    updateManyTodosMutation,
-    deleteTodoMutation,
+
+    // Loading states
+    isLoadingCreateTodo: createTodoMutation.isPending,
+    isLoadingUpdateTodo: updateTodoMutation.isPending,
+    isLoadingUpdateManyTodos: updateManyTodosMutation.isPending,
+    isLoadingDeleteTodo: deleteTodoMutation.isPending,
   };
 }

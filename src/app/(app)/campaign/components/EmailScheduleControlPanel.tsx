@@ -65,12 +65,9 @@ export function EmailScheduleControlPanel({
   const handlePause = async () => {
     setIsProcessing(true);
     try {
-      const result = await pauseEmailSending.mutateAsync({ sessionId });
+      const result = await pauseEmailSending({ sessionId });
       toast.success(`Paused campaign. ${result.cancelledJobs} emails were stopped.`);
       setShowPauseDialog(false);
-    } catch (error) {
-      console.error('Failed to pause campaign:', error);
-      toast.error('Failed to pause campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -79,15 +76,12 @@ export function EmailScheduleControlPanel({
   const handleResume = async () => {
     setIsProcessing(true);
     try {
-      const result = await resumeEmailSending.mutateAsync({ sessionId });
+      const result = await resumeEmailSending({ sessionId });
       toast.success(
         `Resumed campaign. ${result.rescheduled} emails scheduled. ${result.scheduledForToday} will be sent today.`,
         { duration: 5000 }
       );
       setShowResumeDialog(false);
-    } catch (error) {
-      console.error('Failed to resume campaign:', error);
-      toast.error('Failed to resume campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -96,12 +90,9 @@ export function EmailScheduleControlPanel({
   const handleCancel = async () => {
     setIsProcessing(true);
     try {
-      const result = await cancelEmailSending.mutateAsync({ sessionId });
+      const result = await cancelEmailSending({ sessionId });
       toast.success(`Campaign cancelled. ${result.cancelledEmails} emails were cancelled.`);
       setShowCancelDialog(false);
-    } catch (error) {
-      console.error('Failed to cancel campaign:', error);
-      toast.error('Failed to cancel campaign. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -112,15 +103,12 @@ export function EmailScheduleControlPanel({
 
     setIsProcessing(true);
     try {
-      await updateCampaign.mutateAsync({
+      await updateCampaign({
         campaignId: sessionId,
         scheduleConfig,
       });
       toast.success('Campaign schedule settings updated successfully');
       setShowScheduleConfig(false);
-    } catch (error) {
-      console.error('Failed to update schedule config:', error);
-      toast.error('Failed to update schedule settings. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -134,7 +122,7 @@ export function EmailScheduleControlPanel({
         scheduleConfig: campaign?.session?.scheduleConfig ?? undefined,
       };
       console.log('x', x);
-      const result = await scheduleEmailSend.mutateAsync({
+      const result = await scheduleEmailSend({
         sessionId,
         scheduleConfig: campaign?.session?.scheduleConfig ?? undefined,
       });

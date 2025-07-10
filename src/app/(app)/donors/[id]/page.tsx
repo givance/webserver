@@ -101,7 +101,17 @@ export default function DonorProfilePage() {
   const [editingNoteContent, setEditingNoteContent] = useState('');
 
   // Fetch donor data
-  const { getDonorQuery, updateDonor, getDonorStats } = useDonors();
+  const {
+    getDonorQuery,
+    updateDonor,
+    getDonorStats,
+    addNote,
+    editNote,
+    deleteNote,
+    isAddingNote: isAddingNoteLoading,
+    isEditingNote: isEditingNoteLoading,
+    isDeletingNote: isDeletingNoteLoading,
+  } = useDonors();
   const donorQuery = getDonorQuery(donorId);
   const { data: donor, isLoading: isDonorLoading, error: donorError } = donorQuery;
 
@@ -187,58 +197,12 @@ export default function DonorProfilePage() {
     });
   };
 
-  // Add note mutation
-  const addNoteMutation = trpc.donors.addNote.useMutation({
-    onSuccess: () => {
-      toast.success('Note added successfully');
-      setNewNoteContent('');
-      setIsAddingNote(false);
-      // Refetch donor data to get updated notes
-      donorQuery.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to add note');
-    },
-  });
-
-  // Edit note mutation
-  const editNoteMutation = trpc.donors.editNote.useMutation({
-    onSuccess: () => {
-      toast.success('Note updated successfully');
-      setEditingNoteIndex(null);
-      setEditingNoteContent('');
-      // Refetch donor data to get updated notes
-      donorQuery.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to update note');
-    },
-  });
-
-  // Delete note mutation
-  const deleteNoteMutation = trpc.donors.deleteNote.useMutation({
-    onSuccess: () => {
-      toast.success('Note deleted successfully');
-      // Refetch donor data to get updated notes
-      donorQuery.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to delete note');
-    },
-  });
-
   // Helper functions for inline editing
   const handleUpdateField = async (field: string, value: any) => {
-    try {
-      await updateDonor({
-        id: donorId,
-        [field]: value || undefined,
-      });
-      toast.success(`Updated ${field}`);
-    } catch (error) {
-      toast.error(`Failed to update ${field}`);
-      throw error;
-    }
+    await updateDonor({
+      id: donorId,
+      [field]: value || undefined,
+    });
   };
 
   // Validation functions
@@ -268,10 +232,9 @@ export default function DonorProfilePage() {
       return;
     }
 
-    await addNoteMutation.mutateAsync({
-      donorId,
-      content: newNoteContent.trim(),
-    });
+    await addNote(donorId, newNoteContent.trim());
+    setNewNoteContent('');
+    setIsAddingNote(false);
   };
 
   const handleCancelAddNote = () => {
@@ -292,11 +255,9 @@ export default function DonorProfilePage() {
 
     if (editingNoteIndex === null) return;
 
-    await editNoteMutation.mutateAsync({
-      donorId,
-      noteIndex: editingNoteIndex,
-      content: editingNoteContent.trim(),
-    });
+    await editNote(donorId, editingNoteIndex, editingNoteContent.trim());
+    setEditingNoteIndex(null);
+    setEditingNoteContent('');
   };
 
   const handleCancelEditNote = () => {
@@ -306,10 +267,7 @@ export default function DonorProfilePage() {
 
   const handleDeleteNote = async (index: number) => {
     if (window.confirm('Are you sure you want to delete this note?')) {
-      await deleteNoteMutation.mutateAsync({
-        donorId,
-        noteIndex: index,
-      });
+      await deleteNote(donorId, index);
     }
   };
 
@@ -649,15 +607,15 @@ export default function DonorProfilePage() {
                           <Button
                             size="sm"
                             onClick={handleSaveEditNote}
-                            disabled={!editingNoteContent.trim() || editNoteMutation.isPending}
+                            disabled={!editingNoteContent.trim() || isEditingNoteLoading}
                           >
-                            {editNoteMutation.isPending ? 'Saving...' : 'Save'}
+                            {isEditingNoteLoading ? 'Saving...' : 'Save'}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={handleCancelEditNote}
-                            disabled={editNoteMutation.isPending}
+                            disabled={isEditingNoteLoading}
                           >
                             Cancel
                           </Button>
@@ -682,7 +640,7 @@ export default function DonorProfilePage() {
                               size="sm"
                               onClick={() => handleDeleteNote(index)}
                               className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                              disabled={deleteNoteMutation.isPending}
+                              disabled={isDeletingNoteLoading}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -713,15 +671,15 @@ export default function DonorProfilePage() {
                   <Button
                     size="sm"
                     onClick={handleAddNote}
-                    disabled={!newNoteContent.trim() || addNoteMutation.isPending}
+                    disabled={!newNoteContent.trim() || isAddingNote || isAddingNoteLoading}
                   >
-                    {addNoteMutation.isPending ? 'Adding...' : 'Add Note'}
+                    {isAddingNote || isAddingNoteLoading ? 'Adding...' : 'Add Note'}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={handleCancelAddNote}
-                    disabled={addNoteMutation.isPending}
+                    disabled={isAddingNote || isAddingNoteLoading}
                   >
                     Cancel
                   </Button>

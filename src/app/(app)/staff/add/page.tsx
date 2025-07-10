@@ -1,50 +1,57 @@
-"use client";
+'use client';
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useRouter } from "next/navigation";
-import { useStaff } from "@/app/hooks/use-staff";
-import { useWhatsApp } from "@/app/hooks/use-whatsapp";
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { SignatureEditor, SignaturePreview } from "@/components/signature";
-import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
-import { trpc } from "@/app/lib/trpc/client";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, X, MessageSquare } from "lucide-react";
-import Link from "next/link";
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
-import { type CheckedState } from "@radix-ui/react-checkbox";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useRouter } from 'next/navigation';
+import { useStaff } from '@/app/hooks/use-staff';
+import { useWhatsApp } from '@/app/hooks/use-whatsapp';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { SignatureEditor, SignaturePreview } from '@/components/signature';
+import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
+import { trpc } from '@/app/lib/trpc/client';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Plus, X, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import { type CheckedState } from '@radix-ui/react-checkbox';
 
 /**
  * Form schema for staff creation
  * Defines validation rules for each field
  */
 const formSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
   title: z.string().optional(),
   department: z.string().optional(),
   signature: z.string().optional(),
   writingInstructions: z.string().optional(),
   isRealPerson: z.boolean().default(true),
-  whatsappPhoneNumbers: z.array(z.string().min(10, "Phone number must be at least 10 digits")).optional(),
+  whatsappPhoneNumbers: z
+    .array(z.string().min(10, 'Phone number must be at least 10 digits'))
+    .optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export default function AddStaffPage() {
-  const { createStaff, isCreating } = useStaff();
+  const { createStaff, updateSignature, isCreating } = useStaff();
   const { addPhoneNumber } = useWhatsApp();
   const router = useRouter();
-  
-  // Mutation for updating signature
-  const updateSignatureMutation = trpc.staff.updateSignature.useMutation();
   const [error, setError] = useState<string | null>(null);
   const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
   const [showCodeView, setShowCodeView] = useState(false);
@@ -53,13 +60,13 @@ export default function AddStaffPage() {
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
     resolver: zodResolver(formSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      title: "",
-      department: "",
-      signature: "",
-      writingInstructions: "",
+      firstName: '',
+      lastName: '',
+      email: '',
+      title: '',
+      department: '',
+      signature: '',
+      writingInstructions: '',
       isRealPerson: true,
       whatsappPhoneNumbers: [],
     },
@@ -79,7 +86,7 @@ export default function AddStaffPage() {
    * Add a new phone number field
    */
   const addPhoneNumberField = () => {
-    setPhoneNumbers([...phoneNumbers, ""]);
+    setPhoneNumbers([...phoneNumbers, '']);
   };
 
   /**
@@ -89,7 +96,7 @@ export default function AddStaffPage() {
     const newPhoneNumbers = phoneNumbers.filter((_, i) => i !== index);
     setPhoneNumbers(newPhoneNumbers);
     form.setValue(
-      "whatsappPhoneNumbers",
+      'whatsappPhoneNumbers',
       newPhoneNumbers.filter((phone) => phone.trim())
     );
   };
@@ -102,7 +109,7 @@ export default function AddStaffPage() {
     newPhoneNumbers[index] = value;
     setPhoneNumbers(newPhoneNumbers);
     form.setValue(
-      "whatsappPhoneNumbers",
+      'whatsappPhoneNumbers',
       newPhoneNumbers.filter((phone) => phone.trim())
     );
   };
@@ -131,14 +138,14 @@ export default function AddStaffPage() {
         if (values.signature && values.signature.trim()) {
           try {
             const sanitizedSignature = sanitizeHtml(values.signature);
-            await updateSignatureMutation.mutateAsync({
+            await updateSignature({
               id: result.id,
               signature: sanitizedSignature,
             });
           } catch (signatureError: any) {
-            console.warn("Error updating signature, but staff was created:", signatureError);
+            console.warn('Error updating signature, but staff was created:', signatureError);
             toast.warning(
-              "Staff member created successfully, but failed to save signature. You can add it later from the staff detail page."
+              'Staff member created successfully, but failed to save signature. You can add it later from the staff detail page.'
             );
           }
         }
@@ -152,28 +159,28 @@ export default function AddStaffPage() {
               }
             }
           } catch (phoneError: any) {
-            console.warn("Error adding phone numbers, but staff was created:", phoneError);
-            const phoneErrorMessage = phoneError?.message || "Unknown error adding phone numbers";
+            console.warn('Error adding phone numbers, but staff was created:', phoneError);
+            const phoneErrorMessage = phoneError?.message || 'Unknown error adding phone numbers';
             toast.warning(
               `Staff member created successfully, but failed to add phone numbers: ${phoneErrorMessage}. You can add them later from the staff detail page.`
             );
           }
         }
 
-        toast.success("Staff member created successfully");
-        router.push("/staff");
+        toast.success('Staff member created successfully');
+        router.push('/staff');
       } else {
         // This case should rarely happen, but we need to handle it
-        console.error("Staff creation failed: No result returned");
+        console.error('Staff creation failed: No result returned');
       }
     } catch (err: any) {
-      console.error("Error creating staff:", err);
+      console.error('Error creating staff:', err);
 
       // Extract meaningful error message from tRPC error structure
-      let errorMessage = "An unexpected error occurred while creating staff member";
+      let errorMessage = 'An unexpected error occurred while creating staff member';
 
       // Log the full error structure for debugging
-      console.error("Full error structure:", JSON.stringify(err, null, 2));
+      console.error('Full error structure:', JSON.stringify(err, null, 2));
 
       // tRPC errors can come in different structures, check all possible locations
       if (err?.message) {
@@ -186,13 +193,13 @@ export default function AddStaffPage() {
         errorMessage = err.shape.message;
       } else if (err?.cause?.message) {
         errorMessage = err.cause.message;
-      } else if (typeof err === "string") {
+      } else if (typeof err === 'string') {
         errorMessage = err;
       }
 
       // Remove "Error [TRPCError]: " prefix if present
-      if (errorMessage.startsWith("Error [TRPCError]: ")) {
-        errorMessage = errorMessage.replace("Error [TRPCError]: ", "");
+      if (errorMessage.startsWith('Error [TRPCError]: ')) {
+        errorMessage = errorMessage.replace('Error [TRPCError]: ', '');
       }
 
       setError(errorMessage);
@@ -296,7 +303,7 @@ export default function AddStaffPage() {
                   <FormItem>
                     <FormLabel>Job Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Marketing Manager" {...field} value={field.value || ""} />
+                      <Input placeholder="Marketing Manager" {...field} value={field.value || ''} />
                     </FormControl>
                     <FormDescription>Enter the staff member&apos;s job title</FormDescription>
                     <FormMessage />
@@ -312,7 +319,7 @@ export default function AddStaffPage() {
                   <FormItem>
                     <FormLabel>Department</FormLabel>
                     <FormControl>
-                      <Input placeholder="Marketing" {...field} value={field.value || ""} />
+                      <Input placeholder="Marketing" {...field} value={field.value || ''} />
                     </FormControl>
                     <FormDescription>Enter the staff member&apos;s department</FormDescription>
                     <FormMessage />
@@ -329,7 +336,7 @@ export default function AddStaffPage() {
                     <FormLabel>Email Signature</FormLabel>
                     <FormControl>
                       <SignatureEditor
-                        value={field.value || ""}
+                        value={field.value || ''}
                         onChange={field.onChange}
                         showCodeView={showCodeView}
                         onCodeViewChange={setShowCodeView}
@@ -342,10 +349,10 @@ export default function AddStaffPage() {
               />
 
               {/* Signature Preview */}
-              {form.watch("signature") && (
-                <SignaturePreview 
-                  signature={form.watch("signature") || ""}
-                  staffName={`${form.watch("firstName") || "Staff"} ${form.watch("lastName") || "Member"}`}
+              {form.watch('signature') && (
+                <SignaturePreview
+                  signature={form.watch('signature') || ''}
+                  staffName={`${form.watch('firstName') || 'Staff'} ${form.watch('lastName') || 'Member'}`}
                 />
               )}
 
@@ -360,13 +367,14 @@ export default function AddStaffPage() {
                       <Textarea
                         placeholder="Specific writing style guidelines for this staff member (e.g., formal tone, use of technical terms, personal anecdotes)..."
                         {...field}
-                        value={field.value || ""}
+                        value={field.value || ''}
                         rows={4}
                       />
                     </FormControl>
                     <FormDescription>
-                      These instructions will override the organization&apos;s default writing guidelines when generating emails for this staff member. 
-                      Leave blank to use organizational defaults.
+                      These instructions will override the organization&apos;s default writing
+                      guidelines when generating emails for this staff member. Leave blank to use
+                      organizational defaults.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -382,7 +390,8 @@ export default function AddStaffPage() {
                       WhatsApp Phone Numbers
                     </FormLabel>
                     <FormDescription>
-                      Add phone numbers that this staff member can receive WhatsApp messages on (optional)
+                      Add phone numbers that this staff member can receive WhatsApp messages on
+                      (optional)
                     </FormDescription>
                   </div>
                   <Button
@@ -419,8 +428,8 @@ export default function AddStaffPage() {
 
                 {phoneNumbers.length === 0 && (
                   <div className="text-sm text-muted-foreground italic border-2 border-dashed border-gray-200 rounded-lg p-4 text-center">
-                    No WhatsApp phone numbers added. Click &quot;Add Phone&quot; to enable WhatsApp functionality for
-                    this staff member.
+                    No WhatsApp phone numbers added. Click &quot;Add Phone&quot; to enable WhatsApp
+                    functionality for this staff member.
                   </div>
                 )}
               </div>
@@ -455,7 +464,7 @@ export default function AddStaffPage() {
                       Creating...
                     </>
                   ) : (
-                    "Create Staff Member"
+                    'Create Staff Member'
                   )}
                 </Button>
               </div>
