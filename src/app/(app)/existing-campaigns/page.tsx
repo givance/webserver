@@ -11,8 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table/DataTable';
 import { Separator } from '@/components/ui/separator';
-import { Clock, Mail, Pause, Play } from 'lucide-react';
+import { Clock, Mail, Pause, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import { CampaignScheduleConfig } from '../campaign/components/CampaignScheduleConfig';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -448,6 +449,11 @@ function ExistingCampaignsContent() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [resumeCampaignId, setResumeCampaignId] = useState<number | null>(null);
   const [isProcessingResume, setIsProcessingResume] = useState(false);
+
+  // Collapse states for each section (default to open)
+  const [activeCollapsed, setActiveCollapsed] = useState(false);
+  const [readyCollapsed, setReadyCollapsed] = useState(false);
+  const [otherCollapsed, setOtherCollapsed] = useState(false);
 
   const {
     listCampaigns,
@@ -943,6 +949,8 @@ function ExistingCampaignsContent() {
     currentPage,
     onPageChange,
     isLoading,
+    isCollapsed,
+    onCollapsedChange,
   }: {
     title: string;
     icon: React.ReactNode;
@@ -952,29 +960,51 @@ function ExistingCampaignsContent() {
     currentPage: number;
     onPageChange: (page: number) => void;
     isLoading?: boolean;
+    isCollapsed: boolean;
+    onCollapsedChange: (collapsed: boolean) => void;
   }) => {
     if (totalCount === 0 && !isLoading) return null;
 
     return (
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          {icon}
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <span className="text-sm text-muted-foreground">({totalCount})</span>
-          {isLoading && <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />}
+      <Collapsible
+        open={!isCollapsed}
+        onOpenChange={(open) => onCollapsedChange(!open)}
+        className="mb-6"
+      >
+        <div className="rounded-lg border bg-card">
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent/50 transition-colors rounded-t-lg cursor-pointer">
+            <div className="flex items-center gap-2">
+              <ChevronRight
+                className={`h-4 w-4 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`}
+              />
+              {icon}
+              <h3 className="text-lg font-semibold">{title}</h3>
+              <Badge variant="secondary" className="ml-2">
+                {totalCount}
+              </Badge>
+              {isLoading && <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Click to {isCollapsed ? 'expand' : 'collapse'}
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-4 pb-4">
+              <DataTable
+                columns={columns}
+                data={campaigns}
+                totalItems={totalCount}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+                onPageSizeChange={handlePageSizeChange}
+                showPagination={totalCount > pageSize}
+              />
+            </div>
+          </CollapsibleContent>
         </div>
-        <DataTable
-          columns={columns}
-          data={campaigns}
-          totalItems={totalCount}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          currentPage={currentPage}
-          onPageChange={onPageChange}
-          onPageSizeChange={handlePageSizeChange}
-          showPagination={totalCount > pageSize}
-        />
-      </div>
+      </Collapsible>
     );
   };
 
@@ -1022,9 +1052,34 @@ function ExistingCampaignsContent() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Email Campaigns</h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <RefreshCw className="h-4 w-4 animate-spin" />
-          <span>Auto-refreshing every 5s</span>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const allCollapsed = activeCollapsed && readyCollapsed && otherCollapsed;
+              setActiveCollapsed(!allCollapsed);
+              setReadyCollapsed(!allCollapsed);
+              setOtherCollapsed(!allCollapsed);
+            }}
+            className="flex items-center gap-2"
+          >
+            {activeCollapsed && readyCollapsed && otherCollapsed ? (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Expand All
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-4 w-4" />
+                Collapse All
+              </>
+            )}
+          </Button>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span>Auto-refreshing every 5s</span>
+          </div>
         </div>
       </div>
 
@@ -1037,9 +1092,9 @@ function ExistingCampaignsContent() {
         currentPage={activePage}
         onPageChange={setActivePage}
         isLoading={isLoadingActive}
+        isCollapsed={activeCollapsed}
+        onCollapsedChange={setActiveCollapsed}
       />
-
-      {activeTotalCount > 0 && readyTotalCount > 0 && <Separator className="my-4" />}
 
       <CampaignSection
         title="Ready to Send"
@@ -1050,11 +1105,9 @@ function ExistingCampaignsContent() {
         currentPage={readyPage}
         onPageChange={setReadyPage}
         isLoading={isLoadingReady}
+        isCollapsed={readyCollapsed}
+        onCollapsedChange={setReadyCollapsed}
       />
-
-      {(activeTotalCount > 0 || readyTotalCount > 0) && otherTotalCount > 0 && (
-        <Separator className="my-4" />
-      )}
 
       <CampaignSection
         title="Other Campaigns"
@@ -1065,6 +1118,8 @@ function ExistingCampaignsContent() {
         currentPage={otherPage}
         onPageChange={setOtherPage}
         isLoading={isLoadingOther}
+        isCollapsed={otherCollapsed}
+        onCollapsedChange={setOtherCollapsed}
       />
 
       {activeTotalCount === 0 && readyTotalCount === 0 && otherTotalCount === 0 && !isLoading && (
