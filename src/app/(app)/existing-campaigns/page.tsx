@@ -488,6 +488,7 @@ function ExistingCampaignsContent() {
   const {
     data: activeResponse,
     isLoading: isLoadingActive,
+    isFetching: isFetchingActive,
     error: activeError,
   } = listCampaigns(
     {
@@ -507,6 +508,7 @@ function ExistingCampaignsContent() {
   const {
     data: readyResponse,
     isLoading: isLoadingReady,
+    isFetching: isFetchingReady,
     error: readyError,
   } = listCampaigns(
     {
@@ -526,6 +528,7 @@ function ExistingCampaignsContent() {
   const {
     data: otherResponse,
     isLoading: isLoadingOther,
+    isFetching: isFetchingOther,
     error: otherError,
   } = listCampaigns(
     {
@@ -907,6 +910,7 @@ function ExistingCampaignsContent() {
   ];
 
   const isLoading = isLoadingActive || isLoadingReady || isLoadingOther;
+  const isFetching = isFetchingActive || isFetchingReady || isFetchingOther;
   const error = activeError || readyError || otherError;
 
   if (
@@ -949,6 +953,7 @@ function ExistingCampaignsContent() {
     currentPage,
     onPageChange,
     isLoading,
+    isFetching,
     isCollapsed,
     onCollapsedChange,
   }: {
@@ -960,6 +965,7 @@ function ExistingCampaignsContent() {
     currentPage: number;
     onPageChange: (page: number) => void;
     isLoading?: boolean;
+    isFetching?: boolean;
     isCollapsed: boolean;
     onCollapsedChange: (collapsed: boolean) => void;
   }) => {
@@ -982,7 +988,9 @@ function ExistingCampaignsContent() {
               <Badge variant="secondary" className="ml-2">
                 {totalCount}
               </Badge>
-              {isLoading && <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />}
+              {isFetching && !isLoading && (
+                <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+              )}
             </div>
             <div className="text-sm text-muted-foreground">
               Click to {isCollapsed ? 'expand' : 'collapse'}
@@ -1053,6 +1061,12 @@ function ExistingCampaignsContent() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Email Campaigns</h1>
         <div className="flex items-center gap-4">
+          {isFetching && !isLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span>Refreshing...</span>
+            </div>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -1076,10 +1090,6 @@ function ExistingCampaignsContent() {
               </>
             )}
           </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <span>Auto-refreshing every 5s</span>
-          </div>
         </div>
       </div>
 
@@ -1092,6 +1102,7 @@ function ExistingCampaignsContent() {
         currentPage={activePage}
         onPageChange={setActivePage}
         isLoading={isLoadingActive}
+        isFetching={isFetchingActive}
         isCollapsed={activeCollapsed}
         onCollapsedChange={setActiveCollapsed}
       />
@@ -1105,6 +1116,7 @@ function ExistingCampaignsContent() {
         currentPage={readyPage}
         onPageChange={setReadyPage}
         isLoading={isLoadingReady}
+        isFetching={isFetchingReady}
         isCollapsed={readyCollapsed}
         onCollapsedChange={setReadyCollapsed}
       />
@@ -1118,6 +1130,7 @@ function ExistingCampaignsContent() {
         currentPage={otherPage}
         onPageChange={setOtherPage}
         isLoading={isLoadingOther}
+        isFetching={isFetchingOther}
         isCollapsed={otherCollapsed}
         onCollapsedChange={setOtherCollapsed}
       />
