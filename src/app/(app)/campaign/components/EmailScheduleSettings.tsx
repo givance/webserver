@@ -190,7 +190,7 @@ export function EmailScheduleSettings() {
 
     setIsSaving(true);
     try {
-      await updateScheduleConfig.mutateAsync({
+      await updateScheduleConfig({
         ...updateData,
         rescheduleExisting,
       });
@@ -198,9 +198,6 @@ export function EmailScheduleSettings() {
       setHasChanges(false);
       setPendingUpdate(null);
       setShowConfirmDialog(false);
-    } catch (error) {
-      console.error('Failed to update settings:', error);
-      toast.error('Failed to update settings. Please try again.');
     } finally {
       setIsSaving(false);
     }

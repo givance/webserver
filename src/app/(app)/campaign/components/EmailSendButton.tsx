@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Send, CheckCircle, Clock, AlertCircle } from "lucide-react";
-import { useCommunications } from "@/app/hooks/use-communications";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Send, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { useCommunications } from '@/app/hooks/use-communications';
+import { toast } from 'sonner';
 
 interface EmailSendButtonProps {
   emailId: number;
@@ -13,7 +13,7 @@ interface EmailSendButtonProps {
 }
 
 export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendButtonProps) {
-  const { getEmailStatus, sendIndividualEmail } = useCommunications();
+  const { getEmailStatus, sendIndividualEmail, isLoadingSendIndividualEmail } = useCommunications();
   const [isLocalSending, setIsLocalSending] = useState(false);
 
   // Get email status - only query if emailId exists
@@ -25,21 +25,21 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
   const handleSendEmail = async () => {
     setIsLocalSending(true);
     try {
-      const result = await sendIndividualEmail.mutateAsync({ emailId });
+      const result = await sendIndividualEmail({ emailId });
       if (result?.success) {
         toast.success(`Email sent successfully to ${donorName}`);
       } else {
         toast.error(`Failed to send email to ${donorName}`);
       }
     } catch (error) {
-      console.error("Error sending email:", error);
+      console.error('Error sending email:', error);
       toast.error(`Failed to send email to ${donorName}`);
     } finally {
       setIsLocalSending(false);
     }
   };
 
-  const isSending = sendIndividualEmail.isPending || isLocalSending;
+  const isSending = isLoadingSendIndividualEmail || isLocalSending;
 
   if (isLoadingStatus) {
     return (
@@ -81,7 +81,12 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
           </div>
 
           {!emailStatus?.isSent && (
-            <Button onClick={handleSendEmail} disabled={isSending} size="sm" className="flex items-center gap-2">
+            <Button
+              onClick={handleSendEmail}
+              disabled={isSending}
+              size="sm"
+              className="flex items-center gap-2"
+            >
               {isSending ? (
                 <>
                   <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />

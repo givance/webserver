@@ -89,7 +89,7 @@ interface EmailStatusChangeParams {
 }
 
 interface UpdateEmailStatusMutation {
-  mutateAsync: (params: { emailId: number; status: 'PENDING_APPROVAL' | 'APPROVED' }) => Promise<{
+  (params: { emailId: number; status: 'PENDING_APPROVAL' | 'APPROVED' }): Promise<{
     email: {
       status: string;
       id: number;
@@ -260,7 +260,7 @@ export async function handleEmailStatusChange(
   }
 
   try {
-    await updateEmailStatus.mutateAsync({ emailId, status });
+    await updateEmailStatus({ emailId, status });
     const email = emailState.allGeneratedEmails.find(
       (email) => (email as GeneratedEmail & { id: number }).id === emailId
     ) as (GeneratedEmail & { id: number }) | undefined;

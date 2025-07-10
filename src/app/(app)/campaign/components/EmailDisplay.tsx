@@ -245,7 +245,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   const [previewSubject, setPreviewSubject] = useState(subject);
   const [previewContent, setPreviewContent] = useState(content || []);
 
-  const { getEmailStatus, sendBulkEmails } = useCommunications();
+  const { getEmailStatus, sendBulkEmails, isLoadingSendBulkEmails } = useCommunications();
 
   // Determine which format to use - memoized to prevent re-computations
   const isNewFormat = useMemo(() => {
@@ -460,7 +460,7 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                     onClick={async () => {
                       try {
                         console.log('Sending email to', donorName);
-                        const result = await sendBulkEmails.mutateAsync({
+                        const result = await sendBulkEmails({
                           sessionId: sessionId || 0,
                           emailIds: [emailId],
                         });
@@ -478,10 +478,10 @@ export const EmailDisplay = React.memo(function EmailDisplay({
                         toast.error(`Failed to send email to ${donorName}: ${errorMessage}`);
                       }
                     }}
-                    disabled={sendBulkEmails.isPending}
+                    disabled={isLoadingSendBulkEmails}
                     className="flex items-center gap-1.5 h-7 text-xs px-2"
                   >
-                    {sendBulkEmails.isPending ? (
+                    {isLoadingSendBulkEmails ? (
                       <>
                         <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
                         Sending...

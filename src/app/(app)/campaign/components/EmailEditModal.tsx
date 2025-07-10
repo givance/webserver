@@ -52,7 +52,7 @@ export function EmailEditModal({
   donorName,
   donorEmail,
 }: EmailEditModalProps) {
-  const { updateEmail } = useCommunications();
+  const { updateEmail, isLoadingUpdateEmail } = useCommunications();
   const [subject, setSubject] = useState(initialSubject);
   const [content, setContent] = useState('');
   const [referenceContexts, setReferenceContexts] = useState(initialReferenceContexts);
@@ -123,7 +123,7 @@ export function EmailEditModal({
     try {
       if (isNewFormat) {
         // Send new format
-        await updateEmail.mutateAsync({
+        await updateEmail({
           emailId,
           subject,
           emailContent: content,
@@ -132,7 +132,7 @@ export function EmailEditModal({
       } else {
         // Send legacy format
         const structuredContent = plainTextToStructured(content);
-        await updateEmail.mutateAsync({
+        await updateEmail({
           emailId,
           subject,
           structuredContent,
@@ -259,8 +259,8 @@ export function EmailEditModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateEmail.isPending}>
-            {updateEmail.isPending ? 'Saving...' : 'Save Changes'}
+          <Button onClick={handleSave} disabled={isLoadingUpdateEmail}>
+            {isLoadingUpdateEmail ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

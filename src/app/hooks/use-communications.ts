@@ -195,6 +195,238 @@ export function useCommunications() {
     },
   });
 
+  // Wrapped functions for mutations
+  const createThreadHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['threads']['createThread']>
+  ) => {
+    try {
+      return await createThread.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+      throw error;
+    }
+  };
+
+  const addMessageHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['threads']['addMessage']>
+  ) => {
+    try {
+      return await addMessage.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to add message:', error);
+      throw error;
+    }
+  };
+
+  const createSessionHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['createSession']>
+  ) => {
+    try {
+      return await createSession.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      throw error;
+    }
+  };
+
+  const launchCampaignHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['launchCampaign']>
+  ) => {
+    try {
+      return await launchCampaign.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to launch campaign:', error);
+      throw error;
+    }
+  };
+
+  const saveToDraftHandler = async (
+    input: inferProcedureInput<AppRouter['gmail']['saveToDraft']>
+  ) => {
+    try {
+      return await saveToDraft.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to save to draft:', error);
+      throw error;
+    }
+  };
+
+  const sendEmailsHandler = async (
+    input: inferProcedureInput<AppRouter['gmail']['sendEmails']>
+  ) => {
+    try {
+      return await sendEmails.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to send emails:', error);
+      throw error;
+    }
+  };
+
+  const deleteCampaignHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['deleteCampaign']>
+  ) => {
+    try {
+      return await deleteCampaign.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to delete campaign:', error);
+      throw error;
+    }
+  };
+
+  const sendIndividualEmailHandler = async (
+    input: inferProcedureInput<AppRouter['gmail']['sendIndividualEmail']>
+  ) => {
+    try {
+      return await sendIndividualEmail.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to send individual email:', error);
+      throw error;
+    }
+  };
+
+  const sendBulkEmailsHandler = async (
+    input: inferProcedureInput<AppRouter['gmail']['sendBulkEmails']>
+  ) => {
+    try {
+      return await sendBulkEmails.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to send bulk emails:', error);
+      throw error;
+    }
+  };
+
+  const updateEmailHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['updateEmail']>
+  ) => {
+    try {
+      return await updateEmail.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to update email:', error);
+      throw error;
+    }
+  };
+
+  const updateEmailStatusHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['updateEmailStatus']>
+  ) => {
+    try {
+      return await updateEmailStatus.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to update email status:', error);
+      throw error;
+    }
+  };
+
+  const updateCampaignHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['updateCampaign']>
+  ) => {
+    try {
+      return await updateCampaign.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to update campaign:', error);
+      throw error;
+    }
+  };
+
+  const smartEmailGenerationHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['smartEmailGeneration']>
+  ) => {
+    try {
+      return await smartEmailGeneration.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to generate smart email:', error);
+      throw error;
+    }
+  };
+
+  const saveDraftHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['saveDraft']>
+  ) => {
+    try {
+      return await saveDraft.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      throw error;
+    }
+  };
+
+  const saveGeneratedEmailHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['saveGeneratedEmail']>
+  ) => {
+    try {
+      return await saveGeneratedEmail.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to save generated email:', error);
+      throw error;
+    }
+  };
+
+  const retryCampaignHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['retryCampaign']>
+  ) => {
+    try {
+      return await retryCampaign.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to retry campaign:', error);
+      throw error;
+    }
+  };
+
+  const scheduleEmailSendHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['scheduleEmailSend']>
+  ) => {
+    try {
+      return await scheduleEmailSend.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to schedule email send:', error);
+      throw error;
+    }
+  };
+
+  const pauseEmailSendingHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['pauseEmailSending']>
+  ) => {
+    try {
+      return await pauseEmailSending.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to pause email sending:', error);
+      throw error;
+    }
+  };
+
+  const resumeEmailSendingHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['resumeEmailSending']>
+  ) => {
+    try {
+      return await resumeEmailSending.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to resume email sending:', error);
+      throw error;
+    }
+  };
+
+  const cancelEmailSendingHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['cancelEmailSending']>
+  ) => {
+    try {
+      return await cancelEmailSending.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to cancel email sending:', error);
+      throw error;
+    }
+  };
+
+  const updateScheduleConfigHandler = async (
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['updateScheduleConfig']>
+  ) => {
+    try {
+      return await updateScheduleConfig.mutateAsync(input);
+    } catch (error) {
+      console.error('Failed to update schedule config:', error);
+      throw error;
+    }
+  };
+
   return {
     // Query hooks
     listThreads,
@@ -207,27 +439,42 @@ export function useCommunications() {
     getEmailSchedule,
     getScheduleConfig,
 
-    // Mutation hooks
-    createThread,
-    addMessage,
-    createSession,
-    launchCampaign,
-    saveToDraft,
-    sendEmails,
-    deleteCampaign,
-    sendIndividualEmail,
-    sendBulkEmails,
-    updateEmail,
-    updateEmailStatus,
-    updateCampaign,
-    smartEmailGeneration,
-    saveDraft,
-    saveGeneratedEmail,
-    retryCampaign,
-    scheduleEmailSend,
-    pauseEmailSending,
-    resumeEmailSending,
-    cancelEmailSending,
-    updateScheduleConfig,
+    // Wrapped mutation functions
+    createThread: createThreadHandler,
+    addMessage: addMessageHandler,
+    createSession: createSessionHandler,
+    launchCampaign: launchCampaignHandler,
+    saveToDraft: saveToDraftHandler,
+    sendEmails: sendEmailsHandler,
+    deleteCampaign: deleteCampaignHandler,
+    sendIndividualEmail: sendIndividualEmailHandler,
+    sendBulkEmails: sendBulkEmailsHandler,
+    updateEmail: updateEmailHandler,
+    updateEmailStatus: updateEmailStatusHandler,
+    updateCampaign: updateCampaignHandler,
+    smartEmailGeneration: smartEmailGenerationHandler,
+    saveDraft: saveDraftHandler,
+    saveGeneratedEmail: saveGeneratedEmailHandler,
+    retryCampaign: retryCampaignHandler,
+    scheduleEmailSend: scheduleEmailSendHandler,
+    pauseEmailSending: pauseEmailSendingHandler,
+    resumeEmailSending: resumeEmailSendingHandler,
+    cancelEmailSending: cancelEmailSendingHandler,
+    updateScheduleConfig: updateScheduleConfigHandler,
+
+    // Loading states
+    isLoadingCreateThread: createThread.isPending,
+    isLoadingAddMessage: addMessage.isPending,
+    isLoadingCreateSession: createSession.isPending,
+    isLoadingLaunchCampaign: launchCampaign.isPending,
+    isLoadingDeleteCampaign: deleteCampaign.isPending,
+    isLoadingUpdateCampaign: updateCampaign.isPending,
+    isLoadingSmartEmailGeneration: smartEmailGeneration.isPending,
+    isLoadingSendBulkEmails: sendBulkEmails.isPending,
+    isLoadingUpdateEmail: updateEmail.isPending,
+    isLoadingSendIndividualEmail: sendIndividualEmail.isPending,
+    isLoadingSaveToDraft: saveToDraft.isPending,
+    isLoadingScheduleEmailSend: scheduleEmailSend.isPending,
+    isLoadingRetryCampaign: retryCampaign.isPending,
   };
 }

@@ -1,26 +1,33 @@
-"use client";
+'use client';
 
-import { useStaff } from "@/app/hooks/use-staff";
-import { useWhatsApp } from "@/app/hooks/use-whatsapp";
-import { trpc } from "@/app/lib/trpc/client";
-import { formatDonorName } from "@/app/lib/utils/donor-name-formatter";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DataTable } from "@/components/ui/data-table/DataTable";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { GmailConnect } from "@/components/ui/GmailConnect";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { SignatureEditor, SignaturePreview } from "@/components/signature";
-import { sanitizeHtml } from "@/app/lib/utils/sanitize-html";
-import { InlineTextEdit, InlineToggleEdit } from "@/components/ui/inline-edit";
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { CheckedState } from "@radix-ui/react-checkbox";
-import type { ColumnDef } from "@tanstack/react-table";
+import { useStaff } from '@/app/hooks/use-staff';
+import { useWhatsApp } from '@/app/hooks/use-whatsapp';
+import { trpc } from '@/app/lib/trpc/client';
+import { formatDonorName } from '@/app/lib/utils/donor-name-formatter';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DataTable } from '@/components/ui/data-table/DataTable';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { GmailConnect } from '@/components/ui/GmailConnect';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { SignatureEditor, SignaturePreview } from '@/components/signature';
+import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
+import { InlineTextEdit, InlineToggleEdit } from '@/components/ui/inline-edit';
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { CheckedState } from '@radix-ui/react-checkbox';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   Activity,
   ArrowLeft,
@@ -34,23 +41,23 @@ import {
   Users,
   X,
   Trash2,
-} from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import React, { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { usePagination } from "@/app/hooks/use-pagination";
-import { EmailExampleDialog } from "./components/EmailExampleDialog";
+} from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import React, { useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { usePagination } from '@/app/hooks/use-pagination';
+import { EmailExampleDialog } from './components/EmailExampleDialog';
 
 /**
  * Form schema for staff editing
  */
 const editStaffSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
   isRealPerson: z.boolean(),
 });
 
@@ -67,8 +74,8 @@ const editSignatureSchema = z.object({
 const addPhoneSchema = z.object({
   phoneNumber: z
     .string()
-    .min(1, "Phone number is required")
-    .regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format"),
+    .min(1, 'Phone number is required')
+    .regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format'),
 });
 
 type EditStaffFormValues = z.infer<typeof editStaffSchema>;
@@ -95,18 +102,21 @@ export default function StaffDetailPage() {
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
-  const [writingInstructions, setWritingInstructions] = useState("");
+  const [writingInstructions, setWritingInstructions] = useState('');
   const [isEmailExampleDialogOpen, setIsEmailExampleDialogOpen] = useState(false);
   const [editingEmailExample, setEditingEmailExample] = useState<any>(null);
 
   // Use pagination hook for donors table
-  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination();
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } =
+    usePagination();
 
-  const { 
-    getStaffById, 
-    getAssignedDonors, 
-    updateStaff, 
+  const {
+    getStaffById,
+    getAssignedDonors,
+    updateStaff,
+    updateSignature,
     isUpdating,
+    isUpdatingSignature,
     listEmailExamples,
     createEmailExample,
     updateEmailExample,
@@ -125,16 +135,7 @@ export default function StaffDetailPage() {
     isRemovingPhone,
   } = useWhatsApp();
 
-  // TRPC mutations for signature and email account management
-  const updateSignatureMutation = trpc.staff.updateSignature.useMutation({
-    onSuccess: () => {
-      toast.success("Signature updated successfully");
-      setIsEditingSignature(false);
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update signature");
-    },
-  });
+  // TRPC mutations for email account management
 
   // Staff Gmail connection mutations - using the new staff-specific endpoints
   const { data: staffGmailStatus, refetch: refetchGmailStatus } =
@@ -142,11 +143,11 @@ export default function StaffDetailPage() {
 
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
-      toast.success("Gmail account disconnected successfully");
+      toast.success('Gmail account disconnected successfully');
       refetchGmailStatus();
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to disconnect Gmail account");
+      toast.error(error.message || 'Failed to disconnect Gmail account');
     },
   });
 
@@ -176,7 +177,8 @@ export default function StaffDetailPage() {
   } = listEmailExamples(staffId);
 
   // Fetch WhatsApp data
-  const { data: phoneNumbersData, isLoading: isPhoneNumbersLoading } = getStaffPhoneNumbers(staffId);
+  const { data: phoneNumbersData, isLoading: isPhoneNumbersLoading } =
+    getStaffPhoneNumbers(staffId);
 
   const { data: activityStats, isLoading: isStatsLoading } = getActivityStats(staffId, 30);
 
@@ -204,14 +206,14 @@ export default function StaffDetailPage() {
 
   // Validation functions
   const validateEmail = (email: string): string | null => {
-    if (!email) return "Email is required";
+    if (!email) return 'Email is required';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Invalid email format";
+    if (!emailRegex.test(email)) return 'Invalid email format';
     return null;
   };
 
   const validateName = (name: string): string | null => {
-    if (!name || name.length < 2) return "Name must be at least 2 characters";
+    if (!name || name.length < 2) return 'Name must be at least 2 characters';
     return null;
   };
 
@@ -219,7 +221,7 @@ export default function StaffDetailPage() {
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
     resolver: zodResolver(editSignatureSchema),
     defaultValues: {
-      signature: "",
+      signature: '',
     },
   });
 
@@ -227,7 +229,7 @@ export default function StaffDetailPage() {
     // @ts-ignore - Known type mismatch with zodResolver and react-hook-form
     resolver: zodResolver(addPhoneSchema),
     defaultValues: {
-      phoneNumber: "",
+      phoneNumber: '',
     },
   });
 
@@ -235,9 +237,9 @@ export default function StaffDetailPage() {
   React.useEffect(() => {
     if (staff) {
       signatureForm.reset({
-        signature: staff.signature || "",
+        signature: staff.signature || '',
       });
-      setWritingInstructions(staff.writingInstructions || "");
+      setWritingInstructions(staff.writingInstructions || '');
     }
   }, [staff, signatureForm]);
 
@@ -267,29 +269,33 @@ export default function StaffDetailPage() {
   // Define columns for assigned donors table
   const donorColumns: ColumnDef<AssignedDonor>[] = [
     {
-      accessorKey: "name",
-      header: "Name",
+      accessorKey: 'name',
+      header: 'Name',
       cell: ({ row }) => (
         <Link href={`/donors/${row.original.id}`} className="font-medium hover:underline">
-          {row.getValue("name")}
+          {row.getValue('name')}
         </Link>
       ),
     },
     {
-      accessorKey: "email",
-      header: "Email",
+      accessorKey: 'email',
+      header: 'Email',
     },
     {
-      accessorKey: "phone",
-      header: "Phone",
-      cell: ({ row }) => row.getValue("phone") || "—",
+      accessorKey: 'phone',
+      header: 'Phone',
+      cell: ({ row }) => row.getValue('phone') || '—',
     },
     {
-      accessorKey: "currentStageName",
-      header: "Stage",
+      accessorKey: 'currentStageName',
+      header: 'Stage',
       cell: ({ row }) => {
-        const stage = row.getValue("currentStageName") as string | null;
-        return stage ? <Badge variant="outline">{stage}</Badge> : <span className="text-muted-foreground">—</span>;
+        const stage = row.getValue('currentStageName') as string | null;
+        return stage ? (
+          <Badge variant="outline">{stage}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
       },
     },
   ];
@@ -298,18 +304,15 @@ export default function StaffDetailPage() {
    * Handle signature form submission
    */
   const onSignatureSubmit = async (values: EditSignatureFormValues) => {
-    try {
-      // Sanitize HTML before saving to database
-      const sanitizedSignature = values.signature ? sanitizeHtml(values.signature) : "";
+    // Sanitize HTML before saving to database
+    const sanitizedSignature = values.signature ? sanitizeHtml(values.signature) : '';
 
-      await updateSignatureMutation.mutateAsync({
-        id: staffId,
-        signature: sanitizedSignature,
-      });
-      await refetchStaff();
-    } catch (error) {
-      console.error("Error updating signature:", error);
-    }
+    await updateSignature({
+      id: staffId,
+      signature: sanitizedSignature,
+    });
+    setIsEditingSignature(false);
+    await refetchStaff();
   };
 
   /**
@@ -318,12 +321,12 @@ export default function StaffDetailPage() {
   const onAddPhone = async (values: AddPhoneFormValues) => {
     try {
       await addPhoneNumber(staffId, values.phoneNumber);
-      toast.success("Phone number added successfully");
+      toast.success('Phone number added successfully');
       phoneForm.reset();
       setIsAddingPhone(false);
     } catch (error) {
-      toast.error("Failed to add phone number");
-      console.error("Error adding phone number:", error);
+      toast.error('Failed to add phone number');
+      console.error('Error adding phone number:', error);
     }
   };
 
@@ -343,7 +346,7 @@ export default function StaffDetailPage() {
   const handleCancelSignatureEdit = () => {
     if (staff) {
       signatureForm.reset({
-        signature: staff.signature || "",
+        signature: staff.signature || '',
       });
     }
     setIsEditingSignature(false);
@@ -360,14 +363,14 @@ export default function StaffDetailPage() {
         writingInstructions: writingInstructions,
       });
       if (result) {
-        toast.success("Writing instructions saved successfully");
+        toast.success('Writing instructions saved successfully');
         await refetchStaff();
       } else {
-        toast.error("Failed to save writing instructions");
+        toast.error('Failed to save writing instructions');
       }
     } catch (error) {
-      toast.error("Failed to save writing instructions");
-      console.error("Error saving writing instructions:", error);
+      toast.error('Failed to save writing instructions');
+      console.error('Error saving writing instructions:', error);
     }
   };
 
@@ -383,11 +386,11 @@ export default function StaffDetailPage() {
           ...data,
         });
         if (result) {
-          toast.success("Email example updated successfully");
+          toast.success('Email example updated successfully');
           await refetchEmailExamples();
           setEditingEmailExample(null);
         } else {
-          toast.error("Failed to update email example");
+          toast.error('Failed to update email example');
         }
       } else {
         // Create new example
@@ -396,15 +399,17 @@ export default function StaffDetailPage() {
           ...data,
         });
         if (result) {
-          toast.success("Email example created successfully");
+          toast.success('Email example created successfully');
           await refetchEmailExamples();
         } else {
-          toast.error("Failed to create email example");
+          toast.error('Failed to create email example');
         }
       }
     } catch (error) {
-      toast.error(editingEmailExample ? "Failed to update email example" : "Failed to create email example");
-      console.error("Error saving email example:", error);
+      toast.error(
+        editingEmailExample ? 'Failed to update email example' : 'Failed to create email example'
+      );
+      console.error('Error saving email example:', error);
     }
   };
 
@@ -412,21 +417,21 @@ export default function StaffDetailPage() {
    * Handle deleting an email example
    */
   const handleDeleteEmailExample = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this email example?")) {
+    if (!confirm('Are you sure you want to delete this email example?')) {
       return;
     }
 
     try {
       const result = await deleteEmailExample(id);
       if (result) {
-        toast.success("Email example deleted successfully");
+        toast.success('Email example deleted successfully');
         await refetchEmailExamples();
       } else {
-        toast.error("Failed to delete email example");
+        toast.error('Failed to delete email example');
       }
     } catch (error) {
-      toast.error("Failed to delete email example");
-      console.error("Error deleting email example:", error);
+      toast.error('Failed to delete email example');
+      console.error('Error deleting email example:', error);
     }
   };
 
@@ -534,8 +539,8 @@ export default function StaffDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <Badge variant={staff.isRealPerson ? "default" : "secondary"}>
-                {staff.isRealPerson ? "Active" : "Inactive"}
+              <Badge variant={staff.isRealPerson ? 'default' : 'secondary'}>
+                {staff.isRealPerson ? 'Active' : 'Inactive'}
               </Badge>
             </div>
           </CardContent>
@@ -548,8 +553,8 @@ export default function StaffDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <Badge variant={staffGmailStatus?.isConnected ? "default" : "secondary"}>
-                {staffGmailStatus?.isConnected ? "Connected" : "Not Connected"}
+              <Badge variant={staffGmailStatus?.isConnected ? 'default' : 'secondary'}>
+                {staffGmailStatus?.isConnected ? 'Connected' : 'Not Connected'}
               </Badge>
             </div>
           </CardContent>
@@ -562,7 +567,9 @@ export default function StaffDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <Badge variant={staff.signature ? "default" : "secondary"}>{staff.signature ? "Set" : "Not Set"}</Badge>
+              <Badge variant={staff.signature ? 'default' : 'secondary'}>
+                {staff.signature ? 'Set' : 'Not Set'}
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -574,7 +581,7 @@ export default function StaffDetailPage() {
           <TabsTrigger value="info">Staff Information</TabsTrigger>
           <TabsTrigger value="signature">Email Signature</TabsTrigger>
           <TabsTrigger value="examples">
-            Email Examples {emailExamplesData?.count ? `(${emailExamplesData.count})` : ""}
+            Email Examples {emailExamplesData?.count ? `(${emailExamplesData.count})` : ''}
           </TabsTrigger>
           <TabsTrigger value="email">Email Account</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
@@ -594,7 +601,7 @@ export default function StaffDetailPage() {
                     <label className="text-sm font-medium text-muted-foreground">First Name</label>
                     <InlineTextEdit
                       value={staff.firstName}
-                      onSave={(value) => handleUpdateStaffField("firstName", value)}
+                      onSave={(value) => handleUpdateStaffField('firstName', value)}
                       validation={validateName}
                       className="mt-1"
                     />
@@ -603,7 +610,7 @@ export default function StaffDetailPage() {
                     <label className="text-sm font-medium text-muted-foreground">Last Name</label>
                     <InlineTextEdit
                       value={staff.lastName}
-                      onSave={(value) => handleUpdateStaffField("lastName", value)}
+                      onSave={(value) => handleUpdateStaffField('lastName', value)}
                       validation={validateName}
                       className="mt-1"
                     />
@@ -612,7 +619,7 @@ export default function StaffDetailPage() {
                     <label className="text-sm font-medium text-muted-foreground">Email</label>
                     <InlineTextEdit
                       value={staff.email}
-                      onSave={(value) => handleUpdateStaffField("email", value)}
+                      onSave={(value) => handleUpdateStaffField('email', value)}
                       type="email"
                       validation={validateEmail}
                       className="mt-1"
@@ -622,7 +629,7 @@ export default function StaffDetailPage() {
                     <label className="text-sm font-medium text-muted-foreground">Status</label>
                     <InlineToggleEdit
                       value={staff.isRealPerson}
-                      onSave={(value) => handleUpdateStaffField("isRealPerson", value)}
+                      onSave={(value) => handleUpdateStaffField('isRealPerson', value)}
                       label="Real Person"
                       trueText="Active"
                       falseText="Inactive"
@@ -633,7 +640,9 @@ export default function StaffDetailPage() {
 
                 {/* Writing Instructions Section */}
                 <div className="mt-6">
-                  <label className="text-sm font-medium text-muted-foreground">Writing Instructions</label>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Writing Instructions
+                  </label>
                   <div className="mt-2">
                     <Textarea
                       value={writingInstructions}
@@ -643,13 +652,16 @@ export default function StaffDetailPage() {
                       className="w-full"
                     />
                     <p className="text-sm text-muted-foreground mt-2">
-                      These instructions will override the organization&apos;s default writing guidelines when
-                      generating emails for this staff member. Leave blank to use organizational defaults.
+                      These instructions will override the organization&apos;s default writing
+                      guidelines when generating emails for this staff member. Leave blank to use
+                      organizational defaults.
                     </p>
                     <div className="mt-3 flex justify-end">
                       <Button
                         onClick={handleSaveWritingInstructions}
-                        disabled={isUpdating || writingInstructions === (staff.writingInstructions || "")}
+                        disabled={
+                          isUpdating || writingInstructions === (staff.writingInstructions || '')
+                        }
                         size="sm"
                       >
                         <Save className="h-4 w-4 mr-2" />
@@ -699,7 +711,7 @@ export default function StaffDetailPage() {
                           <FormLabel>Email Signature</FormLabel>
                           <FormControl>
                             <SignatureEditor
-                              value={field.value || ""}
+                              value={field.value || ''}
                               onChange={field.onChange}
                               showCodeView={showCodeView}
                               onCodeViewChange={setShowCodeView}
@@ -712,7 +724,7 @@ export default function StaffDetailPage() {
 
                     {/* Live Preview */}
                     <SignaturePreview
-                      signature={signatureForm.watch("signature") || ""}
+                      signature={signatureForm.watch('signature') || ''}
                       staffName={`${staff?.firstName} ${staff?.lastName}`}
                     />
 
@@ -721,9 +733,9 @@ export default function StaffDetailPage() {
                         <X className="h-4 w-4 mr-2" />
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={updateSignatureMutation.isPending}>
+                      <Button type="submit" disabled={isUpdatingSignature}>
                         <Save className="h-4 w-4 mr-2" />
-                        {updateSignatureMutation.isPending ? "Saving..." : "Save Signature"}
+                        {isUpdatingSignature ? 'Saving...' : 'Save Signature'}
                       </Button>
                     </div>
                   </form>
@@ -731,12 +743,14 @@ export default function StaffDetailPage() {
               ) : (
                 <div className="space-y-4">
                   <SignaturePreview
-                    signature={staff.signature || ""}
+                    signature={staff.signature || ''}
                     staffName={`${staff.firstName} ${staff.lastName}`}
                   />
                   {!staff.signature && (
                     <div className="text-center py-4 text-muted-foreground">
-                      <p className="text-sm">Click &quot;Edit Signature&quot; to add a custom signature</p>
+                      <p className="text-sm">
+                        Click &quot;Edit Signature&quot; to add a custom signature
+                      </p>
                     </div>
                   )}
                 </div>
@@ -776,13 +790,18 @@ export default function StaffDetailPage() {
               ) : emailExamplesData?.examples && emailExamplesData.examples.length > 0 ? (
                 <div className="space-y-4">
                   {emailExamplesData.examples.map((example) => (
-                    <div key={example.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div
+                      key={example.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
                           <h4 className="font-medium text-lg">{example.subject}</h4>
                           {example.category && (
                             <Badge variant="outline" className="mt-1">
-                              {example.category.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+                              {example.category
+                                .replace(/_/g, ' ')
+                                .replace(/\b\w/g, (l) => l.toUpperCase())}
                             </Badge>
                           )}
                         </div>
@@ -814,7 +833,8 @@ export default function StaffDetailPage() {
                   ))}
                   {emailExamplesData.count > 0 && (
                     <p className="text-sm text-muted-foreground text-center">
-                      {emailExamplesData.count} email example{emailExamplesData.count !== 1 ? "s" : ""}
+                      {emailExamplesData.count} email example
+                      {emailExamplesData.count !== 1 ? 's' : ''}
                     </p>
                   )}
                 </div>
@@ -822,7 +842,9 @@ export default function StaffDetailPage() {
                 <div className="text-center py-8 text-muted-foreground">
                   <Mail className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                   <p>No email examples added yet.</p>
-                  <p className="text-sm">Click &quot;Add Example&quot; to add your first email example.</p>
+                  <p className="text-sm">
+                    Click &quot;Add Example&quot; to add your first email example.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -885,7 +907,11 @@ export default function StaffDetailPage() {
                             <FormItem>
                               <FormLabel>Phone Number</FormLabel>
                               <FormControl>
-                                <Input {...field} placeholder="Enter phone number (e.g., +1234567890)" type="tel" />
+                                <Input
+                                  {...field}
+                                  placeholder="Enter phone number (e.g., +1234567890)"
+                                  type="tel"
+                                />
                               </FormControl>
                               <FormMessage />
                               <p className="text-sm text-muted-foreground">
@@ -902,7 +928,7 @@ export default function StaffDetailPage() {
                           </Button>
                           <Button type="submit" disabled={isAddingPhoneLoading}>
                             <Plus className="h-4 w-4 mr-2" />
-                            {isAddingPhoneLoading ? "Adding..." : "Add Phone Number"}
+                            {isAddingPhoneLoading ? 'Adding...' : 'Add Phone Number'}
                           </Button>
                         </div>
                       </form>
@@ -919,12 +945,15 @@ export default function StaffDetailPage() {
                   <div className="space-y-4">
                     <div className="grid gap-2">
                       {phoneNumbersData.phoneNumbers.map((phoneData, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 border rounded-lg"
+                        >
                           <div className="flex items-center gap-2">
                             <MessageSquare className="h-4 w-4 text-green-600" />
                             <span className="font-medium">{phoneData.phoneNumber}</span>
                             <Badge variant="outline" className="text-xs">
-                              {phoneData.isAllowed ? "Active" : "Inactive"}
+                              {phoneData.isAllowed ? 'Active' : 'Inactive'}
                             </Badge>
                           </div>
                           <Button
@@ -939,7 +968,8 @@ export default function StaffDetailPage() {
                       ))}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {phoneNumbersData.count} phone number{phoneNumbersData.count !== 1 ? "s" : ""} configured
+                      {phoneNumbersData.count} phone number{phoneNumbersData.count !== 1 ? 's' : ''}{' '}
+                      configured
                     </p>
                   </div>
                 ) : (
@@ -973,19 +1003,27 @@ export default function StaffDetailPage() {
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{activityStats?.messagesSent || 0}</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {activityStats?.messagesSent || 0}
+                      </div>
                       <div className="text-sm text-muted-foreground">Responses Generated</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">{activityStats?.messagesReceived || 0}</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {activityStats?.messagesReceived || 0}
+                      </div>
                       <div className="text-sm text-muted-foreground">Messages Received</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600">{activityStats?.dbQueriesExecuted || 0}</div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {activityStats?.dbQueriesExecuted || 0}
+                      </div>
                       <div className="text-sm text-muted-foreground">DB Queries</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">{activityStats?.voiceTranscribed || 0}</div>
+                      <div className="text-2xl font-bold text-orange-600">
+                        {activityStats?.voiceTranscribed || 0}
+                      </div>
                       <div className="text-sm text-muted-foreground">Voice Messages</div>
                     </div>
                   </div>
@@ -1019,15 +1057,18 @@ export default function StaffDetailPage() {
                     {activityLog.activities
                       .filter((activity, index, arr) => {
                         // Filter out ai_response_generated if there's a message_sent for the same response
-                        if (activity.activityType === "ai_response_generated") {
+                        if (activity.activityType === 'ai_response_generated') {
                           // Look for a message_sent activity with similar timestamp (within 5 seconds) and same response
                           const activityTime = new Date(activity.createdAt).getTime();
                           const hasCorrespondingMessageSent = arr.some((otherActivity) => {
-                            if (otherActivity.activityType === "message_sent") {
+                            if (otherActivity.activityType === 'message_sent') {
                               const otherTime = new Date(otherActivity.createdAt).getTime();
                               const timeDiff = Math.abs(activityTime - otherTime);
                               // Check if they're within 5 seconds and have the same response content
-                              return timeDiff < 5000 && activity.data?.response === otherActivity.data?.responseContent;
+                              return (
+                                timeDiff < 5000 &&
+                                activity.data?.response === otherActivity.data?.responseContent
+                              );
                             }
                             return false;
                           });
@@ -1043,42 +1084,42 @@ export default function StaffDetailPage() {
                         // Improve activity type display names
                         const getActivityDisplayName = (activityType: string) => {
                           switch (activityType) {
-                            case "message_sent":
-                              return "Response Generated";
-                            case "ai_response_generated":
-                              return "Response Generated";
-                            case "message_received":
-                              return "Message Received";
-                            case "db_query_executed":
-                              return "Database Query";
-                            case "voice_transcribed":
-                              return "Voice Transcribed";
-                            case "permission_denied":
-                              return "Permission Denied";
-                            case "error_occurred":
-                              return "Error";
+                            case 'message_sent':
+                              return 'Response Generated';
+                            case 'ai_response_generated':
+                              return 'Response Generated';
+                            case 'message_received':
+                              return 'Message Received';
+                            case 'db_query_executed':
+                              return 'Database Query';
+                            case 'voice_transcribed':
+                              return 'Voice Transcribed';
+                            case 'permission_denied':
+                              return 'Permission Denied';
+                            case 'error_occurred':
+                              return 'Error';
                             default:
-                              return activityType.replace(/_/g, " ");
+                              return activityType.replace(/_/g, ' ');
                           }
                         };
 
                         const getActivityColor = (activityType: string) => {
                           switch (activityType) {
-                            case "message_sent":
-                            case "ai_response_generated":
-                              return "bg-blue-100 text-blue-800";
-                            case "message_received":
-                              return "bg-green-100 text-green-800";
-                            case "db_query_executed":
-                              return "bg-purple-100 text-purple-800";
-                            case "voice_transcribed":
-                              return "bg-orange-100 text-orange-800";
-                            case "permission_denied":
-                              return "bg-red-100 text-red-800";
-                            case "error_occurred":
-                              return "bg-red-100 text-red-800";
+                            case 'message_sent':
+                            case 'ai_response_generated':
+                              return 'bg-blue-100 text-blue-800';
+                            case 'message_received':
+                              return 'bg-green-100 text-green-800';
+                            case 'db_query_executed':
+                              return 'bg-purple-100 text-purple-800';
+                            case 'voice_transcribed':
+                              return 'bg-orange-100 text-orange-800';
+                            case 'permission_denied':
+                              return 'bg-red-100 text-red-800';
+                            case 'error_occurred':
+                              return 'bg-red-100 text-red-800';
                             default:
-                              return "bg-gray-100 text-gray-800";
+                              return 'bg-gray-100 text-gray-800';
                           }
                         };
 
@@ -1146,7 +1187,9 @@ export default function StaffDetailPage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>No WhatsApp activity recorded yet.</p>
-                    <p className="text-sm">Activity will appear here once WhatsApp messages are processed.</p>
+                    <p className="text-sm">
+                      Activity will appear here once WhatsApp messages are processed.
+                    </p>
                   </div>
                 )}
               </CardContent>

@@ -153,7 +153,7 @@ export function useWriteInstructionStep(
       chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     }> => {
       try {
-        const result = await smartEmailGeneration.mutateAsync(params);
+        const result = await smartEmailGeneration(params);
         return {
           message: result.message,
           success: result.success,
@@ -174,7 +174,7 @@ export function useWriteInstructionStep(
 
       const savePromises = emails.map(async (email) => {
         try {
-          await saveGeneratedEmail.mutateAsync({
+          await saveGeneratedEmail({
             sessionId,
             donorId: email.donorId,
             subject: email.subject,
@@ -211,7 +211,7 @@ export function useWriteInstructionStep(
       const messagesToSave = messages || chatMessages;
 
       try {
-        await saveDraft.mutateAsync({
+        await saveDraft({
           sessionId,
           campaignName,
           selectedDonorIds: selectedDonors,
