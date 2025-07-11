@@ -612,9 +612,9 @@ export class EmailCampaignsService {
 
         switch (statusGroup) {
           case 'active':
-            return ['Running', 'In Progress', 'Generating'].includes(derivedStatus);
+            return ['Running', 'In Progress'].includes(derivedStatus);
           case 'ready':
-            return ['Ready to Send', 'Paused'].includes(derivedStatus);
+            return ['Ready to Send', 'Paused', 'Generating'].includes(derivedStatus);
           case 'other':
             return ['Draft', 'Completed'].includes(derivedStatus);
           default:

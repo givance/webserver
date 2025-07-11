@@ -1094,6 +1094,20 @@ function ExistingCampaignsContent() {
       </div>
 
       <CampaignSection
+        title="Ready / Preparing"
+        icon={<Mail className="h-4 w-4 text-purple-600" />}
+        campaigns={readyCampaigns}
+        totalCount={readyTotalCount}
+        pageCount={readyPageCount}
+        currentPage={readyPage}
+        onPageChange={setReadyPage}
+        isLoading={isLoadingReady}
+        isFetching={isFetchingReady}
+        isCollapsed={readyCollapsed}
+        onCollapsedChange={setReadyCollapsed}
+      />
+
+      <CampaignSection
         title="Running / In Progress"
         icon={<Play className="h-4 w-4 text-blue-600" />}
         campaigns={activeCampaigns}
@@ -1105,20 +1119,6 @@ function ExistingCampaignsContent() {
         isFetching={isFetchingActive}
         isCollapsed={activeCollapsed}
         onCollapsedChange={setActiveCollapsed}
-      />
-
-      <CampaignSection
-        title="Ready to Send"
-        icon={<Mail className="h-4 w-4 text-purple-600" />}
-        campaigns={readyCampaigns}
-        totalCount={readyTotalCount}
-        pageCount={readyPageCount}
-        currentPage={readyPage}
-        onPageChange={setReadyPage}
-        isLoading={isLoadingReady}
-        isFetching={isFetchingReady}
-        isCollapsed={readyCollapsed}
-        onCollapsedChange={setReadyCollapsed}
       />
 
       <CampaignSection
