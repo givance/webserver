@@ -22,7 +22,7 @@ import { idSchema } from '@/app/lib/validation/schemas';
  */
 const userResponseSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.string(),
   name: z.string().nullable(),
   memory: z.array(z.string()),
   dismissedMemories: z.array(z.string()),

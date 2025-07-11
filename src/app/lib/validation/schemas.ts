@@ -8,7 +8,7 @@ import { z } from 'zod';
 export const idSchema = z.number().int().positive();
 export const stringIdSchema = z.string().min(1);
 export const uuidSchema = z.string().uuid();
-export const emailSchema = z.string().email();
+export const emailSchema = z.string();
 export const urlSchema = z.string().url();
 export const phoneSchema = z.string();
 export const dateSchema = z.date();
@@ -163,7 +163,7 @@ export const donorSchemas = {
   create: z.object({
     firstName: z.string().min(1).max(255),
     lastName: z.string().min(1).max(255),
-    email: emailSchema,
+    email: z.string(),
     phone: phoneSchema.optional(),
     address: z.string().optional(),
     state: z.string().length(2).optional(),

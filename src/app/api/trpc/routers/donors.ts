@@ -59,7 +59,7 @@ const baseDonorSchema = z.object({
   herLastName: z.string().nullable(),
   displayName: z.string().nullable(),
   isCouple: z.boolean().nullable(),
-  email: emailSchema,
+  email: z.string(), // No email validation when fetching donors
   phone: phoneSchema.nullable(),
   address: addressSchema.nullable(),
   city: z.string().nullable().optional(),
@@ -99,7 +99,7 @@ const communicationDonorSchema = z.object({
   id: idSchema,
   firstName: nameSchema,
   lastName: nameSchema,
-  email: emailSchema,
+  email: z.string(), // No email validation when fetching donors
   phone: phoneSchema.nullable(),
   displayName: z.string().nullable(),
   hisTitle: z.string().nullable(),
@@ -143,7 +143,7 @@ const deleteDonorSchema = z
 
 const createDonorSchema = z.object({
   externalId: z.string().optional(),
-  email: emailSchema,
+  email: z.string(),
   firstName: nameSchema,
   lastName: nameSchema,
   phone: phoneSchema.optional(),
@@ -161,7 +161,7 @@ const createDonorSchema = z.object({
 const updateDonorSchema = z.object({
   id: idSchema,
   externalId: z.string().optional(),
-  email: emailSchema.optional(),
+  email: z.string(),
   firstName: nameSchema.optional(),
   lastName: nameSchema.optional(),
   phone: phoneSchema.optional(),

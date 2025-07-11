@@ -36,7 +36,7 @@ const staffResponseSchema = z.object({
   organizationId: z.string(),
   firstName: z.string(),
   lastName: z.string(),
-  email: z.string().email(),
+  email: z.string(),
   isRealPerson: z.boolean(),
   isPrimary: z.boolean(),
   signature: z.string().nullable(),
@@ -70,7 +70,7 @@ const listStaffResponseSchema = z.object({
 });
 
 const createStaffInputSchema = z.object({
-  email: emailSchema,
+  email: z.string(),
   firstName: nameSchema,
   lastName: nameSchema,
   title: z.string().optional(),
@@ -82,7 +82,7 @@ const createStaffInputSchema = z.object({
 
 const updateStaffInputSchema = z.object({
   id: idSchema,
-  email: emailSchema.optional(),
+  email: z.string().optional(),
   firstName: nameSchema.optional(),
   lastName: nameSchema.optional(),
   title: z.string().optional(),
