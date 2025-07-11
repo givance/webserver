@@ -161,7 +161,7 @@ const createDonorSchema = z.object({
 const updateDonorSchema = z.object({
   id: idSchema,
   externalId: z.string().optional(),
-  email: z.string(),
+  email: z.string().optional(),
   firstName: nameSchema.optional(),
   lastName: nameSchema.optional(),
   phone: phoneSchema.optional(),
