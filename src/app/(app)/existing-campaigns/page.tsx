@@ -191,11 +191,17 @@ function CampaignProgress({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Sent:</span>
-          <span className="font-medium text-blue-600">{sent}</span>
+          <span className="font-medium text-blue-600">
+            {sent}
+            {generated > 0 && ` (${Math.round((sent / generated) * 100)}%)`}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Opened:</span>
-          <span className="font-medium text-purple-600">{isLoading ? '...' : opened}</span>
+          <span className="font-medium text-purple-600">
+            {isLoading ? '...' : opened}
+            {!isLoading && sent > 0 && ` (${Math.round((opened / sent) * 100)}%)`}
+          </span>
         </div>
       </div>
       <div className="w-full max-w-[300px]">
