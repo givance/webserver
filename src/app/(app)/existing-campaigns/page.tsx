@@ -10,10 +10,8 @@ import { trpc } from '@/app/lib/trpc/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table/DataTable';
-import { Separator } from '@/components/ui/separator';
-import { Clock, Mail, Pause, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { CampaignScheduleConfig } from '../campaign/components/CampaignScheduleConfig';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -434,10 +432,8 @@ const DEFAULT_PAGE_SIZE = 20;
 
 function ExistingCampaignsContent() {
   const router = useRouter();
-  // Separate pagination states for each section
-  const [activePage, setActivePage] = useState(1);
-  const [readyPage, setReadyPage] = useState(1);
-  const [otherPage, setOtherPage] = useState(1);
+  // Single pagination state for all campaigns
+  const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [confirmationDialog, setConfirmationDialog] = useState<{
     open: boolean;
@@ -449,11 +445,6 @@ function ExistingCampaignsContent() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [resumeCampaignId, setResumeCampaignId] = useState<number | null>(null);
   const [isProcessingResume, setIsProcessingResume] = useState(false);
-
-  // Collapse states for each section (default to open)
-  const [activeCollapsed, setActiveCollapsed] = useState(false);
-  const [readyCollapsed, setReadyCollapsed] = useState(false);
-  const [otherCollapsed, setOtherCollapsed] = useState(false);
 
   const {
     listCampaigns,
@@ -484,17 +475,17 @@ function ExistingCampaignsContent() {
     refetchOnWindowFocus: false,
   });
 
-  // Three separate API calls for each section with server-side filtering
+  // Single API call for all campaigns
   const {
-    data: activeResponse,
-    isLoading: isLoadingActive,
-    isFetching: isFetchingActive,
-    error: activeError,
+    data: campaignsResponse,
+    isLoading,
+    isFetching,
+    error,
   } = listCampaigns(
     {
       limit: pageSize,
-      offset: (activePage - 1) * pageSize,
-      statusGroup: 'active',
+      offset: (currentPage - 1) * pageSize,
+      // No statusGroup - get all campaigns
     },
     {
       refetchInterval: 5000,
@@ -505,61 +496,12 @@ function ExistingCampaignsContent() {
     }
   );
 
-  const {
-    data: readyResponse,
-    isLoading: isLoadingReady,
-    isFetching: isFetchingReady,
-    error: readyError,
-  } = listCampaigns(
-    {
-      limit: pageSize,
-      offset: (readyPage - 1) * pageSize,
-      statusGroup: 'ready',
-    },
-    {
-      refetchInterval: 5000,
-      staleTime: 4000,
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
-    }
-  );
-
-  const {
-    data: otherResponse,
-    isLoading: isLoadingOther,
-    isFetching: isFetchingOther,
-    error: otherError,
-  } = listCampaigns(
-    {
-      limit: pageSize,
-      offset: (otherPage - 1) * pageSize,
-      statusGroup: 'other',
-    },
-    {
-      refetchInterval: 5000,
-      staleTime: 4000,
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
-    }
-  );
-
-  const activeCampaigns = activeResponse?.campaigns || [];
-  const readyCampaigns = readyResponse?.campaigns || [];
-  const otherCampaigns = otherResponse?.campaigns || [];
-
-  const activeTotalCount = activeResponse?.totalCount || 0;
-  const readyTotalCount = readyResponse?.totalCount || 0;
-  const otherTotalCount = otherResponse?.totalCount || 0;
-
-  const activePageCount = Math.ceil(activeTotalCount / pageSize);
-  const readyPageCount = Math.ceil(readyTotalCount / pageSize);
-  const otherPageCount = Math.ceil(otherTotalCount / pageSize);
+  const campaigns = campaignsResponse?.campaigns || [];
+  const totalCount = campaignsResponse?.totalCount || 0;
+  const pageCount = Math.ceil(totalCount / pageSize);
 
   // Get tracking stats for all campaigns in batch
-  const allCampaigns = [...activeCampaigns, ...readyCampaigns, ...otherCampaigns];
-  const sessionIds = allCampaigns.map((c) => c.id);
+  const sessionIds = campaigns.map((c) => c.id);
   const { data: batchTrackingStats, isLoading: isLoadingStats } =
     useMultipleSessionTrackingStats(sessionIds);
 
@@ -909,16 +851,7 @@ function ExistingCampaignsContent() {
     },
   ];
 
-  const isLoading = isLoadingActive || isLoadingReady || isLoadingOther;
-  const isFetching = isFetchingActive || isFetchingReady || isFetchingOther;
-  const error = activeError || readyError || otherError;
-
-  if (
-    isLoading &&
-    activeCampaigns.length === 0 &&
-    readyCampaigns.length === 0 &&
-    otherCampaigns.length === 0
-  ) {
+  if (isLoading && campaigns.length === 0) {
     return (
       <div className="p-6">
         <Skeleton className="h-10 w-1/4 mb-4" />
@@ -937,83 +870,8 @@ function ExistingCampaignsContent() {
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
-    // Reset all pages to first page when page size changes
-    setActivePage(1);
-    setReadyPage(1);
-    setOtherPage(1);
-  };
-
-  // Create sections for grouped campaigns with pagination
-  const CampaignSection = ({
-    title,
-    icon,
-    campaigns,
-    totalCount,
-    pageCount,
-    currentPage,
-    onPageChange,
-    isLoading,
-    isFetching,
-    isCollapsed,
-    onCollapsedChange,
-  }: {
-    title: string;
-    icon: React.ReactNode;
-    campaigns: ExistingCampaign[];
-    totalCount: number;
-    pageCount: number;
-    currentPage: number;
-    onPageChange: (page: number) => void;
-    isLoading?: boolean;
-    isFetching?: boolean;
-    isCollapsed: boolean;
-    onCollapsedChange: (collapsed: boolean) => void;
-  }) => {
-    if (totalCount === 0 && !isLoading) return null;
-
-    return (
-      <Collapsible
-        open={!isCollapsed}
-        onOpenChange={(open) => onCollapsedChange(!open)}
-        className="mb-6"
-      >
-        <div className="rounded-lg border bg-card">
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent/50 transition-colors rounded-t-lg cursor-pointer">
-            <div className="flex items-center gap-2">
-              <ChevronRight
-                className={`h-4 w-4 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`}
-              />
-              {icon}
-              <h3 className="text-lg font-semibold">{title}</h3>
-              <Badge variant="secondary" className="ml-2">
-                {totalCount}
-              </Badge>
-              {isFetching && !isLoading && (
-                <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
-              )}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Click to {isCollapsed ? 'expand' : 'collapse'}
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="px-4 pb-4">
-              <DataTable
-                columns={columns}
-                data={campaigns}
-                totalItems={totalCount}
-                pageCount={pageCount}
-                pageSize={pageSize}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-                onPageSizeChange={handlePageSizeChange}
-                showPagination={totalCount > pageSize}
-              />
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-    );
+    // Reset to first page when page size changes
+    setCurrentPage(1);
   };
 
   return (
@@ -1060,82 +918,29 @@ function ExistingCampaignsContent() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Email Campaigns</h1>
-        <div className="flex items-center gap-4">
-          {isFetching && !isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>Refreshing...</span>
-            </div>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const allCollapsed = activeCollapsed && readyCollapsed && otherCollapsed;
-              setActiveCollapsed(!allCollapsed);
-              setReadyCollapsed(!allCollapsed);
-              setOtherCollapsed(!allCollapsed);
-            }}
-            className="flex items-center gap-2"
-          >
-            {activeCollapsed && readyCollapsed && otherCollapsed ? (
-              <>
-                <ChevronDown className="h-4 w-4" />
-                Expand All
-              </>
-            ) : (
-              <>
-                <ChevronRight className="h-4 w-4" />
-                Collapse All
-              </>
-            )}
-          </Button>
-        </div>
+        {isFetching && !isLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span>Refreshing...</span>
+          </div>
+        )}
       </div>
 
-      <CampaignSection
-        title="Ready / Preparing"
-        icon={<Mail className="h-4 w-4 text-purple-600" />}
-        campaigns={readyCampaigns}
-        totalCount={readyTotalCount}
-        pageCount={readyPageCount}
-        currentPage={readyPage}
-        onPageChange={setReadyPage}
-        isLoading={isLoadingReady}
-        isFetching={isFetchingReady}
-        isCollapsed={readyCollapsed}
-        onCollapsedChange={setReadyCollapsed}
-      />
+      <div className="rounded-lg border bg-card">
+        <DataTable
+          columns={columns}
+          data={campaigns}
+          totalItems={totalCount}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+          showPagination={totalCount > pageSize}
+        />
+      </div>
 
-      <CampaignSection
-        title="Running / In Progress"
-        icon={<Play className="h-4 w-4 text-blue-600" />}
-        campaigns={activeCampaigns}
-        totalCount={activeTotalCount}
-        pageCount={activePageCount}
-        currentPage={activePage}
-        onPageChange={setActivePage}
-        isLoading={isLoadingActive}
-        isFetching={isFetchingActive}
-        isCollapsed={activeCollapsed}
-        onCollapsedChange={setActiveCollapsed}
-      />
-
-      <CampaignSection
-        title="Other Campaigns"
-        icon={<Clock className="h-4 w-4 text-gray-600" />}
-        campaigns={otherCampaigns}
-        totalCount={otherTotalCount}
-        pageCount={otherPageCount}
-        currentPage={otherPage}
-        onPageChange={setOtherPage}
-        isLoading={isLoadingOther}
-        isFetching={isFetchingOther}
-        isCollapsed={otherCollapsed}
-        onCollapsedChange={setOtherCollapsed}
-      />
-
-      {activeTotalCount === 0 && readyTotalCount === 0 && otherTotalCount === 0 && !isLoading && (
+      {totalCount === 0 && !isLoading && (
         <div className="text-center py-8 text-muted-foreground">
           No campaigns found. Create your first campaign to get started.
         </div>
