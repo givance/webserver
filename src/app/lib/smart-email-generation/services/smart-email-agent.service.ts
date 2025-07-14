@@ -3,7 +3,7 @@ import { ErrorHandler } from '@/app/lib/utils/error-handler';
 import { createAzure } from '@ai-sdk/azure';
 import { generateText } from 'ai';
 import { env } from '@/app/lib/env';
-import { toolRegistry, type ToolCall } from '../tools/tool-registry';
+import { toolRegistry, type ToolCall, type ToolExecutionContext } from '../tools/tool-registry';
 import {
   type ConversationContext,
   type AgentResponse,
@@ -51,8 +51,14 @@ export class SmartEmailAgentService {
         `[SmartEmailAgentService LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}`
       );
       logger.info(`[SmartEmailAgentService LLM REQUEST] Temperature: 0.7, MaxTokens: 1000`);
+      const toolContext: ToolExecutionContext = {
+        organizationId: context.organizationId,
+        userId: context.userId,
+        sessionId: context.sessionId,
+      };
+      const availableTools = toolRegistry.getToolDefinitionsWithExecute(toolContext);
       logger.info(
-        `[SmartEmailAgentService LLM REQUEST] Tools available: ${Object.keys(toolRegistry.getToolDefinitions()).length}`
+        `[SmartEmailAgentService LLM REQUEST] Tools available: ${Object.keys(availableTools).length}`
       );
       logger.info(
         `[SmartEmailAgentService LLM REQUEST] System prompt snippet: "${systemPrompt.substring(0, 200)}..."`
@@ -66,7 +72,7 @@ export class SmartEmailAgentService {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        tools: toolRegistry.getToolDefinitions(),
+        tools: availableTools,
         temperature: 0.7,
         maxTokens: 1000,
         maxSteps: 10,
@@ -206,15 +212,21 @@ export class SmartEmailAgentService {
         `[SmartEmailAgentService LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}`
       );
       logger.info(`[SmartEmailAgentService LLM REQUEST] Temperature: 0.7, MaxTokens: 1000`);
+      const toolContext: ToolExecutionContext = {
+        organizationId: context.organizationId,
+        userId: context.userId,
+        sessionId: context.sessionId,
+      };
+      const availableTools = toolRegistry.getToolDefinitionsWithExecute(toolContext);
       logger.info(
-        `[SmartEmailAgentService LLM REQUEST] Tools available: ${Object.keys(toolRegistry.getToolDefinitions()).length}`
+        `[SmartEmailAgentService LLM REQUEST] Tools available: ${Object.keys(availableTools).length}`
       );
 
       // Generate AI response with tool calling
       const result = await generateText({
         model: this.azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         messages: [{ role: 'system', content: systemPrompt }, ...conversationMessages],
-        tools: toolRegistry.getToolDefinitions(),
+        tools: availableTools,
         temperature: 0.7,
         maxTokens: 1000,
         maxSteps: 10,

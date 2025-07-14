@@ -113,7 +113,70 @@ export class ToolRegistry {
   }
 
   /**
-   * Get available tool definitions for AI
+   * Get available tool definitions for AI with execute methods
+   */
+  getToolDefinitionsWithExecute(context: ToolExecutionContext) {
+    return {
+      getDonorInfo: {
+        description: TOOL_DEFINITIONS.getDonorInfo.description,
+        parameters: TOOL_DEFINITIONS.getDonorInfo.parameters,
+        execute: async (args: any) => {
+          logger.info(`[ToolRegistry] AI SDK executing getDonorInfo with args:`, args);
+          const tool = this.tools.get('getDonorInfo');
+          if (!tool) throw new Error('getDonorInfo tool not found');
+          const input = GetDonorInfoInputSchema.parse(args);
+          return await tool.execute(input, context.organizationId);
+        },
+      },
+      getOrganizationContext: {
+        description: TOOL_DEFINITIONS.getOrganizationContext.description,
+        parameters: TOOL_DEFINITIONS.getOrganizationContext.parameters,
+        execute: async (args: any) => {
+          logger.info(`[ToolRegistry] AI SDK executing getOrganizationContext with args:`, args);
+          const tool = this.tools.get('getOrganizationContext');
+          if (!tool) throw new Error('getOrganizationContext tool not found');
+          const input = GetOrganizationContextInputSchema.parse(args);
+          return await tool.execute(input);
+        },
+      },
+      generateInstruction: {
+        description: TOOL_DEFINITIONS.generateInstruction.description,
+        parameters: TOOL_DEFINITIONS.generateInstruction.parameters,
+        execute: async (args: any) => {
+          logger.info(`[ToolRegistry] AI SDK executing generateInstruction with args:`, args);
+          const tool = this.tools.get('generateInstruction');
+          if (!tool) throw new Error('generateInstruction tool not found');
+          const input = GenerateInstructionInputSchema.parse(args);
+          return await tool.execute(input);
+        },
+      },
+      refineInstruction: {
+        description: TOOL_DEFINITIONS.refineInstruction.description,
+        parameters: TOOL_DEFINITIONS.refineInstruction.parameters,
+        execute: async (args: any) => {
+          logger.info(`[ToolRegistry] AI SDK executing refineInstruction with args:`, args);
+          const tool = this.tools.get('refineInstruction');
+          if (!tool) throw new Error('refineInstruction tool not found');
+          const input = RefineInstructionInputSchema.parse(args);
+          return await tool.execute(input);
+        },
+      },
+      summarizeForGeneration: {
+        description: TOOL_DEFINITIONS.summarizeForGeneration.description,
+        parameters: TOOL_DEFINITIONS.summarizeForGeneration.parameters,
+        execute: async (args: any) => {
+          logger.info(`[ToolRegistry] AI SDK executing summarizeForGeneration with args:`, args);
+          const tool = this.tools.get('summarizeForGeneration');
+          if (!tool) throw new Error('summarizeForGeneration tool not found');
+          const input = SummarizeForGenerationInputSchema.parse(args);
+          return await tool.execute(input);
+        },
+      },
+    };
+  }
+
+  /**
+   * Get available tool definitions for AI (deprecated - use getToolDefinitionsWithExecute)
    */
   getToolDefinitions(): typeof TOOL_DEFINITIONS {
     return TOOL_DEFINITIONS;
