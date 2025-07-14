@@ -1546,21 +1546,21 @@ export class EmailCampaignsService {
       });
     }
 
-    // Update chat history
-    const existingChatHistory =
-      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
-    const updatedChatHistory = await this.updateChatHistory(
-      session.id,
-      organizationId,
-      input.newMessage,
-      existingChatHistory
-    );
-
     // Check if we should use the agentic flow
     logger.info('[handleGenerateWithNewMessage] USE_AGENTIC_FLOW value:', env.USE_AGENTIC_FLOW);
 
     if (env.USE_AGENTIC_FLOW) {
       logger.info('[handleGenerateWithNewMessage] Entering agentic flow');
+      // For agentic flow, we need to update the session's chat history with the user message
+      // The SmartEmailGenerationService will handle its own message storage separately
+      const existingChatHistory =
+        (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+      const updatedChatHistory = await this.updateChatHistory(
+        session.id,
+        organizationId,
+        input.newMessage,
+        existingChatHistory
+      );
       return await this.handleAgenticConversation(
         input,
         session,
@@ -1569,6 +1569,16 @@ export class EmailCampaignsService {
         updatedChatHistory
       );
     }
+
+    // For non-agentic flow, update chat history as before
+    const existingChatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    const updatedChatHistory = await this.updateChatHistory(
+      session.id,
+      organizationId,
+      input.newMessage,
+      existingChatHistory
+    );
 
     logger.info(
       '[handleGenerateWithNewMessage] Using traditional flow (USE_AGENTIC_FLOW is false or undefined)'
@@ -2209,14 +2219,8 @@ export class EmailCampaignsService {
 
         console.log('response', response);
 
-        // Add AI response to chat history (only if not empty)
-        if (response.content && response.content.trim() !== '') {
-          await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
-        } else {
-          logger.warn(
-            '[handleAgenticConversation] AI response was empty, not adding to chat history'
-          );
-        }
+        // Don't add AI response here - SmartEmailGenerationService already handles it
+        // to avoid duplicate messages in chat history
 
         // Check if conversation is complete
         if (!response.shouldContinue) {
@@ -2249,14 +2253,8 @@ export class EmailCampaignsService {
             userId,
           });
 
-        // Add AI response to chat history (only if not empty)
-        if (response.content && response.content.trim() !== '') {
-          await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
-        } else {
-          logger.warn(
-            '[handleAgenticConversation] AI response was empty (continuing conversation), not adding to chat history'
-          );
-        }
+        // Don't add AI response here - SmartEmailGenerationService already handles it
+        // to avoid duplicate messages in chat history
 
         // Check if user is explicitly asking to generate emails
         const userWantsToGenerate =
@@ -2429,6 +2427,34 @@ export class EmailCampaignsService {
     const session = await getEmailGenerationSessionById(sessionId, organizationId);
     if (!session) return [];
 
+    // Check if we have a smart session ID, which means we're using the agentic flow
+    const smartSessionId = (session as any).smartSessionId;
+
+    if (smartSessionId && env.USE_AGENTIC_FLOW) {
+      // Get messages from the SmartEmailGenerationService
+      try {
+        const smartEmailService = new SmartEmailGenerationService();
+        const sessionState = await smartEmailService.getSessionState({
+          sessionId: smartSessionId,
+          organizationId,
+          userId: session.userId,
+        });
+
+        // Convert smart email messages to chat history format
+        return sessionState.messages.map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }));
+      } catch (error) {
+        logger.error('[getChatHistory] Failed to get messages from smart email service:', error);
+        // Fall back to session chat history
+        return (
+          (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || []
+        );
+      }
+    }
+
+    // For non-agentic flow or if smart session doesn't exist, use session chat history
     return (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
   }
 }

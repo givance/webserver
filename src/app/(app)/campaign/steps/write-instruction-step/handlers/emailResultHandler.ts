@@ -1,29 +1,34 @@
-import { GenerateEmailsResponse, AgenticFlowResponse, GeneratedEmail, EmailOperationResult } from "../types";
+import {
+  GenerateEmailsResponse,
+  AgenticFlowResponse,
+  GeneratedEmail,
+  EmailOperationResult,
+} from '../types';
 
 interface EmailResultData {
-  type: "agentic" | "email";
+  type: 'agentic' | 'email';
   agenticResult?: {
-    conversationMessages: Array<{ role: "user" | "assistant"; content: string }>;
+    conversationMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
     needsUserInput: boolean;
   };
   emailResult?: {
     emails: GeneratedEmail[];
     refinedInstruction: string;
-    updatedChatMessages: Array<{ role: "user" | "assistant"; content: string }>;
+    updatedChatMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
     responseMessage: string;
   };
 }
 
 export function processEmailResult(result: EmailOperationResult): EmailResultData {
-  if (result.type === "agentic") {
+  if (result.type === 'agentic') {
     const agenticResult = result.result as AgenticFlowResponse;
     const conversationMessages = agenticResult.conversation.map((msg: any) => ({
-      role: msg.role as "user" | "assistant",
+      role: msg.role as 'user' | 'assistant',
       content: msg.content,
     }));
-    
+
     return {
-      type: "agentic",
+      type: 'agentic',
       agenticResult: {
         conversationMessages,
         needsUserInput: agenticResult.needsUserInput,
@@ -31,17 +36,17 @@ export function processEmailResult(result: EmailOperationResult): EmailResultDat
     };
   } else {
     const emailResult = result.result as GenerateEmailsResponse;
-    
+
     return {
-      type: "email",
+      type: 'email',
       emailResult: {
         emails: emailResult.emails,
-        refinedInstruction: emailResult.refinedInstruction || "",
-        updatedChatMessages: result.updatedChatMessages.map(msg => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content
+        refinedInstruction: emailResult.refinedInstruction || '',
+        updatedChatMessages: result.updatedChatMessages.map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
         })),
-        responseMessage: result.responseMessage || "",
+        responseMessage: result.responseMessage || '',
       },
     };
   }
@@ -58,23 +63,27 @@ export async function handleEmailResult(
   setIsEmailListExpanded?: (expanded: boolean) => void
 ) {
   const processedResult = processEmailResult(result);
-  
-  if (processedResult.type === "agentic" && processedResult.agenticResult) {
-    chatState.setChatMessages((prev: any) => [...prev, ...processedResult.agenticResult!.conversationMessages]);
+
+  if (processedResult.type === 'agentic' && processedResult.agenticResult) {
+    chatState.setChatMessages((prev: any) => [
+      ...prev,
+      ...processedResult.agenticResult!.conversationMessages,
+    ]);
 
     if (!processedResult.agenticResult.needsUserInput) {
       instructionInput.clearInput();
     }
-  } else if (processedResult.type === "email" && processedResult.emailResult) {
-    const { emails, refinedInstruction, updatedChatMessages, responseMessage } = processedResult.emailResult;
-    
+  } else if (processedResult.type === 'email' && processedResult.emailResult) {
+    const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
+      processedResult.emailResult;
+
     emailState.setAllGeneratedEmails(emails);
     emailState.setGeneratedEmails(emails);
 
     // Initialize all emails as pending approval
-    const initialStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+    const initialStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
     emails.forEach((email: any) => {
-      initialStatuses[email.donorId] = "PENDING_APPROVAL";
+      initialStatuses[email.donorId] = 'PENDING_APPROVAL';
     });
     emailState.setEmailStatuses(initialStatuses);
 
@@ -86,10 +95,9 @@ export async function handleEmailResult(
     );
 
     chatState.setChatMessages((prev: any) => {
-      const newMessages = [...updatedChatMessages, {
-        role: "assistant" as const,
-        content: responseMessage,
-      }];
+      // updatedChatMessages already contains all messages including the assistant response
+      // No need to add responseMessage as it would create a duplicate
+      const newMessages = [...updatedChatMessages];
       // Save chat history immediately without setTimeout to avoid race conditions
       chatState.saveChatHistory(newMessages, refinedInstruction);
       return newMessages;
