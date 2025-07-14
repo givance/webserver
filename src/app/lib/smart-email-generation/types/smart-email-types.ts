@@ -67,6 +67,8 @@ export interface UpdateSmartEmailSessionInput {
   finalInstruction?: string;
   donorAnalysis?: any;
   orgAnalysis?: any;
+  draftInstruction?: string;
+  instructionApproved?: boolean;
 }
 
 // Message creation input
@@ -89,6 +91,8 @@ export interface ConversationContext {
   currentStep: SmartEmailSessionStepType;
   donorAnalysis?: any;
   orgAnalysis?: any;
+  draftInstruction?: string;
+  instructionApproved?: boolean;
 }
 
 // Agent response types

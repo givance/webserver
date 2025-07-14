@@ -2207,6 +2207,8 @@ export class EmailCampaignsService {
           smartSessionId,
         } as any);
 
+        console.log('response', response);
+
         // Add AI response to chat history (only if not empty)
         if (response.content && response.content.trim() !== '') {
           await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
@@ -2226,12 +2228,6 @@ export class EmailCampaignsService {
           );
         }
 
-        // Ensure we have a meaningful message for the frontend
-        const messageToReturn =
-          response.content && response.content.trim() !== ''
-            ? response.content
-            : "I'm here to help you create personalized emails for your donors. What specific goals do you have for this campaign?";
-
         return {
           success: true,
           sessionId: session.id,
@@ -2239,7 +2235,7 @@ export class EmailCampaignsService {
           generatedEmailsCount: 0,
           deletedEmailsCount: 0,
           failedEmailsCount: 0,
-          message: messageToReturn,
+          message: response.content,
         };
       } else {
         // Continue existing conversation

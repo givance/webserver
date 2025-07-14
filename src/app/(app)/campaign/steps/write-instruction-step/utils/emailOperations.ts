@@ -54,18 +54,20 @@ export async function handleEmailGeneration(params: {
   if (result.generatedEmailsCount === 0 && result.chatHistory.length > 0) {
     // This is an agentic conversation - return the AI's response
     const lastMessage = result.chatHistory[result.chatHistory.length - 1];
-    return {
-      type: 'traditional' as const,
-      result: { emails: [], sessionId, tokensUsed: 0 },
-      updatedChatMessages: result.chatHistory,
-      responseMessage: lastMessage.content,
-    };
+    // Check if the AI actually provided a meaningful response
+    if (lastMessage && lastMessage.content && lastMessage.content.trim() !== '') {
+      return {
+        type: 'traditional' as const,
+        result: { emails: [], sessionId, tokensUsed: 0 },
+        updatedChatMessages: result.chatHistory,
+        responseMessage: lastMessage.content,
+      };
+    }
+    // If AI response is empty, fall through to treat as email generation attempt
   }
 
   // Regular flow - emails were generated
-  const responseMessage =
-    result.message ||
-    "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
+  const responseMessage = result.message;
 
   return {
     type: 'traditional' as const,

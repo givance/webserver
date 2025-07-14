@@ -18,6 +18,18 @@ import {
   SummarizeForGenerationOutput,
   SummarizeForGenerationInputSchema,
 } from './summarizeForGeneration';
+import {
+  GenerateInstructionTool,
+  GenerateInstructionInput,
+  GenerateInstructionOutput,
+  GenerateInstructionInputSchema,
+} from './generateInstruction';
+import {
+  RefineInstructionTool,
+  RefineInstructionInput,
+  RefineInstructionOutput,
+  RefineInstructionInputSchema,
+} from './refineInstruction';
 
 // Tool definitions - Use the Zod schemas from the tool files
 export const TOOL_DEFINITIONS = {
@@ -32,6 +44,18 @@ export const TOOL_DEFINITIONS = {
     description:
       'Get organizational context including mission, writing guidelines, brand voice, and user preferences',
     parameters: GetOrganizationContextInputSchema,
+  },
+  generateInstruction: {
+    name: 'generateInstruction',
+    description:
+      'Generate a comprehensive email generation instruction based on conversation, donor analysis, and organizational context. Use this to create a draft instruction for user review.',
+    parameters: GenerateInstructionInputSchema,
+  },
+  refineInstruction: {
+    name: 'refineInstruction',
+    description:
+      'Refine an existing email generation instruction based on user feedback. Use this when the user wants to modify or improve the generated instruction.',
+    parameters: RefineInstructionInputSchema,
   },
   summarizeForGeneration: {
     name: 'summarizeForGeneration',
@@ -75,6 +99,8 @@ export class ToolRegistry {
     // Register all available tools
     this.registerTool('getDonorInfo', new GetDonorInfoTool());
     this.registerTool('getOrganizationContext', new GetOrganizationContextTool());
+    this.registerTool('generateInstruction', new GenerateInstructionTool());
+    this.registerTool('refineInstruction', new RefineInstructionTool());
     this.registerTool('summarizeForGeneration', new SummarizeForGenerationTool());
   }
 
@@ -117,6 +143,16 @@ export class ToolRegistry {
         case 'getOrganizationContext':
           const orgContextInput = GetOrganizationContextInputSchema.parse(toolCall.arguments);
           result = await tool.execute(orgContextInput);
+          break;
+
+        case 'generateInstruction':
+          const generateInput = GenerateInstructionInputSchema.parse(toolCall.arguments);
+          result = await tool.execute(generateInput);
+          break;
+
+        case 'refineInstruction':
+          const refineInput = RefineInstructionInputSchema.parse(toolCall.arguments);
+          result = await tool.execute(refineInput);
           break;
 
         case 'summarizeForGeneration':
