@@ -35,9 +35,29 @@ export class SmartEmailAgentService {
       logger.info(
         `[SmartEmailAgentService] Processing initial request for session ${context.sessionId}`
       );
+      logger.info(`[SmartEmailAgentService] Initial instruction: "${initialInstruction}"`);
+      logger.info(`[SmartEmailAgentService] Current step: ${context.currentStep}`);
+      logger.info(`[SmartEmailAgentService] Donor count: ${context.donorIds.length}`);
 
       const systemPrompt = this.buildSystemPrompt(context);
       const userPrompt = this.buildInitialUserPrompt(initialInstruction, context);
+
+      logger.info(`[SmartEmailAgentService] System prompt length: ${systemPrompt.length} chars`);
+      logger.info(`[SmartEmailAgentService] User prompt length: ${userPrompt.length} chars`);
+
+      // Log the LLM request
+      logger.info(`[SmartEmailAgentService LLM REQUEST] Calling Azure OpenAI for initial request`);
+      logger.info(
+        `[SmartEmailAgentService LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}`
+      );
+      logger.info(`[SmartEmailAgentService LLM REQUEST] Temperature: 0.7, MaxTokens: 1000`);
+      logger.info(
+        `[SmartEmailAgentService LLM REQUEST] Tools available: ${toolRegistry.getToolDefinitions().length}`
+      );
+      logger.info(
+        `[SmartEmailAgentService LLM REQUEST] System prompt snippet: "${systemPrompt.substring(0, 200)}..."`
+      );
+      logger.info(`[SmartEmailAgentService LLM REQUEST] User prompt: "${userPrompt}"`);
 
       // Generate AI response with tool calling
       const result = await generateText({
@@ -51,9 +71,25 @@ export class SmartEmailAgentService {
         maxTokens: 1000,
       });
 
+      // Log the LLM response
+      logger.info(`[SmartEmailAgentService LLM RESPONSE] Initial response received`);
+      logger.info(`[SmartEmailAgentService LLM RESPONSE] Response text: "${result.text}"`);
+      logger.info(
+        `[SmartEmailAgentService LLM RESPONSE] Usage: ${JSON.stringify(result.usage || {})}`
+      );
+      logger.info(
+        `[SmartEmailAgentService LLM RESPONSE] Tool calls: ${result.toolCalls?.length || 0}`
+      );
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        logger.info(
+          `[SmartEmailAgentService LLM RESPONSE] Raw tool calls: ${JSON.stringify(result.toolCalls)}`
+        );
+      }
+
       // Process tool calls if any
       const toolCalls = this.extractToolCalls(result);
       let toolResults: ToolResult[] = [];
+      let finalResponseText = result.text;
 
       if (toolCalls.length > 0) {
         logger.info(
@@ -66,13 +102,63 @@ export class SmartEmailAgentService {
           userId: context.userId,
           sessionId: context.sessionId,
         });
+
+        // If we had tool calls and no text response, we need to make another call to get the AI's response
+        if (!result.text || result.text.trim() === '') {
+          logger.info(`[SmartEmailAgentService] No text with tool calls, making follow-up call`);
+
+          // Build a summary of tool results for the AI
+          const toolResultsSummary = toolResults
+            .map((tr) => {
+              const toolName = toolCalls.find((tc) => tc.id === tr.toolCallId)?.name || 'unknown';
+              return `Tool ${toolName} returned: ${JSON.stringify(tr.result)}`;
+            })
+            .join('\n\n');
+
+          // Create a follow-up prompt that includes the tool results
+          const followUpPrompt = `Based on the tool results, please provide a conversational response to the user about what you discovered about their donors.
+
+Tool Results:
+${toolResultsSummary}
+
+Remember to:
+1. Be conversational and engaging
+2. Highlight key insights from the donor data
+3. Ask intelligent follow-up questions
+4. Guide the user toward creating effective thank you emails`;
+
+          logger.info(`[SmartEmailAgentService LLM REQUEST] Follow-up call after tools`);
+          const followUpResult = await generateText({
+            model: this.azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+              { role: 'assistant', content: followUpPrompt },
+            ],
+            temperature: 0.7,
+            maxTokens: 1000,
+          });
+
+          logger.info(
+            `[SmartEmailAgentService LLM RESPONSE] Follow-up response: "${followUpResult.text}"`
+          );
+          finalResponseText = followUpResult.text;
+        }
       }
 
       // Determine next step based on AI response and tool usage
-      const nextStep = this.determineNextStep(result.text, toolCalls, context.currentStep);
+      const nextStep = this.determineNextStep(finalResponseText, toolCalls, context.currentStep);
+
+      logger.info(`[SmartEmailAgentService] Determined next step: ${nextStep}`);
+      logger.info(
+        `[SmartEmailAgentService] Should continue: ${nextStep !== SmartEmailSessionStep.COMPLETE}`
+      );
+      logger.info(
+        `[SmartEmailAgentService] Tool calls executed: ${toolCalls.map((tc) => tc.name).join(', ') || 'none'}`
+      );
 
       const response: AgentResponse = {
-        content: result.text,
+        content: finalResponseText,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         nextStep,
         shouldContinue: nextStep !== SmartEmailSessionStep.COMPLETE,
@@ -102,15 +188,32 @@ export class SmartEmailAgentService {
       logger.info(
         `[SmartEmailAgentService] Processing user message for session ${context.sessionId}`
       );
+      logger.info(`[SmartEmailAgentService] Current step: ${context.currentStep}`);
+      logger.info(`[SmartEmailAgentService] User message: "${userMessage}"`);
 
       const systemPrompt = this.buildSystemPrompt(context);
       const conversationMessages = this.buildConversationMessages(context);
+
+      logger.info(`[SmartEmailAgentService] System prompt length: ${systemPrompt.length} chars`);
+      logger.info(
+        `[SmartEmailAgentService] Conversation history: ${conversationMessages.length} messages`
+      );
 
       // Add new user message
       conversationMessages.push({
         role: 'user' as const,
         content: userMessage,
       });
+
+      // Log the LLM request
+      logger.info(`[SmartEmailAgentService LLM REQUEST] Calling Azure OpenAI`);
+      logger.info(
+        `[SmartEmailAgentService LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}`
+      );
+      logger.info(`[SmartEmailAgentService LLM REQUEST] Temperature: 0.7, MaxTokens: 1000`);
+      logger.info(
+        `[SmartEmailAgentService LLM REQUEST] Tools available: ${toolRegistry.getToolDefinitions().length}`
+      );
 
       // Generate AI response with tool calling
       const result = await generateText({
@@ -121,9 +224,20 @@ export class SmartEmailAgentService {
         maxTokens: 1000,
       });
 
+      // Log the LLM response
+      logger.info(`[SmartEmailAgentService LLM RESPONSE] Response received`);
+      logger.info(`[SmartEmailAgentService LLM RESPONSE] Response text: "${result.text}"`);
+      logger.info(
+        `[SmartEmailAgentService LLM RESPONSE] Usage: ${JSON.stringify(result.usage || {})}`
+      );
+      logger.info(
+        `[SmartEmailAgentService LLM RESPONSE] Tool calls: ${result.toolCalls?.length || 0}`
+      );
+
       // Process tool calls if any
       const toolCalls = this.extractToolCalls(result);
       let toolResults: ToolResult[] = [];
+      let finalResponseText = result.text;
 
       if (toolCalls.length > 0) {
         toolResults = await toolRegistry.executeToolCalls(toolCalls, {
@@ -131,13 +245,56 @@ export class SmartEmailAgentService {
           userId: context.userId,
           sessionId: context.sessionId,
         });
+
+        // If we had tool calls and no text response, we need to make another call to get the AI's response
+        if (!result.text || result.text.trim() === '') {
+          logger.info(`[SmartEmailAgentService] No text with tool calls, making follow-up call`);
+
+          // Build a summary of tool results for the AI
+          const toolResultsSummary = toolResults
+            .map((tr) => {
+              const toolName = toolCalls.find((tc) => tc.id === tr.toolCallId)?.name || 'unknown';
+              return `Tool ${toolName} returned: ${JSON.stringify(tr.result)}`;
+            })
+            .join('\n\n');
+
+          // Create a follow-up prompt that includes the tool results
+          const followUpPrompt = `Based on the tool results, please provide a conversational response continuing our discussion.
+
+Tool Results:
+${toolResultsSummary}
+
+Remember to maintain the conversation flow and ask relevant questions based on what you discovered.`;
+
+          logger.info(`[SmartEmailAgentService LLM REQUEST] Follow-up call after tools`);
+          const followUpResult = await generateText({
+            model: this.azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...conversationMessages,
+              { role: 'assistant', content: followUpPrompt },
+            ],
+            temperature: 0.7,
+            maxTokens: 1000,
+          });
+
+          logger.info(
+            `[SmartEmailAgentService LLM RESPONSE] Follow-up response: "${followUpResult.text}"`
+          );
+          finalResponseText = followUpResult.text;
+        }
       }
 
       // Determine next step
-      const nextStep = this.determineNextStep(result.text, toolCalls, context.currentStep);
+      const nextStep = this.determineNextStep(finalResponseText, toolCalls, context.currentStep);
+
+      logger.info(`[SmartEmailAgentService] Determined next step: ${nextStep}`);
+      logger.info(
+        `[SmartEmailAgentService] Should continue: ${nextStep !== SmartEmailSessionStep.COMPLETE}`
+      );
 
       const response: AgentResponse = {
-        content: result.text,
+        content: finalResponseText,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         nextStep,
         shouldContinue: nextStep !== SmartEmailSessionStep.COMPLETE,
@@ -159,23 +316,32 @@ export class SmartEmailAgentService {
   private buildSystemPrompt(context: ConversationContext): string {
     return `You are an expert email strategist and conversation facilitator for nonprofit organizations. Your role is to help users create highly effective, personalized donor emails through intelligent conversation.
 
-## YOUR OBJECTIVES:
-1. **Understand the Context**: Analyze donor data, organizational context, and user intent
-2. **Ask Smart Questions**: Guide users to provide information that will improve email quality
-3. **Provide Insights**: Share relevant observations about donors and opportunities
-4. **Collaborate**: Work iteratively with users to refine their email strategy
-5. **Deliver Results**: Only conclude when you're confident the instruction will produce excellent emails
+## YOUR PRIMARY OBJECTIVES:
+1. **Prioritize Conversation**: Always engage in meaningful dialogue BEFORE generating emails
+2. **Understand Deeply**: Analyze donor data, organizational context, and user intent thoroughly
+3. **Ask Smart Questions**: Guide users to provide information that will dramatically improve email quality
+4. **Provide Insights**: Share relevant observations about donors and opportunities
+5. **Collaborate Extensively**: Work iteratively with users to refine their email strategy
+6. **Deliver Excellence**: Only conclude when you're confident the instruction will produce exceptional emails
+
+## CRITICAL INSTRUCTIONS:
+- **NEVER rush to email generation** - Quality conversation leads to quality emails
+- **ALWAYS ask clarifying questions** when the user's request is general or vague
+- **EXPLORE personalization opportunities** based on actual donor data
+- **DISCUSS strategy** before finalizing any email generation instruction
+- **MINIMUM 2-3 exchanges** before considering summarizeForGeneration
 
 ## AVAILABLE TOOLS:
 - **getDonorInfo**: Retrieve comprehensive donor data including donation history, communications, and research
 - **getOrganizationContext**: Get organizational mission, writing guidelines, and user preferences
-- **summarizeForGeneration**: Create final comprehensive instruction when ready to generate emails
+- **summarizeForGeneration**: Create final comprehensive instruction ONLY after thorough conversation
 
 ## CONVERSATION FLOW:
 1. **ANALYZING**: Start by understanding the user's request and gathering necessary data
-2. **QUESTIONING**: Ask intelligent questions based on donor analysis and organizational context
+2. **QUESTIONING**: Ask multiple intelligent questions based on donor analysis
 3. **REFINING**: Iteratively improve understanding through follow-up questions
-4. **COMPLETE**: Only when you have comprehensive information for excellent email generation
+4. **STRATEGIZING**: Discuss approach and personalization before finalizing
+5. **COMPLETE**: Only when you have comprehensive information for excellent email generation
 
 ## CURRENT SESSION:
 - Session ID: ${context.sessionId}
@@ -183,17 +349,27 @@ export class SmartEmailAgentService {
 - Donor Count: ${context.donorIds.length}
 - Organization: ${context.organizationId}
 
-## GUIDELINES:
-- Be conversational and helpful, not robotic
-- Ask specific questions based on actual donor data
-- Provide insights and observations about donors
-- Don't rush to completion - ensure quality over speed
-- Use tools strategically to gather information
+## CONVERSATION GUIDELINES:
+- Be genuinely conversational and curious, not robotic
+- Ask specific questions based on actual donor data you discover
+- Provide insights and observations about each donor
+- Never rush to completion - prioritize depth over speed
+- Use tools strategically to gather comprehensive information
 - Reference specific donor details when asking questions
-- Help users think through personalization opportunities
+- Help users think through multiple personalization opportunities
+- Suggest creative approaches based on donor history
+- Explore the "why" behind their email campaign
+
+## QUALITY CHECKS BEFORE SUMMARIZING:
+Before using summarizeForGeneration, ensure you have:
+- Clear understanding of campaign goals and context
+- Specific personalization strategies for different donor segments
+- Tone and voice preferences
+- Key messages and value propositions
+- Any special considerations or constraints
 
 ## TONE:
-Professional, insightful, and collaborative. You're a strategic partner helping create impactful donor communications.`;
+Professional, insightful, and genuinely collaborative. You're a strategic partner who cares deeply about creating impactful donor communications. Show enthusiasm for discovering insights about donors and crafting personalized approaches.`;
   }
 
   /**
@@ -262,13 +438,9 @@ When using tools:
   ): SmartEmailSessionStepType {
     const responseText = aiResponse.toLowerCase();
 
-    // Check if AI is concluding the conversation
-    if (
-      responseText.includes('final instruction') ||
-      responseText.includes('ready to generate') ||
-      responseText.includes('comprehensive instruction') ||
-      toolCalls.some((call) => call.name === 'summarizeForGeneration')
-    ) {
+    // Only complete when summarizeForGeneration tool is called
+    // This ensures we only generate when the AI is confident it has enough information
+    if (toolCalls.some((call) => call.name === 'summarizeForGeneration')) {
       return SmartEmailSessionStep.COMPLETE;
     }
 

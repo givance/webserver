@@ -1,35 +1,47 @@
-import { generateObject, generateText } from "ai";
-import { z } from "zod";
-import { logger } from "@/app/lib/logger";
-import { env } from "@/app/lib/env";
-import { createAzure } from "@ai-sdk/azure";
-import { DonorInfo, Organization } from "./types";
-import { DonationWithDetails } from "../../data/donations";
-import { PersonResearchResult } from "../../services/person-research/types";
-import { formatDonorName } from "../donor-name-formatter";
+import { generateObject, generateText } from 'ai';
+import { z } from 'zod';
+import { logger } from '@/app/lib/logger';
+import { env } from '@/app/lib/env';
+import { createAzure } from '@ai-sdk/azure';
+import { DonorInfo, Organization } from './types';
+import { DonationWithDetails } from '../../data/donations';
+import { PersonResearchResult } from '../../services/person-research/types';
+import { formatDonorName } from '../donor-name-formatter';
 
 // Schema for the orchestrator agent's response
 const AgenticPlanSchema = z.object({
-  needsClarification: z.boolean().describe("Whether the agent needs clarification from the user"),
-  questions: z.array(z.string()).describe("Questions the agent has for the user if clarification is needed"),
-  conflictsWithBestPractices: z.boolean().describe("Whether the user's request conflicts with best practices"),
-  bestPracticeIssues: z.array(z.string()).describe("Specific best practice issues found"),
-  suggestedPrompt: z.string().describe("The suggested refined prompt for email generation"),
+  needsClarification: z.boolean().describe('Whether the agent needs clarification from the user'),
+  questions: z
+    .array(z.string())
+    .describe('Questions the agent has for the user if clarification is needed'),
+  conflictsWithBestPractices: z
+    .boolean()
+    .describe("Whether the user's request conflicts with best practices"),
+  bestPracticeIssues: z.array(z.string()).describe('Specific best practice issues found'),
+  suggestedPrompt: z.string().describe('The suggested refined prompt for email generation'),
   reasoning: z.string().describe("Explanation of the agent's analysis and suggestions"),
-  canProceed: z.boolean().describe("Whether generation can proceed without further iteration"),
+  canProceed: z.boolean().describe('Whether generation can proceed without further iteration'),
+  userExplicitlyRequestedGeneration: z
+    .boolean()
+    .describe('Whether the user explicitly asked to generate/create emails'),
 });
 
 // Schema for the user's response during iteration
 const UserResponseSchema = z.object({
   answers: z.record(z.string()).describe("User's answers to the questions"),
-  additionalInstructions: z.string().optional().describe("Any additional instructions from the user"),
+  additionalInstructions: z
+    .string()
+    .optional()
+    .describe('Any additional instructions from the user'),
 });
 
 // Schema for final prompt confirmation
 const FinalPromptSchema = z.object({
-  finalPrompt: z.string().describe("The final refined prompt for email generation"),
-  summary: z.string().describe("Summary of what will be generated"),
-  estimatedComplexity: z.enum(["low", "medium", "high"]).describe("Estimated complexity of the generation task"),
+  finalPrompt: z.string().describe('The final refined prompt for email generation'),
+  summary: z.string().describe('Summary of what will be generated'),
+  estimatedComplexity: z
+    .enum(['low', 'medium', 'high'])
+    .describe('Estimated complexity of the generation task'),
 });
 
 export interface AgenticFlowContext {
@@ -47,7 +59,7 @@ export interface AgenticFlowContext {
 }
 
 export interface AgenticFlowStep {
-  type: "question" | "confirmation" | "generation" | "complete";
+  type: 'question' | 'confirmation' | 'generation' | 'complete';
   content: string;
   questions?: string[];
   suggestedPrompt?: string;
@@ -71,9 +83,32 @@ export interface AgenticFlowResult {
  * through conversation with the user, ensuring best practices are followed.
  */
 export class AgenticEmailGenerationOrchestrator {
-  private conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+  private conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   constructor() {}
+
+  /**
+   * Checks if the user's message contains explicit generation keywords
+   */
+  private hasExplicitGenerationRequest(userMessage: string): boolean {
+    const lowerMessage = userMessage.toLowerCase();
+    const generationKeywords = [
+      'generate',
+      'create',
+      'write',
+      'proceed with generation',
+      'go ahead',
+      'start generating',
+      'create the emails',
+      'generate the emails',
+      'write the emails',
+      'proceed',
+      "let's generate",
+      'ready to generate',
+    ];
+
+    return generationKeywords.some((keyword) => lowerMessage.includes(keyword));
+  }
 
   /**
    * Starts the agentic flow by analyzing the initial user request
@@ -98,19 +133,25 @@ export class AgenticEmailGenerationOrchestrator {
       // Log the request details
       const systemPrompt = this.getOrchestratorSystemPrompt();
       logger.info(`[AGENTIC LLM REQUEST] Starting flow analysis`);
-      logger.info(`[AGENTIC LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}, Temperature: 0.3`);
+      logger.info(
+        `[AGENTIC LLM REQUEST] Model: ${env.AZURE_OPENAI_DEPLOYMENT_NAME}, Temperature: 0.3`
+      );
       logger.info(`[AGENTIC LLM REQUEST] System prompt length: ${systemPrompt.length} chars`);
       logger.info(`[AGENTIC LLM REQUEST] Analysis prompt length: ${analysisPrompt.length} chars`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history length: ${this.conversationHistory.length} messages`);
+      logger.info(
+        `[AGENTIC LLM REQUEST] Conversation history length: ${this.conversationHistory.length} messages`
+      );
       logger.info(`[AGENTIC LLM REQUEST] System prompt: ${systemPrompt}`);
       logger.info(`[AGENTIC LLM REQUEST] Analysis prompt: ${analysisPrompt}`);
-      logger.info(`[AGENTIC LLM REQUEST] Conversation history: ${JSON.stringify(this.conversationHistory)}`);
+      logger.info(
+        `[AGENTIC LLM REQUEST] Conversation history: ${JSON.stringify(this.conversationHistory)}`
+      );
 
       // Build conversation messages including history
       const messages = [
-        { role: "system" as const, content: systemPrompt },
+        { role: 'system' as const, content: systemPrompt },
         ...this.conversationHistory,
-        { role: "user" as const, content: analysisPrompt },
+        { role: 'user' as const, content: analysisPrompt },
       ];
 
       const { object: plan, usage } = await generateObject({
@@ -125,12 +166,19 @@ export class AgenticEmailGenerationOrchestrator {
       logger.info(`[AGENTIC LLM RESPONSE] Token usage: ${JSON.stringify(usage)}`);
       logger.info(`[AGENTIC LLM RESPONSE] needsClarification: ${plan.needsClarification}`);
       logger.info(`[AGENTIC LLM RESPONSE] canProceed: ${plan.canProceed}`);
-      logger.info(`[AGENTIC LLM RESPONSE] conflictsWithBestPractices: ${plan.conflictsWithBestPractices}`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] conflictsWithBestPractices: ${plan.conflictsWithBestPractices}`
+      );
       logger.info(`[AGENTIC LLM RESPONSE] reasoning: ${plan.reasoning}`);
       logger.info(`[AGENTIC LLM RESPONSE] questions count: ${plan.questions?.length || 0}`);
       logger.info(`[AGENTIC LLM RESPONSE] questions: ${JSON.stringify(plan.questions)}`);
-      logger.info(`[AGENTIC LLM RESPONSE] suggested prompt length: ${plan.suggestedPrompt?.length || 0} chars`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] suggested prompt length: ${plan.suggestedPrompt?.length || 0} chars`
+      );
       logger.info(`[AGENTIC LLM RESPONSE] suggested prompt: ${plan.suggestedPrompt}`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] userExplicitlyRequestedGeneration: ${plan.userExplicitlyRequestedGeneration}`
+      );
 
       // Create the first step based on the analysis
       const firstStep: AgenticFlowStep = this.createStepFromPlan(plan);
@@ -138,14 +186,25 @@ export class AgenticEmailGenerationOrchestrator {
       return {
         steps: [firstStep],
         finalPrompt: plan.canProceed ? plan.suggestedPrompt : undefined,
-        needsUserInput: plan.needsClarification || plan.conflictsWithBestPractices,
-        isComplete: plan.canProceed && !plan.needsClarification && !plan.conflictsWithBestPractices,
+        needsUserInput:
+          plan.needsClarification ||
+          plan.conflictsWithBestPractices ||
+          !plan.userExplicitlyRequestedGeneration,
+        isComplete:
+          plan.canProceed &&
+          !plan.needsClarification &&
+          !plan.conflictsWithBestPractices &&
+          plan.userExplicitlyRequestedGeneration,
       };
     } catch (error) {
       logger.error(`[AGENTIC LLM ERROR] Failed to start agentic flow`);
-      logger.error(`[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`);
-      logger.error(`[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : "No stack trace"}`);
-      throw new Error("Failed to start agentic flow");
+      logger.error(
+        `[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`
+      );
+      logger.error(
+        `[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`
+      );
+      throw new Error('Failed to start agentic flow');
     }
   }
 
@@ -157,10 +216,10 @@ export class AgenticEmailGenerationOrchestrator {
     userResponse: string,
     previousSteps: AgenticFlowStep[]
   ): Promise<AgenticFlowResult> {
-    logger.info("Continuing agentic flow with user response");
+    logger.info('Continuing agentic flow with user response');
 
     // Add user response to conversation history
-    this.conversationHistory.push({ role: "user", content: userResponse });
+    this.conversationHistory.push({ role: 'user', content: userResponse });
 
     // Analyze the user's response and determine next steps
     const continuePrompt = this.buildContinuePrompt(context, userResponse, previousSteps);
@@ -181,9 +240,9 @@ export class AgenticEmailGenerationOrchestrator {
 
       // Build conversation messages including history
       const messages = [
-        { role: "system" as const, content: systemPrompt },
+        { role: 'system' as const, content: systemPrompt },
         ...this.conversationHistory,
-        { role: "user" as const, content: continuePrompt },
+        { role: 'user' as const, content: continuePrompt },
       ];
 
       const { object: plan, usage } = await generateObject({
@@ -198,19 +257,26 @@ export class AgenticEmailGenerationOrchestrator {
       logger.info(`[AGENTIC LLM RESPONSE] Token usage: ${JSON.stringify(usage)}`);
       logger.info(`[AGENTIC LLM RESPONSE] needsClarification: ${plan.needsClarification}`);
       logger.info(`[AGENTIC LLM RESPONSE] canProceed: ${plan.canProceed}`);
-      logger.info(`[AGENTIC LLM RESPONSE] conflictsWithBestPractices: ${plan.conflictsWithBestPractices}`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] conflictsWithBestPractices: ${plan.conflictsWithBestPractices}`
+      );
       logger.info(`[AGENTIC LLM RESPONSE] reasoning: ${plan.reasoning}`);
       logger.info(`[AGENTIC LLM RESPONSE] questions count: ${plan.questions?.length || 0}`);
       logger.info(`[AGENTIC LLM RESPONSE] questions: ${JSON.stringify(plan.questions)}`);
-      logger.info(`[AGENTIC LLM RESPONSE] suggested prompt length: ${plan.suggestedPrompt?.length || 0} chars`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] suggested prompt length: ${plan.suggestedPrompt?.length || 0} chars`
+      );
       logger.info(`[AGENTIC LLM RESPONSE] suggested prompt: ${plan.suggestedPrompt}`);
+      logger.info(
+        `[AGENTIC LLM RESPONSE] userExplicitlyRequestedGeneration: ${plan.userExplicitlyRequestedGeneration}`
+      );
 
       // Create next step
       const nextStep: AgenticFlowStep = this.createStepFromPlan(plan);
 
       // Add assistant response to history
       this.conversationHistory.push({
-        role: "assistant",
+        role: 'assistant',
         content: nextStep.content,
       });
 
@@ -219,14 +285,25 @@ export class AgenticEmailGenerationOrchestrator {
       return {
         steps: allSteps,
         finalPrompt: plan.canProceed ? plan.suggestedPrompt : undefined,
-        needsUserInput: plan.needsClarification || plan.conflictsWithBestPractices,
-        isComplete: plan.canProceed && !plan.needsClarification && !plan.conflictsWithBestPractices,
+        needsUserInput:
+          plan.needsClarification ||
+          plan.conflictsWithBestPractices ||
+          !plan.userExplicitlyRequestedGeneration,
+        isComplete:
+          plan.canProceed &&
+          !plan.needsClarification &&
+          !plan.conflictsWithBestPractices &&
+          plan.userExplicitlyRequestedGeneration,
       };
     } catch (error) {
       logger.error(`[AGENTIC LLM ERROR] Failed to continue agentic flow`);
-      logger.error(`[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`);
-      logger.error(`[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : "No stack trace"}`);
-      throw new Error("Failed to continue agentic flow");
+      logger.error(
+        `[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`
+      );
+      logger.error(
+        `[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`
+      );
+      throw new Error('Failed to continue agentic flow');
     }
   }
 
@@ -236,8 +313,12 @@ export class AgenticEmailGenerationOrchestrator {
   async generateFinalPrompt(
     context: AgenticFlowContext,
     conversationSteps: AgenticFlowStep[]
-  ): Promise<{ finalPrompt: string; summary: string; estimatedComplexity: "low" | "medium" | "high" }> {
-    logger.info("Generating final prompt for user confirmation");
+  ): Promise<{
+    finalPrompt: string;
+    summary: string;
+    estimatedComplexity: 'low' | 'medium' | 'high';
+  }> {
+    logger.info('Generating final prompt for user confirmation');
 
     const finalPrompt = this.buildFinalPromptGenerationPrompt(context, conversationSteps);
 
@@ -251,13 +332,15 @@ export class AgenticEmailGenerationOrchestrator {
 
       // Log the request details (simplified)
       const systemPrompt = this.getFinalPromptSystemPrompt();
-      logger.info(`[AGENTIC LLM REQUEST] Generating final prompt - ${this.conversationHistory.length} messages`);
+      logger.info(
+        `[AGENTIC LLM REQUEST] Generating final prompt - ${this.conversationHistory.length} messages`
+      );
 
       // Build conversation messages including history
       const messages = [
-        { role: "system" as const, content: systemPrompt },
+        { role: 'system' as const, content: systemPrompt },
         ...this.conversationHistory,
-        { role: "user" as const, content: finalPrompt },
+        { role: 'user' as const, content: finalPrompt },
       ];
 
       const { object: finalResult, usage } = await generateObject({
@@ -281,9 +364,13 @@ export class AgenticEmailGenerationOrchestrator {
       };
     } catch (error) {
       logger.error(`[AGENTIC LLM ERROR] Failed to generate final prompt`);
-      logger.error(`[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`);
-      logger.error(`[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : "No stack trace"}`);
-      throw new Error("Failed to generate final prompt");
+      logger.error(
+        `[AGENTIC LLM ERROR] Error message: ${error instanceof Error ? error.message : String(error)}`
+      );
+      logger.error(
+        `[AGENTIC LLM ERROR] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`
+      );
+      throw new Error('Failed to generate final prompt');
     }
   }
 
@@ -307,7 +394,9 @@ export class AgenticEmailGenerationOrchestrator {
       }
 
       if (donorDonations.length > 0) {
-        const sortedDonations = [...donorDonations].sort((a, b) => b.date.getTime() - a.date.getTime());
+        const sortedDonations = [...donorDonations].sort(
+          (a, b) => b.date.getTime() - a.date.getTime()
+        );
         const latestDonation = sortedDonations[0];
         const totalAmount = donorDonations.reduce((sum, d) => sum + d.amount, 0);
 
@@ -333,7 +422,7 @@ export class AgenticEmailGenerationOrchestrator {
       if (donorResearch) {
         analysis += `  Research: ${donorResearch.researchTopic}`;
         if (donorResearch.answer) {
-          analysis += ` - ${donorResearch.answer.substring(0, 100)}${donorResearch.answer.length > 100 ? "..." : ""}`;
+          analysis += ` - ${donorResearch.answer.substring(0, 100)}${donorResearch.answer.length > 100 ? '...' : ''}`;
         }
         analysis += `\n`;
       } else {
@@ -355,13 +444,16 @@ export class AgenticEmailGenerationOrchestrator {
    * Builds the initial analysis prompt
    */
   private buildAnalysisPrompt(context: AgenticFlowContext, donorDataAnalysis: string): string {
+    const hasExplicitRequest = this.hasExplicitGenerationRequest(context.userInstruction);
+
     return `
 ANALYZE EMAIL GENERATION REQUEST
 
 USER INSTRUCTION: "${context.userInstruction}"
+USER EXPLICITLY REQUESTED GENERATION: ${hasExplicitRequest}
 
 ORGANIZATION: ${context.organizationName}
-${context.organizationWritingInstructions ? `WRITING GUIDELINES: ${context.organizationWritingInstructions}` : ""}
+${context.organizationWritingInstructions ? `WRITING GUIDELINES: ${context.organizationWritingInstructions}` : ''}
 
 ${donorDataAnalysis}
 
@@ -369,18 +461,22 @@ BEST PRACTICES TO FOLLOW:
 ${context.bestPractices}
 
 USER MEMORIES:
-${context.userMemories.join("\n")}
+${context.userMemories.join('\n')}
 
 ORGANIZATION MEMORIES:
-${context.organizationMemories.join("\n")}
+${context.organizationMemories.join('\n')}
 
 Please analyze this request and determine:
-1. Does the user's instruction need clarification?
-2. Does it conflict with the provided best practices?
-3. Can we proceed with generation, or do we need to iterate?
-4. What would be an improved version of their instruction?
+1. Has the user EXPLICITLY asked to generate/create emails? (Based on analysis: ${hasExplicitRequest})
+2. What questions should you ask to better understand their needs?
+3. Does the instruction conflict with best practices?
+4. What additional context would help create better emails?
 
-Be thorough but concise in your analysis.
+IMPORTANT: 
+- Set userExplicitlyRequestedGeneration=${hasExplicitRequest}
+- Set canProceed=true ONLY if userExplicitlyRequestedGeneration=true AND you have sufficient information
+- Default to needsClarification=true to continue the conversation
+- Always ask questions first, even if the request seems complete
     `.trim();
   }
 
@@ -392,7 +488,10 @@ Be thorough but concise in your analysis.
     userResponse: string,
     previousSteps: AgenticFlowStep[]
   ): string {
-    const conversationSummary = previousSteps.map((step, i) => `Step ${i + 1}: ${step.content}`).join("\n");
+    const conversationSummary = previousSteps
+      .map((step, i) => `Step ${i + 1}: ${step.content}`)
+      .join('\n');
+    const hasExplicitRequest = this.hasExplicitGenerationRequest(userResponse);
 
     return `
 CONTINUE CONVERSATION ANALYSIS
@@ -402,6 +501,7 @@ CONVERSATION SO FAR:
 ${conversationSummary}
 
 USER'S LATEST RESPONSE: "${userResponse}"
+USER EXPLICITLY REQUESTED GENERATION IN THIS RESPONSE: ${hasExplicitRequest}
 
 CONTEXT REMAINS:
 - Organization: ${context.organizationName}
@@ -409,20 +509,29 @@ CONTEXT REMAINS:
 - Best practices must be followed
 
 Based on the user's response, determine:
-1. Have their concerns been addressed?
-2. Do we have enough clarity to proceed?
+1. Has the user NOW explicitly asked to generate/create emails? (Based on analysis: ${hasExplicitRequest})
+2. What additional questions would help improve the email quality?
 3. Are there any remaining conflicts with best practices?
 4. What's the next step in the conversation?
 
-If ready to proceed, provide the final refined instruction for email generation.
+IMPORTANT:
+- Set userExplicitlyRequestedGeneration=${hasExplicitRequest}
+- Only set canProceed=true if they explicitly asked AND you have comprehensive information
+- Continue asking questions to understand their needs better
+- Focus on having a helpful conversation, not rushing to generation
     `.trim();
   }
 
   /**
    * Builds the final prompt generation prompt
    */
-  private buildFinalPromptGenerationPrompt(context: AgenticFlowContext, conversationSteps: AgenticFlowStep[]): string {
-    const conversationSummary = conversationSteps.map((step, i) => `Step ${i + 1}: ${step.content}`).join("\n");
+  private buildFinalPromptGenerationPrompt(
+    context: AgenticFlowContext,
+    conversationSteps: AgenticFlowStep[]
+  ): string {
+    const conversationSummary = conversationSteps
+      .map((step, i) => `Step ${i + 1}: ${step.content}`)
+      .join('\n');
 
     return `
 GENERATE FINAL EMAIL GENERATION PROMPT
@@ -447,7 +556,7 @@ Also provide a summary of what will be generated and estimate the complexity.
   private createStepFromPlan(plan: any): AgenticFlowStep {
     if (plan.needsClarification) {
       return {
-        type: "question",
+        type: 'question',
         content: plan.reasoning,
         questions: plan.questions,
         canProceed: false,
@@ -456,8 +565,8 @@ Also provide a summary of what will be generated and estimate the complexity.
 
     if (plan.conflictsWithBestPractices) {
       return {
-        type: "question",
-        content: `I noticed some conflicts with our best practices:\n\n${plan.bestPracticeIssues.join("\n")}\n\n${
+        type: 'question',
+        content: `I noticed some conflicts with our best practices:\n\n${plan.bestPracticeIssues.join('\n')}\n\n${
           plan.reasoning
         }`,
         questions: [`How would you like to address these best practice concerns?`],
@@ -467,19 +576,35 @@ Also provide a summary of what will be generated and estimate the complexity.
       };
     }
 
-    if (plan.canProceed) {
+    if (plan.canProceed && plan.userExplicitlyRequestedGeneration) {
       return {
-        type: "confirmation",
+        type: 'confirmation',
         content: `Great! I have everything I need. Here's what I'll generate:\n\n${plan.reasoning}`,
         suggestedPrompt: plan.suggestedPrompt,
         canProceed: true,
       };
     }
 
+    if (
+      !plan.userExplicitlyRequestedGeneration &&
+      !plan.needsClarification &&
+      !plan.conflictsWithBestPractices
+    ) {
+      return {
+        type: 'question',
+        content: plan.reasoning,
+        questions:
+          plan.questions.length > 0
+            ? plan.questions
+            : ["Is there anything specific you'd like me to know before we proceed?"],
+        canProceed: false,
+      };
+    }
+
     return {
-      type: "question",
+      type: 'question',
       content: plan.reasoning,
-      questions: plan.questions || ["Could you provide more details?"],
+      questions: plan.questions || ['Could you provide more details?'],
       canProceed: false,
     };
   }
@@ -489,25 +614,36 @@ Also provide a summary of what will be generated and estimate the complexity.
    */
   private getOrchestratorSystemPrompt(): string {
     return `
-You are an expert email generation orchestrator for nonprofit organizations. Your role is to:
+You are an expert email generation orchestrator for nonprofit organizations. Your primary role is to have a CONVERSATION with the user to understand their needs before generating emails.
 
-1. ANALYZE user requests for email generation
-2. IDENTIFY any unclear or problematic aspects 
-3. ENSURE best practices are followed
-4. GUIDE users through clarification when needed
-5. PREPARE refined instructions for email generation
+IMPORTANT: You should NEVER proceed with email generation until the user explicitly asks you to do so using phrases like:
+- "generate the emails"
+- "create the emails" 
+- "proceed with generation"
+- "go ahead and generate"
+- "write the emails"
 
-When analyzing requests, consider:
-- Is the instruction clear and specific enough?
-- Does it conflict with nonprofit email best practices?
-- Is there enough context to generate effective emails?
-- Are there any ethical or tone concerns?
+Your conversation approach:
+1. START by asking questions to understand their goals and context
+2. EXPLORE their specific needs, audience, and desired outcomes
+3. IDENTIFY any unclear aspects or potential improvements
+4. ENSURE best practices are followed
+5. CONTINUE the conversation until you have comprehensive understanding
+6. ONLY suggest generation when the user explicitly requests it
 
-Always be helpful, professional, and focused on creating effective donor communications.
-Be concise but thorough in your analysis.
+When analyzing requests:
+- Always start with questions, even if the request seems clear
+- Focus on understanding the "why" behind their request
+- Explore tone, personalization level, and key messages
+- Consider donor history and relationship context
+- Think about timing and campaign goals
 
-If you need clarification, ask specific, actionable questions.
-If you identify best practice issues, explain them clearly and suggest alternatives.
+Remember: Your job is to have a helpful conversation FIRST. Only set canProceed=true when:
+1. The user explicitly asks to generate emails AND
+2. You have enough information for excellent personalization
+
+Set userExplicitlyRequestedGeneration=true ONLY when the user uses explicit generation keywords.
+Always default to continuing the conversation unless explicitly told otherwise.
     `.trim();
   }
 

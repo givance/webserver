@@ -24,6 +24,7 @@ export async function handleEmailGeneration(params: {
     message: string;
     success: boolean;
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+    generatedEmailsCount?: number;
   }>;
   sessionId?: number;
   saveEmailsToSession?: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
@@ -49,7 +50,21 @@ export async function handleEmailGeneration(params: {
     newMessage: finalInstruction,
   });
 
+  // Check if this is an agentic flow response (no emails generated)
+  if (result.generatedEmailsCount === 0 && result.chatHistory.length > 0) {
+    // This is an agentic conversation - return the AI's response
+    const lastMessage = result.chatHistory[result.chatHistory.length - 1];
+    return {
+      type: 'traditional' as const,
+      result: { emails: [], sessionId, tokensUsed: 0 },
+      updatedChatMessages: result.chatHistory,
+      responseMessage: lastMessage.content,
+    };
+  }
+
+  // Regular flow - emails were generated
   const responseMessage =
+    result.message ||
     "I've generated personalized emails based on each donor's communication history and your organization's writing instructions. You can review them on the left side. Let me know if you'd like any adjustments to the tone, content, or style.";
 
   return {

@@ -210,8 +210,14 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
             // Clear input and update UI
             clearInstructionInput(instructionInput);
-            setIsChatCollapsed(true);
-            setIsEmailListExpanded(true);
+            // Only collapse chat if emails were actually generated
+            if (
+              processedResult.emailResult?.emails &&
+              processedResult.emailResult.emails.length > 0
+            ) {
+              setIsChatCollapsed(true);
+              setIsEmailListExpanded(true);
+            }
           }
         } else {
           // Handle error
@@ -475,7 +481,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             <ArrowLeft className="w-3 h-3 mr-1" />
             Back
           </Button>
-          {emailState.allGeneratedEmails.length > 0 && (
+          {(emailState.allGeneratedEmails.length > 0 || chatState.chatMessages.length > 0) && (
             <Button
               onClick={() => {
                 const newChatCollapsed = !isChatCollapsed;

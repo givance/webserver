@@ -1557,7 +1557,10 @@ export class EmailCampaignsService {
     );
 
     // Check if we should use the agentic flow
+    logger.info('[handleGenerateWithNewMessage] USE_AGENTIC_FLOW value:', env.USE_AGENTIC_FLOW);
+
     if (env.USE_AGENTIC_FLOW) {
+      logger.info('[handleGenerateWithNewMessage] Entering agentic flow');
       return await this.handleAgenticConversation(
         input,
         session,
@@ -1566,6 +1569,10 @@ export class EmailCampaignsService {
         updatedChatHistory
       );
     }
+
+    logger.info(
+      '[handleGenerateWithNewMessage] Using traditional flow (USE_AGENTIC_FLOW is false or undefined)'
+    );
 
     // Original flow: always generate emails
     // Get donors to regenerate
@@ -2157,6 +2164,14 @@ export class EmailCampaignsService {
     userId: string,
     updatedChatHistory: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<SmartEmailGenerationResponse> {
+    logger.info('[handleAgenticConversation] Starting agentic conversation');
+    logger.info('[handleAgenticConversation] Input:', JSON.stringify(input));
+    logger.info('[handleAgenticConversation] Session ID:', session.id);
+    logger.info(
+      '[handleAgenticConversation] Updated chat history:',
+      JSON.stringify(updatedChatHistory)
+    );
+
     const smartEmailService = new SmartEmailGenerationService();
 
     // Check if we have an existing smart email session
@@ -2192,8 +2207,14 @@ export class EmailCampaignsService {
           smartSessionId,
         } as any);
 
-        // Add AI response to chat history
-        await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+        // Add AI response to chat history (only if not empty)
+        if (response.content && response.content.trim() !== '') {
+          await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+        } else {
+          logger.warn(
+            '[handleAgenticConversation] AI response was empty, not adding to chat history'
+          );
+        }
 
         // Check if conversation is complete
         if (!response.shouldContinue) {
@@ -2205,6 +2226,12 @@ export class EmailCampaignsService {
           );
         }
 
+        // Ensure we have a meaningful message for the frontend
+        const messageToReturn =
+          response.content && response.content.trim() !== ''
+            ? response.content
+            : "I'm here to help you create personalized emails for your donors. What specific goals do you have for this campaign?";
+
         return {
           success: true,
           sessionId: session.id,
@@ -2212,7 +2239,7 @@ export class EmailCampaignsService {
           generatedEmailsCount: 0,
           deletedEmailsCount: 0,
           failedEmailsCount: 0,
-          message: response.content,
+          message: messageToReturn,
         };
       } else {
         // Continue existing conversation
@@ -2226,14 +2253,28 @@ export class EmailCampaignsService {
             userId,
           });
 
-        // Add AI response to chat history
-        await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+        // Add AI response to chat history (only if not empty)
+        if (response.content && response.content.trim() !== '') {
+          await this.addAIResponseToChatHistory(session.id, organizationId, response.content);
+        } else {
+          logger.warn(
+            '[handleAgenticConversation] AI response was empty (continuing conversation), not adding to chat history'
+          );
+        }
 
         // Check if user is explicitly asking to generate emails
         const userWantsToGenerate =
           input.newMessage!.toLowerCase().includes('generate') ||
           input.newMessage!.toLowerCase().includes('create') ||
           input.newMessage!.toLowerCase().includes('write');
+
+        logger.info('[handleAgenticConversation] Decision point:', {
+          isComplete,
+          userWantsToGenerate,
+          hasFinalInstruction: !!finalInstruction,
+          userMessage: input.newMessage,
+          willGenerateEmails: isComplete || (userWantsToGenerate && finalInstruction),
+        });
 
         // Generate emails if conversation is complete or user explicitly asks
         if (isComplete || (userWantsToGenerate && finalInstruction)) {
@@ -2245,6 +2286,12 @@ export class EmailCampaignsService {
           );
         }
 
+        // Ensure we have a meaningful message for the frontend
+        const messageToReturn =
+          response.content && response.content.trim() !== ''
+            ? response.content
+            : "I understand you'd like to continue our conversation. How can I help you craft the perfect emails for your donors?";
+
         return {
           success: true,
           sessionId: session.id,
@@ -2252,29 +2299,42 @@ export class EmailCampaignsService {
           generatedEmailsCount: 0,
           deletedEmailsCount: 0,
           failedEmailsCount: 0,
-          message: response.content,
+          message: messageToReturn,
         };
       }
     } catch (error) {
       logger.error('[EmailCampaignsService] Error in agentic conversation:', error);
+      logger.error('[EmailCampaignsService] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        sessionId: session.id,
+        smartSessionId,
+      });
 
-      // Fall back to regular generation on error
-      const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
-      const { successfulCount, failedCount } = await this.generateEmailsForDonors(
-        session.id,
-        organizationId,
-        donorsToProcess,
-        updatedChatHistory
-      );
+      // Return an error message to the user instead of falling back to generation
+      const errorMessage =
+        'I apologize, but I encountered an issue while processing your request. Let me try again. What specific aspects of your donors would you like to know about for crafting thank you emails?';
+
+      // Add error recovery message to chat history
+      if (session.id && organizationId) {
+        try {
+          await this.addAIResponseToChatHistory(session.id, organizationId, errorMessage);
+        } catch (historyError) {
+          logger.error(
+            '[EmailCampaignsService] Failed to add error message to chat history:',
+            historyError
+          );
+        }
+      }
 
       return {
         success: true,
         sessionId: session.id,
-        chatHistory: updatedChatHistory,
-        generatedEmailsCount: successfulCount,
+        chatHistory: await this.getChatHistory(session.id, organizationId),
+        generatedEmailsCount: 0,
         deletedEmailsCount: 0,
-        failedEmailsCount: failedCount,
-        message: `Generated ${successfulCount} emails`,
+        failedEmailsCount: 0,
+        message: errorMessage,
       };
     }
   }
