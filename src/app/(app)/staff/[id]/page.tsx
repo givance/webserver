@@ -17,7 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { GmailConnect } from '@/components/ui/GmailConnect';
+import { EmailProviderConnect } from '@/components/ui/EmailProviderConnect';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -140,6 +140,13 @@ export default function StaffDetailPage() {
   // Staff Gmail connection mutations - using the new staff-specific endpoints
   const { data: staffGmailStatus, refetch: refetchGmailStatus } =
     trpc.staffGmail.getStaffGmailConnectionStatus.useQuery({ staffId }, { enabled: !!staffId });
+
+  // Staff Microsoft connection status
+  const { data: staffMicrosoftStatus, refetch: refetchMicrosoftStatus } =
+    trpc.staffMicrosoft.getStaffMicrosoftConnectionStatus.useQuery(
+      { staffId },
+      { enabled: !!staffId }
+    );
 
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
@@ -552,11 +559,17 @@ export default function StaffDetailPage() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              <Badge variant={staffGmailStatus?.isConnected ? 'default' : 'secondary'}>
-                {staffGmailStatus?.isConnected ? 'Connected' : 'Not Connected'}
-              </Badge>
-            </div>
+            <EmailProviderConnect
+              staffId={staffId}
+              gmailToken={staff.gmailToken}
+              microsoftToken={staff.microsoftToken}
+              onConnectionChange={() => {
+                refetchStaff();
+                refetchGmailStatus();
+                refetchMicrosoftStatus();
+              }}
+              variant="inline"
+            />
           </CardContent>
         </Card>
 
@@ -853,16 +866,31 @@ export default function StaffDetailPage() {
 
         {/* Email Account Tab */}
         <TabsContent value="email">
-          <GmailConnect
-            context="staff"
-            staffId={staffId}
-            title="Email Account Connection"
-            description="Link your Gmail account to this staff member to enable sending emails from their profile. When a Gmail account is linked, emails sent to donors assigned to this staff will be sent from their connected account instead of the organization's default account."
-            onConnectionChange={() => {
-              // Refetch staff data to update the UI
-              refetchStaff();
-            }}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Account Connection</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Link your Gmail or Microsoft account to this staff member to enable sending emails
+                from their profile. When an email account is linked, emails sent to donors assigned
+                to this staff will be sent from their connected account instead of the
+                organization's default account.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <EmailProviderConnect
+                staffId={staffId}
+                gmailToken={staff.gmailToken}
+                microsoftToken={staff.microsoftToken}
+                onConnectionChange={() => {
+                  // Refetch staff data to update the UI
+                  refetchStaff();
+                  refetchGmailStatus();
+                  refetchMicrosoftStatus();
+                }}
+                variant="inline"
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* WhatsApp Tab */}

@@ -384,15 +384,16 @@ export const staffRouter = router({
     .input(z.object({ id: idSchema }))
     .output(staffResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      // Check if staff member exists and has Gmail connected
-      const staffWithGmail = await getStaffWithGmailById(input.id, ctx.auth.user.organizationId);
+      // Check if staff member exists and has email account connected
+      const staffMembers = await getStaffByIds([input.id], ctx.auth.user.organizationId);
+      const staffMember = staffMembers[0];
 
-      validateNotNullish(staffWithGmail, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
+      validateNotNullish(staffMember, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
       validateNotNullish(
-        staffWithGmail.gmailToken,
+        staffMember.gmailToken || staffMember.microsoftToken,
         'CONFLICT',
-        'This staff member must connect their Gmail account before being set as primary sender.'
+        'This staff member must connect their email account (Gmail or Microsoft) before being set as primary sender.'
       );
 
       const updated = await setPrimaryStaff(input.id, ctx.auth.user.organizationId);

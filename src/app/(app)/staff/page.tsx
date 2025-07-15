@@ -1,24 +1,25 @@
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus } from "lucide-react";
-import Link from "next/link";
-import { DataTable } from "@/components/ui/data-table/DataTable";
-import { columns, type Staff } from "./columns";
-import { useStaff } from "@/app/hooks/use-staff";
-import { usePagination } from "@/app/hooks/use-pagination";
-import { useSearch } from "@/app/hooks/use-search";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
-import { ErrorDisplay } from "@/app/components/ErrorDisplay";
-import { PageSizeSelector } from "@/app/components/PageSizeSelector";
+import React, { useMemo } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { DataTable } from '@/components/ui/data-table/DataTable';
+import { columns, type Staff } from './columns';
+import { useStaff } from '@/app/hooks/use-staff';
+import { usePagination } from '@/app/hooks/use-pagination';
+import { useSearch } from '@/app/hooks/use-search';
+import { LoadingSkeleton } from '@/app/components/LoadingSkeleton';
+import { ErrorDisplay } from '@/app/components/ErrorDisplay';
+import { PageSizeSelector } from '@/app/components/PageSizeSelector';
 
 export default function StaffListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
-  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
-    resetOnDependency: debouncedSearchTerm,
-  });
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } =
+    usePagination({
+      resetOnDependency: debouncedSearchTerm,
+    });
 
   const { listStaff } = useStaff();
 
@@ -44,15 +45,20 @@ export default function StaffListPage() {
         signature: apiStaff.signature || null,
         writingInstructions: apiStaff.writingInstructions || null,
         gmailToken: apiStaff.gmailToken || null,
-        createdAt: apiStaff.createdAt ? new Date(apiStaff.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: apiStaff.updatedAt ? new Date(apiStaff.updatedAt).toISOString() : new Date().toISOString(),
+        microsoftToken: apiStaff.microsoftToken || null,
+        createdAt: apiStaff.createdAt
+          ? new Date(apiStaff.createdAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: apiStaff.updatedAt
+          ? new Date(apiStaff.updatedAt).toISOString()
+          : new Date().toISOString(),
         organizationId: apiStaff.organizationId,
       })) || [];
     return { staffMembers: items, totalCount: listStaffResponse?.totalCount || 0 };
   }, [listStaffResponse]);
 
   if (error) {
-    return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading staff" />;
+    return <ErrorDisplay error={error.message || 'Unknown error'} title="Error loading staff" />;
   }
 
   const pageCount = getPageCount(totalCount);

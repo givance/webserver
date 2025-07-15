@@ -148,7 +148,7 @@ export function EmailProviderConnect({
           <Badge
             onClick={() => currentProvider && initiateDisconnect(currentProvider)}
             variant="default"
-            className="bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-all duration-200 cursor-pointer group-hover:bg-red-100 group-hover:text-red-700 h-9 px-3 text-xs"
+            className="bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-all duration-200 cursor-pointer group-hover:bg-red-100 group-hover:text-red-700 h-6 px-2 py-0.5 text-xs inline-flex w-[140px] justify-center"
           >
             <Mail className="h-3 w-3 mr-1 group-hover:hidden" />
             <MailX className="h-3 w-3 mr-1 hidden group-hover:block" />
@@ -197,7 +197,7 @@ export function EmailProviderConnect({
           <Button
             variant="outline"
             size="sm"
-            className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0"
+            className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0 h-6 px-2 py-0.5 text-xs"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -218,17 +218,17 @@ export function EmailProviderConnect({
           <DropdownMenuItem
             onClick={() => handleConnect('gmail')}
             disabled={isLoading}
-            className="cursor-pointer"
+            className="cursor-pointer text-xs"
           >
-            <Mail className="h-4 w-4 mr-2" />
+            <Mail className="h-3 w-3 mr-1.5" />
             Connect Gmail
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => handleConnect('microsoft')}
             disabled={isLoading}
-            className="cursor-pointer"
+            className="cursor-pointer text-xs"
           >
-            <Mail className="h-4 w-4 mr-2" />
+            <Mail className="h-3 w-3 mr-1.5" />
             Connect Microsoft 365
           </DropdownMenuItem>
         </DropdownMenuContent>

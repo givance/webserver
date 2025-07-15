@@ -115,16 +115,39 @@ export async function getStaffByEmail(
  * @param organizationId - The ID of the organization the staff members belong to.
  * @returns Array of staff member objects.
  */
-export async function getStaffByIds(ids: number[], organizationId: string): Promise<Staff[]> {
+export async function getStaffByIds(
+  ids: number[],
+  organizationId: string
+): Promise<
+  Array<
+    Staff & {
+      gmailToken: { id: number; email: string } | null;
+      microsoftToken: { id: number; email: string } | null;
+    }
+  >
+> {
   try {
     if (ids.length === 0) {
       return [];
     }
 
-    const result = await db
-      .select()
-      .from(staff)
-      .where(and(inArray(staff.id, ids), eq(staff.organizationId, organizationId)));
+    const result = await db.query.staff.findMany({
+      where: and(inArray(staff.id, ids), eq(staff.organizationId, organizationId)),
+      with: {
+        gmailToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+        microsoftToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
     return result;
   } catch (error) {
     console.error('Failed to retrieve staff members by IDs:', error);
