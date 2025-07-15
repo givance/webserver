@@ -10,17 +10,21 @@ import { logger } from '@/app/lib/logger';
 import 'isomorphic-fetch';
 
 // Ensure you have these in your environment variables
-const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_ID = env.MICROSOFT_APPLICATION_ID;
 const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
-const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI;
-// Staff-specific redirect URI (same domain, different path)
-const STAFF_MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI.replace(
-  '/settings/microsoft/callback',
-  '/settings/microsoft/staff-callback'
-);
 
-if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
-  console.error(
+// Use single redirect URI for all Microsoft OAuth (staff only)
+const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI; // e.g., https://app.givance.ai/settings/microsoft/callback
+
+// Log configuration for debugging
+logger.info('Microsoft OAuth Configuration (Staff):', {
+  clientId: MICROSOFT_CLIENT_ID ? 'Set' : 'Missing',
+  clientSecret: MICROSOFT_CLIENT_SECRET ? 'Set' : 'Missing',
+  redirectUri: MICROSOFT_REDIRECT_URI,
+});
+
+if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
+  logger.error(
     'Missing Microsoft OAuth credentials in environment variables. Staff Microsoft integration will not work.'
   );
 }
@@ -32,7 +36,7 @@ export const staffMicrosoftRouter = router({
   getStaffMicrosoftAuthUrl: protectedProcedure
     .input(z.object({ staffId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      if (!MICROSOFT_CLIENT_ID || !STAFF_MICROSOFT_REDIRECT_URI) {
+      if (!MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Microsoft OAuth client not configured.',
@@ -60,10 +64,18 @@ export const staffMicrosoftRouter = router({
       const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
       authUrl.searchParams.append('client_id', MICROSOFT_CLIENT_ID);
       authUrl.searchParams.append('response_type', 'code');
-      authUrl.searchParams.append('redirect_uri', STAFF_MICROSOFT_REDIRECT_URI);
+      authUrl.searchParams.append('redirect_uri', MICROSOFT_REDIRECT_URI);
       authUrl.searchParams.append('scope', 'offline_access Mail.ReadWrite Mail.Send User.Read');
       authUrl.searchParams.append('state', state);
       authUrl.searchParams.append('prompt', 'consent');
+
+      // Log the auth URL details for debugging
+      logger.info('Generating Microsoft OAuth URL:', {
+        clientId: MICROSOFT_CLIENT_ID,
+        redirectUri: MICROSOFT_REDIRECT_URI,
+        authUrl: authUrl.toString(),
+        staffId: input.staffId,
+      });
 
       return { authUrl: authUrl.toString() };
     }),
@@ -74,7 +86,7 @@ export const staffMicrosoftRouter = router({
   handleStaffMicrosoftOAuthCallback: protectedProcedure
     .input(z.object({ code: z.string(), state: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !STAFF_MICROSOFT_REDIRECT_URI) {
+      if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Microsoft OAuth client not configured.',
@@ -110,22 +122,38 @@ export const staffMicrosoftRouter = router({
       try {
         // Exchange code for tokens
         const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+        const tokenParams = {
+          client_id: MICROSOFT_CLIENT_ID,
+          client_secret: MICROSOFT_CLIENT_SECRET,
+          code: input.code,
+          redirect_uri: MICROSOFT_REDIRECT_URI,
+          grant_type: 'authorization_code',
+        };
+
+        // Log token exchange request details (excluding sensitive data)
+        logger.info('Exchanging authorization code for tokens:', {
+          tokenUrl,
+          clientId: MICROSOFT_CLIENT_ID,
+          redirectUri: MICROSOFT_REDIRECT_URI,
+          codeLength: input.code.length,
+        });
+
         const tokenResponse = await fetch(tokenUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            client_id: MICROSOFT_CLIENT_ID,
-            client_secret: MICROSOFT_CLIENT_SECRET,
-            code: input.code,
-            redirect_uri: STAFF_MICROSOFT_REDIRECT_URI,
-            grant_type: 'authorization_code',
-          }).toString(),
+          body: new URLSearchParams(tokenParams).toString(),
         });
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json();
+          logger.error('Microsoft OAuth token exchange failed:', {
+            status: tokenResponse.status,
+            error: errorData,
+            redirectUri: MICROSOFT_REDIRECT_URI,
+            clientId: MICROSOFT_CLIENT_ID,
+          });
           throw new Error(
             `Microsoft OAuth error: ${errorData.error_description || errorData.error || 'Unknown error'}`
           );

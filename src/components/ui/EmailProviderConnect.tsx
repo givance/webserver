@@ -148,7 +148,7 @@ export function EmailProviderConnect({
           <Badge
             onClick={() => currentProvider && initiateDisconnect(currentProvider)}
             variant="default"
-            className="bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-all duration-200 cursor-pointer group-hover:bg-red-100 group-hover:text-red-700"
+            className="bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-all duration-200 cursor-pointer group-hover:bg-red-100 group-hover:text-red-700 h-9 px-3 text-xs"
           >
             <Mail className="h-3 w-3 mr-1 group-hover:hidden" />
             <MailX className="h-3 w-3 mr-1 hidden group-hover:block" />

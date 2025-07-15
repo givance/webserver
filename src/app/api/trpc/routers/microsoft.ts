@@ -26,12 +26,21 @@ import {
 import type { Context } from '../context';
 
 // Ensure you have these in your environment variables
-const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_ID = env.MICROSOFT_APPLICATION_ID;
 const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
+
+// Construct redirect URI using the BASE_URL
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI; // e.g., https://app.givance.ai/settings/microsoft/callback
 
-if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET || !MICROSOFT_REDIRECT_URI) {
-  console.error(
+// Log configuration for debugging
+logger.info('Microsoft OAuth Configuration (Organization):', {
+  clientId: MICROSOFT_CLIENT_ID ? 'Set' : 'Missing',
+  clientSecret: MICROSOFT_CLIENT_SECRET ? 'Set' : 'Missing',
+  redirectUri: MICROSOFT_REDIRECT_URI,
+});
+
+if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
+  logger.error(
     'Missing Microsoft OAuth credentials in environment variables. Microsoft integration will not work.'
   );
 }
@@ -341,6 +350,14 @@ export const microsoftRouter = router({
     authUrl.searchParams.append('state', state);
     authUrl.searchParams.append('prompt', 'consent');
 
+    // Log the auth URL details for debugging
+    logger.info('Generating Microsoft OAuth URL (Organization):', {
+      clientId: MICROSOFT_CLIENT_ID,
+      redirectUri: MICROSOFT_REDIRECT_URI,
+      authUrl: authUrl.toString(),
+      userId: ctx.auth.user.id,
+    });
+
     return { authUrl: authUrl.toString() };
   }),
 
@@ -385,22 +402,39 @@ export const microsoftRouter = router({
       try {
         // Exchange code for tokens
         const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+        const tokenParams = {
+          client_id: MICROSOFT_CLIENT_ID,
+          client_secret: MICROSOFT_CLIENT_SECRET,
+          code: input.code,
+          redirect_uri: MICROSOFT_REDIRECT_URI,
+          grant_type: 'authorization_code',
+        };
+
+        // Log token exchange request details (excluding sensitive data)
+        logger.info('Exchanging Microsoft authorization code for tokens (Organization):', {
+          tokenUrl,
+          clientId: MICROSOFT_CLIENT_ID,
+          redirectUri: MICROSOFT_REDIRECT_URI,
+          codeLength: input.code.length,
+          userId: ctx.auth.user.id,
+        });
+
         const tokenResponse = await fetch(tokenUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            client_id: MICROSOFT_CLIENT_ID,
-            client_secret: MICROSOFT_CLIENT_SECRET,
-            code: input.code,
-            redirect_uri: MICROSOFT_REDIRECT_URI,
-            grant_type: 'authorization_code',
-          }).toString(),
+          body: new URLSearchParams(tokenParams).toString(),
         });
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json();
+          logger.error('Microsoft OAuth token exchange failed (Organization):', {
+            status: tokenResponse.status,
+            error: errorData,
+            redirectUri: MICROSOFT_REDIRECT_URI,
+            clientId: MICROSOFT_CLIENT_ID,
+          });
           throw new Error(
             `Microsoft OAuth error: ${errorData.error_description || errorData.error || 'Unknown error'}`
           );

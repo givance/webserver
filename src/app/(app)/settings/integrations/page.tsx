@@ -1,14 +1,13 @@
-"use client";
+'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { trpc } from "@/app/lib/trpc/client";
-import React from "react";
-import { Textarea } from "@/components/ui/textarea";
-import { GmailConnect as GmailConnectComponent } from "@/components/ui/GmailConnect";
-import { MicrosoftConnect } from "@/components/ui/MicrosoftConnect";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Mail } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { trpc } from '@/app/lib/trpc/client';
+import React from 'react';
+import { Textarea } from '@/components/ui/textarea';
+import { GmailConnect as GmailConnectComponent } from '@/components/ui/GmailConnect';
 
 function GmailConnect() {
   return <GmailConnectComponent context="settings" />;
@@ -16,7 +15,7 @@ function GmailConnect() {
 
 function SignatureSettings() {
   const { data: user, refetch: refetchUser } = trpc.users.getCurrent.useQuery();
-  const [signature, setSignature] = React.useState("");
+  const [signature, setSignature] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -27,12 +26,12 @@ function SignatureSettings() {
 
   const updateSignatureMutation = trpc.users.updateEmailSignature.useMutation({
     onSuccess: () => {
-      toast.success("Email signature updated successfully");
+      toast.success('Email signature updated successfully');
       refetchUser();
       setIsSaving(false);
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update email signature");
+      toast.error(error.message || 'Failed to update email signature');
       setIsSaving(false);
     },
   });
@@ -67,7 +66,7 @@ function SignatureSettings() {
           </p>
         </div>
         <Button onClick={handleSave} disabled={isSaving || updateSignatureMutation.isPending}>
-          {isSaving || updateSignatureMutation.isPending ? "Saving..." : "Save Signature"}
+          {isSaving || updateSignatureMutation.isPending ? 'Saving...' : 'Save Signature'}
         </Button>
       </CardContent>
     </Card>
@@ -88,9 +87,8 @@ export default function IntegrationsPage() {
           <div className="grid gap-8">
             <div>
               <h3 className="text-lg font-medium mb-4">Email Integration</h3>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4">
                 <GmailConnect />
-                <MicrosoftConnect />
               </div>
             </div>
             {/* <SignatureSettings /> */}
