@@ -19,6 +19,10 @@ export const env = createEnv({
     GOOGLE_CLIENT_ID: z.string().min(1),
     GOOGLE_CLIENT_SECRET: z.string().min(1),
     GOOGLE_REDIRECT_URI: z.string().min(1),
+    MICROSOFT_APPLICATION_ID: z.string().min(1),
+    MICROSOFT_CLIENT_SECRET: z.string().min(1),
+    MICROSOFT_CLIENT_SECRET_ID: z.string().min(1),
+    MICROSOFT_REDIRECT_URI: z.string().min(1),
     BASE_URL: z.string().min(1),
     AZURE_OPENAI_API_KEY: z.string().min(1),
     AZURE_OPENAI_ENDPOINT: z.string().min(1),
@@ -32,12 +36,6 @@ export const env = createEnv({
       .string()
       .transform((val) => val === 'true')
       .optional(),
-    MICROSOFT_CLIENT_ID: z.string().optional().default('placeholder-client-id'),
-    MICROSOFT_CLIENT_SECRET: z.string().optional().default('placeholder-client-secret'),
-    MICROSOFT_REDIRECT_URI: z
-      .string()
-      .optional()
-      .default('http://localhost:3000/settings/microsoft/callback'),
     WHATSAPP_TOKEN: z.string().optional().default('placeholder-whatsapp-token'),
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: z
       .string()
@@ -82,8 +80,9 @@ export const env = createEnv({
     GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     USE_AGENTIC_FLOW: process.env.USE_AGENTIC_FLOW,
-    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+    MICROSOFT_APPLICATION_ID: process.env.MICROSOFT_APPLICATION_ID,
     MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+    MICROSOFT_CLIENT_SECRET_ID: process.env.MICROSOFT_CLIENT_SECRET_ID,
     MICROSOFT_REDIRECT_URI: process.env.MICROSOFT_REDIRECT_URI,
     WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
