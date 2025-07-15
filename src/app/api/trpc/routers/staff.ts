@@ -50,6 +50,13 @@ const staffResponseSchema = z.object({
     })
     .nullable()
     .optional(),
+  microsoftToken: z
+    .object({
+      id: idSchema,
+      email: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const staffIdsSchema = z.object({

@@ -55,6 +55,7 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { InlineTextEdit } from '@/components/ui/inline-edit';
 import { trpc } from '@/app/lib/trpc/client';
+import { EmailProviderConnect } from '@/components/ui/EmailProviderConnect';
 
 export type Staff = {
   id: string | number;
@@ -69,6 +70,10 @@ export type Staff = {
     id: number;
     email: string;
   } | null;
+  microsoftToken?: {
+    id: number;
+    email: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   organizationId: string;
@@ -78,17 +83,17 @@ export type Staff = {
 function PrimaryStaffToggle({
   staffId,
   isPrimary,
-  hasGmailToken,
+  hasEmailToken,
 }: {
   staffId: string | number;
   isPrimary: boolean;
-  hasGmailToken: boolean;
+  hasEmailToken: boolean;
 }) {
   const { setPrimary, unsetPrimary, isSettingPrimary, isUnsettingPrimary } = useStaff();
 
   const handleToggle = async (checked: boolean) => {
-    if (checked && !hasGmailToken) {
-      toast.error('Only staff members with connected Gmail accounts can be set as primary');
+    if (checked && !hasEmailToken) {
+      toast.error('Only staff members with connected email accounts can be set as primary');
       return;
     }
 
@@ -100,7 +105,7 @@ function PrimaryStaffToggle({
   };
 
   const isLoading = isSettingPrimary || isUnsettingPrimary;
-  const isDisabled = isLoading || (!isPrimary && !hasGmailToken);
+  const isDisabled = isLoading || (!isPrimary && !hasEmailToken);
 
   return (
     <div className="flex items-center gap-2">
@@ -115,8 +120,8 @@ function PrimaryStaffToggle({
           Primary
         </Badge>
       )}
-      {!hasGmailToken && !isPrimary && (
-        <span className="text-xs text-gray-500">Gmail required</span>
+      {!hasEmailToken && !isPrimary && (
+        <span className="text-xs text-gray-500">Email required</span>
       )}
     </div>
   );
@@ -163,121 +168,42 @@ function DeleteStaffButton({ staffId }: { staffId: string | number }) {
   );
 }
 
-// Simple Gmail Connect Button
-function SimpleGmailConnectButton({ staffId }: { staffId: string | number }) {
-  const staffGmailAuthMutation = trpc.staffGmail.getStaffGmailAuthUrl.useMutation({
-    onSuccess: (data) => {
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        toast.error('Could not get Gmail authentication URL. Please try again.');
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to initiate Gmail connection. Please try again.');
-    },
-  });
-
-  const handleConnect = () => {
-    staffGmailAuthMutation.mutate({ staffId: Number(staffId) });
-  };
-
-  return (
-    <Badge
-      onClick={handleConnect}
-      className="bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all duration-200 cursor-pointer"
-      variant="default"
-    >
-      {staffGmailAuthMutation.isPending ? (
-        <>
-          <div className="h-3 w-3 mr-1 animate-spin rounded-full border border-blue-700 border-r-transparent" />
-          Connecting...
-        </>
-      ) : (
-        <>
-          <Link2 className="h-3 w-3 mr-1" />
-          Link Gmail
-        </>
-      )}
-    </Badge>
-  );
-}
-
-// HoverDisconnectButton component for the Gmail column
-function HoverDisconnectButton({ staffId, email }: { staffId: string | number; email: string }) {
+// EmailDisconnectButton component for dropdown use
+function EmailDisconnectButton({
+  staffId,
+  provider,
+}: {
+  staffId: string | number;
+  provider: 'gmail' | 'microsoft';
+}) {
   const [open, setOpen] = useState(false);
-  const { disconnectStaffGmail, isDisconnecting } = useStaff();
+  const { disconnectStaffGmail, disconnectStaffMicrosoft, isDisconnecting } = useStaff();
 
   const handleDisconnect = async () => {
-    await disconnectStaffGmail(Number(staffId));
+    if (provider === 'gmail') {
+      await disconnectStaffGmail(Number(staffId));
+    } else {
+      await disconnectStaffMicrosoft(Number(staffId));
+    }
     setOpen(false);
   };
 
-  return (
-    <div className="flex flex-col gap-1">
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogTrigger asChild>
-          <div className="group relative">
-            <Badge
-              variant="default"
-              className="bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-all duration-200 cursor-pointer group-hover:bg-red-100 group-hover:text-red-700"
-            >
-              <Mail className="h-3 w-3 mr-1 group-hover:hidden" />
-              <MailX className="h-3 w-3 mr-1 hidden group-hover:block" />
-              <span className="group-hover:hidden">Connected</span>
-              <span className="hidden group-hover:block">Disconnect</span>
-            </Badge>
-          </div>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect Gmail Account</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will disconnect the Gmail account &quot;{email}&quot; from this staff member.
-              They will no longer be able to send emails through their connected account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDisconnect}
-              className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
-              disabled={isDisconnecting}
-            >
-              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <div className="text-xs text-slate-500">{email}</div>
-    </div>
-  );
-}
-
-// GmailDisconnectButton component for dropdown use
-function GmailDisconnectButton({ staffId }: { staffId: string | number }) {
-  const [open, setOpen] = useState(false);
-  const { disconnectStaffGmail, isDisconnecting } = useStaff();
-
-  const handleDisconnect = async () => {
-    await disconnectStaffGmail(Number(staffId));
-    setOpen(false);
-  };
+  const providerName = provider === 'gmail' ? 'Gmail' : 'Microsoft';
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
           <MailX className="h-4 w-4 mr-2" />
-          Disconnect Gmail
+          Disconnect {providerName}
         </DropdownMenuItem>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Disconnect Gmail Account</AlertDialogTitle>
+          <AlertDialogTitle>Disconnect {providerName} Account</AlertDialogTitle>
           <AlertDialogDescription>
-            This will disconnect the Gmail account from this staff member. They will no longer be
-            able to send emails through their connected account.
+            This will disconnect the {providerName} account from this staff member. They will no
+            longer be able to send emails through their connected account.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -633,26 +559,32 @@ export const columns: ColumnDef<Staff>[] = [
       <PrimaryStaffToggle
         staffId={row.original.id}
         isPrimary={row.original.isPrimary}
-        hasGmailToken={!!row.original.gmailToken}
+        hasEmailToken={!!(row.original.gmailToken || row.original.microsoftToken)}
       />
     ),
     accessorFn: (row: Staff) => (row.isPrimary ? 'Primary' : 'Not primary'),
   },
   {
-    id: 'gmailAccount',
-    header: 'Gmail',
+    id: 'emailAccount',
+    header: 'Email',
     cell: ({ row }: { row: Row<Staff> }) => {
-      const hasLinkedAccount = row.original.gmailToken !== null;
+      const { refreshStaff } = useStaff();
 
-      if (hasLinkedAccount && row.original.gmailToken?.email) {
-        return (
-          <HoverDisconnectButton staffId={row.original.id} email={row.original.gmailToken.email} />
-        );
-      }
-
-      return <SimpleGmailConnectButton staffId={row.original.id} />;
+      return (
+        <EmailProviderConnect
+          staffId={Number(row.original.id)}
+          gmailToken={row.original.gmailToken}
+          microsoftToken={row.original.microsoftToken}
+          onConnectionChange={refreshStaff}
+          variant="inline"
+        />
+      );
     },
-    accessorFn: (row: Staff) => (row.gmailToken ? 'Connected' : 'Not connected'),
+    accessorFn: (row: Staff) => {
+      if (row.gmailToken) return 'Gmail connected';
+      if (row.microsoftToken) return 'Microsoft connected';
+      return 'Not connected';
+    },
   },
   {
     id: 'signature',
@@ -699,7 +631,9 @@ export const columns: ColumnDef<Staff>[] = [
   {
     id: 'actions',
     cell: ({ row }: { row: Row<Staff> }) => {
-      const hasLinkedAccount = row.original.gmailToken !== null;
+      const hasGmailAccount = row.original.gmailToken !== null;
+      const hasMicrosoftAccount = row.original.microsoftToken !== null;
+      const hasLinkedAccount = hasGmailAccount || hasMicrosoftAccount;
 
       return (
         <div className="flex items-center gap-2">
@@ -727,7 +661,12 @@ export const columns: ColumnDef<Staff>[] = [
               {hasLinkedAccount && (
                 <>
                   <DropdownMenuSeparator />
-                  <GmailDisconnectButton staffId={row.original.id} />
+                  {hasGmailAccount && (
+                    <EmailDisconnectButton staffId={row.original.id} provider="gmail" />
+                  )}
+                  {hasMicrosoftAccount && (
+                    <EmailDisconnectButton staffId={row.original.id} provider="microsoft" />
+                  )}
                 </>
               )}
               <DropdownMenuSeparator />

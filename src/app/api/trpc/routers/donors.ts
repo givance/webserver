@@ -32,7 +32,7 @@ import {
   donorNoteSchema,
 } from '@/app/lib/validation/schemas';
 import { db } from '@/app/lib/db';
-import { staff, staffGmailTokens, donors } from '@/app/lib/db/schema';
+import { staff, staffGmailTokens, staffMicrosoftTokens, donors } from '@/app/lib/db/schema';
 import { and, inArray, eq, sql } from 'drizzle-orm';
 
 // ============================================================================
@@ -664,10 +664,13 @@ export const donorsRouter = router({
           staffLastName: staff.lastName,
           staffEmail: staff.email,
           hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+          hasMicrosoftToken: sql<boolean>`${staffMicrosoftTokens.id} IS NOT NULL`,
+          hasEmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL OR ${staffMicrosoftTokens.id} IS NOT NULL`,
         })
         .from(donorSchema)
         .leftJoin(staff, eq(donorSchema.assignedToStaffId, staff.id))
         .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+        .leftJoin(staffMicrosoftTokens, eq(staff.id, staffMicrosoftTokens.staffId))
         .where(
           and(inArray(donorSchema.id, donorIds), eq(donorSchema.organizationId, organizationId))
         );
@@ -683,7 +686,7 @@ export const donorsRouter = router({
         }));
 
       const donorsWithStaffButNoEmail = donorsWithStaff
-        .filter((donor) => donor.assignedToStaffId && !donor.hasGmailToken)
+        .filter((donor) => donor.assignedToStaffId && !donor.hasEmailToken)
         .map((donor) => ({
           donorId: donor.donorId,
           donorFirstName: donor.donorFirstName,
@@ -704,7 +707,7 @@ export const donorsRouter = router({
         }
         if (donorsWithStaffButNoEmail.length > 0) {
           errors.push(
-            `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`
+            `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected email accounts`
           );
         }
         errorMessage = errors.join(' and ');

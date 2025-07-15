@@ -5,6 +5,7 @@ import {
   emailGenerationSessions,
   donors,
   gmailOAuthTokens,
+  microsoftOAuthTokens,
   staff,
   users,
 } from '@/app/lib/db/schema';
@@ -17,15 +18,21 @@ import {
 } from '@/app/lib/utils/email-tracking/content-processor';
 import { generateTrackingId } from '@/app/lib/utils/email-tracking/utils';
 import { google } from 'googleapis';
+import { Client } from '@microsoft/microsoft-graph-client';
 import { env } from '@/app/lib/env';
 import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
 import { EmailCampaignsService } from '@/app/lib/services/email-campaigns.service';
 import { logger } from '@/app/lib/logger';
+import 'isomorphic-fetch';
 
-// Gmail OAuth configuration
+// OAuth configurations
 const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = env.GOOGLE_REDIRECT_URI;
+
+const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
+const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI;
 
 export interface SendEmailPayload {
   emailId: number;
@@ -67,14 +74,24 @@ function convertPlainTextToStructuredContent(
   }));
 }
 
+type EmailClient = {
+  type: 'gmail' | 'microsoft';
+  client: any; // Gmail API client or Microsoft Graph client
+  senderInfo: {
+    name: string;
+    email: string | null;
+    signature?: string | null;
+  };
+};
+
 /**
- * Helper to get Gmail client (reused from gmail router logic)
+ * Helper to get email client (Gmail or Microsoft) for donor
  */
-async function getGmailClientForDonor(
+async function getEmailClientForDonor(
   donorId: number,
   organizationId: string,
   fallbackUserId: string
-) {
+): Promise<EmailClient> {
   // Get donor with staff assignment
   const donorInfo = await db.query.donors.findFirst({
     where: and(eq(donors.id, donorId), eq(donors.organizationId, organizationId)),
@@ -82,6 +99,7 @@ async function getGmailClientForDonor(
       assignedStaff: {
         with: {
           gmailToken: true,
+          microsoftToken: true,
         },
       },
     },
@@ -91,56 +109,91 @@ async function getGmailClientForDonor(
     throw new Error(`Donor ${donorId} not found`);
   }
 
-  let gmailClient;
-  let senderInfo: { name: string; email: string | null } = {
-    name: 'Organization',
-    email: null,
-  };
+  let emailClient: EmailClient | null = null;
 
   try {
     // Case 1: Donor assigned to staff with linked email account
-    if (donorInfo.assignedStaff?.gmailToken) {
-      const staffToken = donorInfo.assignedStaff.gmailToken;
-      const staffOAuth2Client = new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET,
-        GOOGLE_REDIRECT_URI
-      );
+    if (donorInfo.assignedStaff) {
+      const staff = donorInfo.assignedStaff;
 
-      staffOAuth2Client.setCredentials({
-        access_token: staffToken.accessToken,
-        refresh_token: staffToken.refreshToken,
-        expiry_date: staffToken.expiresAt.getTime(),
-        scope: staffToken.scope || undefined,
-        token_type: staffToken.tokenType || 'Bearer',
-      });
+      // Check Gmail first
+      if (staff.gmailToken) {
+        const staffToken = staff.gmailToken;
+        const staffOAuth2Client = new google.auth.OAuth2(
+          GOOGLE_CLIENT_ID,
+          GOOGLE_CLIENT_SECRET,
+          GOOGLE_REDIRECT_URI
+        );
 
-      await staffOAuth2Client.getAccessToken();
-      gmailClient = google.gmail({ version: 'v1', auth: staffOAuth2Client });
+        staffOAuth2Client.setCredentials({
+          access_token: staffToken.accessToken,
+          refresh_token: staffToken.refreshToken,
+          expiry_date: staffToken.expiresAt.getTime(),
+          scope: staffToken.scope || undefined,
+          token_type: staffToken.tokenType || 'Bearer',
+        });
 
-      senderInfo = {
-        name: `${donorInfo.assignedStaff.firstName} ${donorInfo.assignedStaff.lastName}`,
-        email: donorInfo.assignedStaff.email,
-      };
+        await staffOAuth2Client.getAccessToken();
+        const gmailClient = google.gmail({ version: 'v1', auth: staffOAuth2Client });
 
-      logger.info(`Using assigned staff's Gmail: ${donorInfo.assignedStaff.email}`);
+        emailClient = {
+          type: 'gmail',
+          client: gmailClient,
+          senderInfo: {
+            name: `${staff.firstName} ${staff.lastName}`,
+            email: staff.email,
+            signature: staff.signature,
+          },
+        };
+
+        logger.info(`Using assigned staff's Gmail: ${staff.email}`);
+      }
+      // Check Microsoft if no Gmail
+      else if (staff.microsoftToken) {
+        const staffToken = staff.microsoftToken;
+
+        // Create Microsoft Graph client
+        const microsoftClient = Client.init({
+          authProvider: (done: (error: Error | null, accessToken: string | null) => void) => {
+            // Check if token is expired
+            const now = new Date();
+            if (now >= staffToken.expiresAt) {
+              done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
+              return;
+            }
+            done(null, staffToken.accessToken);
+          },
+        });
+
+        emailClient = {
+          type: 'microsoft',
+          client: microsoftClient,
+          senderInfo: {
+            name: `${staff.firstName} ${staff.lastName}`,
+            email: staff.email,
+            signature: staff.signature,
+          },
+        };
+
+        logger.info(`Using assigned staff's Microsoft: ${staff.email}`);
+      }
+      // Case 2: Donor assigned to staff without linked email account
+      else {
+        logger.error(`Assigned staff has no email account linked`);
+        throw new Error('Donor has no assigned staff with a linked email account');
+      }
     }
-    // Case 2: Donor assigned to staff without linked email account
-    else if (donorInfo.assignedStaff) {
-      logger.error(`Assigned staff has no Gmail linked, using org default`);
-      throw new Error('Donor has no assigned staff with a linked Gmail account');
+
+    // No email client found
+    if (!emailClient) {
+      logger.error(`No email client found for donor ${donorId}`);
+      throw new Error(`No email client found for donor ${donorId}`);
     }
 
-    // Fall back to organization default account if no staff Gmail
-    if (!gmailClient) {
-      logger.error(`No Gmail client found for donor ${donorId}`);
-      throw new Error(`No Gmail client found for donor ${donorId}`);
-    }
-
-    return { gmailClient, senderInfo };
+    return emailClient;
   } catch (error) {
     logger.error(
-      `Failed to get Gmail client: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to get email client: ${error instanceof Error ? error.message : String(error)}`
     );
     throw error;
   }
@@ -254,12 +307,8 @@ export class EmailSendingService {
         })
         .where(eq(generatedEmails.id, emailId));
 
-      // Get Gmail client and sender info
-      const { gmailClient, senderInfo } = await getGmailClientForDonor(
-        email.donorId,
-        organizationId,
-        userId
-      );
+      // Get email client and sender info
+      const emailClient = await getEmailClientForDonor(email.donorId, organizationId, userId);
 
       // Generate tracking ID
       const trackingId = generateTrackingId();
@@ -318,23 +367,53 @@ export class EmailSendingService {
         email.subject,
         processedContent.htmlContent,
         processedContent.textContent,
-        formatSenderField(senderInfo)
+        formatSenderField(emailClient.senderInfo)
       );
 
-      // Encode for Gmail API
-      const encodedMessage = Buffer.from(htmlEmail, 'utf8')
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
+      let messageId: string;
 
-      // Send via Gmail API
-      const sentMessage = await gmailClient.users.messages.send({
-        userId: 'me',
-        requestBody: {
-          raw: encodedMessage,
-        },
-      });
+      // Send email based on provider type
+      if (emailClient.type === 'gmail') {
+        // Encode for Gmail API
+        const encodedMessage = Buffer.from(htmlEmail, 'utf8')
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        // Send via Gmail API
+        const sentMessage = await emailClient.client.users.messages.send({
+          userId: 'me',
+          requestBody: {
+            raw: encodedMessage,
+          },
+        });
+        messageId = sentMessage.data.id || '';
+      } else {
+        // Send via Microsoft Graph API
+        const message = {
+          subject: email.subject,
+          body: {
+            contentType: 'HTML',
+            content: processedContent.htmlContent,
+          },
+          toRecipients: [
+            {
+              emailAddress: {
+                address: email.donor.email,
+              },
+            },
+          ],
+        };
+
+        const sentMessage = await emailClient.client.api('/me/sendMail').post({
+          message,
+          saveToSentItems: true,
+        });
+
+        // Microsoft doesn't return message ID directly from sendMail
+        messageId = `microsoft-${Date.now()}`;
+      }
 
       // Update email as sent
       await db
@@ -363,18 +442,18 @@ export class EmailSendingService {
       await this.emailCampaignsService.checkAndUpdateCampaignCompletion(sessionId, organizationId);
 
       logger.info(
-        `Successfully sent email ${emailId} to ${email.donor.email} with tracking ID ${trackingId}, message ID ${sentMessage.data.id}`
+        `Successfully sent email ${emailId} to ${email.donor.email} with tracking ID ${trackingId}, message ID ${messageId}`
       );
 
       return {
         status: 'sent',
         emailId,
         jobId,
-        messageId: sentMessage.data.id || undefined,
+        messageId: messageId || undefined,
         trackingId,
         linkTrackersCreated: processedContent.linkTrackers.length,
         recipientEmail: email.donor.email,
-        senderEmail: senderInfo.email,
+        senderEmail: emailClient.senderInfo.email,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -1,5 +1,11 @@
 import { db } from '../db';
-import { staff, gmailOAuthTokens, staffEmailExamples, staffGmailTokens } from '../db/schema';
+import {
+  staff,
+  gmailOAuthTokens,
+  staffEmailExamples,
+  staffGmailTokens,
+  staffMicrosoftTokens,
+} from '../db/schema';
 import { eq, sql, like, or, asc, desc, SQL, and, count, inArray } from 'drizzle-orm';
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 
@@ -51,6 +57,32 @@ export async function getStaffWithGmailById(id: number, organizationId: string) 
   } catch (error) {
     console.error('Failed to retrieve staff member with Gmail by ID:', error);
     throw new Error('Could not retrieve staff member with Gmail.');
+  }
+}
+
+/**
+ * Retrieves a staff member with their Microsoft token by ID and organization ID.
+ * @param id - The ID of the staff member to retrieve.
+ * @param organizationId - The ID of the organization the staff member belongs to.
+ * @returns The staff member object with Microsoft token if found, otherwise undefined.
+ */
+export async function getStaffWithMicrosoftById(id: number, organizationId: string) {
+  try {
+    const result = await db.query.staff.findFirst({
+      where: and(eq(staff.id, id), eq(staff.organizationId, organizationId)),
+      with: {
+        microsoftToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+    return result;
+  } catch (error) {
+    console.error('Failed to retrieve staff member with Microsoft by ID:', error);
+    throw new Error('Could not retrieve staff member with Microsoft.');
   }
 }
 
@@ -244,11 +276,17 @@ export async function listStaff(
       }
     }
 
-    // Query for the paginated data with gmailToken relation
+    // Query for the paginated data with gmailToken and microsoftToken relations
     const staffDataQuery = db.query.staff.findMany({
       where: and(...conditions),
       with: {
         gmailToken: {
+          columns: {
+            id: true,
+            email: true,
+          },
+        },
+        microsoftToken: {
           columns: {
             id: true,
             email: true,
@@ -542,6 +580,49 @@ export async function getStaffMemberWithGmailToken(
 }
 
 /**
+ * Get staff member with Microsoft token relation
+ */
+export async function getStaffMemberWithMicrosoftToken(
+  staffId: number,
+  organizationId: string
+): Promise<any> {
+  try {
+    const staffMember = await db.query.staff.findFirst({
+      where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
+      with: {
+        microsoftToken: true, // Include Microsoft token relation
+      },
+    });
+    return staffMember;
+  } catch (error) {
+    console.error('Failed to get staff member with Microsoft token:', error);
+    throw new Error('Could not retrieve staff member with Microsoft token.');
+  }
+}
+
+/**
+ * Get staff member with both email token relations
+ */
+export async function getStaffMemberWithEmailTokens(
+  staffId: number,
+  organizationId: string
+): Promise<any> {
+  try {
+    const staffMember = await db.query.staff.findFirst({
+      where: and(eq(staff.id, staffId), eq(staff.organizationId, organizationId)),
+      with: {
+        gmailToken: true,
+        microsoftToken: true,
+      },
+    });
+    return staffMember;
+  } catch (error) {
+    console.error('Failed to get staff member with email tokens:', error);
+    throw new Error('Could not retrieve staff member with email tokens.');
+  }
+}
+
+/**
  * Delete Gmail token for a staff member
  */
 export async function deleteStaffGmailToken(staffId: number): Promise<void> {
@@ -550,6 +631,18 @@ export async function deleteStaffGmailToken(staffId: number): Promise<void> {
   } catch (error) {
     console.error('Failed to delete staff Gmail token:', error);
     throw new Error('Could not delete staff Gmail token.');
+  }
+}
+
+/**
+ * Delete Microsoft token for a staff member
+ */
+export async function deleteStaffMicrosoftToken(staffId: number): Promise<void> {
+  try {
+    await db.delete(staffMicrosoftTokens).where(eq(staffMicrosoftTokens.staffId, staffId));
+  } catch (error) {
+    console.error('Failed to delete staff Microsoft token:', error);
+    throw new Error('Could not delete staff Microsoft token.');
   }
 }
 
