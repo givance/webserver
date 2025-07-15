@@ -97,7 +97,6 @@ export class SmartEmailAgentService {
       if (result.steps) {
         logger.info(`[SmartEmailAgentService] ===== PROCESSING STEPS =====`);
         for (const step of result.steps) {
-          logger.info(`[SmartEmailAgentService] Step type: ${step.type}`);
           logger.info(`[SmartEmailAgentService] Step text: "${step.text || 'NO TEXT'}"`);
           logger.info(`[SmartEmailAgentService] Step toolCalls: ${step.toolCalls?.length || 0}`);
           if (step.toolCalls) {
@@ -245,7 +244,6 @@ export class SmartEmailAgentService {
       if (result.steps) {
         logger.info(`[SmartEmailAgentService] ===== PROCESSING STEPS =====`);
         for (const step of result.steps) {
-          logger.info(`[SmartEmailAgentService] Step type: ${step.type}`);
           logger.info(`[SmartEmailAgentService] Step text: "${step.text || 'NO TEXT'}"`);
           logger.info(`[SmartEmailAgentService] Step toolCalls: ${step.toolCalls?.length || 0}`);
           if (step.toolCalls) {
