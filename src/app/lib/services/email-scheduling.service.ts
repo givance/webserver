@@ -7,6 +7,7 @@ import {
   donors,
   staff,
   staffGmailTokens,
+  staffMicrosoftTokens,
 } from '@/app/lib/db/schema';
 import {
   getEmailScheduleConfig,
@@ -404,17 +405,20 @@ export class EmailSchedulingService {
             staffLastName: staff.lastName,
             staffEmail: staff.email,
             hasGmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+            hasMicrosoftToken: sql<boolean>`${staffMicrosoftTokens.id} IS NOT NULL`,
+            hasEmailToken: sql<boolean>`${staffGmailTokens.id} IS NOT NULL OR ${staffMicrosoftTokens.id} IS NOT NULL`,
           })
           .from(donors)
           .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
           .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+          .leftJoin(staffMicrosoftTokens, eq(staff.id, staffMicrosoftTokens.staffId))
           .where(and(inArray(donors.id, donorIds), eq(donors.organizationId, organizationId)));
 
         // Check for validation errors
         const donorsWithoutStaff = donorsWithStaff.filter((donor) => !donor.assignedToStaffId);
 
         const donorsWithStaffButNoEmail = donorsWithStaff.filter(
-          (donor) => donor.assignedToStaffId && !donor.hasGmailToken
+          (donor) => donor.assignedToStaffId && !donor.hasEmailToken
         );
 
         const isValid = donorsWithoutStaff.length === 0 && donorsWithStaffButNoEmail.length === 0;
@@ -426,13 +430,13 @@ export class EmailSchedulingService {
           }
           if (donorsWithStaffButNoEmail.length > 0) {
             errors.push(
-              `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected Gmail accounts`
+              `${donorsWithStaffButNoEmail.length} donor(s) have staff without connected email accounts`
             );
           }
           const errorMessage = errors.join(' and ');
 
           logger.error(
-            `Email scheduling validation failed for session ${sessionId}: ${donorsWithoutStaff.length} donors without staff, ${donorsWithStaffButNoEmail.length} donors with staff but no Gmail`
+            `Email scheduling validation failed for session ${sessionId}: ${donorsWithoutStaff.length} donors without staff, ${donorsWithStaffButNoEmail.length} donors with staff but no email`
           );
 
           throw new TRPCError({
@@ -442,7 +446,7 @@ export class EmailSchedulingService {
         }
 
         logger.info(
-          `Email scheduling validation passed for session ${sessionId}: All ${emails.length} donors have assigned staff with connected Gmail accounts`
+          `Email scheduling validation passed for session ${sessionId}: All ${emails.length} donors have assigned staff with connected email accounts`
         );
       }
 

@@ -144,6 +144,16 @@ export function useStaff() {
     onError: createErrorHandler('disconnect Gmail account'),
   });
 
+  const disconnectStaffMicrosoftMutation = trpc.staffMicrosoft.disconnectStaffMicrosoft.useMutation(
+    {
+      onSuccess: () => {
+        utils.staff.list.invalidate();
+        toast.success('Microsoft account disconnected successfully');
+      },
+      onError: createErrorHandler('disconnect Microsoft account'),
+    }
+  );
+
   const setPrimaryMutation = trpc.staff.setPrimary.useMutation({
     onSuccess: (data) => {
       crossResourceInvalidators.invalidateStaffRelated();
@@ -234,6 +244,19 @@ export function useStaff() {
   };
 
   /**
+   * Disconnect Microsoft account for a staff member
+   * @param staffId The ID of the staff member to disconnect Microsoft from
+   * @returns true if disconnect was successful, false otherwise
+   */
+  const disconnectStaffMicrosoft = async (staffId: number) => {
+    return wrapMutationAsyncBoolean(
+      disconnectStaffMicrosoftMutation.mutateAsync,
+      { staffId },
+      'disconnect staff Microsoft'
+    );
+  };
+
+  /**
    * Set a staff member as primary
    * @param id The ID of the staff member to set as primary
    * @returns The updated staff member or null if update failed
@@ -307,6 +330,7 @@ export function useStaff() {
     updateStaff,
     deleteStaff,
     disconnectStaffGmail,
+    disconnectStaffMicrosoft,
     setPrimary,
     unsetPrimary,
     updateSignature,
@@ -318,7 +342,8 @@ export function useStaff() {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
-    isDisconnecting: disconnectStaffGmailMutation.isPending,
+    isDisconnecting:
+      disconnectStaffGmailMutation.isPending || disconnectStaffMicrosoftMutation.isPending,
     isSettingPrimary: setPrimaryMutation.isPending,
     isUnsettingPrimary: unsetPrimaryMutation.isPending,
     isUpdatingSignature: updateSignatureMutation.isPending,
@@ -337,12 +362,18 @@ export function useStaff() {
       updateMutation,
       deleteMutation,
       disconnectStaffGmailMutation,
+      disconnectStaffMicrosoftMutation,
       setPrimaryMutation,
       unsetPrimaryMutation,
       updateSignatureMutation,
       createEmailExampleMutation,
       updateEmailExampleMutation,
       deleteEmailExampleMutation,
+    },
+
+    // Utility function to refresh staff list
+    refreshStaff: () => {
+      utils.staff.list.invalidate();
     },
   };
 }
