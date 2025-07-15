@@ -74,7 +74,7 @@ export async function generateSingleEmail(
   const assignedStaff = donor.assignedUserId
     ? staffMembers.find((s) => s.userId === donor.assignedUserId)
     : null;
-  const userO3 = params.organization.id === 'org_2xIXH7pYMC1yiTPocKBNjsLUooz' ? false : true;
+  const useGPT41 = params.organization.id === 'org_2xIXH7pYMC1yiTPocKBNjsLUooz';
 
   // Determine writing instructions (staff-specific > org default)
   const writingInstructions =
@@ -131,7 +131,7 @@ export async function generateSingleEmail(
   try {
     const result = await generateObject({
       model: azure(
-        userO3 ? env.AZURE_OPENAI_O3_DEPLOYMENT_NAME : env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME
+        useGPT41 ? env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME : env.AZURE_OPENAI_O3_DEPLOYMENT_NAME
       ),
       schema: emailSchema,
       prompt,
