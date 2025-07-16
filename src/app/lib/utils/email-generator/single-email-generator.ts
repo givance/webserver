@@ -34,6 +34,10 @@ export interface SingleEmailGeneratorParams {
     description: string | null;
     websiteSummary: string | null;
     writingInstructions: string | null;
+    featureFlags?: {
+      use_o3_model: boolean;
+      use_agentic_flow: boolean;
+    };
   };
   staffMembers: Array<{
     id: number;
@@ -78,7 +82,7 @@ export async function generateSingleEmail(
   const assignedStaff = donor.assignedUserId
     ? staffMembers.find((s) => s.userId === donor.assignedUserId)
     : null;
-  const useGPT41 = params.organization.id === 'org_2xIXH7pYMC1yiTPocKBNjsLUooz';
+  const useO3Model = organization.featureFlags?.use_o3_model ?? false;
 
   // Determine writing instructions (staff-specific > org default)
   const writingInstructions =
@@ -154,7 +158,7 @@ export async function generateSingleEmail(
   try {
     const result = await generateObject({
       model: azure(
-        useGPT41 ? env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME : env.AZURE_OPENAI_O3_DEPLOYMENT_NAME
+        useO3Model ? env.AZURE_OPENAI_O3_DEPLOYMENT_NAME : env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME
       ),
       schema: emailSchema,
       messages: messages,

@@ -135,6 +135,7 @@ export class UnifiedSmartEmailGenerationService {
           description: organization.description,
           websiteSummary: organization.websiteSummary,
           writingInstructions: organization.writingInstructions,
+          featureFlags: organization.featureFlags,
         },
         staffMembers: staffMembers.map((s) => ({
           id: s.id,
