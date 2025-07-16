@@ -25,38 +25,9 @@ export const users = pgTable('users', {
     .notNull(), // Uses default(sql`now()`) for consistency
 });
 
-// New table for Gmail OAuth Tokens
-export const gmailOAuthTokens = pgTable('gmail_oauth_tokens', {
-  id: serial('id').primaryKey(),
-  userId: text('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull()
-    .unique(), // Assuming one Gmail account per user
-  accessToken: text('access_token').notNull(),
-  refreshToken: text('refresh_token').notNull(), // Refresh tokens are often long
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  scope: text('scope'), // Can store a string of scopes, or use .array() if multiple distinct scopes are common
-  tokenType: varchar('token_type', { length: 50 }), // e.g., "Bearer"
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
-
-// New table for Microsoft OAuth Tokens
-export const microsoftOAuthTokens = pgTable('microsoft_oauth_tokens', {
-  id: serial('id').primaryKey(),
-  userId: text('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull()
-    .unique(), // Assuming one Microsoft account per user
-  email: varchar('email', { length: 255 }).notNull(), // The Microsoft email address
-  accessToken: text('access_token').notNull(),
-  refreshToken: text('refresh_token').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  scope: text('scope'), // Can store a string of scopes
-  tokenType: varchar('token_type', { length: 50 }), // e.g., "Bearer"
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+// Note: Gmail and Microsoft OAuth token tables have been removed.
+// The system now uses staff-level authentication (staffGmailTokens and staffMicrosoftTokens)
+// which are defined in the staff schema file.
 
 // Import needed tables for relations will be done at the bottom to avoid circular dependencies
 
@@ -65,27 +36,7 @@ import { posts } from './posts';
 import { organizationMemberships } from './organizations';
 import { staff } from './staff';
 
-export const usersRelations = relations(users, ({ many, one }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   organizationMemberships: many(organizationMemberships),
-  gmailOAuthToken: one(gmailOAuthTokens, {
-    fields: [users.id],
-    references: [gmailOAuthTokens.userId],
-  }),
-}));
-
-export const gmailOAuthTokensRelations = relations(gmailOAuthTokens, ({ one, many }) => ({
-  user: one(users, {
-    fields: [gmailOAuthTokens.userId],
-    references: [users.id],
-  }),
-  linkedStaff: many(staff),
-}));
-
-export const microsoftOAuthTokensRelations = relations(microsoftOAuthTokens, ({ one, many }) => ({
-  user: one(users, {
-    fields: [microsoftOAuthTokens.userId],
-    references: [users.id],
-  }),
-  linkedStaff: many(staff),
 }));

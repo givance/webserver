@@ -6,14 +6,14 @@
  * - Staff management (links user's Microsoft token to specific staff member)
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, MailX, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { trpc } from "@/app/lib/trpc/client";
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Mail, MailX, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { trpc } from '@/app/lib/trpc/client';
 
 export interface MicrosoftConnectProps {
   /**
@@ -21,7 +21,7 @@ export interface MicrosoftConnectProps {
    * - "settings": Connects user's Microsoft account to organization (default)
    * - "staff": Links user's Microsoft token to specific staff member
    */
-  context?: "settings" | "staff";
+  context?: 'settings' | 'staff';
 
   /**
    * Staff ID - required when context is "staff"
@@ -55,7 +55,7 @@ export interface MicrosoftConnectProps {
 }
 
 export function MicrosoftConnect({
-  context = "settings",
+  context = 'settings',
   staffId,
   title,
   description,
@@ -63,16 +63,17 @@ export function MicrosoftConnect({
   onConnectionChange,
   showConnectionStatus = true,
 }: MicrosoftConnectProps) {
+  // User-level OAuth is deprecated, but keep the mutation for compatibility
   const microsoftAuthMutation = trpc.microsoft.getMicrosoftAuthUrl.useMutation({
     onSuccess: (data) => {
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        toast.error("Could not get Microsoft authentication URL. Please try again.");
-      }
+      // This should not be reached as the endpoint throws an error
+      toast.error('User-level Microsoft authentication is deprecated.');
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to initiate Microsoft connection. Please try again.");
+      toast.error(
+        error.message ||
+          'User-level Microsoft authentication is deprecated. Please connect Microsoft accounts through Staff settings.'
+      );
     },
   });
 
@@ -81,47 +82,51 @@ export function MicrosoftConnect({
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        toast.error("Could not get Microsoft authentication URL. Please try again.");
+        toast.error('Could not get Microsoft authentication URL. Please try again.');
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to initiate Microsoft connection. Please try again.");
+      toast.error(error.message || 'Failed to initiate Microsoft connection. Please try again.');
     },
   });
 
   const disconnectMicrosoftMutation = trpc.microsoft.disconnectMicrosoft.useMutation({
     onSuccess: () => {
-      toast.success("Microsoft account disconnected successfully");
+      toast.success('Microsoft account disconnected successfully');
       onConnectionChange?.(false);
       // Refetch connection status
-      if (context === "settings") {
+      if (context === 'settings') {
         refetchMicrosoftStatus();
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to disconnect Microsoft account");
+      toast.error(error.message || 'Failed to disconnect Microsoft account');
     },
   });
 
-  const disconnectStaffMicrosoftMutation = trpc.staffMicrosoft.disconnectStaffMicrosoft.useMutation({
-    onSuccess: () => {
-      toast.success("Microsoft account disconnected successfully");
-      onConnectionChange?.(false);
-      // Refetch connection status
-      if (context === "staff" && staffId) {
-        refetchStaffStatus();
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to disconnect Microsoft account");
-    },
-  });
+  const disconnectStaffMicrosoftMutation = trpc.staffMicrosoft.disconnectStaffMicrosoft.useMutation(
+    {
+      onSuccess: () => {
+        toast.success('Microsoft account disconnected successfully');
+        onConnectionChange?.(false);
+        // Refetch connection status
+        if (context === 'staff' && staffId) {
+          refetchStaffStatus();
+        }
+      },
+      onError: (error) => {
+        toast.error(error.message || 'Failed to disconnect Microsoft account');
+      },
+    }
+  );
 
   const {
     data: microsoftConnectionStatus,
     isLoading: isStatusLoading,
     refetch: refetchMicrosoftStatus,
-  } = trpc.microsoft.getMicrosoftConnectionStatus.useQuery(undefined, { enabled: context === "settings" });
+  } = trpc.microsoft.getMicrosoftConnectionStatus.useQuery(undefined, {
+    enabled: context === 'settings',
+  });
 
   const {
     data: staffMicrosoftStatus,
@@ -129,19 +134,21 @@ export function MicrosoftConnect({
     refetch: refetchStaffStatus,
   } = trpc.staffMicrosoft.getStaffMicrosoftConnectionStatus.useQuery(
     { staffId: staffId! },
-    { enabled: context === "staff" && !!staffId }
+    { enabled: context === 'staff' && !!staffId }
   );
 
   const handleConnectMicrosoft = () => {
-    if (context === "staff") {
+    if (context === 'staff') {
       if (!staffId) {
-        toast.error("Staff ID is required");
+        toast.error('Staff ID is required');
         return;
       }
       staffMicrosoftAuthMutation.mutate({ staffId });
     } else {
-      // Settings context - authenticate user's Microsoft
-      microsoftAuthMutation.mutate();
+      // Settings context - user-level OAuth is deprecated
+      toast.error(
+        'User-level Microsoft authentication is deprecated. Please connect Microsoft accounts through Staff settings.'
+      );
     }
   };
 
@@ -151,7 +158,7 @@ export function MicrosoftConnect({
 
   const handleDisconnectStaffMicrosoft = () => {
     if (!staffId) {
-      toast.error("Staff ID is required");
+      toast.error('Staff ID is required');
       return;
     }
     disconnectStaffMicrosoftMutation.mutate({ staffId });
@@ -167,42 +174,50 @@ export function MicrosoftConnect({
 
   // Determine button text and action based on context
   const getButtonConfig = () => {
-    if (context === "settings") {
+    if (context === 'settings') {
       if (microsoftConnectionStatus?.isConnected) {
         return {
-          text: "Microsoft Connected",
+          text: 'Microsoft Connected',
           disabled: true,
-          variant: "default" as const,
+          variant: 'default' as const,
           icon: <Mail className="h-4 w-4 mr-2" />,
         };
       } else {
         return {
-          text: isLoading ? "Connecting..." : "Connect Microsoft Account",
+          text: isLoading ? 'Connecting...' : 'Connect Microsoft Account',
           disabled: isLoading,
-          variant: "default" as const,
-          icon: isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />,
+          variant: 'default' as const,
+          icon: isLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Mail className="h-4 w-4 mr-2" />
+          ),
         };
       }
     } else {
       // Staff context
       return {
-        text: isLoading ? "Connecting..." : "Connect Microsoft Account",
+        text: isLoading ? 'Connecting...' : 'Connect Microsoft Account',
         disabled: isLoading,
-        variant: "default" as const,
-        icon: isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />,
+        variant: 'default' as const,
+        icon: isLoading ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Mail className="h-4 w-4 mr-2" />
+        ),
       };
     }
   };
 
   const buttonConfig = getButtonConfig();
 
-  const defaultTitle = context === "settings" ? "Microsoft Connection" : "Link Microsoft Account";
+  const defaultTitle = context === 'settings' ? 'Microsoft Connection' : 'Link Microsoft Account';
   const defaultDescription =
-    context === "settings"
-      ? "Connect your Microsoft account to allow the application to compose and send emails on your behalf."
-      : "Link your Microsoft account to this staff member to enable sending emails from their profile.";
+    context === 'settings'
+      ? 'Connect your Microsoft account to allow the application to compose and send emails on your behalf.'
+      : 'Link your Microsoft account to this staff member to enable sending emails from their profile.';
 
-  if (!showConnectionStatus && context === "settings") {
+  if (!showConnectionStatus && context === 'settings') {
     // Compact mode for inline usage
     return (
       <Button
@@ -226,7 +241,7 @@ export function MicrosoftConnect({
       <CardContent>
         {isStatusLoading || isStaffStatusLoading ? (
           <p>Loading Microsoft connection status...</p>
-        ) : context === "settings" ? (
+        ) : context === 'settings' ? (
           // Settings context
           microsoftConnectionStatus?.isConnected && microsoftConnectionStatus.email ? (
             <div className="space-y-4">
@@ -235,12 +250,20 @@ export function MicrosoftConnect({
                 <p>Email: {microsoftConnectionStatus.email}</p>
               </div>
               <Button onClick={handleDisconnectMicrosoft} disabled={isLoading} variant="outline">
-                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MailX className="h-4 w-4 mr-2" />}
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MailX className="h-4 w-4 mr-2" />
+                )}
                 Disconnect Microsoft
               </Button>
             </div>
           ) : (
-            <Button onClick={handleConnectMicrosoft} disabled={buttonConfig.disabled} variant={buttonConfig.variant}>
+            <Button
+              onClick={handleConnectMicrosoft}
+              disabled={buttonConfig.disabled}
+              variant={buttonConfig.variant}
+            >
               {buttonConfig.icon}
               {buttonConfig.text}
             </Button>
@@ -254,13 +277,25 @@ export function MicrosoftConnect({
                   <p className="text-green-600 font-semibold">Microsoft account connected.</p>
                   <p>Email: {staffMicrosoftStatus.email}</p>
                 </div>
-                <Button onClick={handleDisconnectStaffMicrosoft} disabled={isLoading} variant="outline">
-                  {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MailX className="h-4 w-4 mr-2" />}
+                <Button
+                  onClick={handleDisconnectStaffMicrosoft}
+                  disabled={isLoading}
+                  variant="outline"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <MailX className="h-4 w-4 mr-2" />
+                  )}
                   Disconnect Microsoft
                 </Button>
               </div>
             ) : (
-              <Button onClick={handleConnectMicrosoft} disabled={buttonConfig.disabled} variant={buttonConfig.variant}>
+              <Button
+                onClick={handleConnectMicrosoft}
+                disabled={buttonConfig.disabled}
+                variant={buttonConfig.variant}
+              >
                 {buttonConfig.icon}
                 {buttonConfig.text}
               </Button>

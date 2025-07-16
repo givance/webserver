@@ -1,28 +1,29 @@
+import {
+  getDonorById as getDonorByIdData,
+  getGeneratedEmailsForSending,
+  getStaffByEmail,
+  // Note: Gmail OAuth token functions have been removed from gmail.ts
+  // getGmailTokenByUserId,
+  // upsertGmailToken,
+  // updateGmailAccessToken,
+  // deleteGmailToken,
+  getUserById,
+} from '@/app/lib/data/gmail';
+import { db } from '@/app/lib/db';
+import { staff, organizationMemberships, staffGmailTokens } from '@/app/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
 import { EmailCampaignsService } from '@/app/lib/services/email-campaigns.service';
 import { EmailSendingService } from '@/app/lib/services/email-sending.service';
-import { createEmailTracker, createLinkTrackers } from '@/app/lib/data/email-tracking';
 import {
   createHtmlEmail,
-  processEmailContentWithTracking,
   formatSenderField,
+  processEmailContentWithTracking,
 } from '@/app/lib/utils/email-tracking/content-processor';
-import { generateTrackingId } from '@/app/lib/utils/email-tracking/utils';
-import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
-import {
-  getGmailTokenByUserId,
-  upsertGmailToken,
-  updateGmailAccessToken,
-  deleteGmailToken,
-  getUserById,
-  getStaffByEmail,
-  getGeneratedEmailsForSending,
-  getDonorById as getDonorByIdData,
-} from '@/app/lib/data/gmail';
-import { google } from 'googleapis';
-import type { gmail_v1 } from 'googleapis';
 import { TRPCError } from '@trpc/server';
+import type { gmail_v1 } from 'googleapis';
+import { google } from 'googleapis';
 
 // Types
 export interface GmailTokenInfo {
@@ -138,104 +139,158 @@ export class GmailService {
 
   /**
    * Handle OAuth callback and store tokens
+   * @deprecated This method is deprecated as user-level OAuth tokens are no longer used.
+   * Staff members should authenticate their Gmail accounts directly.
    */
   async handleOAuthCallback(code: string, userId: string): Promise<void> {
-    if (!this.oauth2Client) {
-      throw new Error('Google OAuth client not configured');
-    }
-
-    const { tokens } = await this.oauth2Client.getToken(code);
-
-    if (!tokens.access_token || !tokens.refresh_token) {
-      throw new Error('Failed to get access token from Google');
-    }
-
-    const expiresAt = tokens.expiry_date
-      ? new Date(tokens.expiry_date)
-      : new Date(Date.now() + 3600 * 1000);
-
-    await upsertGmailToken(userId, tokens.access_token!, tokens.refresh_token!, expiresAt);
-
-    logger.info(`Gmail OAuth tokens stored for user ${userId}`);
+    throw new Error(
+      'User-level Gmail OAuth is deprecated. Staff members should authenticate their Gmail accounts directly.'
+    );
   }
 
   /**
    * Get authenticated Gmail client for user
+   * @deprecated This method is deprecated as user-level OAuth tokens are no longer used.
+   * Staff members should authenticate their Gmail accounts directly.
    */
   async getGmailClient(userId: string): Promise<gmail_v1.Gmail> {
-    if (!this.oauth2Client) {
-      throw new Error('Google OAuth client not configured');
-    }
-
-    const tokenInfo = await getGmailTokenByUserId(userId);
-
-    if (!tokenInfo) {
-      throw new TRPCError({
-        code: 'UNAUTHORIZED',
-        message: 'Gmail not connected. Please connect your Gmail account first.',
-      });
-    }
-
-    // Set credentials
-    this.oauth2Client.setCredentials({
-      access_token: tokenInfo.accessToken,
-      refresh_token: tokenInfo.refreshToken,
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message:
+        'User-level Gmail OAuth is deprecated. Staff members should authenticate their Gmail accounts directly.',
     });
-
-    // Handle token refresh if expired
-    if (tokenInfo.expiresAt < new Date()) {
-      try {
-        const { credentials } = await this.oauth2Client.refreshAccessToken();
-
-        // Update stored tokens
-        await updateGmailAccessToken(
-          userId,
-          credentials.access_token!,
-          new Date(credentials.expiry_date!)
-        );
-
-        this.oauth2Client.setCredentials(credentials);
-      } catch (error) {
-        logger.error('Failed to refresh Gmail access token', { error, userId });
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'Failed to refresh Gmail access. Please reconnect your account.',
-        });
-      }
-    }
-
-    return google.gmail({ version: 'v1', auth: this.oauth2Client });
   }
 
   /**
-   * Check if user has Gmail connected
+   * Check if user's organization has any staff with Gmail connected
+   * This checks for staff-level Gmail connections, not user-level.
    */
   async isConnected(userId: string): Promise<boolean> {
-    const tokenInfo = await getGmailTokenByUserId(userId);
-    return !!tokenInfo;
+    try {
+      // Get user's organization
+      const membership = await db.query.organizationMemberships.findFirst({
+        where: eq(organizationMemberships.userId, userId),
+      });
+
+      if (!membership) {
+        return false;
+      }
+
+      // Check if any staff in the organization has Gmail connected
+      const staffWithGmail = await db.query.staff.findFirst({
+        where: eq(staff.organizationId, membership.organizationId),
+        with: {
+          gmailToken: true,
+        },
+      });
+
+      return !!staffWithGmail?.gmailToken;
+    } catch (error) {
+      logger.error('Failed to check Gmail connection status', { error, userId });
+      return false;
+    }
   }
 
   /**
    * Disconnect Gmail account
+   * @deprecated This method is deprecated as user-level OAuth tokens are no longer used.
+   * Staff members should authenticate their Gmail accounts directly.
    */
   async disconnect(userId: string): Promise<void> {
-    await deleteGmailToken(userId);
-    logger.info(`Gmail disconnected for user ${userId}`);
+    logger.info(`Gmail disconnect called for user ${userId} - no action taken (deprecated)`);
   }
 
   /**
-   * Get Gmail profile information
+   * Get Gmail profile information from first available staff member with Gmail
    */
   async getProfile(userId: string): Promise<GmailProfile> {
-    const gmail = await this.getGmailClient(userId);
-    const profile = await gmail.users.getProfile({ userId: 'me' });
+    try {
+      // Get user's organization
+      const membership = await db.query.organizationMemberships.findFirst({
+        where: eq(organizationMemberships.userId, userId),
+      });
 
-    return {
-      emailAddress: profile.data.emailAddress!,
-      messagesTotal: profile.data.messagesTotal!,
-      threadsTotal: profile.data.threadsTotal!,
-      historyId: profile.data.historyId!,
-    };
+      if (!membership) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User is not part of any organization',
+        });
+      }
+
+      // Get first staff member with Gmail connected
+      const staffWithGmail = await db.query.staff.findFirst({
+        where: eq(staff.organizationId, membership.organizationId),
+        with: {
+          gmailToken: true,
+        },
+      });
+
+      if (!staffWithGmail?.gmailToken) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No staff member has Gmail connected in your organization',
+        });
+      }
+
+      // Create OAuth2 client with staff token
+      const staffOAuth2Client = new google.auth.OAuth2(
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET,
+        env.GOOGLE_REDIRECT_URI
+      );
+
+      staffOAuth2Client.setCredentials({
+        access_token: staffWithGmail.gmailToken.accessToken,
+        refresh_token: staffWithGmail.gmailToken.refreshToken,
+      });
+
+      // Handle token refresh if expired
+      if (staffWithGmail.gmailToken.expiresAt < new Date()) {
+        try {
+          const { credentials } = await staffOAuth2Client.refreshAccessToken();
+
+          // Update stored tokens
+          await db
+            .update(staffGmailTokens)
+            .set({
+              accessToken: credentials.access_token!,
+              expiresAt: new Date(credentials.expiry_date!),
+              updatedAt: new Date(),
+            })
+            .where(eq(staffGmailTokens.staffId, staffWithGmail.id));
+
+          staffOAuth2Client.setCredentials(credentials);
+        } catch (error) {
+          logger.error('Failed to refresh staff Gmail access token', {
+            error,
+            staffId: staffWithGmail.id,
+          });
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Failed to refresh Gmail access. Staff member needs to reconnect.',
+          });
+        }
+      }
+
+      const gmail = google.gmail({ version: 'v1', auth: staffOAuth2Client });
+      const profile = await gmail.users.getProfile({ userId: 'me' });
+
+      return {
+        emailAddress: profile.data.emailAddress!,
+        messagesTotal: profile.data.messagesTotal!,
+        threadsTotal: profile.data.threadsTotal!,
+        historyId: profile.data.historyId!,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+      logger.error('Failed to get Gmail profile', { error, userId });
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get Gmail profile',
+      });
+    }
   }
 
   /**

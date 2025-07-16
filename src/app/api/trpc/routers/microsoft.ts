@@ -1,6 +1,6 @@
 import { createEmailTracker, createLinkTrackers } from '@/app/lib/data/email-tracking';
 import { db } from '@/app/lib/db';
-import { donors, generatedEmails, microsoftOAuthTokens, staff, users } from '@/app/lib/db/schema';
+import { donors, generatedEmails, staff, users } from '@/app/lib/db/schema';
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
 import {
@@ -47,48 +47,15 @@ if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
 
 /**
  * Helper function to get authenticated Microsoft Graph client for user
+ * @deprecated This function is deprecated as user-level OAuth tokens are no longer used.
+ * Staff members should authenticate their Microsoft accounts directly.
  */
 async function getMicrosoftClient(userId: string) {
-  const tokenInfo = await db.query.microsoftOAuthTokens.findFirst({
-    where: eq(microsoftOAuthTokens.userId, userId),
+  throw new TRPCError({
+    code: 'UNAUTHORIZED',
+    message:
+      'User-level Microsoft OAuth is deprecated. Staff members should authenticate their Microsoft accounts directly.',
   });
-
-  validateNotNullish(
-    tokenInfo,
-    'PRECONDITION_FAILED',
-    'Microsoft account not connected. Please connect your Microsoft account first.'
-  );
-
-  try {
-    // Create Microsoft Graph client with access token
-    const client = Client.init({
-      authProvider: (done: (error: Error | null, accessToken: string | null) => void) => {
-        // Check if token is expired and needs refresh
-        const now = new Date();
-        if (now >= tokenInfo.expiresAt) {
-          // Token is expired, need to refresh
-          // This would be implemented with the refresh token flow
-          // For now, we'll just throw an error
-          done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
-          return;
-        }
-
-        done(null, tokenInfo.accessToken);
-      },
-    });
-
-    return client;
-  } catch (error) {
-    logger.error(
-      `Failed to initialize Microsoft Graph client for user ${userId}: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'Microsoft token expired. Please reconnect your Microsoft account.',
-    });
-  }
 }
 
 /**
@@ -244,66 +211,16 @@ async function getMicrosoftClientForDonor(
       }
     }
 
-    // If no client has been set yet, use the fallback user's Microsoft account
+    // If no client has been set yet, there's no fallback available
     if (!microsoftClient) {
-      logger.info(
-        `[Microsoft Client Selection] Using organization default Microsoft account for user ${fallbackUserId} for donor ${donorId}`
+      logger.error(
+        `[Microsoft Client Selection] No Microsoft client available for donor ${donorId}. Staff must have Microsoft account connected.`
       );
-
-      const fallbackTokenInfo = await db.query.microsoftOAuthTokens.findFirst({
-        where: eq(microsoftOAuthTokens.userId, fallbackUserId),
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message:
+          'No Microsoft account available. The assigned staff member or primary staff must have a Microsoft account connected.',
       });
-
-      validateNotNullish(
-        fallbackTokenInfo,
-        'PRECONDITION_FAILED',
-        'No Microsoft account connected. Please connect your Microsoft account first.'
-      );
-
-      // Create Microsoft Graph client with fallback user token
-      microsoftClient = Client.init({
-        authProvider: (done: (error: Error | null, accessToken: string | null) => void) => {
-          // Check if token is expired and needs refresh
-          const now = new Date();
-          if (now >= fallbackTokenInfo.expiresAt) {
-            // Token is expired, need to refresh
-            // This would be implemented with the refresh token flow
-            // For now, we'll just throw an error
-            done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
-            return;
-          }
-
-          done(null, fallbackTokenInfo.accessToken);
-        },
-      });
-
-      // Get user info for fallback
-      const userInfo = await db.query.users.findFirst({
-        where: eq(users.id, fallbackUserId),
-      });
-
-      if (userInfo) {
-        // If we should use staff signature but have fallback user, use the staff signature with fallback email
-        if (shouldUseStaffSignature && donorInfo.assignedStaff) {
-          senderInfo = {
-            name: `${donorInfo.assignedStaff.firstName} ${donorInfo.assignedStaff.lastName}`,
-            email: userInfo.email,
-            signature: donorInfo.assignedStaff.signature,
-          };
-          logger.info(
-            `[Microsoft Client Selection] Using assigned staff signature with organization default email for donor ${donorId}`
-          );
-        } else {
-          senderInfo = {
-            name: userInfo.firstName || 'Organization',
-            email: userInfo.email,
-            signature: null, // Default user doesn't have a signature in our schema
-          };
-          logger.info(
-            `[Microsoft Client Selection] Using organization default email and signature for donor ${donorId}`
-          );
-        }
-      }
     }
 
     validateNotNullish(
@@ -326,43 +243,19 @@ async function getMicrosoftClientForDonor(
 export const microsoftRouter = router({
   /**
    * Get Microsoft authentication URL
+   * @deprecated User-level OAuth is deprecated. Staff should use staff-level authentication.
    */
   getMicrosoftAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
-    if (!MICROSOFT_CLIENT_ID || !MICROSOFT_REDIRECT_URI) {
-      throw createTRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Microsoft OAuth is not configured on the server.',
-      });
-    }
-
-    // Generate state parameter with user ID for security
-    const state = JSON.stringify({
-      userId: ctx.auth.user.id,
-      organizationId: ctx.auth.user.organizationId,
+    throw createTRPCError({
+      code: 'NOT_IMPLEMENTED',
+      message:
+        'User-level Microsoft OAuth is deprecated. Staff members should authenticate their Microsoft accounts through the staff settings.',
     });
-
-    // Microsoft OAuth authorization URL
-    const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
-    authUrl.searchParams.append('client_id', MICROSOFT_CLIENT_ID);
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('redirect_uri', MICROSOFT_REDIRECT_URI);
-    authUrl.searchParams.append('scope', 'offline_access Mail.ReadWrite Mail.Send User.Read');
-    authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('prompt', 'consent');
-
-    // Log the auth URL details for debugging
-    logger.info('Generating Microsoft OAuth URL (Organization):', {
-      clientId: MICROSOFT_CLIENT_ID,
-      redirectUri: MICROSOFT_REDIRECT_URI,
-      authUrl: authUrl.toString(),
-      userId: ctx.auth.user.id,
-    });
-
-    return { authUrl: authUrl.toString() };
   }),
 
   /**
    * Handle OAuth callback from Microsoft
+   * @deprecated User-level OAuth is deprecated. Staff should use staff-level authentication.
    */
   handleOAuthCallback: protectedProcedure
     .input(
@@ -459,38 +352,13 @@ export const microsoftRouter = router({
         // Calculate token expiration time
         const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-        // Store tokens in database
-        await db
-          .insert(microsoftOAuthTokens)
-          .values({
-            userId: ctx.auth.user.id,
-            email: emailAddress,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            expiresAt: expiresAt,
-            scope: tokens.scope,
-            tokenType: tokens.token_type || 'Bearer',
-          })
-          .onConflictDoUpdate({
-            target: microsoftOAuthTokens.userId,
-            set: {
-              email: emailAddress,
-              accessToken: tokens.access_token,
-              refreshToken: tokens.refresh_token,
-              expiresAt: expiresAt,
-              scope: tokens.scope,
-              tokenType: tokens.token_type || 'Bearer',
-              updatedAt: new Date(),
-            },
-          });
-
-        logger.info(`Microsoft account connected for user ${ctx.auth.user.id}: ${emailAddress}`);
-
-        return {
-          success: true,
-          message: `Microsoft account ${emailAddress} connected successfully.`,
-          email: emailAddress,
-        };
+        // User-level OAuth tokens are deprecated
+        // Staff members should use the staff Microsoft token system instead
+        throw new TRPCError({
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'User-level Microsoft OAuth is deprecated. Staff members should authenticate their Microsoft accounts through the staff settings.',
+        });
       } catch (error: any) {
         logger.error(`Error handling Microsoft OAuth callback: ${error.message || String(error)}`);
         throw new TRPCError({

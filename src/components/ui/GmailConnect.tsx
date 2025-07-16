@@ -6,14 +6,14 @@
  * - Staff management (links user's Gmail token to specific staff member)
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, MailX, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { trpc } from "@/app/lib/trpc/client";
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Mail, MailX, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { trpc } from '@/app/lib/trpc/client';
 
 export interface GmailConnectProps {
   /**
@@ -21,7 +21,7 @@ export interface GmailConnectProps {
    * - "settings": Connects user's Gmail account to organization (default)
    * - "staff": Links user's Gmail token to specific staff member
    */
-  context?: "settings" | "staff";
+  context?: 'settings' | 'staff';
 
   /**
    * Staff ID - required when context is "staff"
@@ -55,7 +55,7 @@ export interface GmailConnectProps {
 }
 
 export function GmailConnect({
-  context = "settings",
+  context = 'settings',
   staffId,
   title,
   description,
@@ -63,16 +63,19 @@ export function GmailConnect({
   onConnectionChange,
   showConnectionStatus = true,
 }: GmailConnectProps) {
+  // User-level OAuth is deprecated, but keep the mutation for compatibility
   const gmailAuthMutation = trpc.gmail.getGmailAuthUrl.useMutation({
     onSuccess: (data) => {
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        toast.error("Could not get Gmail authentication URL. Please try again.");
-      }
+      // This should work but will use deprecated auth
+      toast.error(
+        'User-level Gmail authentication is deprecated. Please connect Gmail accounts through Staff settings.'
+      );
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to initiate Gmail connection. Please try again.");
+      toast.error(
+        error.message ||
+          'User-level Gmail authentication is deprecated. Please connect Gmail accounts through Staff settings.'
+      );
     },
   });
 
@@ -81,39 +84,39 @@ export function GmailConnect({
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        toast.error("Could not get Gmail authentication URL. Please try again.");
+        toast.error('Could not get Gmail authentication URL. Please try again.');
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to initiate Gmail connection. Please try again.");
+      toast.error(error.message || 'Failed to initiate Gmail connection. Please try again.');
     },
   });
 
   const disconnectGmailMutation = trpc.gmail.disconnectGmail.useMutation({
     onSuccess: () => {
-      toast.success("Gmail account disconnected successfully");
+      toast.success('Gmail account disconnected successfully');
       onConnectionChange?.(false);
       // Refetch connection status
-      if (context === "settings") {
+      if (context === 'settings') {
         refetchGmailStatus();
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to disconnect Gmail account");
+      toast.error(error.message || 'Failed to disconnect Gmail account');
     },
   });
 
   const disconnectStaffGmailMutation = trpc.staffGmail.disconnectStaffGmail.useMutation({
     onSuccess: () => {
-      toast.success("Gmail account disconnected successfully");
+      toast.success('Gmail account disconnected successfully');
       onConnectionChange?.(false);
       // Refetch connection status
-      if (context === "staff" && staffId) {
+      if (context === 'staff' && staffId) {
         refetchStaffStatus();
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to disconnect Gmail account");
+      toast.error(error.message || 'Failed to disconnect Gmail account');
     },
   });
 
@@ -121,7 +124,7 @@ export function GmailConnect({
     data: gmailConnectionStatus,
     isLoading: isStatusLoading,
     refetch: refetchGmailStatus,
-  } = trpc.gmail.getGmailConnectionStatus.useQuery(undefined, { enabled: context === "settings" });
+  } = trpc.gmail.getGmailConnectionStatus.useQuery(undefined, { enabled: context === 'settings' });
 
   const {
     data: staffGmailStatus,
@@ -129,19 +132,21 @@ export function GmailConnect({
     refetch: refetchStaffStatus,
   } = trpc.staffGmail.getStaffGmailConnectionStatus.useQuery(
     { staffId: staffId! },
-    { enabled: context === "staff" && !!staffId }
+    { enabled: context === 'staff' && !!staffId }
   );
 
   const handleConnectGmail = () => {
-    if (context === "staff") {
+    if (context === 'staff') {
       if (!staffId) {
-        toast.error("Staff ID is required");
+        toast.error('Staff ID is required');
         return;
       }
       staffGmailAuthMutation.mutate({ staffId });
     } else {
-      // Settings context - authenticate user's Gmail
-      gmailAuthMutation.mutate();
+      // Settings context - user-level OAuth is deprecated
+      toast.error(
+        'User-level Gmail authentication is deprecated. Please connect Gmail accounts through Staff settings.'
+      );
     }
   };
 
@@ -151,7 +156,7 @@ export function GmailConnect({
 
   const handleDisconnectStaffGmail = () => {
     if (!staffId) {
-      toast.error("Staff ID is required");
+      toast.error('Staff ID is required');
       return;
     }
     disconnectStaffGmailMutation.mutate({ staffId });
@@ -167,42 +172,50 @@ export function GmailConnect({
 
   // Determine button text and action based on context
   const getButtonConfig = () => {
-    if (context === "settings") {
+    if (context === 'settings') {
       if (gmailConnectionStatus?.isConnected) {
         return {
-          text: "Gmail Connected",
+          text: 'Gmail Connected',
           disabled: true,
-          variant: "default" as const,
+          variant: 'default' as const,
           icon: <Mail className="h-4 w-4 mr-2" />,
         };
       } else {
         return {
-          text: isLoading ? "Connecting..." : "Connect Gmail Account",
+          text: isLoading ? 'Connecting...' : 'Connect Gmail Account',
           disabled: isLoading,
-          variant: "default" as const,
-          icon: isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />,
+          variant: 'default' as const,
+          icon: isLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Mail className="h-4 w-4 mr-2" />
+          ),
         };
       }
     } else {
       // Staff context
       return {
-        text: isLoading ? "Connecting..." : "Connect Gmail Account",
+        text: isLoading ? 'Connecting...' : 'Connect Gmail Account',
         disabled: isLoading,
-        variant: "default" as const,
-        icon: isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />,
+        variant: 'default' as const,
+        icon: isLoading ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Mail className="h-4 w-4 mr-2" />
+        ),
       };
     }
   };
 
   const buttonConfig = getButtonConfig();
 
-  const defaultTitle = context === "settings" ? "Gmail Connection" : "Link Gmail Account";
+  const defaultTitle = context === 'settings' ? 'Gmail Connection' : 'Link Gmail Account';
   const defaultDescription =
-    context === "settings"
-      ? "Connect your Gmail account to allow the application to compose and send emails on your behalf."
-      : "Link your Gmail account to this staff member to enable sending emails from their profile.";
+    context === 'settings'
+      ? 'Connect your Gmail account to allow the application to compose and send emails on your behalf.'
+      : 'Link your Gmail account to this staff member to enable sending emails from their profile.';
 
-  if (!showConnectionStatus && context === "settings") {
+  if (!showConnectionStatus && context === 'settings') {
     // Compact mode for inline usage
     return (
       <Button
@@ -226,7 +239,7 @@ export function GmailConnect({
       <CardContent>
         {isStatusLoading || isStaffStatusLoading ? (
           <p>Loading Gmail connection status...</p>
-        ) : context === "settings" ? (
+        ) : context === 'settings' ? (
           // Settings context
           gmailConnectionStatus?.isConnected && gmailConnectionStatus.email ? (
             <div className="space-y-4">
@@ -235,12 +248,20 @@ export function GmailConnect({
                 <p>Email: {gmailConnectionStatus.email}</p>
               </div>
               <Button onClick={handleDisconnectGmail} disabled={isLoading} variant="outline">
-                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MailX className="h-4 w-4 mr-2" />}
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MailX className="h-4 w-4 mr-2" />
+                )}
                 Disconnect Gmail
               </Button>
             </div>
           ) : (
-            <Button onClick={handleConnectGmail} disabled={buttonConfig.disabled} variant={buttonConfig.variant}>
+            <Button
+              onClick={handleConnectGmail}
+              disabled={buttonConfig.disabled}
+              variant={buttonConfig.variant}
+            >
               {buttonConfig.icon}
               {buttonConfig.text}
             </Button>
@@ -252,15 +273,25 @@ export function GmailConnect({
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-600">Connected: {staffGmailStatus.email}</span>
+                  <span className="text-sm text-green-600">
+                    Connected: {staffGmailStatus.email}
+                  </span>
                 </div>
                 <Button onClick={handleDisconnectStaffGmail} disabled={isLoading} variant="outline">
-                  {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MailX className="h-4 w-4 mr-2" />}
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <MailX className="h-4 w-4 mr-2" />
+                  )}
                   Disconnect Gmail
                 </Button>
               </div>
             ) : (
-              <Button onClick={handleConnectGmail} disabled={buttonConfig.disabled} variant={buttonConfig.variant}>
+              <Button
+                onClick={handleConnectGmail}
+                disabled={buttonConfig.disabled}
+                variant={buttonConfig.variant}
+              >
                 {buttonConfig.icon}
                 {buttonConfig.text}
               </Button>

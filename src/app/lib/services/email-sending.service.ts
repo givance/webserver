@@ -1,29 +1,19 @@
-import { db } from '@/app/lib/db';
-import {
-  emailSendJobs,
-  generatedEmails,
-  emailGenerationSessions,
-  donors,
-  gmailOAuthTokens,
-  microsoftOAuthTokens,
-  staffMicrosoftTokens,
-  staff,
-  users,
-} from '@/app/lib/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { createEmailTracker, createLinkTrackers } from '@/app/lib/data/email-tracking';
+import { db } from '@/app/lib/db';
+import { donors, emailSendJobs, generatedEmails, staffMicrosoftTokens } from '@/app/lib/db/schema';
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { EmailCampaignsService } from '@/app/lib/services/email-campaigns.service';
 import {
-  processEmailContentWithTracking,
   createHtmlEmail,
   formatSenderField,
+  processEmailContentWithTracking,
 } from '@/app/lib/utils/email-tracking/content-processor';
 import { generateTrackingId } from '@/app/lib/utils/email-tracking/utils';
-import { google } from 'googleapis';
-import { Client } from '@microsoft/microsoft-graph-client';
-import { env } from '@/app/lib/env';
 import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
-import { EmailCampaignsService } from '@/app/lib/services/email-campaigns.service';
-import { logger } from '@/app/lib/logger';
+import { Client } from '@microsoft/microsoft-graph-client';
+import { and, eq, sql } from 'drizzle-orm';
+import { google } from 'googleapis';
 import 'isomorphic-fetch';
 
 // OAuth configurations

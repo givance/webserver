@@ -1,26 +1,10 @@
 import { db } from '../db';
-import { microsoftOAuthTokens, donors, staff, users } from '../db/schema';
+import { donors, staff, users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 
-export type MicrosoftOAuthToken = InferSelectModel<typeof microsoftOAuthTokens>;
-
-/**
- * Get Microsoft OAuth token for a user
- */
-export async function getMicrosoftTokenByUserId(
-  userId: string
-): Promise<MicrosoftOAuthToken | undefined> {
-  try {
-    const result = await db.query.microsoftOAuthTokens.findFirst({
-      where: eq(microsoftOAuthTokens.userId, userId),
-    });
-    return result;
-  } catch (error) {
-    console.error('Failed to get Microsoft token by user ID:', error);
-    throw new Error('Could not retrieve Microsoft token.');
-  }
-}
+// Note: Microsoft OAuth token functions have been removed as they are deprecated.
+// The system now uses staff-level Microsoft tokens (staffMicrosoftTokens) instead.
 
 /**
  * Get donor information by ID with organization verification
@@ -84,17 +68,5 @@ export async function getUserById(
   } catch (error) {
     console.error('Failed to get user by ID:', error);
     throw new Error('Could not retrieve user.');
-  }
-}
-
-/**
- * Delete Microsoft OAuth token for a user
- */
-export async function deleteMicrosoftToken(userId: string): Promise<void> {
-  try {
-    await db.delete(microsoftOAuthTokens).where(eq(microsoftOAuthTokens.userId, userId));
-  } catch (error) {
-    console.error('Failed to delete Microsoft token:', error);
-    throw new Error('Could not delete Microsoft token.');
   }
 }

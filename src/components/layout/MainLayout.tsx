@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Geist, Geist_Mono } from "next/font/google";
-import TRPCProvider from "@/app/lib/trpc/Provider";
-import { UserButton, useUser, OrganizationSwitcher } from "@clerk/nextjs";
+import { Geist, Geist_Mono } from 'next/font/google';
+import TRPCProvider from '@/app/lib/trpc/Provider';
+import { UserButton, useUser, OrganizationSwitcher } from '@clerk/nextjs';
 import {
   Sidebar,
   SidebarHeader,
@@ -16,8 +16,8 @@ import {
   SidebarGroupContent,
   SidebarTrigger,
   useSidebar,
-} from "@/components/ui/sidebar";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+} from '@/components/ui/sidebar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Home,
   Users,
@@ -37,26 +37,26 @@ import {
   Mail,
   Clock,
   Pin,
-} from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { Toaster } from "@/components/ui/sonner";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { PageBreadcrumb } from "@/components/ui/page-breadcrumb";
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { useOrganization } from "@clerk/nextjs";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { Toaster } from '@/components/ui/sonner';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { useOrganization } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 // Custom hook for responsive sidebar behavior
@@ -72,10 +72,10 @@ function useResponsiveSidebar() {
     checkScreenSize();
 
     // Add event listener for window resize
-    window.addEventListener("resize", checkScreenSize);
+    window.addEventListener('resize', checkScreenSize);
 
     // Cleanup
-    return () => window.removeEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
   return isLargeScreen;
@@ -107,7 +107,7 @@ function Header() {
     if (organization?.id) {
       // If we have a previous org ID and it's different from current, refresh the page
       if (previousOrgId && previousOrgId !== organization.id) {
-        window.location.href = "/";
+        window.location.href = '/';
         return;
       }
       // Set the current org ID as the previous one for next comparison
@@ -118,11 +118,11 @@ function Header() {
   return (
     <header
       className={cn(
-        "flex items-center justify-between h-14 px-6 border-b bg-white fixed top-0 right-0 z-40 transition-all duration-200 ease-linear",
+        'flex items-center justify-between h-14 px-6 border-b bg-white fixed top-0 right-0 z-40 transition-all duration-200 ease-linear',
         // Adjust left margin based on sidebar state
-        state === "collapsed"
-          ? "left-0 sm:left-12" // 12 = 3rem (width of collapsed sidebar)
-          : "left-0 sm:left-64" // 64 = 16rem (width of expanded sidebar)
+        state === 'collapsed'
+          ? 'left-0 sm:left-12' // 12 = 3rem (width of collapsed sidebar)
+          : 'left-0 sm:left-64' // 64 = 16rem (width of expanded sidebar)
       )}
     >
       <div className="flex items-center gap-6 flex-1">
@@ -130,7 +130,10 @@ function Header() {
         <PageBreadcrumb />
         <div className="relative w-full max-w-md hidden sm:block">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input placeholder="Search or type a command (⌘ + G)" className="pl-10 bg-gray-50 border-0" />
+          <Input
+            placeholder="Search or type a command (⌘ + G)"
+            className="pl-10 bg-gray-50 border-0"
+          />
         </div>
       </div>
       <div className="flex items-center gap-4">
@@ -145,7 +148,7 @@ function Header() {
           skipInvitationScreen={true}
           appearance={{
             elements: {
-              rootBox: "flex items-center gap-2",
+              rootBox: 'flex items-center gap-2',
             },
           }}
         />
@@ -180,10 +183,22 @@ function FloatingNavigation({
       {/* Header with Pin Button */}
       <div className="flex items-center justify-between h-14 px-4 border-b">
         <div className="flex items-center gap-2">
-          <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="flex-shrink-0" />
+          <Image
+            src="/givance.png"
+            alt="Givance Logo"
+            width={28}
+            height={28}
+            className="flex-shrink-0"
+          />
           <span className="font-semibold text-lg">Givance</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onPin} className="h-8 w-8 hover:bg-gray-100" title="Pin sidebar">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onPin}
+          className="h-8 w-8 hover:bg-gray-100"
+          title="Pin sidebar"
+        >
           <Pin className="h-4 w-4" />
         </Button>
       </div>
@@ -199,7 +214,10 @@ function FloatingNavigation({
                 <span className="text-left truncate">Donor</span>
               </div>
               <ChevronRight
-                className={cn("w-4 h-4 flex-shrink-0 transition-transform duration-200", isDonorOpen && "rotate-90")}
+                className={cn(
+                  'w-4 h-4 flex-shrink-0 transition-transform duration-200',
+                  isDonorOpen && 'rotate-90'
+                )}
               />
             </SidebarMenuButton>
           </CollapsibleTrigger>
@@ -207,7 +225,7 @@ function FloatingNavigation({
             <SidebarMenu className="ml-4 space-y-0">
               <SidebarMenuItem>
                 <Link href="/donors" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/donors")} className="min-w-0">
+                  <SidebarMenuButton isActive={pathname.startsWith('/donors')} className="min-w-0">
                     <Heart className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Donors</span>
                   </SidebarMenuButton>
@@ -215,7 +233,7 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/lists" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/lists")} className="min-w-0">
+                  <SidebarMenuButton isActive={pathname.startsWith('/lists')} className="min-w-0">
                     <List className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Donor Lists</span>
                   </SidebarMenuButton>
@@ -234,7 +252,10 @@ function FloatingNavigation({
                 <span className="text-left truncate">Campaign</span>
               </div>
               <ChevronRight
-                className={cn("w-4 h-4 flex-shrink-0 transition-transform duration-200", isCampaignOpen && "rotate-90")}
+                className={cn(
+                  'w-4 h-4 flex-shrink-0 transition-transform duration-200',
+                  isCampaignOpen && 'rotate-90'
+                )}
               />
             </SidebarMenuButton>
           </CollapsibleTrigger>
@@ -242,7 +263,10 @@ function FloatingNavigation({
             <SidebarMenu className="ml-4 space-y-0">
               <SidebarMenuItem>
                 <Link href="/campaign" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/campaign")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/campaign')}
+                    className="min-w-0"
+                  >
                     <MessageSquare className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Create Campaign</span>
                   </SidebarMenuButton>
@@ -250,7 +274,10 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/existing-campaigns" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/existing-campaigns")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/existing-campaigns')}
+                    className="min-w-0"
+                  >
                     <Briefcase className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Existing Campaigns</span>
                   </SidebarMenuButton>
@@ -269,7 +296,10 @@ function FloatingNavigation({
                 <span className="text-left truncate">Settings</span>
               </div>
               <ChevronRight
-                className={cn("w-4 h-4 flex-shrink-0 transition-transform duration-200", isSettingsOpen && "rotate-90")}
+                className={cn(
+                  'w-4 h-4 flex-shrink-0 transition-transform duration-200',
+                  isSettingsOpen && 'rotate-90'
+                )}
               />
             </SidebarMenuButton>
           </CollapsibleTrigger>
@@ -277,7 +307,7 @@ function FloatingNavigation({
             <SidebarMenu className="ml-4 space-y-0">
               <SidebarMenuItem>
                 <Link href="/staff" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/staff")} className="min-w-0">
+                  <SidebarMenuButton isActive={pathname.startsWith('/staff')} className="min-w-0">
                     <Users className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Staff</span>
                   </SidebarMenuButton>
@@ -285,7 +315,10 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/projects" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/projects")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/projects')}
+                    className="min-w-0"
+                  >
                     <FolderGit2 className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Projects</span>
                   </SidebarMenuButton>
@@ -293,7 +326,10 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/settings/organization" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/settings/organization")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/settings/organization')}
+                    className="min-w-0"
+                  >
                     <Building2 className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Organization</span>
                   </SidebarMenuButton>
@@ -301,7 +337,10 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/settings/email-schedule" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/settings/email-schedule")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/settings/email-schedule')}
+                    className="min-w-0"
+                  >
                     <Clock className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Email Schedule</span>
                   </SidebarMenuButton>
@@ -309,28 +348,26 @@ function FloatingNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/settings/templates" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/settings/templates")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/settings/templates')}
+                    className="min-w-0"
+                  >
                     <FileText className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Templates</span>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
-              <SidebarMenuItem>
+              {/* <SidebarMenuItem>
                 <Link href="/settings/memories" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/settings/memories")} className="min-w-0">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith('/settings/memories')}
+                    className="min-w-0"
+                  >
                     <Brain className="w-4 h-4 flex-shrink-0" />
                     <span className="text-left truncate">Memories</span>
                   </SidebarMenuButton>
                 </Link>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <Link href="/settings/integrations" className="w-full min-w-0">
-                  <SidebarMenuButton isActive={pathname.startsWith("/settings/integrations")} className="min-w-0">
-                    <Mail className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-left truncate">Integrations</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              </SidebarMenuItem> */}
             </SidebarMenu>
           </CollapsibleContent>
         </Collapsible>
@@ -363,9 +400,9 @@ function SidebarContentWrapper({
   const [showFloatingNav, setShowFloatingNav] = useState(false);
 
   // When collapsed, always show all sections as expanded
-  const effectiveDonorOpen = state === "collapsed" ? true : isDonorOpen;
-  const effectiveCampaignOpen = state === "collapsed" ? true : isCampaignOpen;
-  const effectiveSettingsOpen = state === "collapsed" ? true : isSettingsOpen;
+  const effectiveDonorOpen = state === 'collapsed' ? true : isDonorOpen;
+  const effectiveCampaignOpen = state === 'collapsed' ? true : isCampaignOpen;
+  const effectiveSettingsOpen = state === 'collapsed' ? true : isSettingsOpen;
 
   const handlePin = () => {
     setOpen(true);
@@ -376,7 +413,7 @@ function SidebarContentWrapper({
     <>
       <div
         className="relative"
-        onMouseEnter={() => state === "collapsed" && setShowFloatingNav(true)}
+        onMouseEnter={() => state === 'collapsed' && setShowFloatingNav(true)}
         onMouseLeave={() => setShowFloatingNav(false)}
       >
         <Sidebar
@@ -388,24 +425,37 @@ function SidebarContentWrapper({
               href="/"
               className="flex items-center h-14 px-4 border-b gap-2 hover:bg-gray-50 transition-colors min-w-0"
             >
-              <Image src="/givance.png" alt="Givance Logo" width={28} height={28} className="flex-shrink-0" />
-              <span className="font-semibold text-lg truncate group-data-[collapsible=icon]:hidden">Givance</span>
+              <Image
+                src="/givance.png"
+                alt="Givance Logo"
+                width={28}
+                height={28}
+                className="flex-shrink-0"
+              />
+              <span className="font-semibold text-lg truncate group-data-[collapsible=icon]:hidden">
+                Givance
+              </span>
             </Link>
           </SidebarHeader>
           <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden">
             <div className="px-3 py-2 space-y-0 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-1">
               {/* Donor Management - Collapsible */}
-              <Collapsible open={effectiveDonorOpen} onOpenChange={state === "collapsed" ? undefined : setIsDonorOpen}>
+              <Collapsible
+                open={effectiveDonorOpen}
+                onOpenChange={state === 'collapsed' ? undefined : setIsDonorOpen}
+              >
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton className="w-full justify-between min-w-0 group-data-[collapsible=icon]:hidden">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Heart className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">Donor</span>
+                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                        Donor
+                      </span>
                     </div>
                     <ChevronRight
                       className={cn(
-                        "w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                        effectiveDonorOpen && "rotate-90"
+                        'w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden',
+                        effectiveDonorOpen && 'rotate-90'
                       )}
                     />
                   </SidebarMenuButton>
@@ -415,22 +465,26 @@ function SidebarContentWrapper({
                     <SidebarMenuItem>
                       <Link href="/donors" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/donors")}
+                          isActive={pathname.startsWith('/donors')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Heart className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Donors</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Donors
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/lists" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/lists")}
+                          isActive={pathname.startsWith('/lists')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <List className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Donor Lists</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Donor Lists
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -441,18 +495,20 @@ function SidebarContentWrapper({
               {/* Campaign - Collapsible */}
               <Collapsible
                 open={effectiveCampaignOpen}
-                onOpenChange={state === "collapsed" ? undefined : setIsCampaignOpen}
+                onOpenChange={state === 'collapsed' ? undefined : setIsCampaignOpen}
               >
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton className="w-full justify-between min-w-0 group-data-[collapsible=icon]:hidden">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <MessageSquare className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">Campaign</span>
+                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                        Campaign
+                      </span>
                     </div>
                     <ChevronRight
                       className={cn(
-                        "w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                        effectiveCampaignOpen && "rotate-90"
+                        'w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden',
+                        effectiveCampaignOpen && 'rotate-90'
                       )}
                     />
                   </SidebarMenuButton>
@@ -462,7 +518,7 @@ function SidebarContentWrapper({
                     <SidebarMenuItem>
                       <Link href="/campaign" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/campaign")}
+                          isActive={pathname.startsWith('/campaign')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <MessageSquare className="w-4 h-4 flex-shrink-0" />
@@ -475,7 +531,7 @@ function SidebarContentWrapper({
                     <SidebarMenuItem>
                       <Link href="/existing-campaigns" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/existing-campaigns")}
+                          isActive={pathname.startsWith('/existing-campaigns')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Briefcase className="w-4 h-4 flex-shrink-0" />
@@ -492,18 +548,20 @@ function SidebarContentWrapper({
               {/* Settings - Collapsible */}
               <Collapsible
                 open={effectiveSettingsOpen}
-                onOpenChange={state === "collapsed" ? undefined : setIsSettingsOpen}
+                onOpenChange={state === 'collapsed' ? undefined : setIsSettingsOpen}
               >
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton className="w-full justify-between min-w-0 group-data-[collapsible=icon]:hidden">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Settings2 className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">Settings</span>
+                      <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                        Settings
+                      </span>
                     </div>
                     <ChevronRight
                       className={cn(
-                        "w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                        effectiveSettingsOpen && "rotate-90"
+                        'w-4 h-4 flex-shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden',
+                        effectiveSettingsOpen && 'rotate-90'
                       )}
                     />
                   </SidebarMenuButton>
@@ -513,40 +571,46 @@ function SidebarContentWrapper({
                     <SidebarMenuItem>
                       <Link href="/staff" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/staff")}
+                          isActive={pathname.startsWith('/staff')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Users className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Staff</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Staff
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/projects" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/projects")}
+                          isActive={pathname.startsWith('/projects')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <FolderGit2 className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Projects</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Projects
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/settings/organization" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/settings/organization")}
+                          isActive={pathname.startsWith('/settings/organization')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Building2 className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Organization</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Organization
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/settings/email-schedule" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/settings/email-schedule")}
+                          isActive={pathname.startsWith('/settings/email-schedule')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Clock className="w-4 h-4 flex-shrink-0" />
@@ -559,36 +623,42 @@ function SidebarContentWrapper({
                     <SidebarMenuItem>
                       <Link href="/settings/templates" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/settings/templates")}
+                          isActive={pathname.startsWith('/settings/templates')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <FileText className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Templates</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Templates
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
+                    {/* <SidebarMenuItem>
                       <Link href="/settings/memories" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/settings/memories")}
+                          isActive={pathname.startsWith('/settings/memories')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Brain className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Memories</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Memories
+                          </span>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/settings/integrations" className="w-full min-w-0">
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/settings/integrations")}
+                          isActive={pathname.startsWith('/settings/integrations')}
                           className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                         >
                           <Mail className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">Integrations</span>
+                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
+                            Integrations
+                          </span>
                         </SidebarMenuButton>
                       </Link>
-                    </SidebarMenuItem>
+                    </SidebarMenuItem> */}
                   </SidebarMenu>
                 </CollapsibleContent>
               </Collapsible>
@@ -598,7 +668,7 @@ function SidebarContentWrapper({
         </Sidebar>
 
         {/* Floating Navigation Popup */}
-        {showFloatingNav && state === "collapsed" && (
+        {showFloatingNav && state === 'collapsed' && (
           <FloatingNavigation
             pathname={pathname}
             isDonorOpen={isDonorOpen}
@@ -629,11 +699,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        "flex-1 flex flex-col transition-all duration-200 ease-linear",
+        'flex-1 flex flex-col transition-all duration-200 ease-linear',
         // Adjust margin based on sidebar state
-        state === "collapsed"
-          ? "sm:ml-12" // 12 = 3rem (width of collapsed sidebar)
-          : "sm:ml-64" // 64 = 16rem (width of expanded sidebar)
+        state === 'collapsed'
+          ? 'sm:ml-12' // 12 = 3rem (width of collapsed sidebar)
+          : 'sm:ml-64' // 64 = 16rem (width of expanded sidebar)
       )}
     >
       {children}
@@ -653,7 +723,7 @@ export default function MainLayout({
 
   return (
     <html lang="en">
-      <body className={cn(geistSans.variable, geistMono.variable, "antialiased bg-gray-50")}>
+      <body className={cn(geistSans.variable, geistMono.variable, 'antialiased bg-gray-50')}>
         <div className="min-h-screen w-full">
           <ResponsiveSidebarProvider>
             <SidebarContentWrapper
