@@ -68,6 +68,7 @@ export interface StaffDetails {
   lastName: string;
   email: string;
   gmailToken?: { id: number; email: string } | null;
+  microsoftToken?: { id: number; email: string } | null;
 }
 
 // Props for the EmailListViewer component
@@ -408,7 +409,9 @@ export const EmailListViewer = React.memo(function EmailListViewer({
                         showStaffAssignment && getStaffDetails
                           ? getStaffDetails(donor.assignedToStaffId || null)
                           : null;
-                      const hasConnectedEmail = staffDetails?.gmailToken != null;
+                      const hasConnectedEmail = !!(
+                        staffDetails?.gmailToken || staffDetails?.microsoftToken
+                      );
 
                       return (
                         <TabsTrigger
@@ -551,8 +554,9 @@ export const EmailListViewer = React.memo(function EmailListViewer({
                                       Assigned staff email:
                                     </span>
                                     <span className="text-xs text-muted-foreground/80 truncate">
-                                      {hasConnectedEmail && staffDetails?.gmailToken?.email
-                                        ? staffDetails.gmailToken.email
+                                      {hasConnectedEmail
+                                        ? staffDetails?.gmailToken?.email ||
+                                          staffDetails?.microsoftToken?.email
                                         : 'No email connected'}
                                     </span>
                                   </div>
@@ -638,10 +642,14 @@ export const EmailListViewer = React.memo(function EmailListViewer({
                   const staffDetails = getStaffDetails
                     ? getStaffDetails(donor.assignedToStaffId || null)
                     : null;
-                  const hasLinkedEmail = !!staffDetails?.gmailToken;
-                  const staffLinkedEmail = staffDetails?.gmailToken?.email || null;
+                  const hasLinkedEmail = !!(
+                    staffDetails?.gmailToken || staffDetails?.microsoftToken
+                  );
+                  const staffLinkedEmail =
+                    staffDetails?.gmailToken?.email || staffDetails?.microsoftToken?.email || null;
                   const defaultEmail =
                     primaryStaff?.gmailToken?.email ||
+                    primaryStaff?.microsoftToken?.email ||
                     primaryStaff?.email ||
                     'organization default';
 

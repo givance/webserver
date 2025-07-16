@@ -154,6 +154,7 @@ export default function EmailGenerationResultsPage() {
         lastName: staff.lastName,
         email: staff.email,
         gmailToken: staff.gmailToken,
+        microsoftToken: staff.microsoftToken,
       };
     },
     [staffData]
