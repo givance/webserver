@@ -6,10 +6,13 @@ import {
   emailGenerationSessions,
   organizations,
   donors,
+  templates,
 } from '@/app/lib/db/schema';
 import { eq, and, inArray, desc, sql } from 'drizzle-orm';
 import { wrapDatabaseOperation } from '@/app/lib/utils/error-handler';
 import { TRPCError } from '@trpc/server';
+import { EmailReviewerService } from '@/app/lib/smart-email-generation/services/email-reviewer.service';
+import { logger } from '@/app/lib/logger';
 
 // Input schemas
 const listPendingEmailsInput = z.object({
@@ -33,6 +36,10 @@ const getEmailDetailsInput = z.object({
 
 const getEmailChatHistoryInput = z.object({
   emailIds: z.array(z.number()).min(1).max(100),
+});
+
+const aiReviewEmailsInput = z.object({
+  emailIds: z.array(z.number()).min(1).max(50),
 });
 
 export const emailReviewRouter = router({
@@ -423,6 +430,152 @@ export const emailReviewRouter = router({
       },
       { organizationId: ctx.auth.user.organizationId },
       'Failed to get pending review stats'
+    );
+  }),
+
+  // AI review emails using EmailReviewerService
+  aiReviewEmails: protectedProcedure.input(aiReviewEmailsInput).mutation(async ({ ctx, input }) => {
+    const { emailIds } = input;
+    const emailReviewerService = new EmailReviewerService();
+
+    return await wrapDatabaseOperation(
+      async () => {
+        // Fetch emails with all necessary data
+        const emails = await db
+          .select({
+            id: generatedEmails.id,
+            subject: generatedEmails.subject,
+            emailContent: generatedEmails.emailContent,
+            sessionId: generatedEmails.sessionId,
+            donorId: generatedEmails.donorId,
+            // Session data
+            chatHistory: emailGenerationSessions.chatHistory,
+            templateId: emailGenerationSessions.templateId,
+            // Donor data
+            donorFirstName: donors.firstName,
+            donorLastName: donors.lastName,
+            donorEmail: donors.email,
+            donorPhone: donors.phone,
+            donorNotes: donors.notes,
+          })
+          .from(generatedEmails)
+          .innerJoin(
+            emailGenerationSessions,
+            eq(generatedEmails.sessionId, emailGenerationSessions.id)
+          )
+          .leftJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .where(
+            and(
+              eq(emailGenerationSessions.organizationId, ctx.auth.user.organizationId),
+              inArray(generatedEmails.id, emailIds)
+            )
+          );
+
+        if (emails.length === 0) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'No emails found for the provided IDs',
+          });
+        }
+
+        // Get template data if any email uses a template
+        const templateIds = [...new Set(emails.map((e) => e.templateId).filter(Boolean))];
+        const templateMap = new Map();
+
+        if (templateIds.length > 0) {
+          const templateData = await db
+            .select({
+              id: templates.id,
+              content: templates.content,
+            })
+            .from(templates)
+            .where(inArray(templates.id, templateIds));
+
+          templateData.forEach((t) => templateMap.set(t.id, t));
+        }
+
+        // Review each email
+        const results = await Promise.all(
+          emails.map(async (email) => {
+            try {
+              // Build system prompt (you may want to customize this based on your needs)
+              const systemPrompt = `You are an AI assistant helping to generate personalized emails for donors. 
+Your emails should be professional, warm, and tailored to each donor's history and context.`;
+
+              // Build donor context
+              const donorContext = `
+Donor: ${email.donorFirstName || ''} ${email.donorLastName || ''}
+Email: ${email.donorEmail || 'Not provided'}
+Phone: ${email.donorPhone || 'Not provided'}
+Notes: ${email.donorNotes || 'No notes available'}
+`;
+
+              // Get chat history
+              const chatHistory =
+                (email.chatHistory as Array<{
+                  role: 'user' | 'assistant';
+                  content: string;
+                }>) || [];
+
+              // Get template content if applicable
+              let templateContent = '';
+              if (email.templateId && templateMap.has(email.templateId)) {
+                const template = templateMap.get(email.templateId);
+                templateContent = `\n\nTemplate used:\n${template.content}`;
+              }
+
+              // Call the reviewer service
+              const reviewResult = await emailReviewerService.reviewEmail({
+                systemPrompt: systemPrompt + templateContent,
+                donorContext,
+                chatHistory,
+                generatedEmail: {
+                  subject: email.subject || '',
+                  content: email.emailContent || '',
+                },
+              });
+
+              return {
+                emailId: email.id,
+                donorName:
+                  `${email.donorFirstName || ''} ${email.donorLastName || ''}`.trim() || 'Unknown',
+                result: reviewResult.result,
+                feedback: reviewResult.feedback,
+                tokensUsed: reviewResult.tokensUsed,
+              };
+            } catch (error) {
+              logger.error(`[AI Review] Failed to review email ${email.id}:`, error);
+              return {
+                emailId: email.id,
+                donorName:
+                  `${email.donorFirstName || ''} ${email.donorLastName || ''}`.trim() || 'Unknown',
+                result: 'ERROR' as const,
+                feedback: error instanceof Error ? error.message : 'Unknown error occurred',
+                tokensUsed: 0,
+              };
+            }
+          })
+        );
+
+        // Calculate summary statistics
+        const summary = {
+          totalReviewed: results.length,
+          passedCount: results.filter((r) => r.result === 'OK').length,
+          needsImprovementCount: results.filter((r) => r.result === 'NEEDS_IMPROVEMENT').length,
+          errorCount: results.filter((r) => r.result === 'ERROR').length,
+          totalTokensUsed: results.reduce((sum, r) => sum + r.tokensUsed, 0),
+        };
+
+        return {
+          results,
+          summary,
+        };
+      },
+      {
+        organizationId: ctx.auth.user.organizationId,
+        additionalData: { emailCount: emailIds.length },
+      },
+      'Failed to AI review emails'
     );
   }),
 });
