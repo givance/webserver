@@ -71,15 +71,15 @@ Please review whether the generated email strictly follows all user instructions
 
     // Define the response schema
     const reviewSchema = z.object({
-      result: z
-        .enum(['OK', 'NEEDS_IMPROVEMENT'])
-        .describe('Whether the email follows all instructions'),
       feedback: z
         .string()
         .optional()
         .describe(
           'Specific feedback about which instructions were not followed (only if NEEDS_IMPROVEMENT)'
         ),
+      result: z
+        .enum(['OK', 'NEEDS_IMPROVEMENT'])
+        .describe('Whether the email follows all instructions'),
     });
 
     try {

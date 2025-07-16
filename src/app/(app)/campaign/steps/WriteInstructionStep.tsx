@@ -5,11 +5,12 @@ import { useDonors } from '@/app/hooks/use-donors';
 import { useOrganization } from '@/app/hooks/use-organization';
 import { useProjects } from '@/app/hooks/use-projects';
 import { useStaff } from '@/app/hooks/use-staff';
+import { useEmailReview } from '@/app/hooks/use-email-review';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@clerk/nextjs';
 import { ArrowLeft, ArrowRight, MessageSquare, RefreshCw, X } from 'lucide-react';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import '../styles.css';
 import {
@@ -92,11 +93,16 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // Data hooks
   const { getOrganization } = useOrganization();
-  const { launchCampaign, updateEmailStatus, smartEmailGeneration } = useCommunications();
+  const { launchCampaign, updateEmailStatus, smartEmailGeneration, getSession } =
+    useCommunications();
   const { listProjects } = useProjects();
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
   const { getDonorsQuery } = useDonors();
+  const { reviewEmails } = useEmailReview();
+
+  // State to trigger email review after generation
+  const [emailsToReview, setEmailsToReview] = useState<number[]>([]);
 
   // Data fetching
   const memoizedSelectedDonors = useMemo(() => selectedDonors, [selectedDonors]);
@@ -108,6 +114,28 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     active: true,
     limit: 100,
   });
+
+  // Query session data for email review
+  const { data: sessionDataForReview, refetch: refetchSession } = getSession(
+    { sessionId: sessionId! },
+    {
+      enabled: false, // We'll manually refetch when needed
+      staleTime: 0, // Always fetch fresh data
+      cacheTime: 0, // Don't cache
+      refetchOnMount: false,
+      onSuccess: (data: any) => {
+        console.log('📦 SESSION DATA FETCHED:', {
+          hasData: !!data,
+          generatedEmailsCount: data?.emails?.length || 0,
+          firstEmail: data?.emails?.[0],
+          dataStructure: data ? Object.keys(data) : 'no data',
+        });
+      },
+      onError: (error: any) => {
+        console.error('❌ Failed to fetch session data:', error);
+      },
+    }
+  );
 
   // Computed values
   const projectMentions = useMemo(() => {
@@ -188,6 +216,12 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           finalInstruction
         );
 
+        console.log('📝 RAW RESPONSE FROM HANDLE SUBMIT:', {
+          response,
+          responseKeys: Object.keys(response),
+          resultKeys: response.result ? Object.keys(response.result) : 'no result',
+        });
+
         if (response.success && response.result) {
           // Process the result and update state
           const processedResult = processEmailResult(response.result);
@@ -207,6 +241,15 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             // Handle email generation
             const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
               processedResult.emailResult;
+
+            console.log('📧 EMAIL GENERATION RESULT:', {
+              type: processedResult.type,
+              emailCount: emails?.length || 0,
+              hasEmails: !!emails && emails.length > 0,
+              sessionId: sessionId,
+              fullResult: processedResult,
+              rawResponse: response,
+            });
 
             // Add assistant's response to our existing chat
             chatState.setChatMessages((prev) => {
@@ -233,6 +276,60 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               setIsChatCollapsed(true);
               setIsEmailListExpanded(true);
             }
+
+            // Trigger email review after generation
+            // processedResult.type will be 'email' (from processEmailResult) when emails are generated
+            // processedResult.type will be 'agentic' when in agentic flow (no emails)
+            // We trigger review when type is 'email' even if the emails array is empty
+            // because emails are saved on backend but not returned in response
+
+            console.log('🔍 REVIEW CHECK:', {
+              hasSessionId: !!sessionId,
+              sessionId: sessionId,
+              processedResultType: processedResult.type,
+              hasEmailResult: !!processedResult.emailResult,
+              isAgenticResult: !!processedResult.agenticResult,
+              shouldTriggerReview: sessionId && processedResult.type === 'email',
+            });
+
+            // Trigger review if we have a session and this is email generation (not agentic)
+            if (sessionId && processedResult.type === 'email') {
+              console.log(
+                '✅ Email generation complete (emails saved on backend), triggering review'
+              );
+              console.log('⏰ Setting timeout to trigger review...');
+              // Trigger the session query which will fetch email IDs and review them
+              setTimeout(async () => {
+                console.log('🚀 TRIGGERING REVIEW NOW');
+                console.log('🔄 Refetching session data...');
+                const sessionResult = await refetchSession();
+                console.log('📦 Refetch result:', {
+                  success: sessionResult.isSuccess,
+                  hasData: !!sessionResult.data,
+                  emailCount: sessionResult.data?.emails?.length || 0,
+                });
+
+                if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+                  const emailIds = sessionResult.data.emails
+                    .map((email: any) => email.id)
+                    .filter((id: any) => id !== undefined);
+
+                  console.log('🎯 Directly calling review with email IDs:', emailIds);
+                  if (emailIds.length > 0) {
+                    try {
+                      const reviewResult = await reviewEmails({ emailIds });
+                      console.log('✅ Email review completed successfully:', reviewResult);
+                    } catch (error) {
+                      console.error('❌ Error reviewing emails:', error);
+                    }
+                  }
+                }
+              }, 1000); // Small delay to ensure emails are saved
+            } else {
+              console.log('❌ NOT triggering review:', {
+                reason: !sessionId ? 'No sessionId' : 'Agentic flow - no emails yet',
+              });
+            }
           }
         } else {
           // Handle error
@@ -256,6 +353,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       currentSignature,
       sessionId,
       onInstructionChange,
+      reviewEmails,
+      refetchSession,
     ]
   );
 
@@ -446,6 +545,43 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         // Update email state with new emails (append to existing)
         updateEmailStateWithNewEmails(emailState, response.result.emails, true);
         // Don't update chat history - just silently generate more
+
+        // Trigger review for newly generated emails
+        console.log('🔍 GENERATE MORE - REVIEW CHECK:', {
+          hasSessionId: !!sessionId,
+          responseSuccess: response.success,
+          hasResult: !!response.result,
+        });
+
+        if (sessionId && response.success) {
+          console.log('✅ Additional emails generated, triggering review');
+          setTimeout(async () => {
+            console.log('🚀 TRIGGERING REVIEW FOR ADDITIONAL EMAILS');
+            console.log('🔄 Refetching session data...');
+            const sessionResult = await refetchSession();
+            console.log('📦 Refetch result:', {
+              success: sessionResult.isSuccess,
+              hasData: !!sessionResult.data,
+              emailCount: sessionResult.data?.emails?.length || 0,
+            });
+
+            if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+              const emailIds = sessionResult.data.emails
+                .map((email: any) => email.id)
+                .filter((id: any) => id !== undefined);
+
+              console.log('🎯 Directly calling review with email IDs:', emailIds);
+              if (emailIds.length > 0) {
+                try {
+                  const reviewResult = await reviewEmails({ emailIds });
+                  console.log('✅ Email review completed successfully:', reviewResult);
+                } catch (error) {
+                  console.error('❌ Error reviewing emails:', error);
+                }
+              }
+            }
+          }, 1000); // Small delay to ensure emails are saved
+        }
       } else {
         // Handle error
         toast.error(response.error || 'Failed to generate more emails');
@@ -467,6 +603,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     sessionId,
     previousInstruction,
     selectedDonors,
+    reviewEmails,
+    refetchSession,
   ]);
 
   const emailListViewerEmails = useMemo(() => {
