@@ -20,7 +20,6 @@ import { personResearchRouter } from './person-research';
 import { whatsappRouter } from './whatsapp';
 import { emailCampaignsRouter } from './email-campaigns';
 import { smartEmailGenerationRouter } from './smart-email-generation';
-import { emailReviewRouter } from './email-review';
 
 /**
  * Root router for the tRPC API
@@ -48,7 +47,6 @@ export const appRouter = router({
   whatsapp: whatsappRouter,
   emailCampaigns: emailCampaignsRouter,
   smartEmailGeneration: smartEmailGenerationRouter,
-  emailReview: emailReviewRouter,
 });
 
 // Export type definition of API
