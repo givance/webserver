@@ -42,6 +42,7 @@ import { UnifiedSmartEmailGenerationService } from './unified-smart-email-genera
 import { SmartEmailGenerationService } from '@/app/lib/smart-email-generation/services/smart-email-generation.service';
 import { check, createTRPCError, ERROR_MESSAGES, validateNotNullish } from '@/app/api/trpc/trpc';
 import { env } from '@/app/lib/env';
+import { isFeatureEnabledForOrganization } from '@/app/lib/feature-flags/utils';
 
 /**
  * Input types for campaign management
@@ -1547,9 +1548,13 @@ export class EmailCampaignsService {
     }
 
     // Check if we should use the agentic flow
-    logger.info('[handleGenerateWithNewMessage] USE_AGENTIC_FLOW value:', env.USE_AGENTIC_FLOW);
+    const useAgenticFlow = await isFeatureEnabledForOrganization(
+      organizationId,
+      'use_agentic_flow'
+    );
+    logger.info('[handleGenerateWithNewMessage] use_agentic_flow enabled:', useAgenticFlow);
 
-    if (env.USE_AGENTIC_FLOW) {
+    if (useAgenticFlow) {
       logger.info('[handleGenerateWithNewMessage] Entering agentic flow');
       // For agentic flow, we need to update the session's chat history with the user message
       // The SmartEmailGenerationService will handle its own message storage separately
@@ -1581,7 +1586,7 @@ export class EmailCampaignsService {
     );
 
     logger.info(
-      '[handleGenerateWithNewMessage] Using traditional flow (USE_AGENTIC_FLOW is false or undefined)'
+      '[handleGenerateWithNewMessage] Using traditional flow (use_agentic_flow is false)'
     );
 
     // Original flow: always generate emails
@@ -2430,7 +2435,12 @@ export class EmailCampaignsService {
     // Check if we have a smart session ID, which means we're using the agentic flow
     const smartSessionId = (session as any).smartSessionId;
 
-    if (smartSessionId && env.USE_AGENTIC_FLOW) {
+    const useAgenticFlow = await isFeatureEnabledForOrganization(
+      organizationId,
+      'use_agentic_flow'
+    );
+
+    if (smartSessionId && useAgenticFlow) {
       // Get messages from the SmartEmailGenerationService
       try {
         const smartEmailService = new SmartEmailGenerationService();

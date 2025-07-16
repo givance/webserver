@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "feature_flags" jsonb DEFAULT '{"use_o3_model": false, "use_agentic_flow": false}'::jsonb;

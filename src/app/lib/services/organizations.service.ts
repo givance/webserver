@@ -20,6 +20,8 @@ import {
   createValidationError,
   ErrorHandler,
 } from '@/app/lib/utils/error-handler';
+import { FeatureFlagService } from '@/app/lib/feature-flags/service';
+import { FeatureFlagManager } from '@/app/lib/feature-flags/types';
 
 /**
  * Input types for organization operations
@@ -55,6 +57,30 @@ export class OrganizationsService {
         throw createNotFoundError('Organization', organizationId);
       }
       return organization;
+    });
+  }
+
+  /**
+   * Retrieves an organization with feature flags
+   * @param organizationId - The organization ID
+   * @returns The organization data with feature flags
+   * @throws TRPCError if organization not found
+   */
+  async getOrganizationWithFeatureFlags(organizationId: string) {
+    return await ErrorHandler.wrapOperation(async () => {
+      const organization = await getOrganizationById(organizationId);
+      if (!organization) {
+        throw createNotFoundError('Organization', organizationId);
+      }
+
+      // Get feature flags for the organization
+      const featureFlagManager = await FeatureFlagService.getFeatureFlags(organizationId);
+      const featureFlags = featureFlagManager.getAllFlags();
+
+      return {
+        ...organization,
+        featureFlags,
+      };
     });
   }
 
@@ -246,6 +272,15 @@ export class OrganizationsService {
       );
       return updated;
     });
+  }
+
+  /**
+   * Retrieves the feature flags for an organization
+   * @param organizationId - The organization ID
+   * @returns The feature flag manager instance
+   */
+  async getOrganizationFeatureFlags(organizationId: string): Promise<FeatureFlagManager> {
+    return await FeatureFlagService.getFeatureFlags(organizationId);
   }
 
   /**

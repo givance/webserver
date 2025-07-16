@@ -1,7 +1,8 @@
-import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
-import type { AgenticEmailGenerationInput } from "@/app/lib/services/agentic-email-generation.service";
-import { env } from "@/app/lib/env";
+import { z } from 'zod';
+import { protectedProcedure, router } from '../trpc';
+import type { AgenticEmailGenerationInput } from '@/app/lib/services/agentic-email-generation.service';
+import { env } from '@/app/lib/env';
+import { isFeatureEnabledForOrganization } from '@/app/lib/feature-flags/utils';
 
 // Input validation schemas for agentic flow
 const startAgenticFlowSchema = z.object({
@@ -48,52 +49,88 @@ export const agenticEmailCampaignsRouter = router({
     .input(startAgenticFlowSchema)
     .mutation(async ({ ctx, input }: { ctx: any; input: AgenticEmailGenerationInput }) => {
       // Check if agentic flow is enabled
-      if (!env.USE_AGENTIC_FLOW) {
-        throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
+      const useAgenticFlow = await isFeatureEnabledForOrganization(
+        ctx.auth.user.organizationId,
+        'use_agentic_flow'
+      );
+      if (!useAgenticFlow) {
+        throw new Error('Agentic flow is not enabled for your organization.');
       }
 
-      return await ctx.services.agenticEmailGeneration.startAgenticFlow(input, ctx.auth.user.organizationId, ctx.auth.user.id);
+      return await ctx.services.agenticEmailGeneration.startAgenticFlow(
+        input,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
     }),
 
   /**
    * Continues an existing agentic conversation
    */
-  continueFlow: protectedProcedure.input(continueAgenticFlowSchema).mutation(async ({ ctx, input }) => {
-    if (!env.USE_AGENTIC_FLOW) {
-      throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
-    }
+  continueFlow: protectedProcedure
+    .input(continueAgenticFlowSchema)
+    .mutation(async ({ ctx, input }) => {
+      const useAgenticFlow = await isFeatureEnabledForOrganization(
+        ctx.auth.user.organizationId,
+        'use_agentic_flow'
+      );
+      if (!useAgenticFlow) {
+        throw new Error('Agentic flow is not enabled for your organization.');
+      }
 
-    return await ctx.services.agenticEmailGeneration.continueAgenticFlow(input.sessionId, input.userResponse);
-  }),
+      return await ctx.services.agenticEmailGeneration.continueAgenticFlow(
+        input.sessionId,
+        input.userResponse
+      );
+    }),
 
   /**
    * Generates the final prompt for user confirmation
    */
-  generateFinalPrompt: protectedProcedure.input(generateFinalPromptSchema).mutation(async ({ ctx, input }) => {
-    if (!env.USE_AGENTIC_FLOW) {
-      throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
-    }
+  generateFinalPrompt: protectedProcedure
+    .input(generateFinalPromptSchema)
+    .mutation(async ({ ctx, input }) => {
+      const useAgenticFlow = await isFeatureEnabledForOrganization(
+        ctx.auth.user.organizationId,
+        'use_agentic_flow'
+      );
+      if (!useAgenticFlow) {
+        throw new Error('Agentic flow is not enabled for your organization.');
+      }
 
-    return await ctx.services.agenticEmailGeneration.generateFinalPrompt(input.sessionId);
-  }),
+      return await ctx.services.agenticEmailGeneration.generateFinalPrompt(input.sessionId);
+    }),
 
   /**
    * Executes email generation using the confirmed prompt
    */
-  executeGeneration: protectedProcedure.input(executeEmailGenerationSchema).mutation(async ({ ctx, input }) => {
-    if (!env.USE_AGENTIC_FLOW) {
-      throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
-    }
+  executeGeneration: protectedProcedure
+    .input(executeEmailGenerationSchema)
+    .mutation(async ({ ctx, input }) => {
+      const useAgenticFlow = await isFeatureEnabledForOrganization(
+        ctx.auth.user.organizationId,
+        'use_agentic_flow'
+      );
+      if (!useAgenticFlow) {
+        throw new Error('Agentic flow is not enabled for your organization.');
+      }
 
-    return await ctx.services.agenticEmailGeneration.executeEmailGeneration(input.sessionId, input.confirmedPrompt);
-  }),
+      return await ctx.services.agenticEmailGeneration.executeEmailGeneration(
+        input.sessionId,
+        input.confirmedPrompt
+      );
+    }),
 
   /**
    * Gets the current state of an agentic session
    */
   getSessionState: protectedProcedure.input(getSessionStateSchema).query(async ({ ctx, input }) => {
-    if (!env.USE_AGENTIC_FLOW) {
-      throw new Error("Agentic flow is not enabled. Set USE_AGENTIC_FLOW=true to enable this feature.");
+    const useAgenticFlow = await isFeatureEnabledForOrganization(
+      ctx.auth.user.organizationId,
+      'use_agentic_flow'
+    );
+    if (!useAgenticFlow) {
+      throw new Error('Agentic flow is not enabled for your organization.');
     }
 
     return ctx.services.agenticEmailGeneration.getSessionState(input.sessionId);

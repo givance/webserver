@@ -20,6 +20,9 @@ export const organizations = pgTable('organizations', {
   memory: text('memory')
     .array()
     .default(sql`'{}'::text[]`), // Array of strings for organization memory, default empty array
+  featureFlags: jsonb('feature_flags').default(
+    sql`'{"use_o3_model": false, "use_agentic_flow": false}'::jsonb`
+  ), // Feature flags for the organization
   createdAt: timestamp('created_at')
     .default(sql`now()`)
     .notNull(),

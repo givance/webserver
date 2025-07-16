@@ -42,6 +42,14 @@ const donorJourneySchema = z.object({
 });
 
 /**
+ * Feature flags schema
+ */
+const featureFlagsSchema = z.object({
+  use_o3_model: z.boolean(),
+  use_agentic_flow: z.boolean(),
+});
+
+/**
  * Organization response schema
  */
 const organizationResponseSchema = z.object({
@@ -55,6 +63,7 @@ const organizationResponseSchema = z.object({
   memory: z.array(z.string()),
   donorJourney: donorJourneySchema.nullable(),
   donorJourneyText: z.string().nullable(),
+  featureFlags: featureFlagsSchema,
   createdAt: z.string(), // ISO string
   updatedAt: z.string(), // ISO string
 });
@@ -111,7 +120,7 @@ export const organizationsRouter = router({
   /**
    * Get the current organization's details
    *
-   * @returns Organization data including donor journey
+   * @returns Organization data including donor journey and feature flags
    *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
@@ -119,7 +128,9 @@ export const organizationsRouter = router({
   getCurrent: protectedProcedure.output(organizationResponseSchema).query(async ({ ctx }) => {
     validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-    const org = await ctx.services.organizations.getOrganization(ctx.auth.user.organizationId);
+    const org = await ctx.services.organizations.getOrganizationWithFeatureFlags(
+      ctx.auth.user.organizationId
+    );
 
     return serializeOrganization(org);
   }),
@@ -345,4 +356,22 @@ export const organizationsRouter = router({
         donorJourney: org.donorJourney as z.infer<typeof donorJourneySchema>,
       };
     }),
+
+  /**
+   * Get the current organization's feature flags
+   *
+   * @returns Feature flags for the organization
+   *
+   * @throws {TRPCError} NOT_FOUND if organization doesn't exist
+   * @throws {TRPCError} UNAUTHORIZED if user has no organization
+   */
+  getFeatureFlags: protectedProcedure.output(featureFlagsSchema).query(async ({ ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+
+    const featureFlagManager = await ctx.services.organizations.getOrganizationFeatureFlags(
+      ctx.auth.user.organizationId
+    );
+
+    return featureFlagManager.getAllFlags();
+  }),
 });
