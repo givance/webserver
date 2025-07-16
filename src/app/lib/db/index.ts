@@ -1,10 +1,10 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-import * as schema from "./schema"; // Import all schema objects
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import * as schema from './schema'; // Import all schema objects
 
 // Ensure DATABASE_URL is set.
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is not set");
+  throw new Error('DATABASE_URL environment variable is not set');
 }
 
 /**
@@ -22,7 +22,7 @@ const pool = new Pool({
 export const db = drizzle(pool, { schema });
 
 // It might be beneficial to also export the schema for direct use if needed.
-export * as allSchema from "./schema";
+export * as allSchema from './schema';
 
 // Type definitions for convenience, inferring from the schema.
 // Example: export type User = typeof schema.users.$inferSelect;
