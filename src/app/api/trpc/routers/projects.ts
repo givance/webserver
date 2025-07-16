@@ -63,20 +63,13 @@ export const projectsRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getByIds: protectedProcedure
-    .input(projectIdsSchema)
-    .output(z.array(projectResponseSchema))
-    .query(async ({ input, ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  getByIds: protectedProcedure.input(projectIdsSchema).query(async ({ input, ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      const projects = await getProjectsByIds(input.ids, ctx.auth.user.organizationId);
+    const projects = await getProjectsByIds(input.ids, ctx.auth.user.organizationId);
 
-      return projects;
-    }),
+    return projects;
+  }),
 
   /**
    * Create a new project
@@ -92,40 +85,33 @@ export const projectsRouter = router({
    * @throws {TRPCError} CONFLICT if project name already exists
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
-  create: protectedProcedure
-    .input(projectSchemas.create)
-    .output(projectResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  create: protectedProcedure.input(projectSchemas.create).mutation(async ({ input, ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      try {
-        return await createProject({
-          ...input,
-          organizationId: ctx.auth.user.organizationId,
-          external: false,
-        });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('already exists')) {
-          throw createTRPCError({
-            code: 'CONFLICT',
-            message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
-            logLevel: 'info',
-            metadata: { projectName: input.name },
-          });
-        }
-
+    try {
+      return await createProject({
+        ...input,
+        organizationId: ctx.auth.user.organizationId,
+        external: false,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
         throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: ERROR_MESSAGES.OPERATION_FAILED('create project'),
-          cause: error,
-          metadata: { userId: ctx.auth.user.id },
+          code: 'CONFLICT',
+          message: `A project with the name "${input.name}" already exists. Please choose a different name.`,
+          logLevel: 'info',
+          metadata: { projectName: input.name },
         });
       }
-    }),
+
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: ERROR_MESSAGES.OPERATION_FAILED('create project'),
+        cause: error,
+        metadata: { userId: ctx.auth.user.id },
+      });
+    }
+  }),
 
   /**
    * Update an existing project
@@ -149,7 +135,6 @@ export const projectsRouter = router({
         ...projectSchemas.update.shape,
       })
     )
-    .output(projectResponseSchema)
     .mutation(async ({ input }) => {
       const { id, ...updateData } = input;
 
@@ -168,31 +153,28 @@ export const projectsRouter = router({
    * @throws {TRPCError} NOT_FOUND if project doesn't exist
    * @throws {TRPCError} CONFLICT if project has associated records
    */
-  delete: protectedProcedure
-    .input(z.object({ id: idSchema }))
-    .output(z.void())
-    .mutation(async ({ input }) => {
-      try {
-        await deleteProject(input.id);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('linked to other records')) {
-          throw createTRPCError({
-            code: 'CONFLICT',
-            message:
-              'This project cannot be deleted because it has associated donations or other records. Please remove those associations first.',
-            logLevel: 'info',
-            metadata: { projectId: input.id },
-          });
-        }
-
+  delete: protectedProcedure.input(z.object({ id: idSchema })).mutation(async ({ input }) => {
+    try {
+      await deleteProject(input.id);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('linked to other records')) {
         throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: ERROR_MESSAGES.OPERATION_FAILED('delete project'),
-          cause: error,
+          code: 'CONFLICT',
+          message:
+            'This project cannot be deleted because it has associated donations or other records. Please remove those associations first.',
+          logLevel: 'info',
           metadata: { projectId: input.id },
         });
       }
-    }),
+
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: ERROR_MESSAGES.OPERATION_FAILED('delete project'),
+        cause: error,
+        metadata: { projectId: input.id },
+      });
+    }
+  }),
 
   /**
    * List projects with filtering and pagination
@@ -208,16 +190,9 @@ export const projectsRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  list: protectedProcedure
-    .input(listProjectsInputSchema)
-    .output(listProjectsResponseSchema)
-    .query(async ({ input, ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  list: protectedProcedure.input(listProjectsInputSchema).query(async ({ input, ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await listProjects(input, ctx.auth.user.organizationId);
-    }),
+    return await listProjects(input, ctx.auth.user.organizationId);
+  }),
 });

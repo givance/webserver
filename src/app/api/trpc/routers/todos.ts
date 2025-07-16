@@ -114,21 +114,18 @@ export const todoRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
-  create: protectedProcedure
-    .input(createTodoInputSchema)
-    .output(todoResponseSchema)
-    .mutation(async ({ ctx, input }) => {
-      const { user } = ctx.auth;
+  create: protectedProcedure.input(createTodoInputSchema).mutation(async ({ ctx, input }) => {
+    const { user } = ctx.auth;
 
-      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+    validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      const result = await ctx.services.todos.createTodo({
-        ...input,
-        organizationId: user.organizationId,
-      });
+    const result = await ctx.services.todos.createTodo({
+      ...input,
+      organizationId: user.organizationId,
+    });
 
-      return serializeTodo(result);
-    }),
+    return serializeTodo(result);
+  }),
 
   /**
    * Update an existing todo
@@ -141,16 +138,13 @@ export const todoRouter = router({
    * @throws {TRPCError} NOT_FOUND if todo doesn't exist
    * @throws {TRPCError} FORBIDDEN if user doesn't have access
    */
-  update: protectedProcedure
-    .input(updateTodoInputSchema)
-    .output(todoResponseSchema)
-    .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+  update: protectedProcedure.input(updateTodoInputSchema).mutation(async ({ ctx, input }) => {
+    const { id, ...updateData } = input;
 
-      const result = await ctx.services.todos.updateTodo(id, updateData);
+    const result = await ctx.services.todos.updateTodo(id, updateData);
 
-      return serializeTodo(result);
-    }),
+    return serializeTodo(result);
+  }),
 
   /**
    * Bulk update multiple todos
@@ -163,21 +157,18 @@ export const todoRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} BAD_REQUEST if no IDs provided
    */
-  updateMany: protectedProcedure
-    .input(bulkUpdateInputSchema)
-    .output(z.object({ count: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      const { ids, data } = input;
-      const { user } = ctx.auth;
+  updateMany: protectedProcedure.input(bulkUpdateInputSchema).mutation(async ({ ctx, input }) => {
+    const { ids, data } = input;
+    const { user } = ctx.auth;
 
-      validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+    validateNotNullish(user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      const serviceUpdateData: UpdateTodoInput = { ...data };
-      const updatePromises = ids.map((id) => ctx.services.todos.updateTodo(id, serviceUpdateData));
-      const results = await Promise.all(updatePromises);
+    const serviceUpdateData: UpdateTodoInput = { ...data };
+    const updatePromises = ids.map((id) => ctx.services.todos.updateTodo(id, serviceUpdateData));
+    const results = await Promise.all(updatePromises);
 
-      return { count: results.filter((r) => r).length };
-    }),
+    return { count: results.filter((r) => r).length };
+  }),
 
   /**
    * Delete a todo
@@ -187,12 +178,9 @@ export const todoRouter = router({
    * @throws {TRPCError} NOT_FOUND if todo doesn't exist
    * @throws {TRPCError} FORBIDDEN if user doesn't have access
    */
-  delete: protectedProcedure
-    .input(z.object({ id: idSchema }))
-    .output(z.void())
-    .mutation(async ({ ctx, input }) => {
-      await ctx.services.todos.deleteTodo(input.id);
-    }),
+  delete: protectedProcedure.input(z.object({ id: idSchema })).mutation(async ({ ctx, input }) => {
+    await ctx.services.todos.deleteTodo(input.id);
+  }),
 
   /**
    * Get todos for the current organization
@@ -208,7 +196,6 @@ export const todoRouter = router({
    */
   getByOrganization: protectedProcedure
     .input(listTodosInputSchema)
-    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
 
@@ -234,7 +221,6 @@ export const todoRouter = router({
         statusesToExclude: z.array(z.string()).optional(),
       })
     )
-    .output(groupedTodosResponseSchema)
     .query(async ({ ctx, input }) => {
       const { user } = ctx.auth;
 
@@ -264,7 +250,6 @@ export const todoRouter = router({
    */
   getByDonor: protectedProcedure
     .input(z.object({ donorId: idSchema }))
-    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const todos = await ctx.services.todos.getTodosByDonor(input.donorId);
 
@@ -282,7 +267,6 @@ export const todoRouter = router({
    */
   getByStaff: protectedProcedure
     .input(z.object({ staffId: idSchema }))
-    .output(z.array(todoResponseSchema))
     .query(async ({ ctx, input }) => {
       const todos = await ctx.services.todos.getTodosByStaff(input.staffId);
 

@@ -124,7 +124,7 @@ export const usersRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if user doesn't exist
    */
-  getCurrent: protectedProcedure.output(userResponseSchema).query(async ({ ctx }) => {
+  getCurrent: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.auth.user.id);
 
     validateNotNullish(user, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
@@ -142,16 +142,13 @@ export const usersRouter = router({
    * @throws {TRPCError} NOT_FOUND if user doesn't exist
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
-  updateMemory: protectedProcedure
-    .input(updateMemorySchema)
-    .output(userResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const updated = await updateUserMemory(ctx.auth.user.id, input.memory);
+  updateMemory: protectedProcedure.input(updateMemorySchema).mutation(async ({ input, ctx }) => {
+    const updated = await updateUserMemory(ctx.auth.user.id, input.memory);
 
-      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
+    validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-      return serializeUser(updated);
-    }),
+    return serializeUser(updated);
+  }),
 
   /**
    * Dismiss a memory item
@@ -163,16 +160,13 @@ export const usersRouter = router({
    * @throws {TRPCError} NOT_FOUND if user doesn't exist
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if update fails
    */
-  dismissMemory: protectedProcedure
-    .input(dismissMemorySchema)
-    .output(userResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const updated = await addDismissedMemory(ctx.auth.user.id, input.memory);
+  dismissMemory: protectedProcedure.input(dismissMemorySchema).mutation(async ({ input, ctx }) => {
+    const updated = await addDismissedMemory(ctx.auth.user.id, input.memory);
 
-      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
+    validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('User'));
 
-      return serializeUser(updated);
-    }),
+    return serializeUser(updated);
+  }),
 
   /**
    * Update the user's email signature
@@ -186,7 +180,6 @@ export const usersRouter = router({
    */
   updateEmailSignature: protectedProcedure
     .input(updateSignatureSchema)
-    .output(userResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const updated = await updateUserEmailSignature(ctx.auth.user.id, input.signature);
 
@@ -211,7 +204,6 @@ export const usersRouter = router({
    */
   uploadSignatureImage: protectedProcedure
     .input(uploadSignatureImageSchema)
-    .output(signatureImageResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { organizationId } = ctx.auth.user;
 
@@ -262,32 +254,30 @@ export const usersRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getSignatureImages: protectedProcedure
-    .output(z.array(signatureImageResponseSchema.omit({ dataUrl: true })))
-    .query(async ({ ctx }) => {
-      const { organizationId } = ctx.auth.user;
+  getSignatureImages: protectedProcedure.query(async ({ ctx }) => {
+    const { organizationId } = ctx.auth.user;
 
-      validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
+    validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
-      const images = await db
-        .select({
-          id: signatureImages.id,
-          filename: signatureImages.filename,
-          mimeType: signatureImages.mimeType,
-          size: signatureImages.size,
-          createdAt: signatureImages.createdAt,
-        })
-        .from(signatureImages)
-        .where(
-          and(
-            eq(signatureImages.organizationId, organizationId),
-            eq(signatureImages.userId, ctx.auth.user.id)
-          )
+    const images = await db
+      .select({
+        id: signatureImages.id,
+        filename: signatureImages.filename,
+        mimeType: signatureImages.mimeType,
+        size: signatureImages.size,
+        createdAt: signatureImages.createdAt,
+      })
+      .from(signatureImages)
+      .where(
+        and(
+          eq(signatureImages.organizationId, organizationId),
+          eq(signatureImages.userId, ctx.auth.user.id)
         )
-        .orderBy(signatureImages.createdAt);
+      )
+      .orderBy(signatureImages.createdAt);
 
-      return images.map(serializeSignatureImage);
-    }),
+    return images.map(serializeSignatureImage);
+  }),
 
   /**
    * Get a signature image by ID with hosted URL
@@ -299,37 +289,34 @@ export const usersRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} NOT_FOUND if image doesn't exist
    */
-  getSignatureImageData: protectedProcedure
-    .input(imageIdSchema)
-    .output(signatureImageResponseSchema)
-    .query(async ({ input, ctx }) => {
-      const { organizationId } = ctx.auth.user;
+  getSignatureImageData: protectedProcedure.input(imageIdSchema).query(async ({ input, ctx }) => {
+    const { organizationId } = ctx.auth.user;
 
-      validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
+    validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
-      const [image] = await db
-        .select()
-        .from(signatureImages)
-        .where(
-          and(
-            eq(signatureImages.id, input.imageId),
-            eq(signatureImages.organizationId, organizationId),
-            eq(signatureImages.userId, ctx.auth.user.id)
-          )
+    const [image] = await db
+      .select()
+      .from(signatureImages)
+      .where(
+        and(
+          eq(signatureImages.id, input.imageId),
+          eq(signatureImages.organizationId, organizationId),
+          eq(signatureImages.userId, ctx.auth.user.id)
         )
-        .limit(1);
+      )
+      .limit(1);
 
-      validateNotNullish(image, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
+    validateNotNullish(image, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
 
-      return serializeSignatureImage({
-        id: image.id,
-        filename: image.filename,
-        mimeType: image.mimeType,
-        size: image.size,
-        dataUrl: getHostedImageUrl(image.id),
-        createdAt: image.createdAt,
-      });
-    }),
+    return serializeSignatureImage({
+      id: image.id,
+      filename: image.filename,
+      mimeType: image.mimeType,
+      size: image.size,
+      dataUrl: getHostedImageUrl(image.id),
+      createdAt: image.createdAt,
+    });
+  }),
 
   /**
    * Delete a signature image
@@ -341,27 +328,24 @@ export const usersRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    * @throws {TRPCError} NOT_FOUND if image doesn't exist
    */
-  deleteSignatureImage: protectedProcedure
-    .input(imageIdSchema)
-    .output(z.object({ success: z.boolean() }))
-    .mutation(async ({ input, ctx }) => {
-      const { organizationId } = ctx.auth.user;
+  deleteSignatureImage: protectedProcedure.input(imageIdSchema).mutation(async ({ input, ctx }) => {
+    const { organizationId } = ctx.auth.user;
 
-      validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
+    validateNotNullish(organizationId, 'UNAUTHORIZED', 'User must belong to an organization');
 
-      const [deleted] = await db
-        .delete(signatureImages)
-        .where(
-          and(
-            eq(signatureImages.id, input.imageId),
-            eq(signatureImages.organizationId, organizationId),
-            eq(signatureImages.userId, ctx.auth.user.id)
-          )
+    const [deleted] = await db
+      .delete(signatureImages)
+      .where(
+        and(
+          eq(signatureImages.id, input.imageId),
+          eq(signatureImages.organizationId, organizationId),
+          eq(signatureImages.userId, ctx.auth.user.id)
         )
-        .returning();
+      )
+      .returning();
 
-      validateNotNullish(deleted, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
+    validateNotNullish(deleted, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Image'));
 
-      return { success: true };
-    }),
+    return { success: true };
+  }),
 });

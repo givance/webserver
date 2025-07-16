@@ -125,7 +125,7 @@ export const organizationsRouter = router({
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getCurrent: protectedProcedure.output(organizationResponseSchema).query(async ({ ctx }) => {
+  getCurrent: protectedProcedure.query(async ({ ctx }) => {
     validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
     const org = await ctx.services.organizations.getOrganizationWithFeatureFlags(
@@ -154,7 +154,6 @@ export const organizationsRouter = router({
    */
   updateCurrent: protectedProcedure
     .input(updateOrganizationSchema)
-    .output(organizationResponseSchema)
     .mutation(async ({ input, ctx }) => {
       validateNotNullish(
         ctx.auth.user?.organizationId,
@@ -179,21 +178,15 @@ export const organizationsRouter = router({
    * @throws {TRPCError} BAD_REQUEST if organization lacks required data
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if AI generation fails
    */
-  generateShortDescription: protectedProcedure
-    .output(generateDescriptionResponseSchema)
-    .mutation(async ({ ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  generateShortDescription: protectedProcedure.mutation(async ({ ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      const shortDescription = await ctx.services.organizations.generateShortDescription(
-        ctx.auth.user.organizationId
-      );
+    const shortDescription = await ctx.services.organizations.generateShortDescription(
+      ctx.auth.user.organizationId
+    );
 
-      return { shortDescription };
-    }),
+    return { shortDescription };
+  }),
 
   /**
    * Move a memory item from user memory to organization memory
@@ -207,7 +200,6 @@ export const organizationsRouter = router({
    */
   moveMemoryFromUser: protectedProcedure
     .input(moveMemorySchema)
-    .output(moveMemoryResponseSchema)
     .mutation(async ({ input, ctx }) => {
       validateNotNullish(
         ctx.auth.user?.organizationId,
@@ -234,19 +226,13 @@ export const organizationsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    */
-  getDonorJourney: protectedProcedure
-    .output(donorJourneySchema.nullable())
-    .query(async ({ ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  getDonorJourney: protectedProcedure.query(async ({ ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await ctx.services.organizations.getOrganizationDonorJourney(
-        ctx.auth.user.organizationId
-      );
-    }),
+    return await ctx.services.organizations.getOrganizationDonorJourney(
+      ctx.auth.user.organizationId
+    );
+  }),
 
   /**
    * Update the current organization's donor journey
@@ -261,7 +247,6 @@ export const organizationsRouter = router({
    */
   updateDonorJourney: protectedProcedure
     .input(donorJourneySchema)
-    .output(donorJourneySchema)
     .mutation(async ({ input, ctx }) => {
       validateNotNullish(
         ctx.auth.user?.organizationId,
@@ -285,7 +270,7 @@ export const organizationsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    */
-  getDonorJourneyText: protectedProcedure.output(z.string().nullable()).query(async ({ ctx }) => {
+  getDonorJourneyText: protectedProcedure.query(async ({ ctx }) => {
     validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
     return await ctx.services.organizations.getOrganizationDonorJourneyText(
@@ -304,7 +289,6 @@ export const organizationsRouter = router({
    */
   updateDonorJourneyText: protectedProcedure
     .input(donorJourneyTextSchema)
-    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
       validateNotNullish(
         ctx.auth.user?.organizationId,
@@ -332,7 +316,6 @@ export const organizationsRouter = router({
    */
   processDonorJourney: protectedProcedure
     .input(donorJourneyTextSchema)
-    .output(processDonorJourneyResponseSchema)
     .mutation(async ({ input, ctx }) => {
       validateNotNullish(
         ctx.auth.user?.organizationId,
@@ -365,7 +348,7 @@ export const organizationsRouter = router({
    * @throws {TRPCError} NOT_FOUND if organization doesn't exist
    * @throws {TRPCError} UNAUTHORIZED if user has no organization
    */
-  getFeatureFlags: protectedProcedure.output(featureFlagsSchema).query(async ({ ctx }) => {
+  getFeatureFlags: protectedProcedure.query(async ({ ctx }) => {
     validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
     const featureFlagManager = await ctx.services.organizations.getOrganizationFeatureFlags(

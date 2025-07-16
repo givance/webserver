@@ -153,14 +153,11 @@ export const staffRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if any staff member doesn't exist
    */
-  getByIds: protectedProcedure
-    .input(staffIdsSchema)
-    .output(z.array(staffResponseSchema))
-    .query(async ({ input, ctx }) => {
-      const staffMembers = await getStaffByIds(input.ids, ctx.auth.user.organizationId);
+  getByIds: protectedProcedure.input(staffIdsSchema).query(async ({ input, ctx }) => {
+    const staffMembers = await getStaffByIds(input.ids, ctx.auth.user.organizationId);
 
-      return staffMembers;
-    }),
+    return staffMembers;
+  }),
 
   /**
    * Get a staff member by email address
@@ -173,7 +170,6 @@ export const staffRouter = router({
    */
   getByEmail: protectedProcedure
     .input(z.object({ email: emailSchema }))
-    .output(staffResponseSchema)
     .query(async ({ input, ctx }) => {
       const staff = await getStaffByEmail(input.email, ctx.auth.user.organizationId);
 
@@ -199,39 +195,32 @@ export const staffRouter = router({
    * @throws {TRPCError} CONFLICT if email already exists
    * @throws {TRPCError} UNAUTHORIZED if no organization
    */
-  create: protectedProcedure
-    .input(createStaffInputSchema)
-    .output(staffResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      validateNotNullish(
-        ctx.auth.user?.organizationId,
-        'UNAUTHORIZED',
-        ERROR_MESSAGES.UNAUTHORIZED
-      );
+  create: protectedProcedure.input(createStaffInputSchema).mutation(async ({ input, ctx }) => {
+    validateNotNullish(ctx.auth.user?.organizationId, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      try {
-        return await createStaff({
-          ...input,
-          organizationId: ctx.auth.user.organizationId,
-        });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('already exists')) {
-          throw createTRPCError({
-            code: 'CONFLICT',
-            message: `A staff member with email ${input.email} already exists in your organization`,
-            logLevel: 'info',
-            metadata: { email: input.email },
-          });
-        }
-
+    try {
+      return await createStaff({
+        ...input,
+        organizationId: ctx.auth.user.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
         throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: ERROR_MESSAGES.OPERATION_FAILED('create staff member'),
-          cause: error,
-          metadata: { userId: ctx.auth.user.id },
+          code: 'CONFLICT',
+          message: `A staff member with email ${input.email} already exists in your organization`,
+          logLevel: 'info',
+          metadata: { email: input.email },
         });
       }
-    }),
+
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: ERROR_MESSAGES.OPERATION_FAILED('create staff member'),
+        cause: error,
+        metadata: { userId: ctx.auth.user.id },
+      });
+    }
+  }),
 
   /**
    * Update an existing staff member
@@ -244,18 +233,15 @@ export const staffRouter = router({
    * @throws {TRPCError} NOT_FOUND if staff member doesn't exist
    * @throws {TRPCError} CONFLICT if email already exists
    */
-  update: protectedProcedure
-    .input(updateStaffInputSchema)
-    .output(staffResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { id, ...updateData } = input;
+  update: protectedProcedure.input(updateStaffInputSchema).mutation(async ({ input, ctx }) => {
+    const { id, ...updateData } = input;
 
-      const updated = await updateStaff(id, updateData, ctx.auth.user.organizationId);
+    const updated = await updateStaff(id, updateData, ctx.auth.user.organizationId);
 
-      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
+    validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Staff member'));
 
-      return updated;
-    }),
+    return updated;
+  }),
 
   /**
    * Delete a staff member
@@ -265,31 +251,28 @@ export const staffRouter = router({
    * @throws {TRPCError} NOT_FOUND if staff member doesn't exist
    * @throws {TRPCError} CONFLICT if staff member has assigned records
    */
-  delete: protectedProcedure
-    .input(z.object({ id: idSchema }))
-    .output(z.void())
-    .mutation(async ({ input, ctx }) => {
-      try {
-        await deleteStaff(input.id, ctx.auth.user.organizationId);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('linked to other records')) {
-          throw createTRPCError({
-            code: 'CONFLICT',
-            message:
-              'This staff member cannot be deleted because they have assigned donors or other associated records. Please reassign their responsibilities first.',
-            logLevel: 'info',
-            metadata: { staffId: input.id },
-          });
-        }
-
+  delete: protectedProcedure.input(z.object({ id: idSchema })).mutation(async ({ input, ctx }) => {
+    try {
+      await deleteStaff(input.id, ctx.auth.user.organizationId);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('linked to other records')) {
         throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: ERROR_MESSAGES.OPERATION_FAILED('delete staff member'),
-          cause: error,
+          code: 'CONFLICT',
+          message:
+            'This staff member cannot be deleted because they have assigned donors or other associated records. Please reassign their responsibilities first.',
+          logLevel: 'info',
           metadata: { staffId: input.id },
         });
       }
-    }),
+
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: ERROR_MESSAGES.OPERATION_FAILED('delete staff member'),
+        cause: error,
+        metadata: { staffId: input.id },
+      });
+    }
+  }),
 
   /**
    * List staff members with filtering and pagination
@@ -303,12 +286,9 @@ export const staffRouter = router({
    *
    * @returns Object containing staff array and total count
    */
-  list: protectedProcedure
-    .input(listStaffInputSchema)
-    .output(listStaffResponseSchema)
-    .query(async ({ input, ctx }) => {
-      return await listStaff(input, ctx.auth.user.organizationId);
-    }),
+  list: protectedProcedure.input(listStaffInputSchema).query(async ({ input, ctx }) => {
+    return await listStaff(input, ctx.auth.user.organizationId);
+  }),
 
   /**
    * Get all donors assigned to a staff member
@@ -355,7 +335,6 @@ export const staffRouter = router({
         signature: z.string().optional(),
       })
     )
-    .output(staffResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { id, signature } = input;
 
@@ -382,7 +361,6 @@ export const staffRouter = router({
    */
   setPrimary: protectedProcedure
     .input(z.object({ id: idSchema }))
-    .output(staffResponseSchema)
     .mutation(async ({ input, ctx }) => {
       // Check if staff member exists and has email account connected
       const staffMembers = await getStaffByIds([input.id], ctx.auth.user.organizationId);
@@ -414,7 +392,6 @@ export const staffRouter = router({
    */
   unsetPrimary: protectedProcedure
     .input(z.object({ id: idSchema }))
-    .output(staffResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const updated = await unsetPrimaryStaff(input.id, ctx.auth.user.organizationId);
 
@@ -428,7 +405,7 @@ export const staffRouter = router({
    *
    * @returns The primary staff member or null
    */
-  getPrimary: protectedProcedure.output(staffResponseSchema.nullable()).query(async ({ ctx }) => {
+  getPrimary: protectedProcedure.query(async ({ ctx }) => {
     const result = await getPrimaryStaff(ctx.auth.user.organizationId);
     return result || null; // Ensure we return null instead of undefined
   }),
@@ -448,7 +425,6 @@ export const staffRouter = router({
    */
   createEmailExample: protectedProcedure
     .input(createEmailExampleInputSchema)
-    .output(emailExampleResponseSchema)
     .mutation(async ({ input, ctx }) => {
       // Verify staff member exists
       const staff = await getStaffById(input.staffId, ctx.auth.user.organizationId);
@@ -478,7 +454,6 @@ export const staffRouter = router({
    */
   listEmailExamples: protectedProcedure
     .input(z.object({ id: idSchema }))
-    .output(emailExamplesResponseSchema)
     .query(async ({ input, ctx }) => {
       // Verify staff member exists
       const staff = await getStaffById(input.id, ctx.auth.user.organizationId);
@@ -504,7 +479,6 @@ export const staffRouter = router({
    */
   getEmailExample: protectedProcedure
     .input(z.object({ id: idSchema }))
-    .output(emailExampleResponseSchema)
     .query(async ({ input, ctx }) => {
       const example = await getEmailExampleById(input.id, ctx.auth.user.organizationId);
 
@@ -528,7 +502,6 @@ export const staffRouter = router({
    */
   updateEmailExample: protectedProcedure
     .input(updateEmailExampleInputSchema)
-    .output(emailExampleResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { id, ...updateData } = input;
 
@@ -553,7 +526,6 @@ export const staffRouter = router({
    */
   deleteEmailExample: protectedProcedure
     .input(z.object({ id: idSchema }))
-    .output(z.void())
     .mutation(async ({ input, ctx }) => {
       // Verify example exists
       const existing = await getEmailExampleById(input.id, ctx.auth.user.organizationId);

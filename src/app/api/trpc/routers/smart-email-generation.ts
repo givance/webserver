@@ -78,52 +78,35 @@ export const smartEmailGenerationRouter = router({
   /**
    * Start a new smart email generation conversation
    */
-  startFlow: protectedProcedure
-    .input(StartFlowInputSchema)
-    .output(
-      z.object({
-        sessionId: z.string(),
-        response: AgentResponseSchema,
-        currentStep: z.nativeEnum(SmartEmailSessionStep),
-      })
-    )
-    .mutation(async ({ input, ctx }) => {
-      try {
-        logger.info(`[SmartEmailGenerationRouter] Starting flow for user ${ctx.auth.user.id}`);
+  startFlow: protectedProcedure.input(StartFlowInputSchema).mutation(async ({ input, ctx }) => {
+    try {
+      logger.info(`[SmartEmailGenerationRouter] Starting flow for user ${ctx.auth.user.id}`);
 
-        const service = new SmartEmailGenerationService();
+      const service = new SmartEmailGenerationService();
 
-        const result = await service.startSmartEmailFlow({
-          organizationId: ctx.auth.user.organizationId,
-          userId: ctx.auth.user.id,
-          donorIds: input.donorIds,
-          initialInstruction: input.initialInstruction,
-        });
+      const result = await service.startSmartEmailFlow({
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+        donorIds: input.donorIds,
+        initialInstruction: input.initialInstruction,
+      });
 
-        logger.info(`[SmartEmailGenerationRouter] Started session ${result.sessionId}`);
-        return result;
-      } catch (error) {
-        logger.error('[SmartEmailGenerationRouter] Failed to start flow:', error);
-        throw ErrorHandler.createError(
-          'INTERNAL_SERVER_ERROR',
-          'Failed to start smart email generation flow'
-        );
-      }
-    }),
+      logger.info(`[SmartEmailGenerationRouter] Started session ${result.sessionId}`);
+      return result;
+    } catch (error) {
+      logger.error('[SmartEmailGenerationRouter] Failed to start flow:', error);
+      throw ErrorHandler.createError(
+        'INTERNAL_SERVER_ERROR',
+        'Failed to start smart email generation flow'
+      );
+    }
+  }),
 
   /**
    * Continue an existing conversation
    */
   continueConversation: protectedProcedure
     .input(ContinueConversationInputSchema)
-    .output(
-      z.object({
-        response: AgentResponseSchema,
-        currentStep: z.nativeEnum(SmartEmailSessionStep),
-        isComplete: z.boolean(),
-        finalInstruction: z.string().optional(),
-      })
-    )
     .mutation(async ({ input, ctx }) => {
       try {
         logger.info(
@@ -152,53 +135,41 @@ export const smartEmailGenerationRouter = router({
   /**
    * Get current session state
    */
-  getSessionState: protectedProcedure
-    .input(SessionIdInputSchema)
-    .output(
-      z.object({
-        session: SmartEmailSessionSchema,
-        messages: z.array(SmartEmailMessageSchema),
-        currentStep: z.nativeEnum(SmartEmailSessionStep),
-        isComplete: z.boolean(),
-      })
-    )
-    .query(async ({ input, ctx }) => {
-      try {
-        const service = new SmartEmailGenerationService();
+  getSessionState: protectedProcedure.input(SessionIdInputSchema).query(async ({ input, ctx }) => {
+    try {
+      const service = new SmartEmailGenerationService();
 
-        const result = await service.getSessionState({
-          sessionId: input.sessionId,
-          organizationId: ctx.auth.user.organizationId,
-          userId: ctx.auth.user.id,
-        });
+      const result = await service.getSessionState({
+        sessionId: input.sessionId,
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+      });
 
-        return result;
-      } catch (error) {
-        logger.error('[SmartEmailGenerationRouter] Failed to get session state:', error);
-        throw error;
-      }
-    }),
+      return result;
+    } catch (error) {
+      logger.error('[SmartEmailGenerationRouter] Failed to get session state:', error);
+      throw error;
+    }
+  }),
 
   /**
    * Get active sessions for the current user
    */
-  getActiveSessions: protectedProcedure
-    .output(z.array(SmartEmailSessionSchema))
-    .query(async ({ ctx }) => {
-      try {
-        const service = new SmartEmailGenerationService();
+  getActiveSessions: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const service = new SmartEmailGenerationService();
 
-        const sessions = await service.getActiveSessionsForUser(
-          ctx.auth.user.id,
-          ctx.auth.user.organizationId
-        );
+      const sessions = await service.getActiveSessionsForUser(
+        ctx.auth.user.id,
+        ctx.auth.user.organizationId
+      );
 
-        return sessions;
-      } catch (error) {
-        logger.error('[SmartEmailGenerationRouter] Failed to get active sessions:', error);
-        throw error;
-      }
-    }),
+      return sessions;
+    } catch (error) {
+      logger.error('[SmartEmailGenerationRouter] Failed to get active sessions:', error);
+      throw error;
+    }
+  }),
 
   /**
    * Abandon a session
@@ -249,7 +220,6 @@ export const smartEmailGenerationRouter = router({
    */
   getConversationHistory: protectedProcedure
     .input(SessionIdInputSchema)
-    .output(z.array(SmartEmailMessageSchema))
     .query(async ({ input, ctx }) => {
       try {
         const service = new SmartEmailGenerationService();
@@ -272,13 +242,6 @@ export const smartEmailGenerationRouter = router({
    */
   generateEmailsFromSession: protectedProcedure
     .input(SessionIdInputSchema)
-    .output(
-      z.object({
-        success: z.boolean(),
-        sessionId: z.string().optional(),
-        message: z.string(),
-      })
-    )
     .mutation(async ({ input, ctx }) => {
       try {
         logger.info(

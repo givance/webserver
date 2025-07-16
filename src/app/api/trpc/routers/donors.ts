@@ -320,7 +320,6 @@ export const donorsRouter = router({
    */
   getByEmail: protectedProcedure
     .input(z.object({ email: emailSchema }))
-    .output(donorResponseSchema)
     .query(async ({ input, ctx }) => {
       const donor = await getDonorByEmail(input.email, ctx.auth.user.organizationId);
 
@@ -336,14 +335,11 @@ export const donorsRouter = router({
    *
    * @returns Array of donor data
    */
-  getByIds: protectedProcedure
-    .input(donorIdsSchema)
-    .output(z.array(donorResponseSchema))
-    .query(async ({ input, ctx }) => {
-      const donors = await getDonorsByIds(input.ids, ctx.auth.user.organizationId);
+  getByIds: protectedProcedure.input(donorIdsSchema).query(async ({ input, ctx }) => {
+    const donors = await getDonorsByIds(input.ids, ctx.auth.user.organizationId);
 
-      return donors.map(serializeDonor);
-    }),
+    return donors.map(serializeDonor);
+  }),
 
   /**
    * Create a new donor
@@ -358,28 +354,25 @@ export const donorsRouter = router({
    * @throws {TRPCError} CONFLICT if email already exists
    * @throws {TRPCError} INTERNAL_SERVER_ERROR if creation fails
    */
-  create: protectedProcedure
-    .input(createDonorSchema)
-    .output(donorResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const donor = await createDonor({
-          ...input,
-          organizationId: ctx.auth.user.organizationId,
-        } as any); // TODO: Fix type mismatch between input schema and createDonor
-        return serializeDonor(donor);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('already exists')) {
-          throw conflictError(error.message);
-        }
-        throw createTRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: ERROR_MESSAGES.OPERATION_FAILED('create donor'),
-          cause: error,
-          metadata: { email: input.email },
-        });
+  create: protectedProcedure.input(createDonorSchema).mutation(async ({ input, ctx }) => {
+    try {
+      const donor = await createDonor({
+        ...input,
+        organizationId: ctx.auth.user.organizationId,
+      } as any); // TODO: Fix type mismatch between input schema and createDonor
+      return serializeDonor(donor);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
+        throw conflictError(error.message);
       }
-    }),
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: ERROR_MESSAGES.OPERATION_FAILED('create donor'),
+        cause: error,
+        metadata: { email: input.email },
+      });
+    }
+  }),
 
   /**
    * Update an existing donor
@@ -391,18 +384,15 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  update: protectedProcedure
-    .input(updateDonorSchema)
-    .output(donorResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { id, ...updateData } = input;
+  update: protectedProcedure.input(updateDonorSchema).mutation(async ({ input, ctx }) => {
+    const { id, ...updateData } = input;
 
-      const updated = await updateDonor(id, updateData as any, ctx.auth.user.organizationId); // TODO: Fix type mismatch
+    const updated = await updateDonor(id, updateData as any, ctx.auth.user.organizationId); // TODO: Fix type mismatch
 
-      validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+    validateNotNullish(updated, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      return serializeDonor(updated);
-    }),
+    return serializeDonor(updated);
+  }),
 
   /**
    * Delete a donor
@@ -415,43 +405,40 @@ export const donorsRouter = router({
    * @throws {TRPCError} BAD_REQUEST if invalid parameters
    * @throws {TRPCError} PRECONDITION_FAILED if donor has linked records
    */
-  delete: protectedProcedure
-    .input(deleteDonorSchema)
-    .output(z.void())
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const options =
-          input.deleteMode || input.listId
-            ? {
-                deleteMode: input.deleteMode || 'entirely',
-                listId: input.listId,
-              }
-            : undefined;
+  delete: protectedProcedure.input(deleteDonorSchema).mutation(async ({ input, ctx }) => {
+    try {
+      const options =
+        input.deleteMode || input.listId
+          ? {
+              deleteMode: input.deleteMode || 'entirely',
+              listId: input.listId,
+            }
+          : undefined;
 
-        await deleteDonor(input.id, ctx.auth.user.organizationId, options);
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message.includes('List ID is required')) {
-            throw createTRPCError({
-              code: 'BAD_REQUEST',
-              message: error.message,
-              logLevel: 'info',
-            });
-          }
-          if (error.message.includes('not a member of the specified list')) {
-            throw notFoundError(error.message);
-          }
-          if (error.message.includes('linked to other records')) {
-            throw createTRPCError({
-              code: 'PRECONDITION_FAILED',
-              message: 'Cannot delete donor as they are linked to other records',
-              logLevel: 'info',
-            });
-          }
+      await deleteDonor(input.id, ctx.auth.user.organizationId, options);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('List ID is required')) {
+          throw createTRPCError({
+            code: 'BAD_REQUEST',
+            message: error.message,
+            logLevel: 'info',
+          });
         }
-        throw error;
+        if (error.message.includes('not a member of the specified list')) {
+          throw notFoundError(error.message);
+        }
+        if (error.message.includes('linked to other records')) {
+          throw createTRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: 'Cannot delete donor as they are linked to other records',
+            logLevel: 'info',
+          });
+        }
       }
-    }),
+      throw error;
+    }
+  }),
 
   /**
    * Bulk delete multiple donors
@@ -462,12 +449,9 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} BAD_REQUEST if no IDs provided
    */
-  bulkDelete: protectedProcedure
-    .input(donorIdsSchema)
-    .output(bulkDeleteResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      return await bulkDeleteDonors(input.ids, ctx.auth.user.organizationId);
-    }),
+  bulkDelete: protectedProcedure.input(donorIdsSchema).mutation(async ({ input, ctx }) => {
+    return await bulkDeleteDonors(input.ids, ctx.auth.user.organizationId);
+  }),
 
   /**
    * Get all donor IDs matching filters
@@ -476,14 +460,11 @@ export const donorsRouter = router({
    *
    * @returns Array of donor IDs
    */
-  getAllIds: protectedProcedure
-    .input(listDonorsSchema.partial())
-    .output(z.array(idSchema))
-    .query(async ({ input, ctx }) => {
-      const result = await listDonors(input, ctx.auth.user.organizationId);
+  getAllIds: protectedProcedure.input(listDonorsSchema.partial()).query(async ({ input, ctx }) => {
+    const result = await listDonors(input, ctx.auth.user.organizationId);
 
-      return result.donors.map((donor) => donor.id);
-    }),
+    return result.donors.map((donor) => donor.id);
+  }),
 
   /**
    * Count lists a donor belongs to
@@ -494,18 +475,15 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  countLists: protectedProcedure
-    .input(donorIdSchema)
-    .output(countListsResponseSchema)
-    .query(async ({ input, ctx }) => {
-      // Verify donor exists
-      const donorResults = await getDonorsByIds([input.id], ctx.auth.user.organizationId);
-      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+  countLists: protectedProcedure.input(donorIdSchema).query(async ({ input, ctx }) => {
+    // Verify donor exists
+    const donorResults = await getDonorsByIds([input.id], ctx.auth.user.organizationId);
+    check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
+    const count = await countListsForDonor(input.id, ctx.auth.user.organizationId);
 
-      return { count };
-    }),
+    return { count };
+  }),
 
   /**
    * Update assigned staff for a donor
@@ -519,7 +497,6 @@ export const donorsRouter = router({
    */
   updateAssignedStaff: protectedProcedure
     .input(updateAssignedStaffSchema)
-    .output(donorResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { donorId, staffId } = input;
       const { organizationId } = ctx.auth.user;
@@ -562,7 +539,6 @@ export const donorsRouter = router({
    */
   bulkUpdateAssignedStaff: protectedProcedure
     .input(bulkUpdateAssignedStaffSchema)
-    .output(bulkUpdateStaffResponseSchema)
     .mutation(async ({ input, ctx }) => {
       const { donorIds, staffId } = input;
       const { organizationId } = ctx.auth.user;
@@ -601,17 +577,14 @@ export const donorsRouter = router({
    *
    * @returns Paginated list of donors
    */
-  list: protectedProcedure
-    .input(listDonorsSchema)
-    .output(listDonorsOutputSchema)
-    .query(async ({ input, ctx }) => {
-      const result = await listDonors(input, ctx.auth.user.organizationId);
+  list: protectedProcedure.input(listDonorsSchema).query(async ({ input, ctx }) => {
+    const result = await listDonors(input, ctx.auth.user.organizationId);
 
-      return {
-        donors: result.donors.map(serializeDonor),
-        totalCount: result.totalCount,
-      };
-    }),
+    return {
+      donors: result.donors.map(serializeDonor),
+      totalCount: result.totalCount,
+    };
+  }),
 
   /**
    * List donors optimized for communication features
@@ -623,7 +596,6 @@ export const donorsRouter = router({
    */
   listForCommunication: protectedProcedure
     .input(listDonorsForCommunicationSchema)
-    .output(listDonorsForCommunicationOutputSchema)
     .query(async ({ input, ctx }) => {
       return await listDonorsForCommunication(input, ctx.auth.user.organizationId);
     }),
@@ -637,7 +609,6 @@ export const donorsRouter = router({
    */
   validateStaffEmailConnectivity: protectedProcedure
     .input(validateDonorStaffEmailSchema)
-    .output(validateStaffEmailResponseSchema)
     .query(async ({ input, ctx }) => {
       const { donorIds } = input;
       const { organizationId } = ctx.auth.user;
@@ -731,35 +702,32 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist
    */
-  addNote: protectedProcedure
-    .input(addDonorNoteSchema)
-    .output(donorResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { donorId, content } = input;
+  addNote: protectedProcedure.input(addDonorNoteSchema).mutation(async ({ input, ctx }) => {
+    const { donorId, content } = input;
 
-      // Verify donor exists
-      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
-      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
-      const donor = donorResults[0];
+    // Verify donor exists
+    const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+    check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+    const donor = donorResults[0];
 
-      // Create new note
-      const newNote: DonorNote = {
-        createdAt: new Date().toISOString(),
-        createdBy: ctx.auth.user.id,
-        content: content.trim(),
-      };
+    // Create new note
+    const newNote: DonorNote = {
+      createdAt: new Date().toISOString(),
+      createdBy: ctx.auth.user.id,
+      content: content.trim(),
+    };
 
-      // Update donor with new note
-      const updatedDonor = await ctx.services.donors.addNoteToDonor(
-        donorId,
-        newNote,
-        ctx.auth.user.organizationId
-      );
+    // Update donor with new note
+    const updatedDonor = await ctx.services.donors.addNoteToDonor(
+      donorId,
+      newNote,
+      ctx.auth.user.organizationId
+    );
 
-      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
+    validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to add note');
 
-      return serializeDonor(updatedDonor);
-    }),
+    return serializeDonor(updatedDonor);
+  }),
 
   /**
    * Edit an existing note for a donor
@@ -772,28 +740,25 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist or note index is invalid
    */
-  editNote: protectedProcedure
-    .input(editDonorNoteSchema)
-    .output(donorResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { donorId, noteIndex, content } = input;
+  editNote: protectedProcedure.input(editDonorNoteSchema).mutation(async ({ input, ctx }) => {
+    const { donorId, noteIndex, content } = input;
 
-      // Verify donor exists
-      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
-      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+    // Verify donor exists
+    const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+    check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      // Update donor note
-      const updatedDonor = await ctx.services.donors.editDonorNote(
-        donorId,
-        noteIndex,
-        content.trim(),
-        ctx.auth.user.organizationId
-      );
+    // Update donor note
+    const updatedDonor = await ctx.services.donors.editDonorNote(
+      donorId,
+      noteIndex,
+      content.trim(),
+      ctx.auth.user.organizationId
+    );
 
-      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to edit note');
+    validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to edit note');
 
-      return serializeDonor(updatedDonor);
-    }),
+    return serializeDonor(updatedDonor);
+  }),
 
   /**
    * Delete a note from a donor
@@ -805,25 +770,22 @@ export const donorsRouter = router({
    *
    * @throws {TRPCError} NOT_FOUND if donor doesn't exist or note index is invalid
    */
-  deleteNote: protectedProcedure
-    .input(deleteDonorNoteSchema)
-    .output(donorResponseSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { donorId, noteIndex } = input;
+  deleteNote: protectedProcedure.input(deleteDonorNoteSchema).mutation(async ({ input, ctx }) => {
+    const { donorId, noteIndex } = input;
 
-      // Verify donor exists
-      const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
-      check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
+    // Verify donor exists
+    const donorResults = await getDonorsByIds([donorId], ctx.auth.user.organizationId);
+    check(donorResults.length === 0, 'NOT_FOUND', ERROR_MESSAGES.NOT_FOUND('Donor'));
 
-      // Delete donor note
-      const updatedDonor = await ctx.services.donors.deleteDonorNote(
-        donorId,
-        noteIndex,
-        ctx.auth.user.organizationId
-      );
+    // Delete donor note
+    const updatedDonor = await ctx.services.donors.deleteDonorNote(
+      donorId,
+      noteIndex,
+      ctx.auth.user.organizationId
+    );
 
-      validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to delete note');
+    validateNotNullish(updatedDonor, 'INTERNAL_SERVER_ERROR', 'Failed to delete note');
 
-      return serializeDonor(updatedDonor);
-    }),
+    return serializeDonor(updatedDonor);
+  }),
 });

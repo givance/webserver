@@ -75,65 +75,53 @@ export const gmailRouter = router({
    * Get Gmail OAuth authorization URL (legacy method name)
    * @deprecated Use getAuthUrl instead
    */
-  getGmailAuthUrl: protectedProcedure
-    .output(z.object({ url: z.string(), authUrl: z.string() }))
-    .mutation(async ({ ctx }) => {
-      const url = ctx.services.gmail.getAuthUrl(ctx.auth.user?.id);
-      return { url, authUrl: url }; // Return both for backwards compatibility
-    }),
+  getGmailAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
+    const url = ctx.services.gmail.getAuthUrl(ctx.auth.user?.id);
+    return { url, authUrl: url }; // Return both for backwards compatibility
+  }),
 
   /**
    * Check Gmail connection status (legacy method name)
    * @deprecated Use isConnected instead
    */
-  getGmailConnectionStatus: protectedProcedure
-    .output(
-      z.object({
-        connected: z.boolean(),
-        isConnected: z.boolean().optional(),
-        email: z.string().optional(),
-      })
-    )
-    .query(async ({ ctx }) => {
-      if (!ctx.auth.user?.id) {
-        return { connected: false, isConnected: false };
+  getGmailConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.auth.user?.id) {
+      return { connected: false, isConnected: false };
+    }
+
+    const connected = await ctx.services.gmail.isConnected(ctx.auth.user.id);
+
+    // If connected, try to get profile to get email
+    let email: string | undefined;
+    if (connected) {
+      try {
+        const profile = await ctx.services.gmail.getProfile(ctx.auth.user.id);
+        email = profile.emailAddress;
+      } catch {
+        // Ignore error - just don't return email
       }
+    }
 
-      const connected = await ctx.services.gmail.isConnected(ctx.auth.user.id);
-
-      // If connected, try to get profile to get email
-      let email: string | undefined;
-      if (connected) {
-        try {
-          const profile = await ctx.services.gmail.getProfile(ctx.auth.user.id);
-          email = profile.emailAddress;
-        } catch {
-          // Ignore error - just don't return email
-        }
-      }
-
-      return { connected, isConnected: connected, email };
-    }),
+    return { connected, isConnected: connected, email };
+  }),
 
   /**
    * Disconnect Gmail account (legacy method name)
    * @deprecated Use disconnect instead
    */
-  disconnectGmail: protectedProcedure
-    .output(z.object({ success: z.boolean() }))
-    .mutation(async ({ ctx }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  disconnectGmail: protectedProcedure.mutation(async ({ ctx }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      await ctx.services.gmail.disconnect(ctx.auth.user.id);
+    await ctx.services.gmail.disconnect(ctx.auth.user.id);
 
-      return { success: true };
-    }),
+    return { success: true };
+  }),
   /**
    * Get Gmail OAuth authorization URL
    *
    * @returns Authorization URL to redirect user to
    */
-  getAuthUrl: protectedProcedure.output(z.object({ url: z.string() })).query(async ({ ctx }) => {
+  getAuthUrl: protectedProcedure.query(async ({ ctx }) => {
     const url = ctx.services.gmail.getAuthUrl(ctx.auth.user?.id);
     return { url };
   }),
@@ -149,7 +137,6 @@ export const gmailRouter = router({
    */
   handleOAuthCallback: protectedProcedure
     .input(gmailSchemas.authCallback)
-    .output(z.object({ success: z.boolean(), message: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
@@ -163,24 +150,22 @@ export const gmailRouter = router({
    *
    * @returns Whether Gmail is connected
    */
-  isConnected: protectedProcedure
-    .output(z.object({ connected: z.boolean() }))
-    .query(async ({ ctx }) => {
-      if (!ctx.auth.user?.id) {
-        return { connected: false };
-      }
+  isConnected: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.auth.user?.id) {
+      return { connected: false };
+    }
 
-      const connected = await ctx.services.gmail.isConnected(ctx.auth.user.id);
+    const connected = await ctx.services.gmail.isConnected(ctx.auth.user.id);
 
-      return { connected };
-    }),
+    return { connected };
+  }),
 
   /**
    * Disconnect Gmail account
    *
    * @throws {TRPCError} UNAUTHORIZED if not logged in
    */
-  disconnect: protectedProcedure.output(z.void()).mutation(async ({ ctx }) => {
+  disconnect: protectedProcedure.mutation(async ({ ctx }) => {
     if (!ctx.auth.user?.id) {
       throw createTRPCError({
         code: 'UNAUTHORIZED',
@@ -198,7 +183,7 @@ export const gmailRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if Gmail not connected
    */
-  getProfile: protectedProcedure.output(profileResponseSchema).query(async ({ ctx }) => {
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
     if (!ctx.auth.user?.id) {
       throw createTRPCError({
         code: 'UNAUTHORIZED',
@@ -224,28 +209,25 @@ export const gmailRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if Gmail not connected
    * @throws {TRPCError} BAD_REQUEST if email validation fails
    */
-  sendEmail: protectedProcedure
-    .input(sendEmailSchema)
-    .output(z.object({ messageId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  sendEmail: protectedProcedure.input(sendEmailSchema).mutation(async ({ ctx, input }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      const messageId = await ctx.services.gmail.sendEmail(
-        ctx.auth.user.id,
-        {
-          to: input.to,
-          subject: input.subject,
-          body: input.body,
-          isHtml: input.isHtml,
-        },
-        {
-          ...input.trackingOptions,
-          appendSignature: input.appendSignature,
-        }
-      );
+    const messageId = await ctx.services.gmail.sendEmail(
+      ctx.auth.user.id,
+      {
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+        isHtml: input.isHtml,
+      },
+      {
+        ...input.trackingOptions,
+        appendSignature: input.appendSignature,
+      }
+    );
 
-      return { messageId };
-    }),
+    return { messageId };
+  }),
 
   /**
    * Send bulk emails from a campaign session
@@ -260,43 +242,40 @@ export const gmailRouter = router({
    * @throws {TRPCError} UNAUTHORIZED if Gmail not connected
    * @throws {TRPCError} NOT_FOUND if session or emails not found
    */
-  sendBulkEmails: protectedProcedure
-    .input(bulkSendSchema)
-    .output(bulkSendResponseSchema)
-    .mutation(async ({ ctx, input }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  sendBulkEmails: protectedProcedure.input(bulkSendSchema).mutation(async ({ ctx, input }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      try {
-        const result = await ctx.services.gmail.sendBulkEmails(
-          ctx.auth.user.id,
-          input,
-          ctx.auth.user.organizationId
-        );
+    try {
+      const result = await ctx.services.gmail.sendBulkEmails(
+        ctx.auth.user.id,
+        input,
+        ctx.auth.user.organizationId
+      );
 
-        // If all emails failed, throw an error to inform the frontend
-        if (result.failed.length > 0 && result.successful.length === 0) {
-          const errorMessages = result.failed.map((f) => `Email ${f.id}: ${f.error}`).join('; ');
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: `All emails failed to send: ${errorMessages}`,
-          });
-        }
-
-        return result;
-      } catch (error) {
-        // Handle specific Gmail errors
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-
-        // Handle other errors
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      // If all emails failed, throw an error to inform the frontend
+      if (result.failed.length > 0 && result.successful.length === 0) {
+        const errorMessages = result.failed.map((f) => `Email ${f.id}: ${f.error}`).join('; ');
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `Failed to send bulk emails: ${errorMessage}`,
+          message: `All emails failed to send: ${errorMessages}`,
         });
       }
-    }),
+
+      return result;
+    } catch (error) {
+      // Handle specific Gmail errors
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // Handle other errors
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to send bulk emails: ${errorMessage}`,
+      });
+    }
+  }),
 
   /**
    * List Gmail messages
@@ -308,14 +287,11 @@ export const gmailRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if Gmail not connected
    */
-  listMessages: protectedProcedure
-    .input(listMessagesSchema)
-    .output(z.array(messageResponseSchema))
-    .query(async ({ ctx, input }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  listMessages: protectedProcedure.input(listMessagesSchema).query(async ({ ctx, input }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await ctx.services.gmail.listMessages(ctx.auth.user.id, input.query, input.maxResults);
-    }),
+    return await ctx.services.gmail.listMessages(ctx.auth.user.id, input.query, input.maxResults);
+  }),
 
   /**
    * List Gmail threads
@@ -327,14 +303,11 @@ export const gmailRouter = router({
    *
    * @throws {TRPCError} UNAUTHORIZED if Gmail not connected
    */
-  listThreads: protectedProcedure
-    .input(listMessagesSchema)
-    .output(z.array(threadResponseSchema))
-    .query(async ({ ctx, input }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  listThreads: protectedProcedure.input(listMessagesSchema).query(async ({ ctx, input }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await ctx.services.gmail.listThreads(ctx.auth.user.id, input.query, input.maxResults);
-    }),
+    return await ctx.services.gmail.listThreads(ctx.auth.user.id, input.query, input.maxResults);
+  }),
 
   /**
    * Get a single Gmail thread with all messages
@@ -348,7 +321,6 @@ export const gmailRouter = router({
    */
   getThread: protectedProcedure
     .input(z.object({ threadId: z.string() }))
-    .output(threadResponseSchema)
     .query(async ({ ctx, input }) => {
       validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
@@ -370,14 +342,11 @@ export const gmailRouter = router({
    * Send multiple emails (legacy method name)
    * @deprecated Use sendBulkEmails instead
    */
-  sendEmails: protectedProcedure
-    .input(bulkSendSchema)
-    .output(bulkSendResponseSchema)
-    .mutation(async ({ ctx, input }) => {
-      validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
+  sendEmails: protectedProcedure.input(bulkSendSchema).mutation(async ({ ctx, input }) => {
+    validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
-      return await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
-    }),
+    return await ctx.services.gmail.sendBulkEmails(ctx.auth.user.id, input);
+  }),
 
   /**
    * Send individual email (legacy method name)
@@ -385,7 +354,6 @@ export const gmailRouter = router({
    */
   sendIndividualEmail: protectedProcedure
     .input(z.object({ emailId: idSchema }))
-    .output(z.object({ success: z.boolean(), messageId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       validateNotNullish(ctx.auth.user?.id, 'UNAUTHORIZED', ERROR_MESSAGES.UNAUTHORIZED);
 
