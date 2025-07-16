@@ -111,7 +111,7 @@ export const generateBulkEmailsTask = task({
       const generationResult = await unifiedService.generateSmartEmailsForCampaign({
         organizationId,
         sessionId: String(sessionId),
-        chatHistory: chatHistory as Array<{ role: string; content: string }>,
+        chatHistory: chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>,
         donorIds: donorIdsToGenerate.map((id) => String(id)),
       });
 

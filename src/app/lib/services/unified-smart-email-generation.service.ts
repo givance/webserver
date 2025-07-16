@@ -21,7 +21,7 @@ import { getListMembers } from '@/app/lib/data/donor-lists';
 interface GenerateSmartEmailsParams {
   organizationId: string;
   sessionId: string;
-  chatHistory: Array<{ role: string; content: string }>;
+  chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   donorIds?: string[];
 }
 
@@ -98,7 +98,7 @@ export class UnifiedSmartEmailGenerationService {
     sessionId: string;
     userId: string;
     currentDate: string;
-    chatHistory: Array<{ role: string; content: string }>;
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   }): Promise<SmartEmailGenerationResult> {
     try {
       const { donor, organization, staffMembers, sessionId, userId, currentDate, chatHistory } =
@@ -298,7 +298,7 @@ export class UnifiedSmartEmailGenerationService {
     organizationId: string;
     listId: string;
     sessionId: string;
-    chatHistory: Array<{ role: string; content: string }>;
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   }): Promise<{
     results: SmartEmailGenerationResult[];
     totalTokensUsed: number;
