@@ -241,11 +241,19 @@ export function GmailConnect({
           <p>Loading Gmail connection status...</p>
         ) : context === 'settings' ? (
           // Settings context
-          gmailConnectionStatus?.isConnected && gmailConnectionStatus.email ? (
+          gmailConnectionStatus?.isConnected &&
+          gmailConnectionStatus &&
+          'email' in gmailConnectionStatus &&
+          gmailConnectionStatus.email ? (
             <div className="space-y-4">
               <div className="flex flex-col items-start space-y-2">
                 <p className="text-green-600 font-semibold">Gmail account connected.</p>
-                <p>Email: {gmailConnectionStatus.email}</p>
+                <p>
+                  Email:{' '}
+                  {gmailConnectionStatus && 'email' in gmailConnectionStatus
+                    ? gmailConnectionStatus.email
+                    : 'Unknown'}
+                </p>
               </div>
               <Button onClick={handleDisconnectGmail} disabled={isLoading} variant="outline">
                 {isLoading ? (

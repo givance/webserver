@@ -153,8 +153,8 @@ export default function EmailGenerationResultsPage() {
         firstName: staff.firstName,
         lastName: staff.lastName,
         email: staff.email,
-        gmailToken: staff.gmailToken,
-        microsoftToken: staff.microsoftToken,
+        gmailToken: undefined,
+        microsoftToken: undefined,
       };
     },
     [staffData]

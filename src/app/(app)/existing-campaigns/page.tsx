@@ -934,7 +934,7 @@ function ExistingCampaignsContent() {
         }}
         onConfirm={handleConfirmAction}
         isLoading={isLoadingAction}
-        userEmail={gmailStatus?.email || null}
+        userEmail={gmailStatus && 'email' in gmailStatus ? gmailStatus.email || null : null}
         scheduleConfig={scheduleConfig}
         trackingStats={
           confirmationDialog.campaign

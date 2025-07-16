@@ -59,8 +59,8 @@ export default function StaffListPage() {
         isPrimary: apiStaff.isPrimary,
         signature: apiStaff.signature || null,
         writingInstructions: apiStaff.writingInstructions || null,
-        gmailToken: apiStaff.gmailToken || null,
-        microsoftToken: apiStaff.microsoftToken || null,
+        gmailToken: null,
+        microsoftToken: null,
         createdAt: apiStaff.createdAt
           ? new Date(apiStaff.createdAt).toISOString()
           : new Date().toISOString(),
