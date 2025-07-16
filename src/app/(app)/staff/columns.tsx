@@ -1,19 +1,5 @@
-import { ColumnDef, Column, Row } from '@tanstack/react-table';
-import { Button } from '@/components/ui/button';
-import {
-  ArrowUpDown,
-  Trash2,
-  Mail,
-  MailX,
-  FileText,
-  Link2,
-  User,
-  MessageSquare,
-  Edit2,
-  Save,
-  X,
-} from 'lucide-react';
-import Link from 'next/link';
+import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
+import { SignatureEditor, SignaturePreview } from '@/components/signature';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +11,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -41,20 +29,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { useState, useEffect } from 'react';
-import { SignatureEditor, SignaturePreview } from '@/components/signature';
-import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
-import DOMPurify from 'dompurify';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal } from 'lucide-react';
-import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
-import { InlineTextEdit } from '@/components/ui/inline-edit';
-import { trpc } from '@/app/lib/trpc/client';
 import { EmailProviderConnect } from '@/components/ui/EmailProviderConnect';
+import { InlineTextEdit } from '@/components/ui/inline-edit';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
+import { Column, ColumnDef, Row } from '@tanstack/react-table';
+import DOMPurify from 'dompurify';
+import {
+  ArrowUpDown,
+  Edit2,
+  FileText,
+  MailX,
+  MessageSquare,
+  MoreHorizontal,
+  Save,
+  Trash2,
+  User,
+  X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 export type Staff = {
   id: string | number;
