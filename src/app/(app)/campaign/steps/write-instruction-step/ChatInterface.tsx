@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Mail } from 'lucide-react';
+import { Mail, Loader2 } from 'lucide-react';
 import { SuggestedMemories } from '../../components/SuggestedMemories';
 import ReactMarkdown from 'react-markdown';
 
@@ -12,6 +12,27 @@ interface ChatInterfaceProps {
   suggestedMemories: string[];
   isChatCollapsed: boolean;
   chatEndRef: React.RefObject<HTMLDivElement | null>;
+  isGenerating?: boolean;
+  isGeneratingMore?: boolean;
+  isRegenerating?: boolean;
+}
+
+// Custom hook for animated ellipsis
+function useAnimatedEllipsis() {
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => {
+        if (prev === '...') return '';
+        return prev + '.';
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return dots;
 }
 
 export function ChatInterface({
@@ -19,7 +40,19 @@ export function ChatInterface({
   suggestedMemories,
   isChatCollapsed,
   chatEndRef,
+  isGenerating = false,
+  isGeneratingMore = false,
+  isRegenerating = false,
 }: ChatInterfaceProps) {
+  const isAnyGenerating = isGenerating || isGeneratingMore || isRegenerating;
+  const animatedDots = useAnimatedEllipsis();
+
+  const getGeneratingMessage = () => {
+    if (isRegenerating) return 'Regenerating emails based on your feedback';
+    if (isGeneratingMore) return 'Generating more personalized emails';
+    if (isGenerating) return 'Generating personalized emails for your selected donors';
+    return '';
+  };
   return (
     <ScrollArea className="h-full w-full">
       <div className="p-4 space-y-3">
@@ -113,6 +146,17 @@ export function ChatInterface({
                   )}
               </div>
             ))}
+            {isAnyGenerating && (
+              <div className="flex items-start space-x-2">
+                <div className="bg-muted rounded-lg px-3 py-2 flex items-center space-x-2">
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">
+                    {getGeneratingMessage()}
+                    {animatedDots}
+                  </p>
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </>
         )}

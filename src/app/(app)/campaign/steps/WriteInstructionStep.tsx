@@ -149,10 +149,26 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   // Handlers (refactored to use individual stateless functions)
   const handleSubmitInstructionCallback = useCallback(
     async (instructionToSubmit?: string) => {
+      // Get the instruction value before clearing
+      const finalInstruction = instructionToSubmit || instructionInput.localInstruction;
+
+      // Add user message to chat FIRST
+      chatState.setChatMessages((prev) => [
+        ...prev,
+        {
+          role: 'user' as const,
+          content: finalInstruction,
+        },
+      ]);
+
+      // Clear input immediately - both local and parent
+      clearInstructionInput(instructionInput);
+      onInstructionChange(''); // Explicitly clear parent state too
+
       // Set loading state
       setEmailGenerationLoading(emailGeneration, 'generating', true);
 
-      // Clear existing state
+      // Clear existing email state
       clearEmailState(emailState, chatState);
 
       try {
@@ -169,7 +185,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             previousInstruction,
             onInstructionChange,
           },
-          instructionToSubmit
+          finalInstruction
         );
 
         if (response.success && response.result) {
@@ -177,27 +193,25 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           const processedResult = processEmailResult(response.result);
 
           if (processedResult.type === 'agentic' && processedResult.agenticResult) {
-            // Handle agentic flow
-            chatState.setChatMessages((prev) => [
-              ...prev,
-              ...processedResult.agenticResult!.conversationMessages,
-            ]);
-
-            if (!processedResult.agenticResult.needsUserInput) {
-              clearInstructionInput(instructionInput);
+            // Handle agentic flow - add only the assistant's response
+            const assistantMessages = processedResult.agenticResult!.conversationMessages.filter(
+              (msg) => msg.role === 'assistant'
+            );
+            if (assistantMessages.length > 0) {
+              chatState.setChatMessages((prev) => [
+                ...prev,
+                assistantMessages[assistantMessages.length - 1],
+              ]);
             }
           } else if (processedResult.type === 'email' && processedResult.emailResult) {
             // Handle email generation
             const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
               processedResult.emailResult;
 
-            // Update email state
-            updateEmailStateWithNewEmails(emailState, emails);
-
-            // Update chat state
+            // Add assistant's response to our existing chat
             chatState.setChatMessages((prev) => {
               const newMessages = [
-                ...updatedChatMessages,
+                ...prev,
                 {
                   role: 'assistant' as const,
                   content: responseMessage,
@@ -208,8 +222,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               return newMessages;
             });
 
-            // Clear input and update UI
-            clearInstructionInput(instructionInput);
+            // Update email state
+            updateEmailStateWithNewEmails(emailState, emails);
+
             // Only collapse chat if emails were actually generated
             if (
               processedResult.emailResult?.emails &&
@@ -533,6 +548,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 suggestedMemories={chatState.suggestedMemories}
                 isChatCollapsed={isChatCollapsed}
                 chatEndRef={chatState.chatEndRef}
+                isGenerating={emailGeneration.isGenerating}
+                isGeneratingMore={emailGeneration.isGeneratingMore}
+                isRegenerating={emailGeneration.isRegenerating}
               />
             </div>
 
