@@ -1,7 +1,7 @@
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
 import { createAzure } from '@ai-sdk/azure';
-import { generateObject } from 'ai';
+import { CoreMessage, generateObject } from 'ai';
 import { z } from 'zod';
 import type { DonorStatistics, RawCommunicationThread } from './types';
 import type { DonationWithDetails } from '@/app/lib/data/donations';
@@ -48,7 +48,7 @@ export interface SingleEmailGeneratorParams {
     user: string[];
     organization: string[];
   };
-  chatHistory: Array<{ role: string; content: string }>;
+  chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   currentDate: string;
 }
 
@@ -86,7 +86,7 @@ export async function generateSingleEmail(
     : '';
 
   // Build the prompt
-  const prompt = buildEmailPrompt({
+  const messages = buildEmailPrompt({
     donor,
     organization,
     writingInstructions,
@@ -134,11 +134,11 @@ export async function generateSingleEmail(
         useGPT41 ? env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME : env.AZURE_OPENAI_O3_DEPLOYMENT_NAME
       ),
       schema: emailSchema,
-      prompt,
+      messages: messages,
       temperature: 1,
     });
 
-    logger.info(`[SingleEmailGenerator] system prompt: ${prompt}`);
+    logger.info(`[SingleEmailGenerator] request: ${JSON.stringify(messages)}`);
     logger.info(`[SingleEmailGenerator] result: ${JSON.stringify(result)}`);
 
     logger.info(`[SingleEmailGenerator] Successfully generated email for donor ${donor.id}`);
@@ -165,7 +165,7 @@ function buildEmailPrompt(params: {
   chatHistory: SingleEmailGeneratorParams['chatHistory'];
   currentDate: string;
   staffName: string;
-}): string {
+}): CoreMessage[] {
   const {
     donor,
     organization,
@@ -193,9 +193,6 @@ ${memories.user.length > 0 ? `Personal Memories:\n${memories.user.join('\n')}\n`
 ${memories.organization.length > 0 ? `Organization Memories:\n${memories.organization.join('\n')}\n` : ''}
 
 CURRENT DATE: ${currentDate}
-
-[USER INSTRUCTION]:
-${latestUserMessage}
 
 TASK: Generate an email with the following structure, based on the user instruction and the donor context:
 1. **subject**: A compelling subject line (50 characters max)
@@ -288,5 +285,15 @@ Priority order for conflicting instructions:
     }
   }
 
-  return systemPrompt + donorContext;
+  return [
+    {
+      role: 'system',
+      content: systemPrompt,
+    },
+    {
+      role: 'user',
+      content: donorContext,
+    },
+    ...chatHistory,
+  ];
 }
