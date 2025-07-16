@@ -6,6 +6,7 @@ import {
   donors,
   gmailOAuthTokens,
   microsoftOAuthTokens,
+  staffMicrosoftTokens,
   staff,
   users,
 } from '@/app/lib/db/schema';
@@ -30,7 +31,7 @@ const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = env.GOOGLE_REDIRECT_URI;
 
-const MICROSOFT_CLIENT_ID = env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_ID = env.MICROSOFT_APPLICATION_ID;
 const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI;
 
@@ -152,16 +153,82 @@ async function getEmailClientForDonor(
       else if (staff.microsoftToken) {
         const staffToken = staff.microsoftToken;
 
+        // Check if token is expired and refresh if needed
+        const now = new Date();
+        let accessToken = staffToken.accessToken;
+
+        if (now >= staffToken.expiresAt) {
+          logger.info(`Microsoft token expired for staff ${staff.id}, attempting refresh`, {
+            staffId: staff.id,
+            tokenExpiresAt: staffToken.expiresAt,
+            currentTime: now,
+            daysSinceExpiry: Math.floor(
+              (now.getTime() - staffToken.expiresAt.getTime()) / (1000 * 60 * 60 * 24)
+            ),
+            hasRefreshToken: !!staffToken.refreshToken,
+            refreshTokenLength: staffToken.refreshToken ? staffToken.refreshToken.length : 0,
+          });
+          try {
+            // Refresh the Microsoft token
+            const refreshResponse = await fetch(
+              'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                  client_id: MICROSOFT_CLIENT_ID,
+                  client_secret: MICROSOFT_CLIENT_SECRET,
+                  grant_type: 'refresh_token',
+                  refresh_token: staffToken.refreshToken,
+                  scope:
+                    'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access',
+                }),
+              }
+            );
+
+            if (!refreshResponse.ok) {
+              const errorText = await refreshResponse.text();
+              logger.error(`Microsoft token refresh failed for staff ${staff.id}:`, {
+                status: refreshResponse.status,
+                statusText: refreshResponse.statusText,
+                errorBody: errorText,
+                staffId: staff.id,
+                tokenExpiresAt: staffToken.expiresAt,
+                hasRefreshToken: !!staffToken.refreshToken,
+              });
+              throw new Error(
+                `Token refresh failed: ${refreshResponse.status} ${refreshResponse.statusText} - ${errorText}`
+              );
+            }
+
+            const refreshData = await refreshResponse.json();
+            accessToken = refreshData.access_token;
+            const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000);
+
+            // Update the token in database
+            await db
+              .update(staffMicrosoftTokens)
+              .set({
+                accessToken: refreshData.access_token,
+                expiresAt: newExpiresAt,
+                refreshToken: refreshData.refresh_token || staffToken.refreshToken,
+                updatedAt: new Date(),
+              })
+              .where(eq(staffMicrosoftTokens.staffId, staff.id));
+
+            logger.info(`Successfully refreshed Microsoft token for staff ${staff.id}`);
+          } catch (error) {
+            logger.error(`Failed to refresh Microsoft token for staff ${staff.id}:`, error);
+            throw new Error('Token expired. Please reconnect your Microsoft account.');
+          }
+        }
+
         // Create Microsoft Graph client
         const microsoftClient = Client.init({
           authProvider: (done: (error: Error | null, accessToken: string | null) => void) => {
-            // Check if token is expired
-            const now = new Date();
-            if (now >= staffToken.expiresAt) {
-              done(new Error('Token expired. Please reconnect your Microsoft account.'), null);
-              return;
-            }
-            done(null, staffToken.accessToken);
+            done(null, accessToken);
           },
         });
 

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { DataTable } from '@/components/ui/data-table/DataTable';
-import { columns, type Staff } from './columns';
+import { getColumns, type Staff } from './columns';
 import { useStaff } from '@/app/hooks/use-staff';
 import { usePagination } from '@/app/hooks/use-pagination';
 import { useSearch } from '@/app/hooks/use-search';
@@ -21,7 +21,22 @@ export default function StaffListPage() {
       resetOnDependency: debouncedSearchTerm,
     });
 
-  const { listStaff } = useStaff();
+  const {
+    listStaff,
+    refreshStaff,
+    setPrimary,
+    unsetPrimary,
+    isSettingPrimary,
+    isUnsettingPrimary,
+    deleteStaff,
+    isDeleting,
+    disconnectStaffGmail,
+    disconnectStaffMicrosoft,
+    isDisconnecting,
+    updateSignature,
+    isUpdatingSignature,
+    updateStaff,
+  } = useStaff();
 
   const {
     data: listStaffResponse,
@@ -91,7 +106,21 @@ export default function StaffListPage() {
           <LoadingSkeleton />
         ) : (
           <DataTable
-            columns={columns}
+            columns={getColumns({
+              refreshStaff,
+              setPrimary,
+              unsetPrimary,
+              isSettingPrimary,
+              isUnsettingPrimary,
+              deleteStaff,
+              isDeleting,
+              disconnectStaffGmail,
+              disconnectStaffMicrosoft,
+              isDisconnecting,
+              updateSignature,
+              isUpdatingSignature,
+              updateStaff,
+            })}
             data={staffMembers}
             searchPlaceholder="Search staff..."
             totalItems={totalCount}

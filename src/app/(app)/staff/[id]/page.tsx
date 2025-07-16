@@ -873,7 +873,7 @@ export default function StaffDetailPage() {
                 Link your Gmail or Microsoft account to this staff member to enable sending emails
                 from their profile. When an email account is linked, emails sent to donors assigned
                 to this staff will be sent from their connected account instead of the
-                organization's default account.
+                organization&apos;s default account.
               </p>
             </CardHeader>
             <CardContent>

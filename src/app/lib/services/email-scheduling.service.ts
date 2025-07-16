@@ -328,6 +328,36 @@ export class EmailSchedulingService {
         )}`
       );
 
+      // Debug email assignment validation
+      if (allEmails.length > 0) {
+        const emailIds = allEmails.map((e) => e.id);
+        const emailAssignments = await db
+          .select({
+            emailId: generatedEmails.id,
+            donorId: generatedEmails.donorId,
+            staffId: staff.id,
+            staffEmail: staff.email,
+            hasGmail: sql<boolean>`${staffGmailTokens.id} IS NOT NULL`,
+            hasMicrosoft: sql<boolean>`${staffMicrosoftTokens.id} IS NOT NULL`,
+          })
+          .from(generatedEmails)
+          .leftJoin(donors, eq(generatedEmails.donorId, donors.id))
+          .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+          .leftJoin(staffGmailTokens, eq(staff.id, staffGmailTokens.staffId))
+          .leftJoin(staffMicrosoftTokens, eq(staff.id, staffMicrosoftTokens.staffId))
+          .where(inArray(generatedEmails.id, emailIds));
+
+        const gmailCount = emailAssignments.filter((e) => e.hasGmail).length;
+        const microsoftCount = emailAssignments.filter((e) => e.hasMicrosoft).length;
+        const unassignedCount = emailAssignments.filter(
+          (e) => !e.hasGmail && !e.hasMicrosoft
+        ).length;
+
+        logger.info(
+          `Email provider breakdown for session ${sessionId}: Gmail: ${gmailCount}, Microsoft: ${microsoftCount}, Unassigned: ${unassignedCount}`
+        );
+      }
+
       // Get emails to send - include all generated emails except already sent or currently scheduled/running
       const emails = await db
         .select({

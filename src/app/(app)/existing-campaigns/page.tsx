@@ -474,6 +474,16 @@ function ExistingCampaignsContent() {
     refetchOnWindowFocus: false,
   });
 
+  // Get Microsoft connection status
+  const { data: microsoftStatus } = trpc.microsoft.getMicrosoftConnectionStatus.useQuery(
+    undefined,
+    {
+      refetchInterval: 5000, // Refresh every 5 seconds
+      staleTime: 4000,
+      refetchOnWindowFocus: false,
+    }
+  );
+
   // Get schedule configuration
   const { data: scheduleConfig } = getScheduleConfig(undefined, {
     refetchInterval: 5000, // Refresh every 5 seconds
@@ -534,16 +544,18 @@ function ExistingCampaignsContent() {
   };
 
   const handleSaveToDraft = (campaign: ExistingCampaign) => {
-    if (!gmailStatus?.isConnected) {
-      toast.error('Please connect your Gmail account first in Settings');
+    const isEmailConnected = gmailStatus?.isConnected || microsoftStatus?.isConnected;
+    if (!isEmailConnected) {
+      toast.error('Please connect your email account (Gmail or Microsoft) first in Settings');
       return;
     }
     setConfirmationDialog({ open: true, campaign, action: 'draft' });
   };
 
   const handleSendEmails = (campaign: ExistingCampaign) => {
-    if (!gmailStatus?.isConnected) {
-      toast.error('Please connect your Gmail account first in Settings');
+    const isEmailConnected = gmailStatus?.isConnected || microsoftStatus?.isConnected;
+    if (!isEmailConnected) {
+      toast.error('Please connect your email account (Gmail or Microsoft) first in Settings');
       return;
     }
 
@@ -705,13 +717,16 @@ function ExistingCampaignsContent() {
         const isCompleted = campaign.status === 'COMPLETED' || allEmailsGenerated;
         const hasFailed = campaign.status === 'FAILED';
         const isGmailConnected = gmailStatus?.isConnected ?? false;
-        const isDisabled = isProcessing || !isGmailConnected;
+        const isMicrosoftConnected = microsoftStatus?.isConnected ?? false;
+        const isEmailConnected = isGmailConnected || isMicrosoftConnected;
+        const isDisabled = isProcessing || !isEmailConnected;
 
         let tooltipContent = '';
         if (isProcessing) {
           tooltipContent = 'Campaign is currently processing and cannot be modified.';
-        } else if (!isGmailConnected) {
-          tooltipContent = 'Please connect your Gmail account in Settings to enable this action.';
+        } else if (!isEmailConnected) {
+          tooltipContent =
+            'Please connect your email account (Gmail or Microsoft) in Settings to enable this action.';
         }
 
         const showSaveToDraft = isCompleted || campaign.status === 'READY_TO_SEND';
@@ -722,31 +737,39 @@ function ExistingCampaignsContent() {
         // Determine disabled states and tooltips for each button
         const saveToDraftDisabled = isDisabled || !showSaveToDraft;
         const scheduleSendDisabled =
-          !isGmailConnected ||
+          !isEmailConnected ||
           (!showScheduleSend &&
             campaign.status !== 'READY_TO_SEND' &&
             campaign.status !== 'PAUSED');
 
         const getSaveToDraftTooltip = () => {
-          if (!showSaveToDraft)
-            return 'Campaign must be ready to send or completed to save to drafts';
+          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (!isEmailConnected)
+            return 'Please connect your email account (Gmail or Microsoft) in Settings to enable this action';
           if (campaign.status === 'RUNNING')
             return 'Campaign is currently running and cannot be modified';
           if (campaign.status === 'PAUSED')
             return 'Campaign is paused and cannot be saved to drafts';
-          if (!isGmailConnected)
-            return 'Please connect your Gmail account in Settings to enable this action';
+          if (campaign.status === 'FAILED')
+            return 'Campaign has failed and cannot be saved to drafts';
+          if (!showSaveToDraft)
+            return 'Campaign must be ready to send or completed to save to drafts';
+          if (saveToDraftDisabled) return 'Save to drafts is currently unavailable';
           return 'Save to drafts';
         };
 
         const getScheduleSendTooltip = () => {
+          if (isProcessing) return 'Campaign is currently processing and cannot be modified';
+          if (!isEmailConnected)
+            return 'Please connect your email account (Gmail or Microsoft) in Settings to enable this action';
           if (campaign.status === 'RUNNING') return 'Campaign is already running';
           if (campaign.status === 'PAUSED') return 'Resume campaign';
           if (campaign.status === 'COMPLETED') return 'Campaign has already been completed';
+          if (campaign.status === 'FAILED') return 'Campaign has failed and cannot be launched';
+          if (campaign.totalEmails === 0) return 'No emails have been generated for this campaign';
           if (!showScheduleSend && campaign.status !== 'READY_TO_SEND')
-            return 'Campaign must be ready to send';
-          if (!isGmailConnected)
-            return 'Please connect your Gmail account in Settings to enable this action';
+            return 'Campaign must be ready to send or paused to launch';
+          if (scheduleSendDisabled) return 'Launch campaign is currently unavailable';
           return campaign.status === 'READY_TO_SEND' ? 'Launch campaign' : 'Schedule send';
         };
 

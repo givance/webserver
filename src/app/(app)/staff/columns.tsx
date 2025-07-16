@@ -48,7 +48,6 @@ import { SignatureEditor, SignaturePreview } from '@/components/signature';
 import { sanitizeHtml } from '@/app/lib/utils/sanitize-html';
 import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
-import { useStaff } from '@/app/hooks/use-staff';
 import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
@@ -84,13 +83,19 @@ function PrimaryStaffToggle({
   staffId,
   isPrimary,
   hasEmailToken,
+  setPrimary,
+  unsetPrimary,
+  isSettingPrimary,
+  isUnsettingPrimary,
 }: {
   staffId: string | number;
   isPrimary: boolean;
   hasEmailToken: boolean;
+  setPrimary?: (staffId: number) => Promise<any>;
+  unsetPrimary?: (staffId: number) => Promise<any>;
+  isSettingPrimary?: boolean;
+  isUnsettingPrimary?: boolean;
 }) {
-  const { setPrimary, unsetPrimary, isSettingPrimary, isUnsettingPrimary } = useStaff();
-
   const handleToggle = async (checked: boolean) => {
     if (checked && !hasEmailToken) {
       toast.error('Only staff members with connected email accounts can be set as primary');
@@ -98,9 +103,9 @@ function PrimaryStaffToggle({
     }
 
     if (checked) {
-      await setPrimary(Number(staffId));
+      await setPrimary?.(Number(staffId));
     } else {
-      await unsetPrimary(Number(staffId));
+      await unsetPrimary?.(Number(staffId));
     }
   };
 
@@ -128,12 +133,19 @@ function PrimaryStaffToggle({
 }
 
 // DeleteStaffButton component to handle delete with confirmation dialog
-function DeleteStaffButton({ staffId }: { staffId: string | number }) {
+function DeleteStaffButton({
+  staffId,
+  deleteStaff,
+  isDeleting,
+}: {
+  staffId: string | number;
+  deleteStaff?: (staffId: number) => Promise<any>;
+  isDeleting?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const { deleteStaff, isDeleting } = useStaff();
 
   const handleDelete = async () => {
-    await deleteStaff(Number(staffId));
+    await deleteStaff?.(Number(staffId));
     setOpen(false);
   };
 
@@ -172,18 +184,23 @@ function DeleteStaffButton({ staffId }: { staffId: string | number }) {
 function EmailDisconnectButton({
   staffId,
   provider,
+  disconnectStaffGmail,
+  disconnectStaffMicrosoft,
+  isDisconnecting,
 }: {
   staffId: string | number;
   provider: 'gmail' | 'microsoft';
+  disconnectStaffGmail?: (staffId: number) => Promise<any>;
+  disconnectStaffMicrosoft?: (staffId: number) => Promise<any>;
+  isDisconnecting?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const { disconnectStaffGmail, disconnectStaffMicrosoft, isDisconnecting } = useStaff();
 
   const handleDisconnect = async () => {
     if (provider === 'gmail') {
-      await disconnectStaffGmail(Number(staffId));
+      await disconnectStaffGmail?.(Number(staffId));
     } else {
-      await disconnectStaffMicrosoft(Number(staffId));
+      await disconnectStaffMicrosoft?.(Number(staffId));
     }
     setOpen(false);
   };
@@ -226,21 +243,24 @@ function SignatureEditModal({
   staffId,
   currentSignature,
   staffName,
+  updateSignature,
+  isUpdatingSignature,
 }: {
   staffId: string | number;
   currentSignature?: string | null;
   staffName: string;
+  updateSignature?: (data: { id: number; signature?: string }) => Promise<any>;
+  isUpdatingSignature?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [signature, setSignature] = useState(currentSignature || '');
   const [showCodeView, setShowCodeView] = useState(false);
-  const { updateSignature, isUpdatingSignature } = useStaff();
 
   const handleSave = async () => {
     // Sanitize HTML before saving
     const sanitizedSignature = signature ? sanitizeHtml(signature) : '';
 
-    await updateSignature({
+    await updateSignature?.({
       id: Number(staffId),
       signature: sanitizedSignature || undefined,
     });
@@ -311,21 +331,24 @@ function SignatureEditMenuItem({
   staffId,
   currentSignature,
   staffName,
+  updateSignature,
+  isUpdatingSignature,
 }: {
   staffId: string | number;
   currentSignature?: string | null;
   staffName: string;
+  updateSignature?: (data: { id: number; signature?: string }) => Promise<any>;
+  isUpdatingSignature?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [signature, setSignature] = useState(currentSignature || '');
   const [showCodeView, setShowCodeView] = useState(false);
-  const { updateSignature, isUpdatingSignature } = useStaff();
 
   const handleSave = async () => {
     // Sanitize HTML before saving
     const sanitizedSignature = signature ? sanitizeHtml(signature) : '';
 
-    await updateSignature({
+    await updateSignature?.({
       id: Number(staffId),
       signature: sanitizedSignature || undefined,
     });
@@ -392,14 +415,21 @@ function SignatureEditMenuItem({
 }
 
 // EmailEditCell component for inline email editing
-function EmailEditCell({ staff }: { staff: Staff }) {
-  const { updateStaff } = useStaff();
-
+function EmailEditCell({
+  staff,
+  updateStaff,
+}: {
+  staff: Staff;
+  updateStaff?: (data: { id: number; email: string }) => Promise<any>;
+}) {
   return (
     <InlineTextEdit
       value={staff.email}
       onSave={async (value) => {
         try {
+          if (!updateStaff) {
+            throw new Error('Update function not available');
+          }
           await updateStaff({
             id: Number(staff.id),
             email: value,
@@ -510,7 +540,21 @@ function SignatureDisplay({ signature }: { signature: string }) {
   );
 }
 
-export const columns: ColumnDef<Staff>[] = [
+export const getColumns = (staffHooks?: {
+  refreshStaff?: () => void;
+  setPrimary?: (staffId: number) => Promise<any>;
+  unsetPrimary?: (staffId: number) => Promise<any>;
+  isSettingPrimary?: boolean;
+  isUnsettingPrimary?: boolean;
+  deleteStaff?: (staffId: number) => Promise<any>;
+  isDeleting?: boolean;
+  disconnectStaffGmail?: (staffId: number) => Promise<any>;
+  disconnectStaffMicrosoft?: (staffId: number) => Promise<any>;
+  isDisconnecting?: boolean;
+  updateSignature?: (data: { id: number; signature?: string }) => Promise<any>;
+  isUpdatingSignature?: boolean;
+  updateStaff?: (data: { id: number; email: string }) => Promise<any>;
+}): ColumnDef<Staff>[] => [
   {
     id: 'name',
     header: ({ column }: { column: Column<Staff> }) => {
@@ -536,7 +580,7 @@ export const columns: ColumnDef<Staff>[] = [
           >
             {row.original.firstName} {row.original.lastName}
           </Link>
-          <EmailEditCell staff={row.original} />
+          <EmailEditCell staff={row.original} updateStaff={staffHooks?.updateStaff} />
         </div>
       </div>
     ),
@@ -560,6 +604,10 @@ export const columns: ColumnDef<Staff>[] = [
         staffId={row.original.id}
         isPrimary={row.original.isPrimary}
         hasEmailToken={!!(row.original.gmailToken || row.original.microsoftToken)}
+        setPrimary={staffHooks?.setPrimary}
+        unsetPrimary={staffHooks?.unsetPrimary}
+        isSettingPrimary={staffHooks?.isSettingPrimary}
+        isUnsettingPrimary={staffHooks?.isUnsettingPrimary}
       />
     ),
     accessorFn: (row: Staff) => (row.isPrimary ? 'Primary' : 'Not primary'),
@@ -568,14 +616,12 @@ export const columns: ColumnDef<Staff>[] = [
     id: 'emailAccount',
     header: 'Email',
     cell: ({ row }: { row: Row<Staff> }) => {
-      const { refreshStaff } = useStaff();
-
       return (
         <EmailProviderConnect
           staffId={Number(row.original.id)}
           gmailToken={row.original.gmailToken}
           microsoftToken={row.original.microsoftToken}
-          onConnectionChange={refreshStaff}
+          onConnectionChange={staffHooks?.refreshStaff}
           variant="inline"
         />
       );
@@ -611,6 +657,8 @@ export const columns: ColumnDef<Staff>[] = [
                 staffId={row.original.id}
                 currentSignature={row.original.signature}
                 staffName={staffName}
+                updateSignature={staffHooks?.updateSignature}
+                isUpdatingSignature={staffHooks?.isUpdatingSignature}
               />
             </div>
             {hasSignature && <SignatureDisplay signature={row.original.signature || ''} />}
@@ -662,10 +710,22 @@ export const columns: ColumnDef<Staff>[] = [
                 <>
                   <DropdownMenuSeparator />
                   {hasGmailAccount && (
-                    <EmailDisconnectButton staffId={row.original.id} provider="gmail" />
+                    <EmailDisconnectButton
+                      staffId={row.original.id}
+                      provider="gmail"
+                      disconnectStaffGmail={staffHooks?.disconnectStaffGmail}
+                      disconnectStaffMicrosoft={staffHooks?.disconnectStaffMicrosoft}
+                      isDisconnecting={staffHooks?.isDisconnecting}
+                    />
                   )}
                   {hasMicrosoftAccount && (
-                    <EmailDisconnectButton staffId={row.original.id} provider="microsoft" />
+                    <EmailDisconnectButton
+                      staffId={row.original.id}
+                      provider="microsoft"
+                      disconnectStaffGmail={staffHooks?.disconnectStaffGmail}
+                      disconnectStaffMicrosoft={staffHooks?.disconnectStaffMicrosoft}
+                      isDisconnecting={staffHooks?.isDisconnecting}
+                    />
                   )}
                 </>
               )}
@@ -674,9 +734,15 @@ export const columns: ColumnDef<Staff>[] = [
                 staffId={row.original.id}
                 currentSignature={row.original.signature}
                 staffName={`${row.original.firstName} ${row.original.lastName}`}
+                updateSignature={staffHooks?.updateSignature}
+                isUpdatingSignature={staffHooks?.isUpdatingSignature}
               />
               <DropdownMenuSeparator />
-              <DeleteStaffButton staffId={row.original.id} />
+              <DeleteStaffButton
+                staffId={row.original.id}
+                deleteStaff={staffHooks?.deleteStaff}
+                isDeleting={staffHooks?.isDeleting}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
