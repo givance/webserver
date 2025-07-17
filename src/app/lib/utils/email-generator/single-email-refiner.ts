@@ -137,8 +137,9 @@ REFINEMENT INSTRUCTIONS:
 3. Keep the same overall tone, style, and approach unless specifically asked to change them
 4. Preserve any good elements from the original email
 5. Focus ONLY on addressing the reviewer's concerns
+6. IMPORTANT: When providing the reasoning field, combine the original email's strategy/reasoning with your refinement changes into ONE unified strategy. Do not mention "review", "refinement", or "feedback" - present it as a complete email strategy.
 
-The original email and reviewer feedback will be provided in the conversation.`;
+The original email, its strategy/reasoning, and reviewer feedback will be provided in the conversation.`;
 
   // Build donor context
   const donorContext = buildDonorContext({
@@ -152,7 +153,14 @@ Subject: ${existingEmail.subject}
 Content:
 ${existingEmail.content}
 
-REVIEWER FEEDBACK:
+${
+  existingEmail.reasoning
+    ? `ORIGINAL STRATEGY/REASONING:
+${existingEmail.reasoning}
+
+`
+    : ''
+}REVIEWER FEEDBACK:
 The email needs improvement for the following reasons:
 ${reviewFeedback.feedback}
 
@@ -190,7 +198,7 @@ Please refine the email by addressing ONLY the specific issues mentioned in the 
       .string()
       .min(1)
       .describe(
-        'Explanation of what was changed and why, specifically addressing the reviewer feedback'
+        'Combined strategy that includes the original email strategy/reasoning plus what changes were made and why to address the reviewer feedback. This should be one unified strategy explanation, not mentioning "review" or "refinement" but presenting a complete email strategy.'
       ),
     emailContent: z
       .string()
