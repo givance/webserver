@@ -319,6 +319,25 @@ export const emailCampaignsRouter = router({
     }),
 
   /**
+   * Smart email generation with streaming support
+   */
+  smartEmailGenerationStream: protectedProcedure
+    .input(smartEmailGenerationSchema)
+    .mutation(async function* ({ ctx, input }) {
+      // Get the async generator from the service
+      const generator = ctx.services.emailCampaigns.smartEmailGenerationStream(
+        input,
+        ctx.auth.user.organizationId,
+        ctx.auth.user.id
+      );
+
+      // Yield each update from the generator
+      for await (const update of generator) {
+        yield update;
+      }
+    }),
+
+  /**
    * Save campaign as draft - auto-saves campaign data without triggering generation
    */
   saveDraft: protectedProcedure.input(saveDraftSchema).mutation(async ({ ctx, input }) => {

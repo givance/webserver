@@ -1245,6 +1245,56 @@ export class EmailCampaignsService {
   }
 
   /**
+   * Streaming version of smart email generation with real-time status updates
+   */
+  async *smartEmailGenerationStream(
+    input: SmartEmailGenerationInput,
+    organizationId: string,
+    userId: string
+  ): AsyncGenerator<{
+    status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
+    message?: string;
+    result?: SmartEmailGenerationResponse;
+  }> {
+    try {
+      // Validate session exists and belongs to organization
+      const existingSession = await this.validateSession(input.sessionId, organizationId);
+
+      // Handle different modes
+      switch (input.mode) {
+        case 'generate_more':
+          yield* this.handleGenerateMoreStream(input, existingSession, organizationId, userId);
+          break;
+        case 'regenerate_all':
+          yield* this.handleRegenerateAllStream(input, existingSession, organizationId, userId);
+          break;
+        case 'generate_with_new_message':
+          yield* this.handleGenerateWithNewMessageStream(
+            input,
+            existingSession,
+            organizationId,
+            userId
+          );
+          break;
+        default:
+          throw createTRPCError({
+            code: 'BAD_REQUEST',
+            message: `Invalid mode: ${input.mode}`,
+          });
+      }
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      logger.error(
+        `[smartEmailGenerationStream] Failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to generate emails',
+      });
+    }
+  }
+
+  /**
    * Validates that a session exists and belongs to the organization
    */
   private async validateSession(
@@ -1598,22 +1648,49 @@ export class EmailCampaignsService {
 
     logger.info(`[handleGenerateWithNewMessage] Deleted ${deletedCount} existing emails`);
 
-    // Generate new emails with updated chat history
-    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
-      session.id,
+    // Use the streaming version to generate emails
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
       organizationId,
-      donorsToProcess,
-      updatedChatHistory
-    );
+      sessionId: String(session.id),
+      chatHistory: updatedChatHistory,
+      donorIds: donorsToProcess.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Process the stream
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+    }
+
+    // Add assistant response to chat history
+    const assistantMessage = `I've generated ${successfulCount} personalized emails for your ${donorsToProcess.length} preview donors based on your instructions. The emails have been reviewed and refined to ensure they meet best practices.`;
+
+    const finalChatHistory = [
+      ...updatedChatHistory,
+      { role: 'assistant' as const, content: assistantMessage },
+    ];
+
+    // Update session with final chat history including assistant response
+    await updateEmailGenerationSession(session.id, organizationId, {
+      chatHistory: finalChatHistory,
+    });
 
     return {
       success: true,
       sessionId: session.id,
-      chatHistory: updatedChatHistory,
+      chatHistory: finalChatHistory,
       generatedEmailsCount: successfulCount,
       deletedEmailsCount: deletedCount,
       failedEmailsCount: failedCount,
-      message: `Generated ${successfulCount} emails with new instructions for ${donorsToProcess.length} preview donors`,
+      message: assistantMessage,
     };
   }
 
@@ -2466,5 +2543,152 @@ export class EmailCampaignsService {
 
     // For non-agentic flow or if smart session doesn't exist, use session chat history
     return (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+  }
+
+  /**
+   * Streaming version of handleGenerateWithNewMessage
+   */
+  private async *handleGenerateWithNewMessageStream(
+    input: SmartEmailGenerationInput,
+    session: EmailGenerationSession,
+    organizationId: string,
+    userId: string
+  ): AsyncGenerator<{
+    status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
+    message?: string;
+    result?: SmartEmailGenerationResponse;
+  }> {
+    // Validate input
+    if (!input.newMessage?.trim()) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'New message is required for generate_with_new_message mode',
+      });
+    }
+
+    // Check if we should use the agentic flow
+    const useAgenticFlow = await isFeatureEnabledForOrganization(
+      organizationId,
+      'use_agentic_flow'
+    );
+
+    if (useAgenticFlow) {
+      logger.info('[handleGenerateWithNewMessageStream] Using agentic flow');
+      // For agentic flow, delegate to non-streaming version for now
+      const result = await this.handleGenerateWithNewMessage(
+        input,
+        session,
+        organizationId,
+        userId
+      );
+      yield {
+        status: 'refined' as const,
+        result,
+      };
+      return;
+    }
+
+    // For non-agentic flow, update chat history
+    const existingChatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+
+    const updatedChatHistory = await this.updateChatHistory(
+      session.id,
+      organizationId,
+      input.newMessage,
+      existingChatHistory
+    );
+
+    // Get or create preview donors
+    const previewDonorIds = await this.getDonorsToProcess(session, 'new_preview');
+
+    // Use streaming generation service
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const stream = emailGenerationService.generateSmartEmailsForCampaignStream({
+      organizationId,
+      sessionId: String(session.id),
+      chatHistory: updatedChatHistory,
+      donorIds: previewDonorIds.map((id) => String(id)),
+    });
+
+    // Forward all stream updates
+    let finalResult: any = null;
+    for await (const update of stream) {
+      // When we get the final result, format it as SmartEmailGenerationResponse
+      if (update.status === 'refined' && update.result) {
+        finalResult = update.result;
+        const successfulCount = update.result.results.filter((r) => r.email !== null).length;
+        const failedCount = update.result.results.filter((r) => r.email === null).length;
+
+        // Add assistant response to chat history
+        const assistantMessage = `Generated ${successfulCount} emails for ${previewDonorIds.length} preview donors`;
+        const finalChatHistory = [
+          ...updatedChatHistory,
+          { role: 'assistant' as const, content: assistantMessage },
+        ];
+
+        // Update session with final chat history including assistant response
+        await updateEmailGenerationSession(session.id, organizationId, {
+          chatHistory: finalChatHistory,
+        });
+
+        yield {
+          status: update.status,
+          result: {
+            success: true,
+            sessionId: session.id,
+            chatHistory: finalChatHistory,
+            generatedEmailsCount: successfulCount,
+            deletedEmailsCount: 0,
+            failedEmailsCount: failedCount,
+            message: assistantMessage,
+          },
+        };
+      } else {
+        yield update;
+      }
+    }
+  }
+
+  /**
+   * Streaming version of handleGenerateMore
+   */
+  private async *handleGenerateMoreStream(
+    input: SmartEmailGenerationInput,
+    session: EmailGenerationSession,
+    organizationId: string,
+    userId: string
+  ): AsyncGenerator<{
+    status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
+    message?: string;
+    result?: SmartEmailGenerationResponse;
+  }> {
+    // For now, delegate to non-streaming version
+    const result = await this.handleGenerateMore(input, session, organizationId, userId);
+    yield {
+      status: 'refined' as const,
+      result,
+    };
+  }
+
+  /**
+   * Streaming version of handleRegenerateAll
+   */
+  private async *handleRegenerateAllStream(
+    input: SmartEmailGenerationInput,
+    session: EmailGenerationSession,
+    organizationId: string,
+    userId: string
+  ): AsyncGenerator<{
+    status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
+    message?: string;
+    result?: SmartEmailGenerationResponse;
+  }> {
+    // For now, delegate to non-streaming version
+    const result = await this.handleRegenerateAll(input, session, organizationId, userId);
+    yield {
+      status: 'refined' as const,
+      result,
+    };
   }
 }

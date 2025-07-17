@@ -1,8 +1,8 @@
-import type { GeneratedEmail } from "../types";
+import type { GeneratedEmail } from '../types';
 
 // Local interface for conversation messages
 interface ConversationMessage {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -18,12 +18,14 @@ interface EmailState {
   setReferenceContexts: (contexts: Record<number, Record<string, string>>) => void;
   setEmailStatuses: (
     statuses:
-      | Record<number, "PENDING_APPROVAL" | "APPROVED">
-      | ((prev: Record<number, "PENDING_APPROVAL" | "APPROVED">) => Record<number, "PENDING_APPROVAL" | "APPROVED">)
+      | Record<number, 'PENDING_APPROVAL' | 'APPROVED'>
+      | ((
+          prev: Record<number, 'PENDING_APPROVAL' | 'APPROVED'>
+        ) => Record<number, 'PENDING_APPROVAL' | 'APPROVED'>)
   ) => void;
   allGeneratedEmails: GeneratedEmail[];
   referenceContexts: Record<number, Record<string, string>>;
-  emailStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED">;
+  emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'>;
 }
 
 interface ChatState {
@@ -58,10 +60,7 @@ export function clearEmailState(emailState: EmailState, chatState: ChatState) {
 /**
  * Clear email state selectively for regeneration
  */
-export function clearEmailStateForRegeneration(
-  emailState: EmailState,
-  onlyUnapproved: boolean
-) {
+export function clearEmailStateForRegeneration(emailState: EmailState, onlyUnapproved: boolean) {
   if (!onlyUnapproved) {
     // Clear everything for full regeneration
     emailState.setGeneratedEmails([]);
@@ -71,19 +70,19 @@ export function clearEmailStateForRegeneration(
   } else {
     // Keep only approved emails
     const approvedEmails = emailState.allGeneratedEmails.filter(
-      (email) => emailState.emailStatuses[email.donorId] === "APPROVED"
+      (email) => emailState.emailStatuses[email.donorId] === 'APPROVED'
     );
     emailState.setGeneratedEmails(approvedEmails);
     emailState.setAllGeneratedEmails(approvedEmails);
 
     // Keep only approved email contexts and statuses
     const newContexts: Record<number, Record<string, string>> = {};
-    const newStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
+    const newStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
     approvedEmails.forEach((email) => {
       if (emailState.referenceContexts[email.donorId]) {
         newContexts[email.donorId] = emailState.referenceContexts[email.donorId];
       }
-      newStatuses[email.donorId] = "APPROVED";
+      newStatuses[email.donorId] = 'APPROVED';
     });
     emailState.setReferenceContexts(newContexts);
     emailState.setEmailStatuses(newStatuses);
@@ -99,36 +98,49 @@ export function updateEmailStateWithNewEmails(
   isAppending: boolean = false
 ) {
   if (isAppending) {
-    // Append new emails to existing ones
-    const allEmails = [...emailState.allGeneratedEmails, ...newEmails];
+    // Create a map to track emails by donorId to avoid duplicates
+    const emailMap = new Map<number, GeneratedEmail>();
+
+    // Add existing emails to the map
+    emailState.allGeneratedEmails.forEach((email) => {
+      emailMap.set(email.donorId, email);
+    });
+
+    // Add new emails, overwriting any existing ones for the same donor
+    newEmails.forEach((email) => {
+      emailMap.set(email.donorId, email);
+    });
+
+    // Convert map back to array
+    const allEmails = Array.from(emailMap.values());
     emailState.setAllGeneratedEmails(allEmails);
     emailState.setGeneratedEmails(allEmails);
-    
+
     // Update reference contexts and statuses
     const newReferenceContexts = { ...emailState.referenceContexts };
     const newStatuses = { ...emailState.emailStatuses };
-    
+
     newEmails.forEach((email) => {
       newReferenceContexts[email.donorId] = email.referenceContexts || {};
-      newStatuses[email.donorId] = "PENDING_APPROVAL";
+      newStatuses[email.donorId] = 'PENDING_APPROVAL';
     });
-    
+
     emailState.setReferenceContexts(newReferenceContexts);
     emailState.setEmailStatuses(newStatuses);
   } else {
     // Replace existing emails
     emailState.setAllGeneratedEmails(newEmails);
     emailState.setGeneratedEmails(newEmails);
-    
+
     // Set reference contexts and statuses
     const referenceContexts: Record<number, Record<string, string>> = {};
-    const emailStatuses: Record<number, "PENDING_APPROVAL" | "APPROVED"> = {};
-    
+    const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
     newEmails.forEach((email) => {
       referenceContexts[email.donorId] = email.referenceContexts || {};
-      emailStatuses[email.donorId] = "PENDING_APPROVAL";
+      emailStatuses[email.donorId] = 'PENDING_APPROVAL';
     });
-    
+
     emailState.setReferenceContexts(referenceContexts);
     emailState.setEmailStatuses(emailStatuses);
   }
@@ -145,7 +157,7 @@ export function updateChatStateWithNewMessage(
   chatState.setChatMessages((prev) => {
     const newMessages: ConversationMessage[] = [
       ...prev,
-      { role: "assistant" as const, content: responseMessage },
+      { role: 'assistant' as const, content: responseMessage },
     ];
     // Save chat history asynchronously
     setTimeout(() => chatState.saveChatHistory(newMessages, instruction), 100);
@@ -158,17 +170,17 @@ export function updateChatStateWithNewMessage(
  */
 export function setEmailGenerationLoading(
   emailGenerationState: EmailGenerationState,
-  type: "generating" | "generating_more" | "regenerating",
+  type: 'generating' | 'generating_more' | 'regenerating',
   isLoading: boolean
 ) {
   switch (type) {
-    case "generating":
+    case 'generating':
       emailGenerationState.setIsGenerating(isLoading);
       break;
-    case "generating_more":
+    case 'generating_more':
       emailGenerationState.setIsGeneratingMore(isLoading);
       break;
-    case "regenerating":
+    case 'regenerating':
       emailGenerationState.setIsRegenerating(isLoading);
       break;
   }
@@ -187,7 +199,7 @@ export function clearInstructionInput(instructionInput: InstructionInput) {
 export function updateEmailStatus(
   emailState: EmailState,
   donorId: number,
-  status: "PENDING_APPROVAL" | "APPROVED"
+  status: 'PENDING_APPROVAL' | 'APPROVED'
 ) {
   emailState.setEmailStatuses((prev) => ({
     ...prev,

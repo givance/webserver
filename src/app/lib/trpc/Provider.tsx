@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
-import React, { useState } from "react";
-import { trpc } from "@/app/lib/trpc/client";
-import { errorLink } from "@/app/lib/trpc/error-link";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { httpBatchLink, splitLink, unstable_httpBatchStreamLink } from '@trpc/client';
+import React, { useState } from 'react';
+import { trpc } from '@/app/lib/trpc/client';
+import { errorLink } from '@/app/lib/trpc/error-link';
 
 /**
  * Props for the TRPCProvider component
@@ -26,7 +26,7 @@ export default function TRPCProvider({ children }: TRPCProviderProps) {
           queries: {
             staleTime: 5 * 60 * 1000, // 5 minutes - prevent redundant calls
             refetchOnWindowFocus: false,
-            refetchOnMount: "always", // Use "always" instead of true for better control
+            refetchOnMount: 'always', // Use "always" instead of true for better control
             refetchOnReconnect: false, // Prevent automatic refetch on reconnect
             retry: 1, // Limit retry attempts
           },
@@ -37,8 +37,17 @@ export default function TRPCProvider({ children }: TRPCProviderProps) {
     trpc.createClient({
       links: [
         errorLink,
-        httpBatchLink({
-          url: "/api/trpc",
+        splitLink({
+          condition: (op) =>
+            op.path.includes('smartEmailGenerationStream') ||
+            op.path.includes('upload') ||
+            op.path.includes('chat'),
+          true: unstable_httpBatchStreamLink({
+            url: '/api/trpc',
+          }),
+          false: httpBatchLink({
+            url: '/api/trpc',
+          }),
         }),
       ],
     })

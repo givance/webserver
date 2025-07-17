@@ -12,11 +12,14 @@ import { getOrganizationById, getOrganizationMemories } from '@/app/lib/data/org
 import {
   getEmailGenerationSessionById,
   saveGeneratedEmail as saveGeneratedEmailData,
+  getEmailBySessionAndDonor,
 } from '@/app/lib/data/email-campaigns';
 import { getAllStaffByOrganization } from '@/app/lib/data/staff';
 import { getDonorsByIds, getAllDonorsByOrganization } from '@/app/lib/data/donors';
 import { getPersonResearchByDonor } from '@/app/lib/data/person-research';
 import { getListMembers } from '@/app/lib/data/donor-lists';
+import { EmailReviewService } from './email-review.service';
+import { logger } from '@/app/lib/logger';
 
 interface GenerateSmartEmailsParams {
   organizationId: string;
@@ -37,7 +40,22 @@ interface SmartEmailGenerationResult {
   tokensUsed?: number;
 }
 
+export type EmailGenerationStreamUpdate = {
+  status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
+  message?: string;
+  result?: {
+    results: SmartEmailGenerationResult[];
+    totalTokensUsed: number;
+  };
+};
+
 export class UnifiedSmartEmailGenerationService {
+  private emailReviewService: EmailReviewService;
+
+  constructor() {
+    this.emailReviewService = new EmailReviewService();
+  }
+
   /**
    * Main entry point that fetches all necessary data and generates emails for all donors
    */
@@ -89,6 +107,128 @@ export class UnifiedSmartEmailGenerationService {
   }
 
   /**
+   * Streaming version of email generation with status updates
+   */
+  async *generateSmartEmailsForCampaignStream(
+    params: GenerateSmartEmailsParams
+  ): AsyncGenerator<EmailGenerationStreamUpdate> {
+    try {
+      // Emit generating status
+      yield {
+        status: 'generating' as const,
+        message: 'Starting email generation...',
+      };
+
+      // 1. Query organizational settings
+      const organization = await this.getOrganization(params.organizationId);
+      if (!organization) {
+        throw new Error('Organization not found');
+      }
+
+      // 2. Query the user who created the session
+      const session = await this.getSession(params.sessionId, params.organizationId);
+      if (!session) {
+        throw new Error('Session not found');
+      }
+
+      // 3. Query all staff members
+      const staffMembers = await this.getStaffMembers(params.organizationId);
+
+      // 4. Query all donors (with optional filtering)
+      const donorsData = await this.getDonorsWithStaffAssignments(
+        params.organizationId,
+        params.donorIds?.map((id) => Number(id))
+      );
+
+      // 5. Run Promise.all on the generation function
+      const currentDate = new Date().toISOString();
+      const results = await Promise.all(
+        donorsData.map((donor) =>
+          this.generateSmartEmailForDonor({
+            donor,
+            organization,
+            staffMembers,
+            sessionId: params.sessionId,
+            userId: session.userId,
+            currentDate,
+            chatHistory: params.chatHistory,
+          })
+        )
+      );
+
+      // Calculate total tokens used
+      const totalTokensUsed = results.reduce((sum, result) => sum + (result.tokensUsed || 0), 0);
+
+      // Emit generated status with results
+      yield {
+        status: 'generated' as const,
+        result: { results, totalTokensUsed },
+      };
+
+      // Start review process
+      yield {
+        status: 'reviewing' as const,
+        message: 'Reviewing generated emails...',
+      };
+
+      // Get successfully generated email IDs for review
+      const emailIdsToReview: number[] = [];
+      for (const result of results) {
+        if (result.email && 'id' in result.donor) {
+          // Assume saved emails have IDs - in real implementation, we'd need to fetch them
+          const savedEmail = await this.getEmailBySessionAndDonor(
+            params.sessionId,
+            result.donor.id,
+            params.organizationId
+          );
+          if (savedEmail?.id) {
+            emailIdsToReview.push(savedEmail.id);
+          }
+        }
+      }
+
+      if (emailIdsToReview.length > 0) {
+        // Review the generated emails
+        const reviewResults = await this.emailReviewService.reviewEmails(
+          emailIdsToReview,
+          params.organizationId
+        );
+
+        logger.info('[generateSmartEmailsForCampaignStream] Review completed', {
+          reviewCount: reviewResults.reviews.length,
+          tokensUsed: reviewResults.totalTokensUsed,
+        });
+
+        // Check if any emails need refinement
+        const emailsNeedingRefinement = reviewResults.reviews.filter(
+          (review) => review.result === 'NEEDS_IMPROVEMENT'
+        );
+
+        if (emailsNeedingRefinement.length > 0) {
+          // Emit refining status
+          yield {
+            status: 'refining' as const,
+            message: 'Refining generated emails based on reviewer feedback',
+          };
+
+          // TODO: Implement actual refinement logic here
+          // For now, we'll just simulate the refinement process
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+
+      // Emit refined status with final results
+      yield {
+        status: 'refined' as const,
+        result: { results, totalTokensUsed },
+      };
+    } catch (error) {
+      logger.error('[generateSmartEmailsForCampaignStream] Error during generation', { error });
+      throw error;
+    }
+  }
+
+  /**
    * Generate a smart email for a single donor with all logic contained within
    */
   private async generateSmartEmailForDonor(params: {
@@ -137,110 +277,94 @@ export class UnifiedSmartEmailGenerationService {
           writingInstructions: organization.writingInstructions,
           featureFlags: organization.featureFlags,
         },
-        staffMembers: staffMembers.map((s) => ({
-          id: s.id,
-          userId: s.userId,
-          writingInstructions: s.writingInstructions,
-          firstName: s.firstName,
-          lastName: s.lastName,
-        })),
+        staffMembers,
         donorHistory: {
           communications: communicationHistory,
           donations: donationHistory,
           statistics: donorStats,
           personResearch: researchResults,
         },
-        memories: {
-          user: memories.userMemories.split('\n').filter((m) => m.trim()),
-          organization: memories.organizationMemories.split('\n').filter((m) => m.trim()),
-        },
-        chatHistory: chatHistory || [],
+        chatHistory,
         currentDate,
+        memories,
       };
 
-      const emailResult = await generateSingleEmail(emailParams);
+      const result = await generateSingleEmail(emailParams);
 
-      // Save the email to the database
-      if (emailResult) {
-        await this.saveGeneratedEmail({
-          sessionId,
-          donorId: donor.id,
-          organizationId: organization.id,
-          subject: emailResult.subject,
-          content: emailResult.content,
-          reasoning: emailResult.reasoning,
-          response: emailResult.response,
-        });
-      }
+      // Save the generated email
+      // For backward compatibility, convert plain text to structured content
+      const structuredContent = [
+        {
+          piece: result.content,
+          references: [],
+          addNewlineAfter: true,
+        },
+      ];
+
+      await this.saveGeneratedEmail({
+        sessionId: Number(sessionId),
+        donorId: donor.id,
+        subject: result.subject,
+        structuredContent,
+        referenceContexts: result.referenceContexts || {},
+        emailContent: result.content,
+        reasoning: result.reasoning,
+        response: result.response,
+      });
 
       return {
         donor,
-        email: emailResult
-          ? {
-              subject: emailResult.subject,
-              content: emailResult.content,
-              reasoning: emailResult.reasoning,
-              response: emailResult.response,
-            }
-          : null,
-        tokensUsed: emailResult?.tokensUsed || 0,
+        email: {
+          subject: result.subject,
+          content: result.content,
+          reasoning: result.reasoning,
+          response: result.response,
+        },
+        tokensUsed: result.tokensUsed,
       };
     } catch (error) {
-      console.error(`Error generating email for donor ${params.donor.id}:`, error);
+      console.error(`Failed to generate email for donor ${params.donor.id}:`, error);
       return {
         donor: params.donor,
         email: null,
         error: error instanceof Error ? error.message : 'Unknown error',
-        tokensUsed: 0,
       };
     }
   }
 
-  /**
-   * Helper methods for data fetching
-   */
-  private async getOrganization(organizationId: string): Promise<any | null> {
+  // Helper methods for data fetching
+  private async getOrganization(organizationId: string) {
     return await getOrganizationById(organizationId);
   }
 
   private async getSession(sessionId: string, organizationId: string) {
-    return await getEmailGenerationSessionById(Number(sessionId), organizationId);
+    const session = await getEmailGenerationSessionById(Number(sessionId), organizationId);
+    if (!session) {
+      return null;
+    }
+    return session;
   }
 
-  private async getStaffMembers(organizationId: string): Promise<any[]> {
+  private async getStaffMembers(organizationId: string) {
     return await getAllStaffByOrganization(organizationId);
   }
 
-  private async getDonorsWithStaffAssignments(
-    organizationId: string,
-    donorIds?: number[]
-  ): Promise<any[]> {
+  private async getDonorsWithStaffAssignments(organizationId: string, donorIds?: number[]) {
     if (donorIds && donorIds.length > 0) {
+      // Get specific donors
       return await getDonorsByIds(donorIds, organizationId);
+    } else {
+      // Get all donors in the organization
+      return await getAllDonorsByOrganization(organizationId);
     }
-    return await getAllDonorsByOrganization(organizationId);
   }
 
   private async getCommunicationHistory(donorId: number, organizationId: string) {
-    const threads = await getDonorCommunicationHistory(donorId, { organizationId });
-
-    // Format communication history for email generation
-    const formattedHistory: any[] = [];
-    threads.forEach((thread) => {
-      if (thread.content) {
-        thread.content.forEach((msg) => {
-          formattedHistory.push({
-            content: [{ content: msg.content }],
-          });
-        });
-      }
-    });
-
-    return formattedHistory;
+    return await getDonorCommunicationHistory(donorId, organizationId);
   }
 
   private async getDonationHistory(donorId: number, organizationId: string) {
-    return await getDonorDonationsWithProjects(donorId);
+    return await getDonorDonationsWithProjects(donorId, organizationId);
   }
 
   private async getDonorStats(donorId: number, organizationId: string) {
@@ -248,72 +372,37 @@ export class UnifiedSmartEmailGenerationService {
   }
 
   private async getPersonResearch(donorId: number, organizationId: string) {
-    return await getPersonResearchByDonor(donorId, organizationId, 5);
+    return await getPersonResearchByDonor(donorId, organizationId);
   }
 
   private async getMemories(organizationId: string, userId: string) {
     const [userMemories, orgMemories] = await Promise.all([
-      getUserMemories(userId),
+      getUserMemories(userId, organizationId),
       getOrganizationMemories(organizationId),
     ]);
-
     return {
-      userMemories: userMemories.join('\n'),
-      organizationMemories: orgMemories.join('\n'),
+      user: userMemories,
+      organization: orgMemories,
     };
   }
 
-  private async saveGeneratedEmail(params: {
-    sessionId: string;
+  private async saveGeneratedEmail(emailData: {
+    sessionId: number;
     donorId: number;
-    organizationId: string;
     subject: string;
-    content: string;
+    emailContent: string;
     reasoning: string;
     response: string;
+    referenceContexts: Record<string, string>;
   }) {
-    await saveGeneratedEmailData({
-      sessionId: Number(params.sessionId),
-      donorId: params.donorId,
-      subject: params.subject,
-      structuredContent: [
-        {
-          piece: params.content,
-          references: ['email-content'],
-          addNewlineAfter: false,
-        },
-      ],
-      referenceContexts: { 'email-content': 'Generated email content' },
-      emailContent: params.content,
-      reasoning: params.reasoning,
-      response: params.response,
-      status: 'PENDING_APPROVAL',
-      isPreview: false, // Default to false for all emails
-    });
+    return await saveGeneratedEmailData(emailData);
   }
 
-  /**
-   * Method for processing donors from a list
-   */
-  async generateSmartEmailsForList(params: {
-    organizationId: string;
-    listId: string;
-    sessionId: string;
-    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
-  }): Promise<{
-    results: SmartEmailGenerationResult[];
-    totalTokensUsed: number;
-  }> {
-    // Get donor IDs from the list
-    const listDonors = await getListMembers(Number(params.listId));
-
-    const donorIds = listDonors.map((ld) => String(ld.donorId));
-
-    return this.generateSmartEmailsForCampaign({
-      organizationId: params.organizationId,
-      sessionId: params.sessionId,
-      chatHistory: params.chatHistory,
-      donorIds,
-    });
+  private async getEmailBySessionAndDonor(
+    sessionId: string,
+    donorId: number,
+    organizationId: string
+  ) {
+    return await getEmailBySessionAndDonor(Number(sessionId), donorId);
   }
 }

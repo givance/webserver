@@ -124,6 +124,10 @@ export function useCommunications() {
     },
   });
 
+  // Smart email generation streaming mutation hook
+  const smartEmailGenerationStream =
+    trpc.communications.campaigns.smartEmailGenerationStream.useMutation();
+
   // Save draft mutation hook
   const saveDraft = trpc.communications.campaigns.saveDraft.useMutation({
     onSuccess: (data) => {
@@ -348,47 +352,46 @@ export function useCommunications() {
     }) => void
   ) => {
     try {
-      // Since tRPC mutations don't support streaming directly, we'll need to
-      // simulate it with multiple calls or use a different approach
-      // For now, let's call the regular endpoint and simulate the streaming behavior
+      let finalResult: any = null;
 
-      // Step 1: Emit generating status
-      onChunk({
-        status: 'generating',
-        message: 'Starting email generation...',
-      });
+      // Use the streaming mutation
+      const stream = await smartEmailGenerationStream.mutateAsync(input);
 
-      // Step 2: Call the actual generation
-      const result = await smartEmailGeneration.mutateAsync(input);
+      // Check if we got an async iterable
+      if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+        // Process the stream
+        for await (const update of stream) {
+          onChunk(update);
 
-      // Step 2: Emit generated status with result
-      onChunk({
-        status: 'generated',
-        result,
-      });
+          // Capture the final result
+          if (update.result) {
+            finalResult = update.result;
+          }
+        }
+      } else {
+        // Fallback if streaming isn't working
+        console.warn('Streaming not available, falling back to regular mutation');
+        finalResult = await smartEmailGeneration.mutateAsync(input);
 
-      // Step 3: Emit reviewing status after 0.5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      onChunk({
-        status: 'reviewing',
-        message: 'Reviewing generated emails...',
-      });
+        // Emit status updates
+        onChunk({ status: 'generating', message: 'Starting email generation...' });
+        onChunk({ status: 'generated', result: finalResult });
+        onChunk({ status: 'reviewing', message: 'Reviewing generated emails...' });
+        onChunk({
+          status: 'refining',
+          message: 'Refining generated emails based on reviewer feedback',
+        });
+        onChunk({ status: 'refined', result: finalResult });
+      }
 
-      // Step 4: Emit refining status after 2 seconds
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      onChunk({
-        status: 'refining',
-        message: 'Refining generated emails based on reviewer feedback',
-      });
-
-      // Step 5: Emit refined status with result after 3 seconds
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      onChunk({
-        status: 'refined',
-        result,
-      });
-
-      return result;
+      return (
+        finalResult || {
+          success: true,
+          sessionId: input.sessionId,
+          message: 'Email generation completed',
+          chatHistory: [],
+        }
+      );
     } catch (error) {
       console.error('Failed to generate smart email stream:', error);
       throw error;
