@@ -8,6 +8,7 @@ import {
   boolean,
   integer,
   jsonb,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 import { emailGenerationSessionStatusEnum } from './enums';
@@ -64,32 +65,42 @@ export const emailGenerationSessions = pgTable('email_generation_sessions', {
 /**
  * Generated emails table to store all generated emails
  */
-export const generatedEmails = pgTable('generated_emails', {
-  id: serial('id').primaryKey(),
-  sessionId: integer('session_id')
-    .references(() => emailGenerationSessions.id, { onDelete: 'cascade' })
-    .notNull(),
-  donorId: integer('donor_id')
-    .references(() => donors.id, { onDelete: 'cascade' })
-    .notNull(),
-  subject: text('subject').notNull(),
-  structuredContent: jsonb('structured_content').notNull(), // Array of EmailPiece objects
-  referenceContexts: jsonb('reference_contexts').notNull(), // Record of reference IDs to context
-  // New fields for the updated format
-  emailContent: text('email_content'), // Plain text email content
-  reasoning: text('reasoning'), // AI's reasoning for the email generation
-  response: text('response'), // User-facing summary of what was delivered
-  status: text('status').notNull().default('PENDING_APPROVAL'), // 'PENDING_APPROVAL', 'APPROVED', 'SENT'
-  isPreview: boolean('is_preview').default(false).notNull(), // Whether this was a preview email
-  isSent: boolean('is_sent').default(false).notNull(), // Whether this email has been sent
-  sentAt: timestamp('sent_at'), // When this email was sent (null if not sent)
-  // Scheduling fields
-  sendJobId: integer('send_job_id'), // References emailSendJobs.id when scheduled
-  scheduledSendTime: timestamp('scheduled_send_time'), // When this email is scheduled to be sent
-  sendStatus: text('send_status').default('pending'), // 'pending', 'scheduled', 'sending', 'sent', 'failed', 'cancelled', 'paused'
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+export const generatedEmails = pgTable(
+  'generated_emails',
+  {
+    id: serial('id').primaryKey(),
+    sessionId: integer('session_id')
+      .references(() => emailGenerationSessions.id, { onDelete: 'cascade' })
+      .notNull(),
+    donorId: integer('donor_id')
+      .references(() => donors.id, { onDelete: 'cascade' })
+      .notNull(),
+    subject: text('subject').notNull(),
+    structuredContent: jsonb('structured_content').notNull(), // Array of EmailPiece objects
+    referenceContexts: jsonb('reference_contexts').notNull(), // Record of reference IDs to context
+    // New fields for the updated format
+    emailContent: text('email_content'), // Plain text email content
+    reasoning: text('reasoning'), // AI's reasoning for the email generation
+    response: text('response'), // User-facing summary of what was delivered
+    status: text('status').notNull().default('PENDING_APPROVAL'), // 'PENDING_APPROVAL', 'APPROVED', 'SENT'
+    isPreview: boolean('is_preview').default(false).notNull(), // Whether this was a preview email
+    isSent: boolean('is_sent').default(false).notNull(), // Whether this email has been sent
+    sentAt: timestamp('sent_at'), // When this email was sent (null if not sent)
+    // Scheduling fields
+    sendJobId: integer('send_job_id'), // References emailSendJobs.id when scheduled
+    scheduledSendTime: timestamp('scheduled_send_time'), // When this email is scheduled to be sent
+    sendStatus: text('send_status').default('pending'), // 'pending', 'scheduled', 'sending', 'sent', 'failed', 'cancelled', 'paused'
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    // Ensure only one email per donor per session
+    sessionDonorUnique: unique('generated_emails_session_id_donor_id_unique').on(
+      table.sessionId,
+      table.donorId
+    ),
+  })
+);
 
 /**
  * Relations for email generation tables

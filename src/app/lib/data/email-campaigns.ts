@@ -184,7 +184,7 @@ export async function saveGeneratedEmail(
 ): Promise<GeneratedEmail> {
   try {
     if (existingEmailId) {
-      // Update existing email
+      // Update existing email by ID
       const result = await db
         .update(generatedEmails)
         .set({ ...emailData, updatedAt: new Date() })
@@ -192,9 +192,31 @@ export async function saveGeneratedEmail(
         .returning();
       return result[0];
     } else {
-      // Create new email
-      const result = await db.insert(generatedEmails).values(emailData).returning();
-      return result[0];
+      // Check if an email already exists for this session_id and donor_id combination
+      const existingEmail = await db
+        .select()
+        .from(generatedEmails)
+        .where(
+          and(
+            eq(generatedEmails.sessionId, emailData.sessionId),
+            eq(generatedEmails.donorId, emailData.donorId)
+          )
+        )
+        .limit(1);
+
+      if (existingEmail.length > 0) {
+        // Update existing email found by session_id and donor_id
+        const result = await db
+          .update(generatedEmails)
+          .set({ ...emailData, updatedAt: new Date() })
+          .where(eq(generatedEmails.id, existingEmail[0].id))
+          .returning();
+        return result[0];
+      } else {
+        // Create new email
+        const result = await db.insert(generatedEmails).values(emailData).returning();
+        return result[0];
+      }
     }
   } catch (error) {
     console.error('Failed to save generated email:', error);
@@ -431,7 +453,7 @@ export async function updateGeneratedEmail(
 }
 
 /**
- * Creates a new generated email
+ * Creates a new generated email with unique constraint handling
  */
 export async function createGeneratedEmail(
   emailData: Omit<NewGeneratedEmail, 'id' | 'createdAt' | 'updatedAt'>
@@ -440,6 +462,35 @@ export async function createGeneratedEmail(
     const result = await db.insert(generatedEmails).values(emailData).returning();
     return result[0];
   } catch (error) {
+    // Check if this is a unique constraint violation for session_id + donor_id
+    if (
+      error instanceof Error &&
+      error.message.includes('generated_emails_session_id_donor_id_unique')
+    ) {
+      console.log(
+        `Email already exists for sessionId: ${emailData.sessionId}, donorId: ${emailData.donorId}. Fetching existing email.`
+      );
+
+      // Fetch the existing email
+      const existingEmail = await getEmailBySessionAndDonor(emailData.sessionId, emailData.donorId);
+      if (existingEmail) {
+        // Get the full email data
+        const [fullEmail] = await db
+          .select()
+          .from(generatedEmails)
+          .where(eq(generatedEmails.id, existingEmail.id))
+          .limit(1);
+
+        if (fullEmail) {
+          return fullEmail;
+        }
+      }
+
+      throw new Error(
+        'Email already exists for this donor in this session, but could not retrieve it.'
+      );
+    }
+
     console.error('Failed to create generated email:', error);
     throw new Error('Could not create generated email.');
   }

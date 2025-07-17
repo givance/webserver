@@ -2061,8 +2061,62 @@ export class EmailCampaignsService {
           insertData.response = input.response;
         }
 
-        const newEmail = await createGeneratedEmail(insertData);
-        return { success: true, email: newEmail };
+        try {
+          const newEmail = await createGeneratedEmail(insertData);
+          return { success: true, email: newEmail };
+        } catch (createError) {
+          // If constraint violation occurs, check if email now exists and update it instead
+          if (
+            createError instanceof Error &&
+            createError.message.includes('Email already exists for this donor in this session')
+          ) {
+            logger.info(
+              `Constraint violation detected for sessionId: ${input.sessionId}, donorId: ${input.donorId}. Attempting to update existing email.`
+            );
+
+            // Re-check for existing email and update it
+            const existingEmailAfterConstraint = await getEmailBySessionAndDonor(
+              input.sessionId,
+              input.donorId
+            );
+            if (existingEmailAfterConstraint) {
+              const updateData: any = {
+                subject: input.subject,
+                status: input.isPreview ? 'PENDING_APPROVAL' : 'APPROVED',
+                isPreview: input.isPreview || false,
+                updatedAt: new Date(),
+              };
+
+              // Add legacy format fields if provided
+              if (contentWithoutSignature) {
+                updateData.structuredContent = contentWithoutSignature;
+              }
+              if (input.referenceContexts) {
+                updateData.referenceContexts = input.referenceContexts;
+              }
+
+              // Add new format fields if provided
+              if (input.emailContent) {
+                updateData.emailContent = input.emailContent;
+              }
+              if (input.reasoning) {
+                updateData.reasoning = input.reasoning;
+              }
+              if (input.response) {
+                updateData.response = input.response;
+              }
+
+              const updatedEmail = await updateGeneratedEmail(
+                existingEmailAfterConstraint.id,
+                updateData
+              );
+              return { success: true, email: updatedEmail };
+            }
+          }
+
+          // If it's not a constraint violation or we couldn't handle it, re-throw
+          throw createError;
+        }
       }
     } catch (error) {
       if (error instanceof TRPCError) throw error;

@@ -357,31 +357,14 @@ export function useCommunications() {
       // Use the streaming mutation
       const stream = await smartEmailGenerationStream.mutateAsync(input);
 
-      // Check if we got an async iterable
-      if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
-        // Process the stream
-        for await (const update of stream) {
-          onChunk(update);
+      // Process the stream
+      for await (const update of stream) {
+        onChunk(update);
 
-          // Capture the final result
-          if (update.result) {
-            finalResult = update.result;
-          }
+        // Capture the final result
+        if (update.result) {
+          finalResult = update.result;
         }
-      } else {
-        // Fallback if streaming isn't working
-        console.warn('Streaming not available, falling back to regular mutation');
-        finalResult = await smartEmailGeneration.mutateAsync(input);
-
-        // Emit status updates
-        onChunk({ status: 'generating', message: 'Starting email generation...' });
-        onChunk({ status: 'generated', result: finalResult });
-        onChunk({ status: 'reviewing', message: 'Reviewing generated emails...' });
-        onChunk({
-          status: 'refining',
-          message: 'Refining generated emails based on reviewer feedback',
-        });
-        onChunk({ status: 'refined', result: finalResult });
       }
 
       return (
