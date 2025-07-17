@@ -26,6 +26,24 @@ export async function handleEmailGeneration(params: {
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     generatedEmailsCount?: number;
   }>;
+  smartEmailGenerationStream?: (
+    input: {
+      sessionId: number;
+      mode: 'generate_more' | 'regenerate_all' | 'generate_with_new_message';
+      count?: number;
+      newMessage?: string;
+    },
+    onChunk: (chunk: {
+      status: 'generating' | 'generated' | 'refining' | 'refined';
+      message?: string;
+      result?: any;
+    }) => void
+  ) => Promise<any>;
+  onStreamUpdate?: (update: {
+    status: 'generating' | 'generated' | 'refining' | 'refined';
+    message?: string;
+    result?: any;
+  }) => void;
   sessionId?: number;
   saveEmailsToSession?: (emails: GeneratedEmail[], sessionId: number) => Promise<void>;
 }): Promise<EmailOperationResult | null> {
@@ -37,18 +55,34 @@ export async function handleEmailGeneration(params: {
     previousInstruction,
     currentSignature,
     smartEmailGeneration,
+    smartEmailGenerationStream,
+    onStreamUpdate,
     sessionId,
     saveEmailsToSession,
   } = params;
 
   if (!finalInstruction.trim() || !organization || !sessionId) return null;
 
-  // Use the unified smartEmailGeneration API with new message
-  const result = await smartEmailGeneration({
-    sessionId,
-    mode: 'generate_with_new_message',
-    newMessage: finalInstruction,
-  });
+  let result;
+
+  // Use streaming if available
+  if (smartEmailGenerationStream && onStreamUpdate) {
+    result = await smartEmailGenerationStream(
+      {
+        sessionId,
+        mode: 'generate_with_new_message',
+        newMessage: finalInstruction,
+      },
+      onStreamUpdate
+    );
+  } else {
+    // Fallback to regular generation
+    result = await smartEmailGeneration({
+      sessionId,
+      mode: 'generate_with_new_message',
+      newMessage: finalInstruction,
+    });
+  }
 
   // Check if this is an agentic flow response (no emails generated)
   if (result.generatedEmailsCount === 0 && result.chatHistory.length > 0) {

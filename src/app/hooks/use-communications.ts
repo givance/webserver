@@ -339,6 +339,57 @@ export function useCommunications() {
     }
   };
 
+  const smartEmailGenerationStreamHandler = async (
+    input: inferProcedureInput<
+      AppRouter['communications']['campaigns']['smartEmailGenerationStream']
+    >,
+    onChunk: (chunk: {
+      status: 'generating' | 'generated' | 'refining' | 'refined';
+      message?: string;
+      result?: any;
+    }) => void
+  ) => {
+    try {
+      // Since tRPC mutations don't support streaming directly, we'll need to
+      // simulate it with multiple calls or use a different approach
+      // For now, let's call the regular endpoint and simulate the streaming behavior
+
+      // Step 1: Emit generating status
+      onChunk({
+        status: 'generating',
+        message: 'Starting email generation...',
+      });
+
+      // Step 2: Call the actual generation
+      const result = await smartEmailGeneration.mutateAsync(input);
+
+      // Step 2: Emit generated status with result
+      onChunk({
+        status: 'generated',
+        result,
+      });
+
+      // Step 3: Emit refining status after 0.5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      onChunk({
+        status: 'refining',
+        message: 'Refining generated emails...',
+      });
+
+      // Step 4: Emit refined status with result after 3 seconds
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      onChunk({
+        status: 'refined',
+        result,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Failed to generate smart email stream:', error);
+      throw error;
+    }
+  };
+
   const saveDraftHandler = async (
     input: inferProcedureInput<AppRouter['communications']['campaigns']['saveDraft']>
   ) => {
@@ -453,6 +504,7 @@ export function useCommunications() {
     updateEmailStatus: updateEmailStatusHandler,
     updateCampaign: updateCampaignHandler,
     smartEmailGeneration: smartEmailGenerationHandler,
+    smartEmailGenerationStream: smartEmailGenerationStreamHandler,
     saveDraft: saveDraftHandler,
     saveGeneratedEmail: saveGeneratedEmailHandler,
     retryCampaign: retryCampaignHandler,

@@ -73,6 +73,24 @@ interface SubmitInstructionParams extends BaseEmailOperationParams {
   chatState: ChatState;
   instructionInput: InstructionInput;
   onInstructionChange?: (instruction: string) => void;
+  smartEmailGenerationStream?: (
+    input: {
+      sessionId: number;
+      mode: 'generate_more' | 'regenerate_all' | 'generate_with_new_message';
+      count?: number;
+      newMessage?: string;
+    },
+    onChunk: (chunk: {
+      status: 'generating' | 'generated' | 'refining' | 'refined';
+      message?: string;
+      result?: any;
+    }) => void
+  ) => Promise<any>;
+  onStreamUpdate?: (update: {
+    status: 'generating' | 'generated' | 'refining' | 'refined';
+    message?: string;
+    result?: any;
+  }) => void;
 }
 
 interface GenerateMoreParams extends BaseEmailOperationParams {
@@ -133,6 +151,8 @@ export async function handleSubmitInstruction(
     sessionId,
     previousInstruction,
     onInstructionChange,
+    smartEmailGenerationStream,
+    onStreamUpdate,
   } = params;
 
   const finalInstruction = instructionToSubmit || instructionInput.localInstructionRef.current;
@@ -141,7 +161,8 @@ export async function handleSubmitInstruction(
     return { success: false, error: 'Missing instruction or organization' };
   }
 
-  onInstructionChange?.(finalInstruction);
+  // Don't update parent instruction state here - it was already cleared before calling this handler
+  // onInstructionChange?.(finalInstruction);
 
   try {
     const result = await handleEmailGeneration({
@@ -152,6 +173,8 @@ export async function handleSubmitInstruction(
       previousInstruction,
       currentSignature,
       smartEmailGeneration: emailGeneration.smartEmailGeneration,
+      smartEmailGenerationStream,
+      onStreamUpdate,
       sessionId,
       saveEmailsToSession: emailGeneration.saveEmailsToSession,
     });

@@ -93,8 +93,13 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // Data hooks
   const { getOrganization } = useOrganization();
-  const { launchCampaign, updateEmailStatus, smartEmailGeneration, getSession } =
-    useCommunications();
+  const {
+    launchCampaign,
+    updateEmailStatus,
+    smartEmailGeneration,
+    smartEmailGenerationStream,
+    getSession,
+  } = useCommunications();
   const { listProjects } = useProjects();
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
@@ -199,6 +204,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       // Clear existing email state
       clearEmailState(emailState, chatState);
 
+      // Track if streaming was used
+      let streamingWasUsed = false;
+
       try {
         const response = await handleSubmitInstruction(
           {
@@ -212,6 +220,49 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             sessionId,
             previousInstruction,
             onInstructionChange,
+            smartEmailGenerationStream,
+            onStreamUpdate: async (update) => {
+              // Mark that streaming was used
+              streamingWasUsed = true;
+
+              // Update streaming status
+              emailGeneration.setStreamingStatus(update.status);
+
+              // Handle different statuses
+              if (update.status === 'generated' && update.result) {
+                // Step 2: Show generated emails
+                console.log('📧 Emails generated via streaming, updating UI...');
+
+                // Refetch session to get the generated emails
+                if (sessionId) {
+                  const sessionResult = await refetchSession();
+                  if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+                    // Update email state with the fetched emails
+                    updateEmailStateWithNewEmails(
+                      emailState,
+                      sessionResult.data.emails,
+                      false // Replace existing emails, don't append
+                    );
+                  }
+                }
+              } else if (update.status === 'refined' && update.result) {
+                // Step 4: Replace with refined emails (for now, same emails)
+                console.log('✨ Emails refined via streaming, updating UI...');
+
+                // Refetch session again to simulate refinement
+                if (sessionId) {
+                  const sessionResult = await refetchSession();
+                  if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+                    // Replace email state with the refined emails
+                    updateEmailStateWithNewEmails(
+                      emailState,
+                      sessionResult.data.emails,
+                      false // Replace existing emails, don't append
+                    );
+                  }
+                }
+              }
+            },
           },
           finalInstruction
         );
@@ -223,114 +274,131 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         });
 
         if (response.success && response.result) {
-          // Process the result and update state
-          const processedResult = processEmailResult(response.result);
-
-          if (processedResult.type === 'agentic' && processedResult.agenticResult) {
-            // Handle agentic flow - add only the assistant's response
-            const assistantMessages = processedResult.agenticResult!.conversationMessages.filter(
-              (msg) => msg.role === 'assistant'
-            );
-            if (assistantMessages.length > 0) {
+          // Skip normal processing if streaming was used, as updates were handled in streaming callbacks
+          if (streamingWasUsed) {
+            console.log('📡 Streaming was used, skipping normal result processing');
+            // Only update chat history with the assistant response
+            const processedResult = processEmailResult(response.result);
+            if (processedResult.type === 'email' && processedResult.emailResult) {
+              const { responseMessage } = processedResult.emailResult;
               chatState.setChatMessages((prev) => [
-                ...prev,
-                assistantMessages[assistantMessages.length - 1],
-              ]);
-            }
-          } else if (processedResult.type === 'email' && processedResult.emailResult) {
-            // Handle email generation
-            const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
-              processedResult.emailResult;
-
-            console.log('📧 EMAIL GENERATION RESULT:', {
-              type: processedResult.type,
-              emailCount: emails?.length || 0,
-              hasEmails: !!emails && emails.length > 0,
-              sessionId: sessionId,
-              fullResult: processedResult,
-              rawResponse: response,
-            });
-
-            // Add assistant's response to our existing chat
-            chatState.setChatMessages((prev) => {
-              const newMessages = [
                 ...prev,
                 {
                   role: 'assistant' as const,
                   content: responseMessage,
                 },
-              ];
-              // Save chat history immediately without setTimeout to avoid race conditions
-              chatState.saveChatHistory(newMessages, refinedInstruction);
-              return newMessages;
-            });
-
-            // Update email state
-            updateEmailStateWithNewEmails(emailState, emails);
-
-            // Only collapse chat if emails were actually generated
-            if (
-              processedResult.emailResult?.emails &&
-              processedResult.emailResult.emails.length > 0
-            ) {
-              setIsChatCollapsed(true);
-              setIsEmailListExpanded(true);
+              ]);
             }
+          } else {
+            // Process the result and update state (normal flow)
+            const processedResult = processEmailResult(response.result);
 
-            // Trigger email review after generation
-            // processedResult.type will be 'email' (from processEmailResult) when emails are generated
-            // processedResult.type will be 'agentic' when in agentic flow (no emails)
-            // We trigger review when type is 'email' even if the emails array is empty
-            // because emails are saved on backend but not returned in response
-
-            console.log('🔍 REVIEW CHECK:', {
-              hasSessionId: !!sessionId,
-              sessionId: sessionId,
-              processedResultType: processedResult.type,
-              hasEmailResult: !!processedResult.emailResult,
-              isAgenticResult: !!processedResult.agenticResult,
-              shouldTriggerReview: sessionId && processedResult.type === 'email',
-            });
-
-            // Trigger review if we have a session and this is email generation (not agentic)
-            if (sessionId && processedResult.type === 'email') {
-              console.log(
-                '✅ Email generation complete (emails saved on backend), triggering review'
+            if (processedResult.type === 'agentic' && processedResult.agenticResult) {
+              // Handle agentic flow - add only the assistant's response
+              const assistantMessages = processedResult.agenticResult!.conversationMessages.filter(
+                (msg) => msg.role === 'assistant'
               );
-              console.log('⏰ Setting timeout to trigger review...');
-              // Trigger the session query which will fetch email IDs and review them
-              setTimeout(async () => {
-                console.log('🚀 TRIGGERING REVIEW NOW');
-                console.log('🔄 Refetching session data...');
-                const sessionResult = await refetchSession();
-                console.log('📦 Refetch result:', {
-                  success: sessionResult.isSuccess,
-                  hasData: !!sessionResult.data,
-                  emailCount: sessionResult.data?.emails?.length || 0,
-                });
+              if (assistantMessages.length > 0) {
+                chatState.setChatMessages((prev) => [
+                  ...prev,
+                  assistantMessages[assistantMessages.length - 1],
+                ]);
+              }
+            } else if (processedResult.type === 'email' && processedResult.emailResult) {
+              // Handle email generation
+              const { emails, refinedInstruction, updatedChatMessages, responseMessage } =
+                processedResult.emailResult;
 
-                if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
-                  const emailIds = sessionResult.data.emails
-                    .map((email: any) => email.id)
-                    .filter((id: any) => id !== undefined);
+              console.log('📧 EMAIL GENERATION RESULT:', {
+                type: processedResult.type,
+                emailCount: emails?.length || 0,
+                hasEmails: !!emails && emails.length > 0,
+                sessionId: sessionId,
+                fullResult: processedResult,
+                rawResponse: response,
+              });
 
-                  console.log('🎯 Directly calling review with email IDs:', emailIds);
-                  if (emailIds.length > 0) {
-                    try {
-                      const reviewResult = await reviewEmails({ emailIds });
-                      console.log('✅ Email review completed successfully:', reviewResult);
-                    } catch (error) {
-                      console.error('❌ Error reviewing emails:', error);
+              // Add assistant's response to our existing chat
+              chatState.setChatMessages((prev) => {
+                const newMessages = [
+                  ...prev,
+                  {
+                    role: 'assistant' as const,
+                    content: responseMessage,
+                  },
+                ];
+                // Save chat history immediately without setTimeout to avoid race conditions
+                chatState.saveChatHistory(newMessages, refinedInstruction);
+                return newMessages;
+              });
+
+              // Update email state
+              updateEmailStateWithNewEmails(emailState, emails);
+
+              // Only collapse chat if emails were actually generated
+              if (
+                processedResult.emailResult?.emails &&
+                processedResult.emailResult.emails.length > 0
+              ) {
+                setIsChatCollapsed(true);
+                setIsEmailListExpanded(true);
+              }
+
+              // Trigger email review after generation
+              // processedResult.type will be 'email' (from processEmailResult) when emails are generated
+              // processedResult.type will be 'agentic' when in agentic flow (no emails)
+              // We trigger review when type is 'email' even if the emails array is empty
+              // because emails are saved on backend but not returned in response
+
+              console.log('🔍 REVIEW CHECK:', {
+                hasSessionId: !!sessionId,
+                sessionId: sessionId,
+                processedResultType: processedResult.type,
+                hasEmailResult: !!processedResult.emailResult,
+                isAgenticResult: !!processedResult.agenticResult,
+                shouldTriggerReview: sessionId && processedResult.type === 'email',
+              });
+
+              // Trigger review if we have a session and this is email generation (not agentic)
+              if (sessionId && processedResult.type === 'email') {
+                console.log(
+                  '✅ Email generation complete (emails saved on backend), triggering review'
+                );
+                console.log('⏰ Setting timeout to trigger review...');
+                // Trigger the session query which will fetch email IDs and review them
+                setTimeout(async () => {
+                  console.log('🚀 TRIGGERING REVIEW NOW');
+                  console.log('🔄 Refetching session data...');
+                  const sessionResult = await refetchSession();
+                  console.log('📦 Refetch result:', {
+                    success: sessionResult.isSuccess,
+                    hasData: !!sessionResult.data,
+                    emailCount: sessionResult.data?.emails?.length || 0,
+                  });
+
+                  if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+                    const emailIds = sessionResult.data.emails
+                      .map((email: any) => email.id)
+                      .filter((id: any) => id !== undefined);
+
+                    console.log('🎯 Directly calling review with email IDs:', emailIds);
+                    if (emailIds.length > 0) {
+                      try {
+                        const reviewResult = await reviewEmails({ emailIds });
+                        console.log('✅ Email review completed successfully:', reviewResult);
+                      } catch (error) {
+                        console.error('❌ Error reviewing emails:', error);
+                      }
                     }
                   }
-                }
-              }, 1000); // Small delay to ensure emails are saved
-            } else {
-              console.log('❌ NOT triggering review:', {
-                reason: !sessionId ? 'No sessionId' : 'Agentic flow - no emails yet',
-              });
+                }, 1000); // Small delay to ensure emails are saved
+              } else {
+                console.log('❌ NOT triggering review:', {
+                  reason: !sessionId ? 'No sessionId' : 'Agentic flow - no emails yet',
+                });
+              }
             }
-          }
+          } // End of normal processing else block
         } else {
           // Handle error
           toast.error(response.error || 'Failed to generate emails');
@@ -340,6 +408,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         toast.error('An unexpected error occurred');
       } finally {
         setEmailGenerationLoading(emailGeneration, 'generating', false);
+        // Reset streaming status
+        emailGeneration.setStreamingStatus('idle');
       }
     },
     [
@@ -452,6 +522,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         toast.error('Failed to enhance email');
       } finally {
         setEmailGenerationLoading(emailGeneration, 'generating', false);
+        // Reset streaming status
+        emailGeneration.setStreamingStatus('idle');
       }
     },
     [sessionId, emailGeneration, smartEmailGeneration]
@@ -689,6 +761,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 isGenerating={emailGeneration.isGenerating}
                 isGeneratingMore={emailGeneration.isGeneratingMore}
                 isRegenerating={emailGeneration.isRegenerating}
+                streamingStatus={emailGeneration.streamingStatus}
               />
             </div>
 

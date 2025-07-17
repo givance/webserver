@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mention, MentionsInput } from "react-mentions";
-import { IsolatedInputProps } from "./types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Mention, MentionsInput } from 'react-mentions';
+import { IsolatedInputProps } from './types';
 
 export function IsolatedMentionsInput({
   initialValue,
@@ -23,18 +23,12 @@ export function IsolatedMentionsInput({
   // Update local value when initial value changes (from external sources)
   useEffect(() => {
     if (prevInitialValueRef.current !== initialValue) {
-      console.log("[IsolatedInput] initialValue changed:", {
-        from: JSON.stringify(prevInitialValueRef.current),
-        to: JSON.stringify(initialValue),
-        localValue: JSON.stringify(localValue),
-      });
-
       // Always sync when initialValue changes
       setLocalValue(initialValue);
       valueRef.current = initialValue;
 
       // Force re-render of MentionsInput when clearing
-      if (initialValue === "") {
+      if (initialValue === '') {
         setInternalKey((prev) => prev + 1);
       }
 
@@ -45,7 +39,6 @@ export function IsolatedMentionsInput({
 
   const handleChange = useCallback(
     (event: any, newValue: string) => {
-      console.log(`[IsolatedInput] Typing - only input component re-renders`);
       setLocalValue(newValue);
       valueRef.current = newValue;
       // Notify parent component of value change
@@ -56,7 +49,6 @@ export function IsolatedMentionsInput({
 
   const handleSubmit = useCallback(() => {
     if (valueRef.current.trim()) {
-      console.log("[IsolatedInput] handleSubmit - submitting without clearing");
       onSubmit(valueRef.current);
       // Don't clear here - let the parent handle clearing after successful generation
     }
@@ -64,7 +56,7 @@ export function IsolatedMentionsInput({
 
   const handleKeyDownInternal = useCallback(
     (event: React.KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
         if (!isGenerating && valueRef.current.trim()) {
           handleSubmit();
@@ -75,7 +67,7 @@ export function IsolatedMentionsInput({
     [handleSubmit, isGenerating, onKeyDown]
   );
 
-  const mentionsInputStyle = useMemo(() => ({ fontSize: "13px" }), []);
+  const mentionsInputStyle = useMemo(() => ({ fontSize: '13px' }), []);
 
   return (
     <div className="max-h-[120px] overflow-y-auto p-4 pb-2">

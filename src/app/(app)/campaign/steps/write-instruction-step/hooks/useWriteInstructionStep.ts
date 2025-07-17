@@ -30,6 +30,9 @@ export function useWriteInstructionStep(
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [streamingStatus, setStreamingStatus] = useState<
+    'idle' | 'generating' | 'generated' | 'refining' | 'refined'
+  >('idle');
 
   // Email State
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>(initialGeneratedEmails);
@@ -253,6 +256,8 @@ export function useWriteInstructionStep(
       setIsGeneratingMore,
       isRegenerating,
       setIsRegenerating,
+      streamingStatus,
+      setStreamingStatus,
       smartEmailGeneration: smartEmailGenerationCallback,
       saveEmailsToSession: async (emails: GeneratedEmail[], sessionId: number) => {
         // This can be implemented if needed for saving emails individually
