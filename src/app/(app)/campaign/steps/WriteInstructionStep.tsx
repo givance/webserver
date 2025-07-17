@@ -252,8 +252,11 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                     );
                   }
                 }
+              } else if (update.status === 'reviewing') {
+                // Step 3: Email review in progress
+                console.log('🔍 Reviewing generated emails...');
               } else if (update.status === 'refined' && update.result) {
-                // Step 4: Replace with refined emails (for now, same emails)
+                // Step 5: Replace with refined emails (for now, same emails)
                 console.log('✨ Emails refined via streaming, updating UI...');
 
                 // Refetch session again to simulate refinement

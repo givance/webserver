@@ -342,7 +342,7 @@ export function useCommunications() {
   const smartEmailGenerationStreamHandler = async (
     input: inferProcedureInput<AppRouter['communications']['campaigns']['smartEmailGeneration']>,
     onChunk: (chunk: {
-      status: 'generating' | 'generated' | 'refining' | 'refined';
+      status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
       message?: string;
       result?: any;
     }) => void
@@ -367,14 +367,21 @@ export function useCommunications() {
         result,
       });
 
-      // Step 3: Emit refining status after 0.5 seconds
+      // Step 3: Emit reviewing status after 0.5 seconds
       await new Promise((resolve) => setTimeout(resolve, 500));
       onChunk({
-        status: 'refining',
-        message: 'Refining generated emails...',
+        status: 'reviewing',
+        message: 'Reviewing generated emails...',
       });
 
-      // Step 4: Emit refined status with result after 3 seconds
+      // Step 4: Emit refining status after 2 seconds
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      onChunk({
+        status: 'refining',
+        message: 'Refining generated emails based on reviewer feedback',
+      });
+
+      // Step 5: Emit refined status with result after 3 seconds
       await new Promise((resolve) => setTimeout(resolve, 3000));
       onChunk({
         status: 'refined',

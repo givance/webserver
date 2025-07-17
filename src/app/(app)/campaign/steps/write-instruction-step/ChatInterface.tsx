@@ -15,7 +15,7 @@ interface ChatInterfaceProps {
   isGenerating?: boolean;
   isGeneratingMore?: boolean;
   isRegenerating?: boolean;
-  streamingStatus?: 'idle' | 'generating' | 'generated' | 'refining' | 'refined';
+  streamingStatus?: 'idle' | 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
 }
 
 // Custom hook for animated ellipsis
@@ -52,7 +52,9 @@ export function ChatInterface({
 
   const getGeneratingMessage = () => {
     if (streamingStatus === 'generating') return 'Starting email generation';
-    if (streamingStatus === 'refining') return 'Refining generated emails';
+    if (streamingStatus === 'reviewing') return 'Reviewing generated emails';
+    if (streamingStatus === 'refining')
+      return 'Refining generated emails based on reviewer feedback';
     if (isRegenerating) return 'Regenerating emails based on your feedback';
     if (isGeneratingMore) return 'Generating more personalized emails';
     if (isGenerating) return 'Generating personalized emails for your selected donors';

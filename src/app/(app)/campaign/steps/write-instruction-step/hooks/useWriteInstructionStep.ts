@@ -31,7 +31,7 @@ export function useWriteInstructionStep(
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [streamingStatus, setStreamingStatus] = useState<
-    'idle' | 'generating' | 'generated' | 'refining' | 'refined'
+    'idle' | 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined'
   >('idle');
 
   // Email State

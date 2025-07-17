@@ -81,13 +81,13 @@ interface SubmitInstructionParams extends BaseEmailOperationParams {
       newMessage?: string;
     },
     onChunk: (chunk: {
-      status: 'generating' | 'generated' | 'refining' | 'refined';
+      status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
       message?: string;
       result?: any;
     }) => void
   ) => Promise<any>;
   onStreamUpdate?: (update: {
-    status: 'generating' | 'generated' | 'refining' | 'refined';
+    status: 'generating' | 'generated' | 'reviewing' | 'refining' | 'refined';
     message?: string;
     result?: any;
   }) => void;
