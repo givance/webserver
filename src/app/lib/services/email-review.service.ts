@@ -121,6 +121,16 @@ export class EmailReviewService {
         },
       });
 
+      // Log individual review result and feedback
+      logger.info(`[EmailReviewService] Email review completed`, {
+        emailId: email.id,
+        donorId: email.donorId,
+        result: reviewResult.result,
+        feedback: reviewResult.feedback || 'No feedback provided',
+        tokensUsed: reviewResult.tokensUsed,
+        subject: email.subject,
+      });
+
       return {
         emailId: email.id,
         result: reviewResult.result,
