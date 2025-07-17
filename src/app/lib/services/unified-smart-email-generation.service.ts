@@ -18,7 +18,8 @@ import { getAllStaffByOrganization } from '@/app/lib/data/staff';
 import { getDonorsByIds, getAllDonorsByOrganization } from '@/app/lib/data/donors';
 import { getPersonResearchByDonor } from '@/app/lib/data/person-research';
 import { getListMembers } from '@/app/lib/data/donor-lists';
-import { EmailReviewService } from './email-review.service';
+import { EmailReviewService, type EmailReviewResult } from './email-review.service';
+import { EmailRefinementService } from './email-refinement.service';
 import { logger } from '@/app/lib/logger';
 
 interface GenerateSmartEmailsParams {
@@ -51,9 +52,11 @@ export type EmailGenerationStreamUpdate = {
 
 export class UnifiedSmartEmailGenerationService {
   private emailReviewService: EmailReviewService;
+  private emailRefinementService: EmailRefinementService;
 
   constructor() {
     this.emailReviewService = new EmailReviewService();
+    this.emailRefinementService = new EmailRefinementService();
   }
 
   /**
@@ -103,7 +106,10 @@ export class UnifiedSmartEmailGenerationService {
     // Calculate total tokens used
     const totalTokensUsed = results.reduce((sum, result) => sum + (result.tokensUsed || 0), 0);
 
-    return { results, totalTokensUsed };
+    // Fetch updated results from database to ensure consistency with any potential refinements
+    const finalResults = await this.buildResultsFromDatabase(params.sessionId, results);
+
+    return { results: finalResults, totalTokensUsed };
   }
 
   /**
@@ -208,20 +214,79 @@ export class UnifiedSmartEmailGenerationService {
           // Emit refining status
           yield {
             status: 'refining' as const,
-            message: 'Refining generated emails based on reviewer feedback',
+            message: `Refining ${emailsNeedingRefinement.length} email(s) based on reviewer feedback`,
           };
 
-          // TODO: Implement actual refinement logic here
-          // For now, we'll just simulate the refinement process
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      }
+          // Prepare emails for refinement
+          const emailsToRefine: Array<{
+            emailId: number;
+            donorId: number;
+            reviewResult: EmailReviewResult;
+          }> = [];
 
-      // Emit refined status with final results
-      yield {
-        status: 'refined' as const,
-        result: { results, totalTokensUsed },
-      };
+          // Get donor IDs for emails that need refinement from the generated emails in session
+          const { getGeneratedEmailsBySessionId } = await import('@/app/lib/data/email-campaigns');
+          const sessionEmails = await getGeneratedEmailsBySessionId(Number(params.sessionId));
+
+          for (const review of emailsNeedingRefinement) {
+            const sessionEmail = sessionEmails.find((email) => email.id === review.emailId);
+            if (sessionEmail) {
+              emailsToRefine.push({
+                emailId: review.emailId,
+                donorId: sessionEmail.donorId,
+                reviewResult: review,
+              });
+            } else {
+              logger.error(
+                '[generateSmartEmailsForCampaignStream] Could not find email in session',
+                {
+                  emailId: review.emailId,
+                  sessionId: params.sessionId,
+                }
+              );
+            }
+          }
+
+          // Perform refinement
+          const refinementResults = await this.emailRefinementService.refineEmails({
+            organizationId: params.organizationId,
+            sessionId: params.sessionId,
+            chatHistory: params.chatHistory,
+            emailsToRefine,
+          });
+
+          logger.info('[generateSmartEmailsForCampaignStream] Refinement completed', {
+            refinementCount: refinementResults.results.length,
+            successfulRefinements: refinementResults.results.filter((r) => r.success).length,
+            tokensUsed: refinementResults.totalTokensUsed,
+          });
+
+          // Update the total tokens used to include refinement
+          const refinementTokensUsed = refinementResults.totalTokensUsed;
+          const updatedTotalTokensUsed = totalTokensUsed + refinementTokensUsed;
+
+          // After refinement, fetch updated emails from database and emit results
+          const updatedResults = await this.buildResultsFromDatabase(params.sessionId, results);
+          yield {
+            status: 'refined' as const,
+            result: { results: updatedResults, totalTokensUsed: updatedTotalTokensUsed },
+          };
+        } else {
+          // No refinement needed - still fetch from database to ensure consistency
+          const dbResults = await this.buildResultsFromDatabase(params.sessionId, results);
+          yield {
+            status: 'refined' as const,
+            result: { results: dbResults, totalTokensUsed },
+          };
+        }
+      } else {
+        // No review performed - still fetch from database to ensure consistency
+        const dbResults = await this.buildResultsFromDatabase(params.sessionId, results);
+        yield {
+          status: 'refined' as const,
+          result: { results: dbResults, totalTokensUsed },
+        };
+      }
     } catch (error) {
       logger.error('[generateSmartEmailsForCampaignStream] Error during generation', { error });
       throw error;
@@ -305,11 +370,11 @@ export class UnifiedSmartEmailGenerationService {
         sessionId: Number(sessionId),
         donorId: donor.id,
         subject: result.subject,
-        structuredContent,
-        referenceContexts: result.referenceContexts || {},
         emailContent: result.content,
         reasoning: result.reasoning,
         response: result.response,
+        structuredContent,
+        referenceContexts: {},
       });
 
       return {
@@ -360,11 +425,11 @@ export class UnifiedSmartEmailGenerationService {
   }
 
   private async getCommunicationHistory(donorId: number, organizationId: string) {
-    return await getDonorCommunicationHistory(donorId, organizationId);
+    return await getDonorCommunicationHistory(donorId, { organizationId });
   }
 
   private async getDonationHistory(donorId: number, organizationId: string) {
-    return await getDonorDonationsWithProjects(donorId, organizationId);
+    return await getDonorDonationsWithProjects(donorId);
   }
 
   private async getDonorStats(donorId: number, organizationId: string) {
@@ -377,7 +442,7 @@ export class UnifiedSmartEmailGenerationService {
 
   private async getMemories(organizationId: string, userId: string) {
     const [userMemories, orgMemories] = await Promise.all([
-      getUserMemories(userId, organizationId),
+      getUserMemories(userId),
       getOrganizationMemories(organizationId),
     ]);
     return {
@@ -393,6 +458,11 @@ export class UnifiedSmartEmailGenerationService {
     emailContent: string;
     reasoning: string;
     response: string;
+    structuredContent: Array<{
+      piece: string;
+      references: string[];
+      addNewlineAfter: boolean;
+    }>;
     referenceContexts: Record<string, string>;
   }) {
     return await saveGeneratedEmailData(emailData);
@@ -404,5 +474,59 @@ export class UnifiedSmartEmailGenerationService {
     organizationId: string
   ) {
     return await getEmailBySessionAndDonor(Number(sessionId), donorId);
+  }
+
+  // Helper methods for refinement
+  private getDonorIdFromEmailId(
+    emailId: number,
+    results: SmartEmailGenerationResult[]
+  ): number | null {
+    // For now, we'll need to use a different approach since we don't have a direct mapping
+    // This is a limitation - in a real implementation, we'd need to query the database
+    // or maintain a mapping of email IDs to donor IDs
+    // For now, return null and let the filter handle it
+    return null;
+  }
+
+  private getDonorIdFromResult(result: SmartEmailGenerationResult): number {
+    return result.donor.id;
+  }
+
+  /**
+   * Helper method to fetch emails from database and merge with results
+   * This ensures frontend gets the latest email content including any refinements
+   */
+  private async buildResultsFromDatabase(
+    sessionId: string,
+    originalResults: SmartEmailGenerationResult[]
+  ): Promise<SmartEmailGenerationResult[]> {
+    try {
+      const { getGeneratedEmailsBySessionId } = await import('@/app/lib/data/email-campaigns');
+      const emailsFromDb = await getGeneratedEmailsBySessionId(Number(sessionId));
+
+      // Build results from the database emails to ensure we have the latest content
+      return originalResults.map((originalResult) => {
+        const dbEmail = emailsFromDb.find((email) => email.donorId === originalResult.donor.id);
+        if (dbEmail) {
+          return {
+            ...originalResult,
+            email: {
+              subject: dbEmail.subject,
+              content: dbEmail.emailContent || '',
+              reasoning: dbEmail.reasoning || originalResult.email?.reasoning || '',
+              response: dbEmail.response || originalResult.email?.response || '',
+            },
+          };
+        }
+        return originalResult;
+      });
+    } catch (error) {
+      logger.error('[buildResultsFromDatabase] Failed to fetch emails from database', {
+        sessionId,
+        error,
+      });
+      // Return original results as fallback
+      return originalResults;
+    }
   }
 }

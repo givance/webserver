@@ -249,8 +249,17 @@ export const EmailDisplay = React.memo(function EmailDisplay({
 
   // Determine which format to use - memoized to prevent re-computations
   const isNewFormat = useMemo(() => {
-    return emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
-  }, [emailContent]);
+    const result =
+      emailContent !== undefined && emailContent !== null && emailContent.trim().length > 0;
+    console.log(`[EmailDisplay] Format detection for ${donorName} (emailId: ${emailId}):`, {
+      emailContent: emailContent ? `"${emailContent.substring(0, 100)}..."` : 'null/undefined',
+      emailContentLength: emailContent?.length || 0,
+      isNewFormat: result,
+      hasContent: !!content,
+      contentLength: content?.length || 0,
+    });
+    return result;
+  }, [emailContent, donorName, emailId, content]);
 
   const isLegacyFormat = useMemo(() => {
     return content !== undefined && content.length > 0;
@@ -324,12 +333,31 @@ export const EmailDisplay = React.memo(function EmailDisplay({
       },
       {
         enabled: !!emailId && isNewFormat && !isPreviewMode,
-        staleTime: 10 * 60 * 1000, // Cache for 10 minutes
-        gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+        staleTime: 0, // No cache - always fetch fresh
+        gcTime: 0, // Don't keep in cache
         refetchOnWindowFocus: false, // Prevent refetch on focus to reduce calls
-        refetchOnMount: false, // Prevent refetch on mount if data exists
+        refetchOnMount: true, // Always refetch on mount
       }
     );
+
+  // Log signature data changes
+  useEffect(() => {
+    if (plainTextSignatureData) {
+      console.log(
+        `[EmailDisplay] Signature data received for ${donorName} (emailId: ${emailId}):`,
+        {
+          signatureDataContent: plainTextSignatureData?.emailContent
+            ? `"${plainTextSignatureData.emailContent.substring(0, 100)}..."`
+            : 'null',
+          signatureDataLength: plainTextSignatureData?.emailContent?.length || 0,
+          originalEmailContent: emailContent ? `"${emailContent.substring(0, 100)}..."` : 'null',
+          originalEmailContentLength: emailContent?.length || 0,
+          isNewFormat,
+          willUseSignatureData: !!(plainTextSignatureData && isNewFormat),
+        }
+      );
+    }
+  }, [plainTextSignatureData, donorName, emailId, emailContent, isNewFormat]);
 
   // Use signature-appended content for legacy format when available, otherwise use converted content
   const contentWithSignature =
@@ -340,6 +368,28 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   // Use signature-appended content for new format when available
   const emailContentWithSignature =
     plainTextSignatureData && isNewFormat ? plainTextSignatureData.emailContent : emailContent;
+
+  // Log final content decision
+  useEffect(() => {
+    console.log(`[EmailDisplay] Final content decision for ${donorName} (emailId: ${emailId}):`, {
+      isNewFormat,
+      hasPlainTextSignatureData: !!plainTextSignatureData,
+      hasEmailContent: !!emailContent,
+      finalContentSource:
+        plainTextSignatureData && isNewFormat ? 'signature-data' : 'original-email-content',
+      finalContentPreview: emailContentWithSignature
+        ? `"${emailContentWithSignature.substring(0, 100)}..."`
+        : 'null',
+      finalContentLength: emailContentWithSignature?.length || 0,
+    });
+  }, [
+    emailContentWithSignature,
+    donorName,
+    emailId,
+    isNewFormat,
+    plainTextSignatureData,
+    emailContent,
+  ]);
 
   return (
     <div className="space-y-3">

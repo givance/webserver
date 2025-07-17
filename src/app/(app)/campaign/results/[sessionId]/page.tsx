@@ -88,12 +88,33 @@ export default function EmailGenerationResultsPage() {
 
   // Debug logging to check if data updates
   useEffect(() => {
-    console.log('[Campaign Results] Session data updated:', {
-      sessionId,
-      emailCount: sessionData?.emails?.length,
-      firstEmailContent: sessionData?.emails?.[0]?.structuredContent?.length,
-      timestamp: new Date().toISOString(),
-    });
+    if (sessionData?.emails) {
+      console.log('[Campaign Results] Session data updated:', {
+        sessionId,
+        emailCount: sessionData.emails.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Log each email's content details
+      sessionData.emails.forEach((email, index) => {
+        const emailAny = email as any; // Type assertion to access all properties
+        console.log(
+          `[Campaign Results] Email ${index + 1} (ID: ${email.id}, DonorID: ${email.donorId}):`,
+          {
+            hasEmailContent: !!emailAny.emailContent,
+            emailContentLength: emailAny.emailContent?.length || 0,
+            emailContentPreview: emailAny.emailContent
+              ? `"${emailAny.emailContent.substring(0, 100)}..."`
+              : 'null',
+            hasStructuredContent: !!email.structuredContent,
+            structuredContentLength: email.structuredContent?.length || 0,
+            subject: email.subject,
+            reasoning: emailAny.reasoning ? `"${emailAny.reasoning.substring(0, 50)}..."` : 'null',
+            allProperties: Object.keys(email),
+          }
+        );
+      });
+    }
   }, [sessionData, sessionId]);
 
   // Use the validation hook

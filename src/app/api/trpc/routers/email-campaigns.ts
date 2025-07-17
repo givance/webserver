@@ -550,21 +550,45 @@ export const emailCampaignsRouter = router({
   getPlainTextEmailWithSignature: protectedProcedure
     .input(getPlainTextEmailWithSignatureSchema)
     .query(async ({ ctx, input }) => {
+      console.log(`[TRPC] getPlainTextEmailWithSignature called for emailId: ${input.emailId}`);
+
       // Fetch email content from database with authorization check
       const email = await getEmailContentWithAuth(input.emailId, ctx.auth.user.organizationId);
 
       if (!email || !email.emailContent) {
+        console.log(`[TRPC] Email not found or empty content for emailId: ${input.emailId}`);
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Email not found or content is empty',
         });
       }
 
+      console.log(`[TRPC] Found email for emailId: ${input.emailId}`, {
+        donorId: email.donorId,
+        hasEmailContent: !!email.emailContent,
+        emailContentLength: email.emailContent?.length || 0,
+        emailContentPreview: email.emailContent
+          ? `"${email.emailContent.substring(0, 100)}..."`
+          : 'null',
+        containsDollarSigns: email.emailContent?.includes('$') ? 'YES' : 'NO',
+      });
+
       const contentWithSignature = await appendSignatureToPlainText(email.emailContent, {
         donorId: email.donorId,
         organizationId: ctx.auth.user.organizationId,
         userId: ctx.auth.user.id,
       });
+
+      console.log(`[TRPC] Returning content with signature for emailId: ${input.emailId}`, {
+        originalLength: email.emailContent?.length || 0,
+        finalLength: contentWithSignature?.length || 0,
+        finalContentPreview: contentWithSignature
+          ? `"${contentWithSignature.substring(0, 100)}..."`
+          : 'null',
+        containsDollarSigns: contentWithSignature?.includes('$') ? 'YES' : 'NO',
+        signatureAdded: (contentWithSignature?.length || 0) - (email.emailContent?.length || 0),
+      });
+
       return { emailContent: contentWithSignature };
     }),
 });

@@ -2699,7 +2699,11 @@ export class EmailCampaignsService {
           },
         };
       } else {
-        yield update;
+        // For intermediate updates, only pass status and message (no result to avoid type mismatch)
+        yield {
+          status: update.status,
+          message: update.message,
+        };
       }
     }
   }

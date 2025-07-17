@@ -76,6 +76,10 @@ export function useCommunications() {
       if (data?.sessionId) {
         await utils.communications.campaigns.getSession.invalidate({ sessionId: data.sessionId });
       }
+
+      // Invalidate signature queries since email content has been updated
+      utils.emailCampaigns.getPlainTextEmailWithSignature.invalidate();
+      utils.emailCampaigns.getEmailWithSignature.invalidate();
     },
   });
 
@@ -121,12 +125,42 @@ export function useCommunications() {
         // Fallback: invalidate all sessions if sessionId is not available
         utils.communications.campaigns.getSession.invalidate();
       }
+
+      // Invalidate signature queries since new emails have been generated
+      utils.emailCampaigns.getPlainTextEmailWithSignature.invalidate();
+      utils.emailCampaigns.getEmailWithSignature.invalidate();
     },
   });
 
   // Smart email generation streaming mutation hook
   const smartEmailGenerationStream =
-    trpc.communications.campaigns.smartEmailGenerationStream.useMutation();
+    trpc.communications.campaigns.smartEmailGenerationStream.useMutation({
+      onSuccess: (data, variables) => {
+        console.log('[useCommunications] Streaming generation completed, invalidating caches...', {
+          sessionId: variables.sessionId,
+        });
+
+        // Invalidate campaign sessions since emails are generated/regenerated via streaming
+        utils.communications.campaigns.listCampaigns.invalidate();
+
+        // Invalidate the specific session that was updated
+        if (variables.sessionId) {
+          console.log('[useCommunications] Invalidating specific session:', variables.sessionId);
+          utils.communications.campaigns.getSession.invalidate({ sessionId: variables.sessionId });
+        } else {
+          // Fallback: invalidate all sessions if sessionId is not available
+          console.log('[useCommunications] Invalidating all sessions');
+          utils.communications.campaigns.getSession.invalidate();
+        }
+
+        // Invalidate signature queries since new emails have been generated
+        console.log('[useCommunications] Invalidating signature caches...');
+        utils.emailCampaigns.getPlainTextEmailWithSignature.invalidate();
+        utils.emailCampaigns.getEmailWithSignature.invalidate();
+
+        console.log('[useCommunications] Streaming generation cache invalidation completed');
+      },
+    });
 
   // Save draft mutation hook
   const saveDraft = trpc.communications.campaigns.saveDraft.useMutation({
