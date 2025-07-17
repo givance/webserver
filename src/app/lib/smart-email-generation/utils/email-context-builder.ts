@@ -172,7 +172,7 @@ REQUIREMENTS:
 - Be specific and avoid general statements
 
 Important instructions:
-- DO NOT use dash, "-", "--" or "—" in the email ever.
+- DO NOT use dash, "-", "--" or "—" in the email, unless the user explicitly asks for it.
 - Try to be as specific as possible, avoid general statements.
 - Pay extra attention to the numbers, you should make sure all numbers you mention are correct and accurate.
 
@@ -195,24 +195,6 @@ export function buildDonorContext(params: DonorContextParams): string {
     donorContext += `\nNotes about this Donor:\n${donor.notes.map((note) => `- ${note.content}`).join('\n')}`;
   }
 
-  // Add donation history
-  if (donorHistory.donations.length > 0) {
-    donorContext += '\n\nDONATION HISTORY:';
-    const sortedDonations = [...donorHistory.donations]
-      .sort((a, b) => b.date.getTime() - a.date.getTime())
-      .slice(0, 5); // Show last 5 donations
-
-    sortedDonations.forEach((donation, index) => {
-      const amount = (donation.amount / 100).toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      });
-      const date = new Date(donation.date).toLocaleDateString();
-      const project = donation.project ? ` to ${donation.project.name}` : '';
-      donorContext += `\n${index + 1}. ${amount} on ${date}${project}`;
-    });
-  }
-
   // Add donor statistics
   if (donorHistory.statistics) {
     const stats = donorHistory.statistics;
@@ -228,6 +210,24 @@ export function buildDonorContext(params: DonorContextParams): string {
       const lastDate = new Date(stats.lastDonation.date).toLocaleDateString();
       donorContext += `\nLast donation: ${lastDate}`;
     }
+  }
+  // Add donation history
+  if (donorHistory.donations.length > 0) {
+    donorContext +=
+      'Last 5 donations from this donor (do not use this to calculate total amount, the total amount is listed below):';
+    const sortedDonations = [...donorHistory.donations]
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 5); // Show last 5 donations
+
+    sortedDonations.forEach((donation, index) => {
+      const amount = (donation.amount / 100).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      });
+      const date = new Date(donation.date).toLocaleDateString();
+      const project = donation.project ? ` to ${donation.project.name}` : '';
+      donorContext += `\n${index + 1}. ${amount} on ${date}${project}`;
+    });
   }
 
   // Add communication history

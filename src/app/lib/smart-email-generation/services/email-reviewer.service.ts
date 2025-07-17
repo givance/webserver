@@ -67,7 +67,15 @@ ${generatedEmail.content}`;
 
 ${generatedEmailContext}
 
-Please review whether the generated email strictly follows all user instructions from the conversation above. When there are conflicts, the user conversation context has the highest priority, over the organizational context and write guidelines.`;
+Please review whether the generated email strictly follows user instructions from the conversation above. Focus on the user instructions in the conversation history, and ignore the system prompt and organizational context.
+It is possible that the user instructions are in conflict with the organizational context and write guidelines, in which case the user instructions should take precedence.
+When the user instructions has conflicts within itself, the latest instruction (the one that has larger message index) should take precedence.
+
+Be very careful when giving feedback, only give feedback if you are 100% sure that the email does not follow the user instructions. If in doubt, don't give feedback.
+
+Return "OK" if the email follows all instructions correctly.
+Return "NEEDS_IMPROVEMENT" if any instruction was not followed, with specific feedback about what was missed or done incorrectly.
+`;
 
     // Define the response schema
     const reviewSchema = z.object({
@@ -79,7 +87,9 @@ Please review whether the generated email strictly follows all user instructions
         ),
       result: z
         .enum(['OK', 'NEEDS_IMPROVEMENT'])
-        .describe('Whether the email follows all instructions'),
+        .describe(
+          'Whether the email follows all instructions as specified in the prompt. Do not be too nitpicky.'
+        ),
     });
 
     try {
@@ -141,8 +151,8 @@ ${donorContext}
 Conversation History:`;
 
     // Add the chat history
-    chatHistory.forEach((message) => {
-      formattedConversation += `\n\n${message.role}: ${message.content}`;
+    chatHistory.forEach((message, index) => {
+      formattedConversation += `\n\nMessage ${index}: ${message.role}: ${message.content}`;
     });
 
     return formattedConversation;

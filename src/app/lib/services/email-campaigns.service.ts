@@ -1437,44 +1437,6 @@ export class EmailCampaignsService {
   }
 
   /**
-   * Generates emails for a set of donors
-   */
-  private async generateEmailsForDonors(
-    sessionId: number,
-    organizationId: string,
-    donorIds: number[],
-    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<{
-    successfulCount: number;
-    failedCount: number;
-    totalTokensUsed: number;
-  }> {
-    const emailGenerationService = new UnifiedSmartEmailGenerationService();
-
-    logger.info(`[generateEmailsForDonors] Generating emails for ${donorIds.length} donors`);
-
-    const generationResult = await emailGenerationService.generateSmartEmailsForCampaign({
-      organizationId,
-      sessionId: String(sessionId),
-      chatHistory,
-      donorIds: donorIds.map((id) => String(id)),
-    });
-
-    const successfulCount = generationResult.results.filter((r) => r.email !== null).length;
-    const failedCount = generationResult.results.filter((r) => r.email === null).length;
-
-    logger.info(
-      `[generateEmailsForDonors] Generated ${successfulCount} emails, ${failedCount} failed, ${generationResult.totalTokensUsed} tokens used`
-    );
-
-    return {
-      successfulCount,
-      failedCount,
-      totalTokensUsed: generationResult.totalTokensUsed,
-    };
-  }
-
-  /**
    * Handles generate_more mode - generates emails for new donors
    */
   private async handleGenerateMore(
@@ -1522,13 +1484,27 @@ export class EmailCampaignsService {
 
     logger.info(`[handleGenerateMore] Added ${newDonorIds.length} new donors to preview set`);
 
-    // Generate emails for new donors
-    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
-      session.id,
+    // Use the same streaming service as handleGenerateWithNewMessage
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
       organizationId,
-      newDonorIds,
-      existingChatHistory
-    );
+      sessionId: String(session.id),
+      chatHistory: existingChatHistory,
+      donorIds: newDonorIds.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Process the stream
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+    }
 
     return {
       success: true,
@@ -1556,25 +1532,38 @@ export class EmailCampaignsService {
     // Get donors to regenerate
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
-    // Delete existing emails
-    const deletedCount = await deleteGeneratedEmails(session.id, donorsToProcess);
+    // Note: We don't delete existing emails anymore - the saveGeneratedEmail function
+    // in UnifiedSmartEmailGenerationService will handle upsert logic automatically
+    logger.info(`[handleRegenerateAll] Regenerating emails for ${donorsToProcess.length} donors`);
 
-    logger.info(`[handleRegenerateAll] Deleted ${deletedCount} existing emails`);
-
-    // Generate new emails
-    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
-      session.id,
+    // Use the same streaming service as handleGenerateWithNewMessage
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
       organizationId,
-      donorsToProcess,
-      existingChatHistory
-    );
+      sessionId: String(session.id),
+      chatHistory: existingChatHistory,
+      donorIds: donorsToProcess.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Process the stream
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+    }
 
     return {
       success: true,
       sessionId: session.id,
       chatHistory: existingChatHistory,
       generatedEmailsCount: successfulCount,
-      deletedEmailsCount: deletedCount,
+      deletedEmailsCount: 0, // No longer deleting emails upfront
       failedEmailsCount: failedCount,
       message: `Regenerated ${successfulCount} emails for ${donorsToProcess.length} preview donors`,
     };
@@ -1643,10 +1632,11 @@ export class EmailCampaignsService {
     // Get donors to regenerate
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
-    // Delete existing emails
-    const deletedCount = await deleteGeneratedEmails(session.id, donorsToProcess);
-
-    logger.info(`[handleGenerateWithNewMessage] Deleted ${deletedCount} existing emails`);
+    // Note: We don't delete existing emails anymore - the saveGeneratedEmail function
+    // in UnifiedSmartEmailGenerationService will handle upsert logic automatically
+    logger.info(
+      `[handleGenerateWithNewMessage] Regenerating emails for ${donorsToProcess.length} donors`
+    );
 
     // Use the streaming version to generate emails
     const emailGenerationService = new UnifiedSmartEmailGenerationService();
@@ -1688,7 +1678,7 @@ export class EmailCampaignsService {
       sessionId: session.id,
       chatHistory: finalChatHistory,
       generatedEmailsCount: successfulCount,
-      deletedEmailsCount: deletedCount,
+      deletedEmailsCount: 0, // No longer deleting emails upfront
       failedEmailsCount: failedCount,
       message: assistantMessage,
     };
@@ -2511,23 +2501,37 @@ export class EmailCampaignsService {
     // Get donors to process
     const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
 
-    // Delete existing emails
-    await deleteGeneratedEmails(session.id, donorsToProcess);
+    // Note: We don't delete existing emails anymore - the saveGeneratedEmail function
+    // in UnifiedSmartEmailGenerationService will handle upsert logic automatically
 
-    // Generate emails with the enhanced instruction
-    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
-      session.id,
+    // Use the same streaming service as handleGenerateWithNewMessage
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
       organizationId,
-      donorsToProcess,
-      enhancedChatHistory
-    );
+      sessionId: String(session.id),
+      chatHistory: enhancedChatHistory,
+      donorIds: donorsToProcess.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Process the stream
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+    }
 
     return {
       success: true,
       sessionId: session.id,
       chatHistory: enhancedChatHistory,
       generatedEmailsCount: successfulCount,
-      deletedEmailsCount: donorsToProcess.length,
+      deletedEmailsCount: 0, // No longer deleting emails upfront
       failedEmailsCount: failedCount,
       message: `${aiResponse}\n\nGenerated ${successfulCount} emails successfully!`,
     };
@@ -2721,12 +2725,88 @@ export class EmailCampaignsService {
     message?: string;
     result?: SmartEmailGenerationResponse;
   }> {
-    // For now, delegate to non-streaming version
-    const result = await this.handleGenerateMore(input, session, organizationId, userId);
-    yield {
-      status: 'refined' as const,
-      result,
-    };
+    // Validate input
+    const count = input.count || 5; // Default to 5 if not specified
+    if (count <= 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Count must be greater than 0 for generate_more mode',
+      });
+    }
+
+    // Get existing data
+    const existingChatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    const previewDonorIds = (session.previewDonorIds as number[]) || [];
+    const selectedDonorIds = (session.selectedDonorIds as number[]) || [];
+
+    // Find donors that haven't been processed yet
+    const remainingDonorIds = selectedDonorIds.filter((id) => !previewDonorIds.includes(id));
+
+    if (remainingDonorIds.length === 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No more donors available to generate emails for',
+      });
+    }
+
+    // Select random donors from remaining pool
+    const shuffled = [...remainingDonorIds].sort(() => Math.random() - 0.5);
+    const newDonorIds = shuffled.slice(0, Math.min(count, shuffled.length));
+
+    logger.info(
+      `[handleGenerateMoreStream] Selecting ${newDonorIds.length} donors from ${remainingDonorIds.length} remaining donors`
+    );
+
+    // Add new donors to preview set
+    const updatedPreviewDonorIds = [...new Set([...previewDonorIds, ...newDonorIds])];
+    await this.updateSessionPreviewDonors(session.id, organizationId, updatedPreviewDonorIds);
+
+    logger.info(`[handleGenerateMoreStream] Added ${newDonorIds.length} new donors to preview set`);
+
+    // Use the same streaming service as handleGenerateWithNewMessage
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
+      organizationId,
+      sessionId: String(session.id),
+      chatHistory: existingChatHistory,
+      donorIds: newDonorIds.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Forward all stream updates
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+
+      // When we get the final result, format it as SmartEmailGenerationResponse
+      if (update.status === 'refined' && update.result) {
+        yield {
+          status: update.status,
+          result: {
+            success: true,
+            sessionId: session.id,
+            chatHistory: existingChatHistory,
+            generatedEmailsCount: successfulCount,
+            deletedEmailsCount: 0,
+            failedEmailsCount: failedCount,
+            message: `Generated ${successfulCount} emails for ${newDonorIds.length} new donors`,
+          },
+        };
+      } else {
+        // For intermediate updates, only pass status and message
+        yield {
+          status: update.status,
+          message: update.message,
+        };
+      }
+    }
   }
 
   /**
@@ -2742,11 +2822,60 @@ export class EmailCampaignsService {
     message?: string;
     result?: SmartEmailGenerationResponse;
   }> {
-    // For now, delegate to non-streaming version
-    const result = await this.handleRegenerateAll(input, session, organizationId, userId);
-    yield {
-      status: 'refined' as const,
-      result,
-    };
+    const existingChatHistory =
+      (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+
+    // Get donors to regenerate
+    const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
+
+    // Note: We don't delete existing emails anymore - the saveGeneratedEmail function
+    // in UnifiedSmartEmailGenerationService will handle upsert logic automatically
+    logger.info(
+      `[handleRegenerateAllStream] Regenerating emails for ${donorsToProcess.length} donors`
+    );
+
+    // Use the same streaming service as handleGenerateWithNewMessage
+    const emailGenerationService = new UnifiedSmartEmailGenerationService();
+    const generator = emailGenerationService.generateSmartEmailsForCampaignStream({
+      organizationId,
+      sessionId: String(session.id),
+      chatHistory: existingChatHistory,
+      donorIds: donorsToProcess.map((id) => String(id)),
+    });
+
+    let finalResult: any = null;
+    let successfulCount = 0;
+    let failedCount = 0;
+
+    // Forward all stream updates
+    for await (const update of generator) {
+      if (update.result) {
+        finalResult = update.result;
+        successfulCount = update.result.results.filter((r: any) => r.email !== null).length;
+        failedCount = update.result.results.filter((r: any) => r.email === null).length;
+      }
+
+      // When we get the final result, format it as SmartEmailGenerationResponse
+      if (update.status === 'refined' && update.result) {
+        yield {
+          status: update.status,
+          result: {
+            success: true,
+            sessionId: session.id,
+            chatHistory: existingChatHistory,
+            generatedEmailsCount: successfulCount,
+            deletedEmailsCount: 0, // No longer deleting emails upfront
+            failedEmailsCount: failedCount,
+            message: `Regenerated ${successfulCount} emails for ${donorsToProcess.length} preview donors`,
+          },
+        };
+      } else {
+        // For intermediate updates, only pass status and message
+        yield {
+          status: update.status,
+          message: update.message,
+        };
+      }
+    }
   }
 }

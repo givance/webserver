@@ -1,10 +1,11 @@
+import { getEmailContentWithAuth } from '@/app/lib/data/email-campaigns';
+import {
+  appendSignatureToEmail,
+  appendSignatureToPlainText,
+} from '@/app/lib/utils/email-with-signature';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { protectedProcedure, router } from '../trpc';
-import { env } from '@/app/lib/env';
-import { appendSignatureToEmail } from '@/app/lib/utils/email-with-signature';
-import { appendSignatureToPlainText } from '@/app/lib/utils/email-with-signature';
-import { getEmailContentWithAuth } from '@/app/lib/data/email-campaigns';
-import { TRPCError } from '@trpc/server';
 
 // Input validation schemas
 const createSessionSchema = z.object({
@@ -562,16 +563,6 @@ export const emailCampaignsRouter = router({
           message: 'Email not found or content is empty',
         });
       }
-
-      console.log(`[TRPC] Found email for emailId: ${input.emailId}`, {
-        donorId: email.donorId,
-        hasEmailContent: !!email.emailContent,
-        emailContentLength: email.emailContent?.length || 0,
-        emailContentPreview: email.emailContent
-          ? `"${email.emailContent.substring(0, 100)}..."`
-          : 'null',
-        containsDollarSigns: email.emailContent?.includes('$') ? 'YES' : 'NO',
-      });
 
       const contentWithSignature = await appendSignatureToPlainText(email.emailContent, {
         donorId: email.donorId,
