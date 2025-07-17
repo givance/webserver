@@ -34,7 +34,6 @@ export function IsolatedMentionsInput({
 
       prevInitialValueRef.current = initialValue;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValue]); // Only depend on initialValue
 
   const handleChange = useCallback(

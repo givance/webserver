@@ -240,7 +240,14 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                     // Update email state with the fetched emails
                     updateEmailStateWithNewEmails(
                       emailState,
-                      sessionResult.data.emails,
+                      sessionResult.data.emails.map((email) => ({
+                        ...email,
+                        referenceContexts:
+                          (email.referenceContexts as Record<string, string>) || {},
+                        emailContent: email.emailContent || undefined,
+                        reasoning: email.reasoning || undefined,
+                        response: email.response || undefined,
+                      })),
                       false // Replace existing emails, don't append
                     );
                   }
@@ -256,7 +263,14 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                     // Replace email state with the refined emails
                     updateEmailStateWithNewEmails(
                       emailState,
-                      sessionResult.data.emails,
+                      sessionResult.data.emails.map((email) => ({
+                        ...email,
+                        referenceContexts:
+                          (email.referenceContexts as Record<string, string>) || {},
+                        emailContent: email.emailContent || undefined,
+                        reasoning: email.reasoning || undefined,
+                        response: email.response || undefined,
+                      })),
                       false // Replace existing emails, don't append
                     );
                   }
@@ -425,6 +439,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       onInstructionChange,
       reviewEmails,
       refetchSession,
+      smartEmailGenerationStream,
     ]
   );
 

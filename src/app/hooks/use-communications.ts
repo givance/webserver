@@ -340,9 +340,7 @@ export function useCommunications() {
   };
 
   const smartEmailGenerationStreamHandler = async (
-    input: inferProcedureInput<
-      AppRouter['communications']['campaigns']['smartEmailGenerationStream']
-    >,
+    input: inferProcedureInput<AppRouter['communications']['campaigns']['smartEmailGeneration']>,
     onChunk: (chunk: {
       status: 'generating' | 'generated' | 'refining' | 'refined';
       message?: string;
