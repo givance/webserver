@@ -236,8 +236,9 @@ export class EmailRefinementService {
         emailId: emailToRefine.emailId,
         donorId: emailToRefine.donorId,
         tokensUsed: refinementResult.tokensUsed,
+        originalContent: originalEmail.emailContent?.substring(0, 200) + '...',
+        refinedContent: refinementResult.content.substring(0, 200) + '...',
         subject: refinementResult.subject,
-        content: refinementResult.content,
         reasoning: refinementResult.reasoning,
         response: refinementResult.response,
       });

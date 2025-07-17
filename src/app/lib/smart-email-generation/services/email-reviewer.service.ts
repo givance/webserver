@@ -67,7 +67,7 @@ ${generatedEmail.content}`;
 
 ${generatedEmailContext}
 
-Please review whether the generated email strictly follows all user instructions from the conversation above.`;
+Please review whether the generated email strictly follows all user instructions from the conversation above. When there are conflicts, the user conversation context has the highest priority, over the organizational context and write guidelines.`;
 
     // Define the response schema
     const reviewSchema = z.object({
@@ -83,7 +83,18 @@ Please review whether the generated email strictly follows all user instructions
     });
 
     try {
-      logger.info('[EmailReviewerService] Starting email review');
+      logger.info('[EmailReviewerService] Starting email review', {
+        messages: [
+          {
+            role: 'system',
+            content: reviewSystemPrompt,
+          },
+          {
+            role: 'user',
+            content: reviewPrompt,
+          },
+        ],
+      });
 
       const result = await generateObject({
         model: azure(env.AZURE_OPENAI_GPT_4_1_DEPLOYMENT_NAME),
