@@ -32,13 +32,13 @@ export class EmailReviewerService {
     // Build the review prompt
     const reviewSystemPrompt = `You are an expert email reviewer specializing in evaluating whether generated emails strictly follow user instructions.
 
-Your task is to review the generated email and determine if it accurately follows ALL the instructions provided by the user during the conversation.
+Your task is to review the generated email in the following fields:
 
-Focus ONLY on instruction following:
-- Did the email follow all explicit instructions from the user?
-- Did the email contradict any user requests?
-- Did the email include all requested elements?
-- Did the email avoid elements the user asked to exclude?
+Rules:
+* Make sure the greeting is strictly following the user instructions.
+* Make sure the email structure strictly follows the user instructions.
+* Make sure all the numbers are correct, including the total donation amount, the donation count, the donation date, etc. You should pay extra attention to the numbers, and be careful because there might be a lot of numbers in the context and email, make sure you find the exact match. Especially around donations, there might be total donations, past 5 / 10 / 20 donations, most recent donations, make sure you use the right numbers.
+* Make sure all the names in the email are correct, including the donor name, the staff name, the organization name, etc.
 
 DO NOT evaluate:
 - General email quality
