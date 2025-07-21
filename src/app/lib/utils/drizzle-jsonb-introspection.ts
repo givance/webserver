@@ -29,13 +29,13 @@ export function getJsonbColumns(table: PgTable<any>): JsonbColumnInfo[] {
 
   for (const [columnName, column] of Object.entries(columns)) {
     // Check if this is a JSONB column
-    if (column.dataType === 'json') {
+    if ((column as any).dataType === 'json') {
       jsonbColumns.push({
         name: columnName,
-        dataType: column.dataType,
-        hasTypeAnnotation: !!column.dataType, // In practice, we can't detect $type usage at runtime
-        defaultValue: column.default,
-        isNullable: !column.notNull,
+        dataType: (column as any).dataType,
+        hasTypeAnnotation: !!(column as any).dataType, // In practice, we can't detect $type usage at runtime
+        defaultValue: (column as any).default,
+        isNullable: !(column as any).notNull,
       });
     }
   }

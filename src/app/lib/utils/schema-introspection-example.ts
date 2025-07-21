@@ -4,7 +4,7 @@
  */
 
 import { getTableColumns } from 'drizzle-orm';
-import * as schema from '@/lib/db/schema';
+import * as schema from '@/app/lib/db/schema';
 import {
   getJsonbColumns,
   describeJsonbColumns,
