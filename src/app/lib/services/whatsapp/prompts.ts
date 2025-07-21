@@ -65,6 +65,7 @@ WRITE OPERATIONS:
 6. For donation dates, use timezone conversion: CURRENT_DATE AT TIME ZONE 'America/New_York' AT TIME ZONE 'UTC'
 7. For created_at/updated_at timestamps, use NOW() (system timestamps in UTC)
 8. Always validate data before inserting/updating
+9. When adding notes to donors, use the EXACT structure: {createdAt, createdBy, content} - NOT {date, text}
 
 📊 DATABASE SCHEMA:
 ${schemaDescription}
@@ -113,7 +114,11 @@ Remember:
 /**
  * Build user prompt with optional transcription notice
  */
-export function buildUserPrompt(message: string, isTranscribed: boolean, historyContext: string): string {
+export function buildUserPrompt(
+  message: string,
+  isTranscribed: boolean,
+  historyContext: string
+): string {
   if (historyContext.length > 0) {
     const currentQuestion = isTranscribed
       ? `Current user question (transcribed from voice message): ${message}
@@ -170,7 +175,7 @@ DATE/TIME HANDLING:
 EXAMPLES:
 SELECT: "SELECT * FROM donors WHERE organization_id = '${organizationId}' AND first_name = 'John'"
 INSERT: "INSERT INTO donors (organization_id, first_name, last_name, email) VALUES ('${organizationId}', 'John', 'Doe', 'john@example.com')"
-UPDATE: "UPDATE donors SET notes = 'Updated note' WHERE organization_id = '${organizationId}' AND id = 123"
+UPDATE NOTES: "UPDATE donors SET notes = COALESCE(notes, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('createdAt', NOW(), 'createdBy', 'system', 'content', 'Met with donor')) WHERE organization_id = '${organizationId}' AND id = 123"
 
 ERROR RECOVERY:
 If a query fails, analyze the error message and rewrite the query to fix the issue.

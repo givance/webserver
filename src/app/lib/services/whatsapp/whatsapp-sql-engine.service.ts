@@ -1,8 +1,9 @@
-import { db } from "@/app/lib/db";
-import { logger } from "@/app/lib/logger";
-import { sql } from "drizzle-orm";
-import * as schema from "@/app/lib/db/schema";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { db } from '@/app/lib/db';
+import { logger } from '@/app/lib/logger';
+import { sql } from 'drizzle-orm';
+import * as schema from '@/app/lib/db/schema';
+import { getTableConfig } from 'drizzle-orm/pg-core';
+import { getJsonbTypeDefinition } from '@/app/lib/utils/drizzle-jsonb-introspection';
 
 /**
  * Result object for SQL execution
@@ -12,7 +13,7 @@ export interface SQLExecutionResult {
   data?: any[];
   error?: {
     message: string;
-    type: "syntax" | "security" | "runtime" | "unknown";
+    type: 'syntax' | 'security' | 'runtime' | 'unknown';
     query: string;
     suggestion?: string;
   };
@@ -27,14 +28,17 @@ export class WhatsAppSQLEngineService {
    * Execute a raw SQL query against the database
    * Returns result object instead of throwing errors to allow AI error recovery
    */
-  async executeRawSQL(params: { query: string; organizationId: string }): Promise<SQLExecutionResult> {
+  async executeRawSQL(params: {
+    query: string;
+    organizationId: string;
+  }): Promise<SQLExecutionResult> {
     const { query: rawQuery, organizationId } = params;
 
     logger.info(`[SQL Engine] Executing raw SQL query`, {
       organizationId,
       queryLength: rawQuery.length,
       queryType: rawQuery.trim().split(' ')[0].toUpperCase(),
-      query: rawQuery
+      query: rawQuery,
     });
 
     try {
@@ -53,7 +57,7 @@ export class WhatsAppSQLEngineService {
         organizationId,
         rowsReturned: rows.length,
         executionTimeMs: executionTime,
-        queryType: rawQuery.trim().split(' ')[0].toUpperCase()
+        queryType: rawQuery.trim().split(' ')[0].toUpperCase(),
       });
       return {
         success: true,
@@ -61,7 +65,7 @@ export class WhatsAppSQLEngineService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // Classify error type for better AI understanding
       const errorType = this.classifyError(errorMessage);
       const suggestion = this.generateErrorSuggestion(errorMessage, rawQuery);
@@ -71,7 +75,7 @@ export class WhatsAppSQLEngineService {
         errorType,
         organizationId,
         query: rawQuery,
-        suggestion
+        suggestion,
       });
 
       return {
@@ -101,33 +105,37 @@ export class WhatsAppSQLEngineService {
   /**
    * Classify error type to help AI understand what went wrong
    */
-  private classifyError(errorMessage: string): "syntax" | "security" | "runtime" | "unknown" {
+  private classifyError(errorMessage: string): 'syntax' | 'security' | 'runtime' | 'unknown' {
     const message = errorMessage.toLowerCase();
 
     if (
-      message.includes("syntax error") ||
-      message.includes("unexpected token") ||
-      message.includes("parse error") ||
-      message.includes("at or near")
+      message.includes('syntax error') ||
+      message.includes('unexpected token') ||
+      message.includes('parse error') ||
+      message.includes('at or near')
     ) {
-      return "syntax";
-    }
-
-    if (message.includes("dangerous") || message.includes("not allowed") || message.includes("organization_id")) {
-      return "security";
+      return 'syntax';
     }
 
     if (
-      (message.includes("relation") && message.includes("does not exist")) ||
-      (message.includes("column") && message.includes("does not exist")) ||
-      message.includes("constraint") ||
-      message.includes("duplicate key") ||
-      message.includes("foreign key")
+      message.includes('dangerous') ||
+      message.includes('not allowed') ||
+      message.includes('organization_id')
     ) {
-      return "runtime";
+      return 'security';
     }
 
-    return "unknown";
+    if (
+      (message.includes('relation') && message.includes('does not exist')) ||
+      (message.includes('column') && message.includes('does not exist')) ||
+      message.includes('constraint') ||
+      message.includes('duplicate key') ||
+      message.includes('foreign key')
+    ) {
+      return 'runtime';
+    }
+
+    return 'unknown';
   }
 
   /**
@@ -138,7 +146,7 @@ export class WhatsAppSQLEngineService {
     const queryLower = query.toLowerCase();
 
     // Syntax error suggestions
-    if (message.includes("syntax error at or near")) {
+    if (message.includes('syntax error at or near')) {
       const nearMatch = message.match(/syntax error at or near "([^"]+)"/);
       if (nearMatch) {
         const problemChar = nearMatch[1];
@@ -147,22 +155,22 @@ export class WhatsAppSQLEngineService {
     }
 
     // Missing organization_id suggestions
-    if (message.includes("organization_id")) {
-      if (queryLower.includes("select") || queryLower.includes("update")) {
+    if (message.includes('organization_id')) {
+      if (queryLower.includes('select') || queryLower.includes('update')) {
         return `Add WHERE organization_id = 'your_org_id' to the query for security compliance.`;
       }
-      if (queryLower.includes("insert")) {
+      if (queryLower.includes('insert')) {
         return `Include organization_id in the INSERT VALUES clause.`;
       }
     }
 
     // Table/column not found suggestions
-    if (message.includes("does not exist")) {
+    if (message.includes('does not exist')) {
       return `Check the table/column name spelling. Available tables: donors, donations, projects, staff, organizations.`;
     }
 
     // Quote-related issues
-    if (message.includes("unterminated quoted string") || message.includes("quoted identifier")) {
+    if (message.includes('unterminated quoted string') || message.includes('quoted identifier')) {
       return `Check for unmatched quotes in string values. Use single quotes for string literals.`;
     }
 
@@ -206,18 +214,18 @@ export class WhatsAppSQLEngineService {
    */
   private validateOrganizationFilter(query: string): void {
     // Tables that have direct organization_id columns
-    const tablesWithDirectOrgId = ["donors", "projects", "staff", "organizations"];
+    const tablesWithDirectOrgId = ['donors', 'projects', 'staff', 'organizations'];
 
     // Tables that are secured through foreign key relationships
-    const tablesWithIndirectOrgId = ["donations"]; // secured through donor_id -> donors.organization_id
+    const tablesWithIndirectOrgId = ['donations']; // secured through donor_id -> donors.organization_id
 
     // Check if query mentions organization_id directly (good for most cases)
-    if (query.includes("organization_id")) {
+    if (query.includes('organization_id')) {
       return; // Query includes organization filter, we're good
     }
 
     // For INSERT statements into tables that don't have direct organization_id
-    if (query.startsWith("insert into")) {
+    if (query.startsWith('insert into')) {
       // Extract table name from INSERT statement
       const insertMatch = query.match(/insert\s+into\s+(\w+)/i);
       if (insertMatch) {
@@ -230,7 +238,9 @@ export class WhatsAppSQLEngineService {
 
         // For tables with direct organization_id, require it in the INSERT
         if (tablesWithDirectOrgId.includes(tableName)) {
-          throw new Error("INSERT queries into tables with organization_id must include organization_id in VALUES");
+          throw new Error(
+            'INSERT queries into tables with organization_id must include organization_id in VALUES'
+          );
         }
       }
     }
@@ -242,7 +252,7 @@ export class WhatsAppSQLEngineService {
 
       if (tablesWithDirectOrgId.includes(tableName)) {
         throw new Error(
-          "SELECT/UPDATE queries on tables with organization_id must include WHERE organization_id filter"
+          'SELECT/UPDATE queries on tables with organization_id must include WHERE organization_id filter'
         );
       }
 
@@ -268,18 +278,18 @@ export class WhatsAppSQLEngineService {
    * Dynamically generate schema description from the actual schema definitions
    */
   private generateSchemaFromTables(): string {
-    const schemaDescription = ["DATABASE SCHEMA:\n"];
+    const schemaDescription = ['DATABASE SCHEMA:\n'];
 
     // Get only the core tables needed for WhatsApp queries
     const tables = [
-      { name: "ORGANIZATIONS", table: schema.organizations },
-      { name: "DONORS", table: schema.donors },
-      { name: "DONATIONS", table: schema.donations },
-      { name: "PROJECTS", table: schema.projects },
-      { name: "STAFF", table: schema.staff },
+      { name: 'ORGANIZATIONS', table: schema.organizations, tableName: 'organizations' },
+      { name: 'DONORS', table: schema.donors, tableName: 'donors' },
+      { name: 'DONATIONS', table: schema.donations, tableName: 'donations' },
+      { name: 'PROJECTS', table: schema.projects, tableName: 'projects' },
+      { name: 'STAFF', table: schema.staff, tableName: 'staff' },
     ];
 
-    for (const { name, table } of tables) {
+    for (const { name, table, tableName } of tables) {
       try {
         const tableConfig = getTableConfig(table);
         schemaDescription.push(`${name} TABLE:`);
@@ -294,16 +304,30 @@ export class WhatsAppSQLEngineService {
 
             // Check if it's a primary key
             if (column.primary) {
-              columnDescription += ", primary key";
+              columnDescription += ', primary key';
             }
 
-            columnDescription += ")";
+            columnDescription += ')';
+          }
+
+          // Add JSONB type information from registry
+          if (column.dataType === 'json') {
+            const typeDefinition = getJsonbTypeDefinition(tableName, column.name);
+            if (typeDefinition) {
+              // Extract just the essential type info for the DonorNote case
+              if (tableName === 'donors' && column.name === 'notes') {
+                columnDescription +=
+                  ' - Array of note objects with structure: {createdAt: string (ISO date), createdBy: string (user ID), content: string}';
+              } else {
+                columnDescription += ` - Type: ${typeDefinition}`;
+              }
+            }
           }
 
           schemaDescription.push(columnDescription);
         }
 
-        schemaDescription.push(""); // Add empty line between tables
+        schemaDescription.push(''); // Add empty line between tables
       } catch (error) {
         logger.warn(
           `[SQL Engine] Could not extract schema for table ${name}: ${
@@ -314,6 +338,25 @@ export class WhatsAppSQLEngineService {
       }
     }
 
-    return schemaDescription.join("\n");
+    // Add detailed JSONB field documentation
+    schemaDescription.push('IMPORTANT JSONB FIELD STRUCTURES:');
+    schemaDescription.push('');
+    schemaDescription.push('donors.notes - Array of DonorNote objects:');
+    schemaDescription.push('  Each note object MUST have these exact fields:');
+    schemaDescription.push('  - createdAt: ISO timestamp string (use NOW() for current time)');
+    schemaDescription.push(
+      "  - createdBy: User ID string who created the note (use 'system' for WhatsApp notes)"
+    );
+    schemaDescription.push('  - content: The actual note text');
+    schemaDescription.push('');
+    schemaDescription.push('  Example for adding a note:');
+    schemaDescription.push("  UPDATE donors SET notes = COALESCE(notes, '[]'::jsonb) || ");
+    schemaDescription.push(
+      "  jsonb_build_array(jsonb_build_object('createdAt', NOW(), 'createdBy', 'system', 'content', 'Met with donor'))"
+    );
+    schemaDescription.push("  WHERE organization_id = '...' AND id = 123");
+    schemaDescription.push('');
+
+    return schemaDescription.join('\n');
   }
 }
