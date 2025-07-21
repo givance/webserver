@@ -41,6 +41,16 @@ export const env = createEnv({
       .string()
       .optional()
       .default('placeholder-whatsapp-verify-token'),
+    // Blackbaud integration
+    BLACKBAUD_CLIENT_ID: z.string().optional(),
+    BLACKBAUD_CLIENT_SECRET: z.string().optional(),
+    BLACKBAUD_REDIRECT_URI: z.string().optional(),
+    BLACKBAUD_SUBSCRIPTION_KEY: z.string().optional(),
+    BLACKBAUD_USE_SANDBOX: z
+      .string()
+      .optional()
+      .transform((val) => val === 'true')
+      .default('false'),
   },
   /*
    * Environment variables available on the client (and server).

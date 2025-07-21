@@ -1,13 +1,14 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail } from 'lucide-react';
+import { Mail, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { trpc } from '@/app/lib/trpc/client';
 import React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { GmailConnect as GmailConnectComponent } from '@/components/ui/GmailConnect';
+import { CrmIntegrationCard } from '@/components/integrations/CrmIntegrationCard';
 
 function GmailConnect() {
   return <GmailConnectComponent context="settings" />;
@@ -74,25 +75,44 @@ function SignatureSettings() {
 }
 
 export default function IntegrationsPage() {
+  const { data: providers, isLoading } = trpc.integrations.getAvailableProviders.useQuery();
+
   return (
     <>
       <title>Integrations - Settings</title>
       <div className="container mx-auto px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
-          <Mail className="h-6 w-6" />
+          <Database className="h-6 w-6" />
           <h1 className="text-2xl font-bold">Integrations</h1>
         </div>
 
-        <div className="space-y-6">
-          <div className="grid gap-8">
-            <div>
-              <h3 className="text-lg font-medium mb-4">Email Integration</h3>
-              <div className="grid gap-4">
-                <GmailConnect />
-              </div>
+        <div className="space-y-8">
+          {/* CRM Integrations Section */}
+          <div>
+            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              CRM Integrations
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              {!isLoading &&
+                providers?.map((provider) => (
+                  <CrmIntegrationCard key={provider.name} provider={provider} />
+                ))}
             </div>
-            {/* <SignatureSettings /> */}
           </div>
+
+          {/* Email Integration Section */}
+          <div>
+            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Email Integration
+            </h3>
+            <div className="grid gap-4">
+              <GmailConnect />
+            </div>
+          </div>
+
+          {/* <SignatureSettings /> */}
         </div>
       </div>
     </>
