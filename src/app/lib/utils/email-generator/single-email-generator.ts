@@ -133,7 +133,6 @@ export async function generateSingleEmail(
     subject: z
       .string()
       .min(1)
-      .max(100)
       .describe('A compelling subject line for the email (1-100 characters)'),
     reasoning: z
       .string()
