@@ -1,5 +1,15 @@
 import { relations, sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  timestamp,
+  jsonb,
+  primaryKey,
+  serial,
+  varchar,
+  boolean,
+  unique,
+} from 'drizzle-orm/pg-core';
 
 /**
  * Organizations table based on Clerk organization data.
@@ -56,6 +66,37 @@ export const organizationMemberships = pgTable(
   })
 );
 
+/**
+ * Organization integrations table for storing CRM and other external system connections.
+ * Supports multiple providers (Blackbaud, Salesforce, HubSpot, etc.) per organization.
+ */
+export const organizationIntegrations = pgTable(
+  'organization_integrations',
+  {
+    id: serial('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 50 }).notNull(), // 'blackbaud', 'salesforce', 'hubspot', etc.
+    accessToken: text('access_token').notNull(), // Should be encrypted in production
+    refreshToken: text('refresh_token').notNull(), // Should be encrypted in production
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    scope: text('scope'), // OAuth scopes granted
+    tokenType: varchar('token_type', { length: 50 }), // e.g., 'Bearer'
+    metadata: jsonb('metadata').default(sql`'{}'::jsonb`), // Provider-specific data (environmentId, instanceUrl, etc.)
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    syncStatus: varchar('sync_status', { length: 20 }).default('idle'), // 'idle', 'syncing', 'error'
+    syncError: text('sync_error'), // Last sync error message
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    // Only one integration per provider per organization
+    uniqueProviderPerOrg: unique('org_provider_unique').on(table.organizationId, table.provider),
+  })
+);
+
 // Import needed tables for relations will be done at the bottom to avoid circular dependencies
 
 // Relations will be defined after imports to avoid circular dependencies
@@ -74,6 +115,7 @@ export const organizationsRelations = relations(organizations, ({ many, one }) =
   projects: many(projects),
   donors: many(donors),
   staff: many(staff),
+  integrations: many(organizationIntegrations),
 }));
 
 export const organizationMembershipsRelations = relations(organizationMemberships, ({ one }) => ({
@@ -84,5 +126,12 @@ export const organizationMembershipsRelations = relations(organizationMembership
   user: one(users, {
     fields: [organizationMemberships.userId],
     references: [users.id],
+  }),
+}));
+
+export const organizationIntegrationsRelations = relations(organizationIntegrations, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationIntegrations.organizationId],
+    references: [organizations.id],
   }),
 }));

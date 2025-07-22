@@ -34,6 +34,7 @@ export const donations = pgTable('donations', {
   projectId: integer('project_id')
     .references(() => projects.id)
     .notNull(),
+  externalId: varchar('external_id', { length: 255 }), // External ID from CRM systems (e.g., 'blackbaud_12345')
   date: timestamp('date').defaultNow().notNull(),
   amount: integer('amount').notNull(), // Stored in cents
   currency: varchar('currency', { length: 3 }).default('USD').notNull(),

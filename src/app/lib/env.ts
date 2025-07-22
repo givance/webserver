@@ -41,6 +41,16 @@ export const env = createEnv({
       .string()
       .optional()
       .default('placeholder-whatsapp-verify-token'),
+    // Blackbaud integration - all required if any one is present
+    BLACKBAUD_CLIENT_ID: z.string().min(1).optional(),
+    BLACKBAUD_CLIENT_SECRET: z.string().min(1).optional(),
+    BLACKBAUD_REDIRECT_URI: z.string().url().optional(),
+    BLACKBAUD_SUBSCRIPTION_KEY: z.string().min(1).optional(),
+    BLACKBAUD_USE_SANDBOX: z
+      .string()
+      .optional()
+      .transform((val) => val === 'true')
+      .default('false'),
   },
   /*
    * Environment variables available on the client (and server).
@@ -86,6 +96,12 @@ export const env = createEnv({
     MICROSOFT_REDIRECT_URI: process.env.MICROSOFT_REDIRECT_URI,
     WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    // Blackbaud integration
+    BLACKBAUD_CLIENT_ID: process.env.BLACKBAUD_CLIENT_ID,
+    BLACKBAUD_CLIENT_SECRET: process.env.BLACKBAUD_CLIENT_SECRET,
+    BLACKBAUD_REDIRECT_URI: process.env.BLACKBAUD_REDIRECT_URI,
+    BLACKBAUD_SUBSCRIPTION_KEY: process.env.BLACKBAUD_SUBSCRIPTION_KEY,
+    BLACKBAUD_USE_SANDBOX: process.env.BLACKBAUD_USE_SANDBOX,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });
