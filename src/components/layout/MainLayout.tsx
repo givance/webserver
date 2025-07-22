@@ -633,7 +633,7 @@ function SidebarContentWrapper({
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
+                    {/* <SidebarMenuItem>
                       <Link href="/settings/integrations" className="w-full min-w-0">
                         <SidebarMenuButton
                           isActive={pathname.startsWith('/settings/integrations')}
@@ -645,7 +645,7 @@ function SidebarContentWrapper({
                           </span>
                         </SidebarMenuButton>
                       </Link>
-                    </SidebarMenuItem>
+                    </SidebarMenuItem> */}
                   </SidebarMenu>
                 </CollapsibleContent>
               </Collapsible>
