@@ -133,9 +133,22 @@ const updateCampaignSchema = z.object({
 
 const smartEmailGenerationSchema = z.object({
   sessionId: z.number(),
-  mode: z.enum(['generate_more', 'regenerate_all', 'generate_with_new_message']),
+  mode: z.enum([
+    'generate_more',
+    'regenerate_all',
+    'generate_with_new_message',
+    'regenerate_with_edited_history',
+  ]),
   count: z.number().min(1).max(50).optional(), // Number of new emails to generate (for generate_more mode)
   newMessage: z.string().optional(),
+  chatHistory: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })
+    )
+    .optional(), // Full chat history for regenerate_with_edited_history mode
 });
 
 const saveDraftSchema = z.object({

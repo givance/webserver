@@ -92,7 +92,7 @@ export class CrmManagerService {
         // Update the integration object with new tokens
         integration.accessToken = newTokens.accessToken;
         integration.refreshToken = newTokens.refreshToken;
-        integration.expiresAt = newTokens.expiresAt;
+        integration.expiresAt = newTokens.expiresAt ?? null;
       } catch (error) {
         logger.error('Failed to refresh token', { error, provider: providerName });
         throw new Error('Failed to refresh authentication token');

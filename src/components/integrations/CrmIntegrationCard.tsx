@@ -12,7 +12,7 @@ import {
   Unlink,
   FlaskConical,
 } from 'lucide-react';
-import { trpc } from '@/app/lib/trpc/client';
+import { useIntegrations } from '@/app/hooks/use-integrations';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -25,69 +25,74 @@ interface CrmIntegrationCardProps {
 }
 
 export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
-  const utils = trpc.useUtils();
+  const {
+    getOrganizationIntegrations,
+    getIntegrationSyncStatus,
+    getIntegrationAuthUrl,
+    syncIntegrationData,
+    disconnectIntegration,
+  } = useIntegrations();
 
-  const { data: integrations, isLoading: integrationsLoading } =
-    trpc.integrations.getOrganizationIntegrations.useQuery();
+  const { data: integrations, isLoading: integrationsLoading } = getOrganizationIntegrations;
 
-  const { data: syncStatus, isLoading: statusLoading } =
-    trpc.integrations.getIntegrationSyncStatus.useQuery(
-      { provider: provider.name },
-      {
-        refetchInterval: (data) => {
-          // Poll more frequently if syncing
-          return data?.syncStatus === 'syncing' ? 5000 : false;
-        },
-      }
-    );
+  const isIntegrationActive =
+    integrations?.some((i) => i.provider === provider.name && i.isActive) || false;
 
-  const connectMutation = trpc.integrations.getIntegrationAuthUrl.useMutation({
-    onSuccess: (data) => {
-      window.location.href = data.authUrl;
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to initiate connection');
-    },
+  const { data: syncStatus, isLoading: statusLoading } = getIntegrationSyncStatus(provider.name, {
+    enabled: isIntegrationActive,
   });
 
-  const disconnectMutation = trpc.integrations.disconnectIntegration.useMutation({
-    onSuccess: () => {
-      toast.success(`${provider.displayName} disconnected successfully`);
-      utils.integrations.getOrganizationIntegrations.invalidate();
-      utils.integrations.getIntegrationSyncStatus.invalidate({ provider: provider.name });
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to disconnect integration');
-    },
-  });
-
-  const syncMutation = trpc.integrations.syncIntegrationData.useMutation({
-    onSuccess: () => {
-      toast.success('Sync initiated successfully');
-      utils.integrations.getIntegrationSyncStatus.invalidate({ provider: provider.name });
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to initiate sync');
-    },
-  });
+  const connectMutation = getIntegrationAuthUrl;
+  const syncMutation = syncIntegrationData;
+  const disconnectMutation = disconnectIntegration;
 
   const isConnected = syncStatus?.isActive;
   const isSyncing = syncStatus?.syncStatus === 'syncing';
-  const hasError = syncStatus?.syncStatus === 'error';
 
   const handleConnect = () => {
-    connectMutation.mutate({ provider: provider.name });
+    connectMutation.mutate(
+      { provider: provider.name },
+      {
+        onSuccess: (data) => {
+          window.location.href = data.authUrl;
+        },
+        onError: (error) => {
+          toast.error(error.message || 'Failed to initiate connection');
+        },
+      }
+    );
+  };
+
+  const handleSync = () => {
+    syncMutation.mutate(
+      { provider: provider.name },
+      {
+        onSuccess: () => {
+          toast.success('Sync initiated successfully');
+        },
+        onError: (error) => {
+          toast.error(error.message || 'Failed to initiate sync');
+        },
+      }
+    );
   };
 
   const handleDisconnect = () => {
     if (confirm(`Are you sure you want to disconnect ${provider.displayName}?`)) {
-      disconnectMutation.mutate({ provider: provider.name });
+      disconnectMutation.mutate(
+        { provider: provider.name },
+        {
+          onSuccess: () => {
+            toast.success(`${provider.displayName} disconnected successfully`);
+          },
+          onError: (error) => {
+            toast.error(error.message || 'Failed to disconnect integration');
+          },
+        }
+      );
     }
   };
-
-  const handleSync = () => {
-    syncMutation.mutate({ provider: provider.name });
-  };
+  const hasError = syncStatus?.syncStatus === 'error';
 
   const getSyncStatusIcon = () => {
     if (isSyncing) return <Loader2 className="h-4 w-4 animate-spin" />;

@@ -9,8 +9,8 @@ export const syncCrmDataTask = task({
   maxDuration: 3600, // 1 hour max
   retry: {
     maxAttempts: 3,
-    minWait: '30s',
-    maxWait: '5m',
+    minTimeoutInMs: 30000, // 30 seconds
+    maxTimeoutInMs: 300000, // 5 minutes
     factor: 2,
     randomize: true,
   },

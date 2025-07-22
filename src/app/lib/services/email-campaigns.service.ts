@@ -121,11 +121,17 @@ export interface RegenerateAllEmailsInput {
 
 export interface SmartEmailGenerationInput {
   sessionId: number;
-  mode: 'generate_more' | 'regenerate_all' | 'generate_with_new_message';
+  mode:
+    | 'generate_more'
+    | 'regenerate_all'
+    | 'generate_with_new_message'
+    | 'regenerate_with_edited_history';
   // For generate_more: number of new emails to generate
   count?: number;
   // For generate_with_new_message: the new message to add to chat history
   newMessage?: string;
+  // For regenerate_with_edited_history: the complete edited chat history
+  chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export interface SmartEmailGenerationResponse {
@@ -1226,6 +1232,13 @@ export class EmailCampaignsService {
             organizationId,
             userId
           );
+        case 'regenerate_with_edited_history':
+          return await this.handleRegenerateWithEditedHistory(
+            input,
+            existingSession,
+            organizationId,
+            userId
+          );
         default:
           throw createTRPCError({
             code: 'BAD_REQUEST',
@@ -1614,6 +1627,78 @@ export class EmailCampaignsService {
       deletedEmailsCount: deletedCount,
       failedEmailsCount: failedCount,
       message: `Generated ${successfulCount} emails with new instructions for ${donorsToProcess.length} preview donors`,
+    };
+  }
+
+  /**
+   * Handles regenerate_with_edited_history mode - replaces chat history and regenerates all emails
+   */
+  private async handleRegenerateWithEditedHistory(
+    input: SmartEmailGenerationInput,
+    session: EmailGenerationSession,
+    organizationId: string,
+    userId: string
+  ): Promise<SmartEmailGenerationResponse> {
+    // Validate input
+    if (!input.chatHistory || input.chatHistory.length === 0) {
+      throw createTRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Chat history is required for regenerate_with_edited_history mode',
+      });
+    }
+
+    // Update the session's chat history with the edited version
+    const updateData = {
+      chatHistory: input.chatHistory,
+      updatedAt: new Date(),
+    };
+
+    logger.info(
+      `[handleRegenerateWithEditedHistory] Updating session ${session.id} with edited chat history`,
+      {
+        sessionId: session.id,
+        oldHistoryLength: (session.chatHistory as any[])?.length || 0,
+        newHistoryLength: input.chatHistory.length,
+      }
+    );
+
+    const updatedSession = await updateEmailGenerationSession(
+      session.id,
+      organizationId,
+      updateData
+    );
+
+    if (!updatedSession) {
+      throw createTRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update session with edited chat history',
+      });
+    }
+
+    // Get all donors that had emails generated
+    const donorsToProcess = await this.getDonorsToProcess(session, 'regenerate');
+
+    // Delete all existing emails for these donors
+    const deletedCount = await deleteGeneratedEmails(session.id, donorsToProcess);
+
+    logger.info(`[handleRegenerateWithEditedHistory] Deleted ${deletedCount} existing emails`);
+
+    // Generate new emails with the edited chat history
+    const { successfulCount, failedCount } = await this.generateEmailsForDonors(
+      session.id,
+      organizationId,
+      donorsToProcess,
+      input.chatHistory
+    );
+
+    return {
+      success: true,
+      sessionId: session.id,
+      chatHistory: input.chatHistory,
+      generatedEmailsCount: successfulCount,
+      deletedEmailsCount: deletedCount,
+      failedEmailsCount: failedCount,
+      message: `Regenerated ${successfulCount} emails with edited chat history for ${donorsToProcess.length} donors`,
     };
   }
 

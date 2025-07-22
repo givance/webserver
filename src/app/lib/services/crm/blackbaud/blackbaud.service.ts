@@ -23,7 +23,7 @@ export class BlackbaudService implements ICrmProvider {
   readonly name = 'blackbaud';
   readonly displayName = 'Blackbaud';
 
-  private readonly isSandbox = env.BLACKBAUD_USE_SANDBOX === 'true';
+  private readonly isSandbox = !!env.BLACKBAUD_USE_SANDBOX;
   private readonly baseUrl = this.isSandbox
     ? 'https://api.sky.blackbaud.com' // Sandbox uses same API URL
     : 'https://api.sky.blackbaud.com';

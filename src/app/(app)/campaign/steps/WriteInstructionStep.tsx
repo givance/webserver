@@ -544,6 +544,61 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     [sessionId, emailGeneration, smartEmailGeneration]
   );
 
+  const handleMessageEdit = useCallback(
+    async (messageIndex: number, newContent: string) => {
+      if (!sessionId) {
+        toast.error('Cannot edit messages without an active session');
+        return;
+      }
+
+      // Update the chat history with the edited message
+      const updatedChatHistory = [...chatState.chatMessages];
+      updatedChatHistory[messageIndex] = {
+        ...updatedChatHistory[messageIndex],
+        content: newContent,
+      };
+
+      // Clear existing emails as they will be regenerated
+      clearEmailStateForRegeneration(emailState, false); // false = regenerate all emails
+
+      // Update chat messages locally first
+      chatState.setChatMessages(updatedChatHistory);
+
+      // Show loading state
+      setEmailGenerationLoading(emailGeneration, 'regenerating', true);
+
+      try {
+        // Call the backend with the full updated chat history
+        const response = await smartEmailGeneration({
+          sessionId,
+          mode: 'regenerate_with_edited_history',
+          chatHistory: updatedChatHistory,
+        });
+
+        if (response.success) {
+          toast.success('Emails regenerated with edited message');
+          // The response should contain the updated chat history from backend
+          if (response.chatHistory) {
+            chatState.setChatMessages(response.chatHistory);
+          }
+        } else {
+          toast.error('Failed to regenerate emails');
+          // Revert the chat history on failure
+          chatState.setChatMessages(chatState.chatMessages);
+        }
+      } catch (error) {
+        console.error('Error regenerating emails with edited message:', error);
+        toast.error('Failed to regenerate emails');
+        // Revert the chat history on failure
+        chatState.setChatMessages(chatState.chatMessages);
+      } finally {
+        setEmailGenerationLoading(emailGeneration, 'regenerating', false);
+        emailGeneration.setStreamingStatus('idle');
+      }
+    },
+    [sessionId, chatState, emailState, emailGeneration, smartEmailGeneration]
+  );
+
   const handleEmailStatusChangeCallback = useCallback(
     async (emailId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => {
       // Set loading state
@@ -719,7 +774,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={onBack} size="sm" className="h-7 text-xs">
             <ArrowLeft className="w-3 h-3 mr-1" />
-            Back
           </Button>
           {(emailState.allGeneratedEmails.length > 0 || chatState.chatMessages.length > 0) && (
             <Button
@@ -777,6 +831,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 isGeneratingMore={emailGeneration.isGeneratingMore}
                 isRegenerating={emailGeneration.isRegenerating}
                 streamingStatus={emailGeneration.streamingStatus}
+                onMessageEdit={handleMessageEdit}
+                editMode={editMode}
               />
             </div>
 

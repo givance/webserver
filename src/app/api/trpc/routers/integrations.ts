@@ -54,7 +54,7 @@ export const integrationsRouter = router({
     // Add sandbox information for providers that support it
     return providers.map((provider) => ({
       ...provider,
-      isSandbox: provider.name === 'blackbaud' && env.BLACKBAUD_USE_SANDBOX === 'true',
+      isSandbox: provider.name === 'blackbaud' && env.BLACKBAUD_USE_SANDBOX,
     }));
   }),
 
@@ -113,6 +113,7 @@ export const integrationsRouter = router({
 
       // Get the redirect URI based on provider
       let redirectUri: string;
+      const baseUrl = env.BASE_URL;
 
       if (input.provider === 'blackbaud' && env.BLACKBAUD_REDIRECT_URI) {
         // Use the exact redirect URI from environment for Blackbaud
@@ -127,7 +128,6 @@ export const integrationsRouter = router({
         });
       } else {
         // Generate redirect URI for other providers
-        const baseUrl = env.BASE_URL;
         redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
 
         logger.info('Using generated redirect URI', {
@@ -236,8 +236,8 @@ export const integrationsRouter = router({
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
             expiresAt: tokens.expiresAt,
-            tokenType: tokens.tokenType,
-            scope: tokens.scope,
+            tokenType: null, // CRM manager doesn't return tokenType
+            scope: null, // CRM manager doesn't return scope
             isActive: true,
             syncStatus: 'idle',
           });
