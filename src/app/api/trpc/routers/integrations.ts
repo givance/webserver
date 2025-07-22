@@ -11,6 +11,41 @@ import { syncCrmDataTask } from '@/trigger/jobs/syncCrmData';
 
 export const integrationsRouter = router({
   /**
+   * Debug endpoint to check Blackbaud configuration
+   */
+  debugBlackbaudConfig: protectedProcedure.query(async ({ ctx }) => {
+    // Only allow admins to view this debug info
+    const hasClientId = !!env.BLACKBAUD_CLIENT_ID;
+    const hasClientSecret = !!env.BLACKBAUD_CLIENT_SECRET;
+    const hasSubscriptionKey = !!env.BLACKBAUD_SUBSCRIPTION_KEY;
+
+    return {
+      configured: hasClientId && hasClientSecret && hasSubscriptionKey,
+      details: {
+        hasClientId,
+        clientIdLength: env.BLACKBAUD_CLIENT_ID?.length || 0,
+        clientIdPrefix: env.BLACKBAUD_CLIENT_ID
+          ? env.BLACKBAUD_CLIENT_ID.substring(0, 8) + '...'
+          : 'Not set',
+        hasClientSecret,
+        clientSecretLength: env.BLACKBAUD_CLIENT_SECRET?.length || 0,
+        hasSubscriptionKey,
+        subscriptionKeyLength: env.BLACKBAUD_SUBSCRIPTION_KEY?.length || 0,
+        subscriptionKeyPrefix: env.BLACKBAUD_SUBSCRIPTION_KEY
+          ? env.BLACKBAUD_SUBSCRIPTION_KEY.substring(0, 8) + '...'
+          : 'Not set',
+        isSandbox: env.BLACKBAUD_USE_SANDBOX,
+        envRedirectUri: env.BLACKBAUD_REDIRECT_URI || 'Not set',
+        baseUrl: env.BASE_URL,
+        expectedRedirectUri: `${env.BASE_URL}/settings/integrations/blackbaud/callback`,
+      },
+      message:
+        !hasClientId || !hasClientSecret || !hasSubscriptionKey
+          ? 'Missing required Blackbaud environment variables. Check server logs for details.'
+          : 'Blackbaud configuration appears complete.',
+    };
+  }),
+  /**
    * Get all available CRM providers
    */
   getAvailableProviders: protectedProcedure.query(async () => {
@@ -77,8 +112,37 @@ export const integrationsRouter = router({
       });
 
       // Get the redirect URI based on provider
-      const baseUrl = env.BASE_URL;
-      const redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
+      let redirectUri: string;
+
+      if (input.provider === 'blackbaud' && env.BLACKBAUD_REDIRECT_URI) {
+        // Use the exact redirect URI from environment for Blackbaud
+        redirectUri = env.BLACKBAUD_REDIRECT_URI;
+
+        logger.info('Using Blackbaud redirect URI from environment', {
+          redirectUri,
+          hasClientId: !!env.BLACKBAUD_CLIENT_ID,
+          hasClientSecret: !!env.BLACKBAUD_CLIENT_SECRET,
+          hasSubscriptionKey: !!env.BLACKBAUD_SUBSCRIPTION_KEY,
+          isSandbox: env.BLACKBAUD_USE_SANDBOX,
+        });
+      } else {
+        // Generate redirect URI for other providers
+        const baseUrl = env.BASE_URL;
+        redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
+
+        logger.info('Using generated redirect URI', {
+          provider: input.provider,
+          baseUrl,
+          redirectUri,
+        });
+      }
+
+      logger.info('Generating integration auth URL', {
+        provider: input.provider,
+        redirectUri,
+        organizationId: ctx.auth.user.organizationId,
+        userId: ctx.auth.user.id,
+      });
 
       try {
         const authUrl = crmManager.getAuthorizationUrl(
@@ -87,12 +151,24 @@ export const integrationsRouter = router({
           redirectUri
         );
 
+        logger.info('Successfully generated auth URL', {
+          provider: input.provider,
+          authUrlLength: authUrl.length,
+          authUrlPrefix: authUrl.substring(0, 50) + '...',
+        });
+
         return { authUrl };
       } catch (error) {
-        logger.error('Failed to generate auth URL', { error, provider: input.provider });
+        logger.error('Failed to generate auth URL', {
+          error,
+          provider: input.provider,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          baseUrl,
+          redirectUri,
+        });
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to generate authorization URL',
+          message: 'Failed to generate authorization URL. Check server logs for details.',
         });
       }
     }),

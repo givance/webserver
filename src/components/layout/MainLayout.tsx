@@ -633,19 +633,6 @@ function SidebarContentWrapper({
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
-                    {/* <SidebarMenuItem>
-                      <Link href="/settings/memories" className="w-full min-w-0">
-                        <SidebarMenuButton
-                          isActive={pathname.startsWith('/settings/memories')}
-                          className="min-w-0 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
-                        >
-                          <Brain className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-left truncate group-data-[collapsible=icon]:hidden">
-                            Memories
-                          </span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
                     <SidebarMenuItem>
                       <Link href="/settings/integrations" className="w-full min-w-0">
                         <SidebarMenuButton
@@ -658,7 +645,7 @@ function SidebarContentWrapper({
                           </span>
                         </SidebarMenuButton>
                       </Link>
-                    </SidebarMenuItem> */}
+                    </SidebarMenuItem>
                   </SidebarMenu>
                 </CollapsibleContent>
               </Collapsible>

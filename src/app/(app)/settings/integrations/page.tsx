@@ -100,19 +100,6 @@ export default function IntegrationsPage() {
                 ))}
             </div>
           </div>
-
-          {/* Email Integration Section */}
-          <div>
-            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Email Integration
-            </h3>
-            <div className="grid gap-4">
-              <GmailConnect />
-            </div>
-          </div>
-
-          {/* <SignatureSettings /> */}
         </div>
       </div>
     </>

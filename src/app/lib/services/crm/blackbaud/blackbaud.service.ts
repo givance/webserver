@@ -35,8 +35,27 @@ export class BlackbaudService implements ICrmProvider {
   private readonly subscriptionKey = env.BLACKBAUD_SUBSCRIPTION_KEY || '';
 
   constructor() {
+    // Log configuration status with masked values for security
+    logger.info('Blackbaud service initializing', {
+      isSandbox: this.isSandbox,
+      hasClientId: !!this.clientId,
+      clientIdLength: this.clientId.length,
+      clientIdPrefix: this.clientId.substring(0, 8) + '...',
+      hasClientSecret: !!this.clientSecret,
+      clientSecretLength: this.clientSecret.length,
+      hasSubscriptionKey: !!this.subscriptionKey,
+      subscriptionKeyLength: this.subscriptionKey.length,
+      subscriptionKeyPrefix: this.subscriptionKey.substring(0, 8) + '...',
+      baseUrl: this.baseUrl,
+      authUrl: this.authUrl,
+    });
+
     if (!this.clientId || !this.clientSecret || !this.subscriptionKey) {
-      logger.warn('Blackbaud credentials not configured');
+      logger.error('Blackbaud credentials not configured', {
+        missingClientId: !this.clientId,
+        missingClientSecret: !this.clientSecret,
+        missingSubscriptionKey: !this.subscriptionKey,
+      });
     }
 
     if (this.isSandbox) {
@@ -48,6 +67,13 @@ export class BlackbaudService implements ICrmProvider {
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(state: string, redirectUri: string): string {
+    logger.info('Generating Blackbaud authorization URL', {
+      redirectUri,
+      stateLength: state.length,
+      hasClientId: !!this.clientId,
+      clientIdValue: this.clientId, // Log full value to debug
+    });
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       response_type: 'code',
@@ -55,7 +81,15 @@ export class BlackbaudService implements ICrmProvider {
       state,
     });
 
-    return `${this.authUrl}/authorization?${params.toString()}`;
+    const authUrl = `${this.authUrl}/authorization?${params.toString()}`;
+
+    logger.info('Generated authorization URL', {
+      authUrl,
+      paramsClientId: params.get('client_id'),
+      paramsRedirectUri: params.get('redirect_uri'),
+    });
+
+    return authUrl;
   }
 
   /**
