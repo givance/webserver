@@ -24,12 +24,16 @@ export interface DonorSlice {
   // State
   selectedDonors: number[];
   donorData: Record<number, Donor>; // Cached donor data
+  totalRemainingDonors: number;
+  canGenerateMore: boolean;
 
   // Actions
   setSelectedDonors: (donors: number[]) => void;
   addDonor: (donorId: number) => void;
   removeDonor: (donorId: number) => void;
   cacheDonorData: (donors: Donor[]) => void;
+  setTotalRemainingDonors: (count: number) => void;
+  setCanGenerateMore: (canGenerate: boolean) => void;
   clearDonorData: () => void;
 }
 
@@ -44,11 +48,22 @@ export interface EmailSlice {
   refinedInstruction: string;
   allGeneratedEmails: GeneratedEmail[]; // Used to track all emails including previous batches
 
+  // Computed properties
+  approvedCount: number;
+  pendingCount: number;
+
   // Actions
   setGeneratedEmails: (emails: GeneratedEmail[]) => void;
   setSampleEmails: (emails: GeneratedEmail[]) => void;
   setSelectedSample: (index: number | null) => void;
   updateEmailStatus: (donorId: number, status: 'PENDING_APPROVAL' | 'APPROVED') => void;
+  setEmailStatuses: (
+    statuses:
+      | Record<number, 'PENDING_APPROVAL' | 'APPROVED'>
+      | ((
+          prev: Record<number, 'PENDING_APPROVAL' | 'APPROVED'>
+        ) => Record<number, 'PENDING_APPROVAL' | 'APPROVED'>)
+  ) => void;
   updateEmail: (donorId: number, updates: Partial<GeneratedEmail>) => void;
   setReferenceContexts: (contexts: Record<number, Record<string, string>>) => void;
   setRefinedInstruction: (instruction: string) => void;
@@ -74,7 +89,8 @@ export interface ChatSlice {
 
   // Actions
   addChatMessage: (message: ChatMessage) => void;
-  setChatMessages: (messages: ChatMessage[]) => void;
+  setChatMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+  saveChatHistory: (messages: ChatMessage[], instruction?: string) => void;
   setInstruction: (instruction: string) => void;
   setSuggestedMemories: (memories: string[]) => void;
   setAgenticFlow: (isAgentic: boolean, sessionId?: string) => void;
@@ -126,6 +142,8 @@ export interface UISlice {
   setRegenerateDialog: (show: boolean) => void;
   toggleChat: () => void;
   toggleEmailList: () => void;
+  setIsChatCollapsed: (collapsed: boolean) => void;
+  setIsEmailListExpanded: (expanded: boolean) => void;
   setValidationResult: (result: any) => void;
   setError: (error: string | null) => void;
   setStreamingStatus: (

@@ -53,6 +53,10 @@ export const createUISlice: StateCreator<CampaignStore, [], [], UISlice> = (set)
       isEmailListExpanded: !state.isEmailListExpanded,
     })),
 
+  setIsChatCollapsed: (collapsed) => set(() => ({ isChatCollapsed: collapsed })),
+
+  setIsEmailListExpanded: (expanded) => set(() => ({ isEmailListExpanded: expanded })),
+
   setValidationResult: (result) => set(() => ({ validationResult: result })),
 
   setError: (error) => set(() => ({ error })),

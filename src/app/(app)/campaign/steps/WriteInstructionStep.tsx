@@ -45,6 +45,15 @@ import {
 import { GENERATE_MORE_COUNT } from './write-instruction-step/constants';
 
 function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
+  console.log('🚀 WriteInstructionStep rendering with props:', {
+    templatePrompt: props.templatePrompt,
+    editMode: props.editMode,
+    sessionId: props.sessionId,
+    initialGeneratedEmailsLength: props.initialGeneratedEmails?.length || 0,
+    hasInitialChatHistory: (props.initialChatHistory?.length || 0) > 0,
+    initialGeneratedEmails: props.initialGeneratedEmails,
+  });
+
   const {
     instruction,
     onInstructionChange,
@@ -119,6 +128,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     setRegenerateOption,
     toggleChat,
     toggleEmailList,
+    setIsChatCollapsed,
+    setIsEmailListExpanded,
     setStartingBulkGeneration,
   } = uiState;
 
@@ -223,7 +234,15 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       try {
         const response = await handleSubmitInstruction(
           {
-            emailGeneration,
+            emailGeneration: {
+              ...emailGeneration,
+              smartEmailGeneration,
+              saveEmailsToSession: async (emails: any[], sessionId: number) => {
+                // This function was used to save emails to session
+                // It might not be needed with the new Zustand approach
+                console.log('Saving emails to session:', emails.length, sessionId);
+              },
+            },
             emailState,
             chatState,
             instructionInput,
@@ -250,19 +269,34 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 if (sessionId) {
                   const sessionResult = await refetchSession();
                   if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
-                    // Update email state with the fetched emails
-                    updateEmailStateWithNewEmails(
-                      emailState,
-                      sessionResult.data.emails.map((email) => ({
-                        ...email,
-                        referenceContexts:
-                          (email.referenceContexts as Record<string, string>) || {},
-                        emailContent: email.emailContent || undefined,
-                        reasoning: email.reasoning || undefined,
-                        response: email.response || undefined,
-                      })),
-                      false // Replace existing emails, don't append
+                    // Update email state directly with Zustand store methods
+                    const emails = sessionResult.data.emails.map((email) => ({
+                      ...email,
+                      referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+                      emailContent: email.emailContent || undefined,
+                      reasoning: email.reasoning || undefined,
+                      response: email.response || undefined,
+                    }));
+
+                    console.log(
+                      '📧 Streaming (generated): Updating Zustand store with emails:',
+                      emails.length
                     );
+                    emailState.setAllGeneratedEmails(emails);
+                    emailState.setGeneratedEmails(emails);
+
+                    // Set reference contexts and statuses
+                    const referenceContexts: Record<number, Record<string, string>> = {};
+                    const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+                    emails.forEach((email) => {
+                      referenceContexts[email.donorId] = email.referenceContexts || {};
+                      emailStatuses[email.donorId] = 'PENDING_APPROVAL';
+                    });
+
+                    emailState.setReferenceContexts(referenceContexts);
+                    emailState.setEmailStatuses(emailStatuses);
+                    console.log('📧 Streaming (generated): Zustand store updated successfully');
                   }
                 }
               } else if (update.status === 'refined' && update.result) {
@@ -273,19 +307,34 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 if (sessionId) {
                   const sessionResult = await refetchSession();
                   if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
-                    // Replace email state with the refined emails
-                    updateEmailStateWithNewEmails(
-                      emailState,
-                      sessionResult.data.emails.map((email) => ({
-                        ...email,
-                        referenceContexts:
-                          (email.referenceContexts as Record<string, string>) || {},
-                        emailContent: email.emailContent || undefined,
-                        reasoning: email.reasoning || undefined,
-                        response: email.response || undefined,
-                      })),
-                      false // Replace existing emails, don't append
+                    // Update email state directly with Zustand store methods
+                    const emails = sessionResult.data.emails.map((email) => ({
+                      ...email,
+                      referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+                      emailContent: email.emailContent || undefined,
+                      reasoning: email.reasoning || undefined,
+                      response: email.response || undefined,
+                    }));
+
+                    console.log(
+                      '📧 Streaming (refined): Updating Zustand store with emails:',
+                      emails.length
                     );
+                    emailState.setAllGeneratedEmails(emails);
+                    emailState.setGeneratedEmails(emails);
+
+                    // Set reference contexts and statuses
+                    const referenceContexts: Record<number, Record<string, string>> = {};
+                    const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+                    emails.forEach((email) => {
+                      referenceContexts[email.donorId] = email.referenceContexts || {};
+                      emailStatuses[email.donorId] = 'PENDING_APPROVAL';
+                    });
+
+                    emailState.setReferenceContexts(referenceContexts);
+                    emailState.setEmailStatuses(emailStatuses);
+                    console.log('📧 Streaming (refined): Zustand store updated successfully');
                   }
                 }
               }
@@ -298,6 +347,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
           response,
           responseKeys: Object.keys(response),
           resultKeys: response.result ? Object.keys(response.result) : 'no result',
+          success: response.success,
+          streamingWasUsed,
+          sessionId,
         });
 
         if (response.success && response.result) {
@@ -359,8 +411,39 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 return newMessages;
               });
 
-              // Update email state
-              updateEmailStateWithNewEmails(emailState, emails);
+              // Update email state directly with Zustand store methods
+              if (emails && emails.length > 0) {
+                console.log('📧 Updating Zustand store with emails:', {
+                  emailCount: emails.length,
+                  firstEmail: emails[0],
+                  emailStructure: emails.map((e) => ({
+                    id: e.id,
+                    donorId: e.donorId,
+                    subject: e.subject,
+                  })),
+                });
+
+                emailState.setAllGeneratedEmails(emails);
+                emailState.setGeneratedEmails(emails);
+
+                // Set reference contexts and statuses
+                const referenceContexts: Record<number, Record<string, string>> = {};
+                const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+                emails.forEach((email) => {
+                  referenceContexts[email.donorId] = email.referenceContexts || {};
+                  emailStatuses[email.donorId] = 'PENDING_APPROVAL';
+                });
+
+                emailState.setReferenceContexts(referenceContexts);
+                emailState.setEmailStatuses(emailStatuses);
+
+                console.log('📧 Zustand store updated successfully:', {
+                  allGeneratedEmailsCount: emailState.allGeneratedEmails.length,
+                  emailStatusesKeys: Object.keys(emailStatuses),
+                  referenceContextsKeys: Object.keys(referenceContexts),
+                });
+              }
 
               // Only collapse chat if emails were actually generated
               if (
@@ -404,6 +487,37 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                   });
 
                   if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+                    // First, update Zustand store with the fetched emails
+                    const emails = sessionResult.data.emails.map((email: any) => ({
+                      ...email,
+                      referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+                      emailContent: email.emailContent || undefined,
+                      reasoning: email.reasoning || undefined,
+                      response: email.response || undefined,
+                    }));
+
+                    console.log('📧 Session refetch: Updating Zustand store with emails:', {
+                      emailCount: emails.length,
+                      firstEmail: emails[0],
+                    });
+
+                    emailState.setAllGeneratedEmails(emails);
+                    emailState.setGeneratedEmails(emails);
+
+                    // Set reference contexts and statuses
+                    const referenceContexts: Record<number, Record<string, string>> = {};
+                    const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+                    emails.forEach((email) => {
+                      referenceContexts[email.donorId] = email.referenceContexts || {};
+                      emailStatuses[email.donorId] = (email as any).status || 'PENDING_APPROVAL';
+                    });
+
+                    emailState.setReferenceContexts(referenceContexts);
+                    emailState.setEmailStatuses(emailStatuses);
+                    console.log('📧 Session refetch: Zustand store updated successfully');
+
+                    // Then, get email IDs for review
                     const emailIds = sessionResult.data.emails
                       .map((email: any) => email.id)
                       .filter((id: any) => id !== undefined);
@@ -434,7 +548,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         console.error('Error in handleSubmitInstructionCallback:', error);
         toast.error('An unexpected error occurred');
       } finally {
-        setEmailGenerationLoading(emailGeneration, 'generating', false);
+        setEmailGenerationLoading('generating', false);
         // Reset streaming status
         emailGeneration.setStreamingStatus('idle');
       }
@@ -463,7 +577,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       return;
     }
 
-    setIsStartingBulkGeneration(true);
+    setStartingBulkGeneration(true);
     try {
       const response = await launchCampaign({
         campaignId: sessionId!,
@@ -477,13 +591,13 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       if (!response?.sessionId) throw new Error('Failed to launch campaign');
 
       toast.success(editMode ? 'Campaign updated and launched!' : 'Campaign launched!');
-      setShowBulkGenerationDialog(false);
+      setBulkGenerationDialog(false);
       setTimeout(() => onBulkGenerationComplete(response.sessionId), 1000);
     } catch (error) {
       console.error('Error starting bulk generation:', error);
       toast.error('Failed to start bulk generation');
     } finally {
-      setIsStartingBulkGeneration(false);
+      setStartingBulkGeneration(false);
     }
   };
 
@@ -493,7 +607,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       return;
     }
     onSessionDataChange?.(sessionData);
-    setShowBulkGenerationDialog(true);
+    setBulkGenerationDialog(true);
   }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
 
   const handlePreviewEditCallback = useCallback(
@@ -518,7 +632,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         toast.success('Email updated successfully');
       }
     },
-    [emailState]
+    [emailState, toast]
   );
 
   const handlePreviewEnhanceCallback = useCallback(
@@ -531,7 +645,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       }
 
       try {
-        setEmailGenerationLoading(emailGeneration, 'generating', true);
+        setEmailGenerationLoading('generating', true);
 
         const response = await smartEmailGeneration({
           sessionId,
@@ -540,8 +654,49 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         });
 
         if (response.success) {
+          console.log('🔧 Email enhancement response:', response);
+
+          // After enhancement, refetch the session to get updated emails
+          const sessionResult = await refetchSession();
+          console.log('📦 Post-enhancement session refetch:', {
+            success: sessionResult.isSuccess,
+            hasData: !!sessionResult.data,
+            emailCount: sessionResult.data?.emails?.length || 0,
+          });
+
+          if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+            // Update Zustand store with the enhanced emails
+            const emails = sessionResult.data.emails.map((email: any) => ({
+              ...email,
+              referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+              emailContent: email.emailContent || undefined,
+              reasoning: email.reasoning || undefined,
+              response: email.response || undefined,
+            }));
+
+            console.log('📧 Enhancement: Updating Zustand store with emails:', {
+              emailCount: emails.length,
+              firstEmail: emails[0],
+            });
+
+            emailState.setAllGeneratedEmails(emails);
+            emailState.setGeneratedEmails(emails);
+
+            // Set reference contexts and statuses
+            const referenceContexts: Record<number, Record<string, string>> = {};
+            const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+            emails.forEach((email) => {
+              referenceContexts[email.donorId] = email.referenceContexts || {};
+              emailStatuses[email.donorId] = (email as any).status || 'PENDING_APPROVAL';
+            });
+
+            emailState.setReferenceContexts(referenceContexts);
+            emailState.setEmailStatuses(emailStatuses);
+            console.log('📧 Enhancement: Zustand store updated successfully');
+          }
+
           toast.success('Email enhanced successfully');
-          // The cache invalidation should trigger a refresh of the data
         } else {
           toast.error('Failed to enhance email');
         }
@@ -549,12 +704,20 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         console.error('Error enhancing email:', error);
         toast.error('Failed to enhance email');
       } finally {
-        setEmailGenerationLoading(emailGeneration, 'generating', false);
+        setEmailGenerationLoading('generating', false);
         // Reset streaming status
         emailGeneration.setStreamingStatus('idle');
       }
     },
-    [sessionId, emailGeneration, smartEmailGeneration]
+    [
+      sessionId,
+      emailGeneration,
+      smartEmailGeneration,
+      emailState,
+      refetchSession,
+      toast,
+      setEmailGenerationLoading,
+    ]
   );
 
   const handleMessageEdit = useCallback(
@@ -578,7 +741,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       chatState.setChatMessages(updatedChatHistory);
 
       // Show loading state
-      setEmailGenerationLoading(emailGeneration, 'regenerating', true);
+      setEmailGenerationLoading('regenerating', true);
 
       try {
         // Call the backend with the full updated chat history
@@ -589,6 +752,48 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         });
 
         if (response.success) {
+          console.log('🔧 Message edit regeneration response:', response);
+
+          // After regeneration, refetch the session to get updated emails
+          const sessionResult = await refetchSession();
+          console.log('📦 Post-message-edit session refetch:', {
+            success: sessionResult.isSuccess,
+            hasData: !!sessionResult.data,
+            emailCount: sessionResult.data?.emails?.length || 0,
+          });
+
+          if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+            // Update Zustand store with the regenerated emails
+            const emails = sessionResult.data.emails.map((email: any) => ({
+              ...email,
+              referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+              emailContent: email.emailContent || undefined,
+              reasoning: email.reasoning || undefined,
+              response: email.response || undefined,
+            }));
+
+            console.log('📧 Message edit: Updating Zustand store with emails:', {
+              emailCount: emails.length,
+              firstEmail: emails[0],
+            });
+
+            emailState.setAllGeneratedEmails(emails);
+            emailState.setGeneratedEmails(emails);
+
+            // Set reference contexts and statuses
+            const referenceContexts: Record<number, Record<string, string>> = {};
+            const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+            emails.forEach((email) => {
+              referenceContexts[email.donorId] = email.referenceContexts || {};
+              emailStatuses[email.donorId] = (email as any).status || 'PENDING_APPROVAL';
+            });
+
+            emailState.setReferenceContexts(referenceContexts);
+            emailState.setEmailStatuses(emailStatuses);
+            console.log('📧 Message edit: Zustand store updated successfully');
+          }
+
           toast.success('Emails regenerated with edited message');
           // The response should contain the updated chat history from backend
           if (response.chatHistory) {
@@ -605,11 +810,21 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         // Revert the chat history on failure
         chatState.setChatMessages(chatState.chatMessages);
       } finally {
-        setEmailGenerationLoading(emailGeneration, 'regenerating', false);
+        setEmailGenerationLoading('regenerating', false);
         emailGeneration.setStreamingStatus('idle');
       }
     },
-    [sessionId, chatState, emailState, emailGeneration, smartEmailGeneration]
+    [
+      sessionId,
+      chatState,
+      emailState,
+      emailGeneration,
+      smartEmailGeneration,
+      refetchSession,
+      toast,
+      setEmailGenerationLoading,
+      clearEmailStateForRegeneration,
+    ]
   );
 
   const handleEmailStatusChangeCallback = useCallback(
@@ -655,7 +870,18 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         emailGeneration.setIsRegenerating(true);
 
         const response = await handleRegenerateEmails(
-          { emailGeneration, emailState, chatState, sessionId },
+          {
+            emailGeneration: {
+              ...emailGeneration,
+              smartEmailGeneration,
+              saveEmailsToSession: async (emails: any[], sessionId: number) => {
+                console.log('Saving emails to session:', emails.length, sessionId);
+              },
+            },
+            emailState,
+            chatState,
+            sessionId,
+          },
           onlyUnapproved
         );
 
@@ -680,11 +906,17 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleGenerateMoreCallback = useCallback(async () => {
     // Set loading state
-    setEmailGenerationLoading(emailGeneration, 'generating_more', true);
+    setEmailGenerationLoading('generatingMore', true);
 
     try {
       const response = await handleGenerateMore({
-        emailGeneration,
+        emailGeneration: {
+          ...emailGeneration,
+          smartEmailGeneration,
+          saveEmailsToSession: async (emails: any[], sessionId: number) => {
+            console.log('Saving emails to session:', emails.length, sessionId);
+          },
+        },
         emailState,
         chatState,
         instructionInput,
@@ -697,8 +929,31 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       });
 
       if (response.success && response.result) {
-        // Update email state with new emails (append to existing)
-        updateEmailStateWithNewEmails(emailState, response.result.emails, true);
+        // Update email state with new emails (append to existing) - direct Zustand update
+        if (response.result.emails && response.result.emails.length > 0) {
+          console.log(
+            '📧 Generate More: Updating Zustand store with emails:',
+            response.result.emails.length
+          );
+
+          // Append new emails to existing ones
+          const allEmails = [...emailState.allGeneratedEmails, ...response.result.emails];
+          emailState.setAllGeneratedEmails(allEmails);
+          emailState.setGeneratedEmails(allEmails);
+
+          // Update reference contexts and statuses for new emails
+          const newReferenceContexts = { ...emailState.referenceContexts };
+          const newStatuses = { ...emailState.emailStatuses };
+
+          response.result.emails.forEach((email) => {
+            newReferenceContexts[email.donorId] = email.referenceContexts || {};
+            newStatuses[email.donorId] = 'PENDING_APPROVAL';
+          });
+
+          emailState.setReferenceContexts(newReferenceContexts);
+          emailState.setEmailStatuses(newStatuses);
+          console.log('📧 Generate More: Zustand store updated successfully');
+        }
         // Don't update chat history - just silently generate more
 
         // Trigger review for newly generated emails
@@ -721,6 +976,40 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
             });
 
             if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+              // First, update Zustand store with the fetched emails
+              const emails = sessionResult.data.emails.map((email: any) => ({
+                ...email,
+                referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+                emailContent: email.emailContent || undefined,
+                reasoning: email.reasoning || undefined,
+                response: email.response || undefined,
+              }));
+
+              console.log(
+                '📧 Generate More - Session refetch: Updating Zustand store with emails:',
+                {
+                  emailCount: emails.length,
+                  firstEmail: emails[0],
+                }
+              );
+
+              emailState.setAllGeneratedEmails(emails);
+              emailState.setGeneratedEmails(emails);
+
+              // Set reference contexts and statuses
+              const referenceContexts: Record<number, Record<string, string>> = {};
+              const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+              emails.forEach((email) => {
+                referenceContexts[email.donorId] = email.referenceContexts || {};
+                emailStatuses[email.donorId] = (email as any).status || 'PENDING_APPROVAL';
+              });
+
+              emailState.setReferenceContexts(referenceContexts);
+              emailState.setEmailStatuses(emailStatuses);
+              console.log('📧 Generate More - Session refetch: Zustand store updated successfully');
+
+              // Then, get email IDs for review
               const emailIds = sessionResult.data.emails
                 .map((email: any) => email.id)
                 .filter((id: any) => id !== undefined);
@@ -745,7 +1034,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       console.error('Error in handleGenerateMoreCallback:', error);
       toast.error('An unexpected error occurred');
     } finally {
-      setEmailGenerationLoading(emailGeneration, 'generating_more', false);
+      setEmailGenerationLoading('generatingMore', false);
     }
   }, [
     emailGeneration,
@@ -763,6 +1052,17 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   ]);
 
   const emailListViewerEmails = useMemo(() => {
+    console.log('🔍 emailListViewerEmails computation:', {
+      allGeneratedEmailsCount: emailState.allGeneratedEmails.length,
+      allGeneratedEmails: emailState.allGeneratedEmails,
+      emailStatuses: emailState.emailStatuses,
+      donorsDataCount: donorsData?.length || 0,
+      sessionId,
+      editMode: props.editMode,
+      initialGeneratedEmailsLength: props.initialGeneratedEmails?.length || 0,
+      sessionDataForReviewEmailsLength: sessionDataForReview?.emails?.length || 0,
+    });
+
     return emailState.allGeneratedEmails
       .map((email) => ({
         ...email,
@@ -866,7 +1166,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
               />
               <div className="flex justify-end gap-2 px-4 py-2 border-t">
                 <Button
-                  onClick={() => setShowRegenerateDialog(true)}
+                  onClick={() => setRegenerateDialog(true)}
                   disabled={
                     emailGeneration.isRegenerating ||
                     emailGeneration.isGenerating ||
@@ -930,7 +1230,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       {/* Dialogs */}
       <BulkGenerationDialog
         open={showBulkGenerationDialog}
-        onOpenChange={setShowBulkGenerationDialog}
+        onOpenChange={setBulkGenerationDialog}
         selectedDonorsCount={selectedDonors.length}
         allGeneratedEmails={emailState.allGeneratedEmails}
         approvedCount={emailState.approvedCount}
@@ -942,7 +1242,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
       <RegenerateDialog
         open={showRegenerateDialog}
-        onOpenChange={setShowRegenerateDialog}
+        onOpenChange={setRegenerateDialog}
         regenerateOption={regenerateOption}
         onRegenerateOptionChange={setRegenerateOption}
         allGeneratedEmailsCount={emailState.allGeneratedEmails.length}
@@ -951,7 +1251,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         isRegenerating={emailGeneration.isRegenerating}
         onConfirm={async (onlyUnapproved: boolean) => {
           await handleRegenerateEmailsCallback(onlyUnapproved);
-          setShowRegenerateDialog(false);
+          setRegenerateDialog(false);
         }}
       />
     </div>

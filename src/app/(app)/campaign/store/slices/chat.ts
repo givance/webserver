@@ -21,7 +21,16 @@ export const createChatSlice: StateCreator<CampaignStore, [], [], ChatSlice> = (
       ],
     })),
 
-  setChatMessages: (messages) => set(() => ({ chatMessages: messages })),
+  setChatMessages: (messages) =>
+    set((state) => ({
+      chatMessages: typeof messages === 'function' ? messages(state.chatMessages) : messages,
+    })),
+
+  saveChatHistory: (messages, instruction) =>
+    set(() => ({
+      chatMessages: messages,
+      ...(instruction !== undefined && { instruction }),
+    })),
 
   setInstruction: (instruction) => set(() => ({ instruction })),
 
