@@ -1,46 +1,34 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
-import { useTemplates } from "@/app/hooks/use-templates";
-import { useCampaignAutoSave } from "@/app/hooks/use-campaign-auto-save";
-import Link from "next/link";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { FileText, Plus, ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { useTemplates } from '@/app/hooks/use-templates';
+import { useCampaignAutoSave } from '@/app/hooks/use-campaign-auto-save';
+import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useCampaignData, useSessionData, useDonorData } from '../store/hooks';
 
 interface SelectTemplateStepProps {
-  selectedTemplateId?: number;
-  onTemplateSelected: (templateId: number | null, templatePrompt?: string) => void;
   onBack: () => void;
   onNext: () => void;
-  // Auto-save props
-  sessionId?: number;
-  onSessionIdChange?: (sessionId: number) => void;
-  campaignName?: string;
-  selectedDonorIds?: number[];
 }
 
-export function SelectTemplateStep({
-  selectedTemplateId,
-  onTemplateSelected,
-  onBack,
-  onNext,
-  sessionId,
-  onSessionIdChange,
-  campaignName,
-  selectedDonorIds,
-}: SelectTemplateStepProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(selectedTemplateId || null);
-  const [selectedTemplatePrompt, setSelectedTemplatePrompt] = useState<string>("");
+export function SelectTemplateStep({ onBack, onNext }: SelectTemplateStepProps) {
+  // Get state and actions from store
+  const { templateId, templatePrompt, setTemplate } = useCampaignData();
+  const { sessionId, setSessionId, isSaving } = useSessionData();
+  const { selectedDonors } = useDonorData();
+  const { campaignName } = useCampaignData();
 
   // Auto-save hook
-  const { autoSave, isSaving } = useCampaignAutoSave({
-    onSessionIdChange,
+  const { autoSave } = useCampaignAutoSave({
+    onSessionIdChange: setSessionId,
   });
 
   const { listTemplates } = useTemplates();
@@ -48,27 +36,23 @@ export function SelectTemplateStep({
 
   // Auto-save when template selection changes
   useEffect(() => {
-    if (campaignName && selectedDonorIds && selectedDonorIds.length > 0) {
+    if (campaignName && selectedDonors && selectedDonors.length > 0) {
       autoSave({
         sessionId,
         campaignName,
-        selectedDonorIds,
-        templateId: selectedTemplate || undefined,
+        selectedDonorIds: selectedDonors,
+        templateId: templateId || undefined,
       });
     }
-  }, [selectedTemplate, campaignName, selectedDonorIds, sessionId, autoSave]);
+  }, [templateId, campaignName, selectedDonors, sessionId, autoSave]);
 
   const handleTemplateChange = (value: string) => {
-    if (value === "none") {
-      setSelectedTemplate(null);
-      setSelectedTemplatePrompt("");
-      onTemplateSelected(null);
+    if (value === 'none') {
+      setTemplate(undefined, '');
     } else {
-      const templateId = parseInt(value);
-      const template = templates?.find((t) => t.id === templateId);
-      setSelectedTemplate(templateId);
-      setSelectedTemplatePrompt(template?.prompt || "");
-      onTemplateSelected(templateId, template?.prompt);
+      const newTemplateId = parseInt(value);
+      const template = templates?.find((t) => t.id === newTemplateId);
+      setTemplate(newTemplateId, template?.prompt || '');
     }
   };
 
@@ -86,7 +70,9 @@ export function SelectTemplateStep({
               <ArrowLeft className="w-3 h-3 mr-1" />
               Back
             </Button>
-            <h2 className="text-sm font-medium text-muted-foreground">Select Template (Optional)</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Select Template (Optional)
+            </h2>
           </div>
           <Button onClick={handleNext} size="sm" className="h-7 text-xs" disabled>
             Continue
@@ -112,7 +98,9 @@ export function SelectTemplateStep({
               <ArrowLeft className="w-3 h-3 mr-1" />
               Back
             </Button>
-            <h2 className="text-sm font-medium text-muted-foreground">Select Template (Optional)</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Select Template (Optional)
+            </h2>
           </div>
           <Button onClick={handleNext} size="sm" className="h-7 text-xs">
             Continue Without Template
@@ -147,7 +135,8 @@ export function SelectTemplateStep({
         <div className="border rounded-lg p-6 text-center bg-card">
           <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <div className="text-sm text-muted-foreground mb-3">
-            No templates found. You can create templates in Settings to speed up future communications.
+            No templates found. You can create templates in Settings to speed up future
+            communications.
           </div>
           <Link href="/settings/templates">
             <Button variant="outline" size="sm">
@@ -157,14 +146,16 @@ export function SelectTemplateStep({
           </Link>
         </div>
       ) : (
-        <RadioGroup value={selectedTemplate?.toString() || "none"} onValueChange={handleTemplateChange}>
+        <RadioGroup value={templateId?.toString() || 'none'} onValueChange={handleTemplateChange}>
           <div className="grid gap-3">
             <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
               <RadioGroupItem value="none" id="none" />
               <Label htmlFor="none" className="flex-1 cursor-pointer">
                 <div className="space-y-1">
                   <h3 className="font-medium">No Template</h3>
-                  <p className="text-sm text-muted-foreground">Write your own instructions from scratch</p>
+                  <p className="text-sm text-muted-foreground">
+                    Write your own instructions from scratch
+                  </p>
                 </div>
               </Label>
             </div>
@@ -200,7 +191,7 @@ export function SelectTemplateStep({
       )}
 
       {/* Auto-save indicator */}
-      {campaignName && selectedDonorIds && selectedDonorIds.length > 0 && (
+      {campaignName && selectedDonors && selectedDonors.length > 0 && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           {isSaving ? (
             <>

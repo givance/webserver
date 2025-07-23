@@ -29,6 +29,7 @@ import {
   clearInstructionInput,
   updateEmailStatus as updateEmailStatusInState,
 } from './write-instruction-step/utils/stateManagement';
+import { useWriteInstructionStepStore } from './write-instruction-step/hooks/useWriteInstructionStepStore';
 
 // Import extracted components, hooks, and types
 import {
@@ -61,13 +62,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     initialRefinedInstruction,
   } = props;
 
-  // UI State
-  const [showBulkGenerationDialog, setShowBulkGenerationDialog] = useState(false);
-  const [isStartingBulkGeneration, setIsStartingBulkGeneration] = useState(false);
-  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
-  const [regenerateOption, setRegenerateOption] = useState<'all' | 'unapproved'>('all');
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [isEmailListExpanded, setIsEmailListExpanded] = useState(false);
+  // Previous instruction state (local to this component)
   const [previousInstruction, setPreviousInstruction] = useState<string | undefined>(
     initialRefinedInstruction || (editMode && instruction ? instruction : undefined)
   );
@@ -76,20 +71,22 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const [customSignature, setCustomSignature] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
 
-  // Consolidated hook
-  const { emailGeneration, emailState, chatState, instructionInput, donorState } =
-    useWriteInstructionStep(
-      initialGeneratedEmails,
-      editMode,
-      initialChatHistory,
-      sessionId,
-      campaignName,
-      selectedDonors,
-      templateId,
-      instruction,
-      onInstructionChange,
-      templatePrompt
-    );
+  // Use the new Zustand-based hook
+  const {
+    emailGeneration,
+    emailState,
+    chatState,
+    instructionInput,
+    donorState,
+    uiState,
+    sessionState,
+    setEmailGenerationLoading,
+  } = useWriteInstructionStepStore(
+    initialGeneratedEmails,
+    editMode,
+    initialChatHistory,
+    templatePrompt
+  );
 
   // Data hooks
   const { getOrganization } = useOrganization();
@@ -108,6 +105,22 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   // State to trigger email review after generation
   const [emailsToReview, setEmailsToReview] = useState<number[]>([]);
+
+  // Extract UI state for easier access
+  const {
+    showBulkGenerationDialog,
+    showRegenerateDialog,
+    regenerateOption,
+    isChatCollapsed,
+    isEmailListExpanded,
+    isStartingBulkGeneration,
+    setBulkGenerationDialog,
+    setRegenerateDialog,
+    setRegenerateOption,
+    toggleChat,
+    toggleEmailList,
+    setStartingBulkGeneration,
+  } = uiState;
 
   // Data fetching
   const memoizedSelectedDonors = useMemo(() => selectedDonors, [selectedDonors]);
@@ -186,8 +199,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       const finalInstruction = instructionToSubmit || instructionInput.localInstruction;
 
       // Add user message to chat FIRST
-      chatState.setChatMessages((prev) => [
-        ...prev,
+      chatState.setChatMessages([
+        ...chatState.chatMessages,
         {
           role: 'user' as const,
           content: finalInstruction,
@@ -195,14 +208,14 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       ]);
 
       // Clear input immediately - both local and parent
-      clearInstructionInput(instructionInput);
+      instructionInput.clearInstructionInput();
       onInstructionChange(''); // Explicitly clear parent state too
 
       // Set loading state
-      setEmailGenerationLoading(emailGeneration, 'generating', true);
+      setEmailGenerationLoading('generating', true);
 
       // Clear existing email state
-      clearEmailState(emailState, chatState);
+      emailState.clearEmailState();
 
       // Track if streaming was used
       let streamingWasUsed = false;

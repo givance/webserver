@@ -16,17 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, ArrowRight, Check, List, Loader2, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDebounce } from 'use-debounce';
+import { useCampaignData, useDonorData, useSessionData, useUIState } from '../store/hooks';
 
 interface SelectDonorsAndNameStepProps {
-  selectedDonors: number[];
-  onDonorsSelected: (donorIds: number[]) => void;
-  campaignName: string;
-  onCampaignNameChange: (campaignName: string) => void;
   onNext: (campaignName: string) => void | Promise<void>;
-  // Auto-save props
-  sessionId?: number;
-  onSessionIdChange?: (sessionId: number) => void;
-  templateId?: number;
 }
 
 // Generate a default campaign name based on current date
@@ -37,22 +30,19 @@ const generateDefaultCampaignName = (): string => {
   return `${month} ${year} Campaign`;
 };
 
-export function SelectDonorsAndNameStep({
-  selectedDonors,
-  onDonorsSelected,
-  campaignName,
-  onCampaignNameChange,
-  onNext,
-  sessionId,
-  onSessionIdChange,
-  templateId,
-}: SelectDonorsAndNameStepProps) {
+export function SelectDonorsAndNameStep({ onNext }: SelectDonorsAndNameStepProps) {
+  // Get state and actions from store
+  const { campaignName, templateId, setCampaignName } = useCampaignData();
+  const { selectedDonors, setSelectedDonors: onDonorsSelected } = useDonorData();
+  const { sessionId, setSessionId, isSaving } = useSessionData();
+  const { error, setError } = useUIState();
+
+  // Local UI state
   const [searchTerm, setSearchTerm] = useState('');
   const [listSearchTerm, setListSearchTerm] = useState('');
   const [selectedLists, setSelectedLists] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'donors' | 'lists'>('donors');
   const [localCampaignName, setLocalCampaignName] = useState(campaignName);
-  const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Use the validation hook
@@ -60,8 +50,8 @@ export function SelectDonorsAndNameStep({
     useDonorStaffEmailValidation(selectedDonors);
 
   // Auto-save hook
-  const { autoSave, isSaving } = useCampaignAutoSave({
-    onSessionIdChange,
+  const { autoSave } = useCampaignAutoSave({
+    onSessionIdChange: setSessionId,
   });
 
   // Initialize with default campaign name if empty
@@ -69,9 +59,9 @@ export function SelectDonorsAndNameStep({
     if (!localCampaignName.trim()) {
       const defaultName = generateDefaultCampaignName();
       setLocalCampaignName(defaultName);
-      onCampaignNameChange(defaultName);
+      setCampaignName(defaultName);
     }
-  }, [localCampaignName, onCampaignNameChange]);
+  }, [localCampaignName, setCampaignName]);
 
   // Auto-save when campaign name or selected donors change
   useEffect(() => {
@@ -147,9 +137,9 @@ export function SelectDonorsAndNameStep({
 
   const handleCampaignNameChange = (value: string) => {
     setLocalCampaignName(value);
-    onCampaignNameChange(value);
+    setCampaignName(value);
     if (error) {
-      setError('');
+      setError(null);
     }
   };
 
@@ -167,7 +157,7 @@ export function SelectDonorsAndNameStep({
       return;
     }
 
-    setError('');
+    setError(null);
     setIsProcessing(true);
 
     try {
