@@ -61,6 +61,7 @@ export interface OAuthTokens {
   expiresAt?: Date;
   scope?: string;
   tokenType?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface PaginationParams {

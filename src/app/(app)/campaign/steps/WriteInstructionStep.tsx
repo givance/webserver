@@ -5,7 +5,8 @@ import { useDonors } from '@/app/hooks/use-donors';
 import { useOrganization } from '@/app/hooks/use-organization';
 import { useProjects } from '@/app/hooks/use-projects';
 import { useStaff } from '@/app/hooks/use-staff';
-import { useEmailReview } from '@/app/hooks/use-email-review';
+// Email review temporarily disabled
+// import { useEmailReview } from '@/app/hooks/use-email-review';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@clerk/nextjs';
@@ -109,10 +110,11 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
   const { listStaff, getPrimaryStaff } = useStaff();
   const { userId } = useAuth();
   const { getDonorsQuery } = useDonors();
-  const { reviewEmails } = useEmailReview();
+  // Email review temporarily disabled
+  // const { reviewEmails } = useEmailReview();
 
   // State to trigger email review after generation
-  const [emailsToReview, setEmailsToReview] = useState<number[]>([]);
+  // const [emailsToReview, setEmailsToReview] = useState<number[]>([]);
 
   // Extract UI state for easier access
   const {
@@ -521,15 +523,16 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                       .map((email: any) => email.id)
                       .filter((id: any) => id !== undefined);
 
-                    console.log('🎯 Directly calling review with email IDs:', emailIds);
-                    if (emailIds.length > 0) {
-                      try {
-                        const reviewResult = await reviewEmails({ emailIds });
-                        console.log('✅ Email review completed successfully:', reviewResult);
-                      } catch (error) {
-                        console.error('❌ Error reviewing emails:', error);
-                      }
-                    }
+                    console.log('🎯 Email review temporarily disabled');
+                    // Email review temporarily disabled
+                    // if (emailIds.length > 0) {
+                    //   try {
+                    //     const reviewResult = await reviewEmails({ emailIds });
+                    //     console.log('✅ Email review completed successfully:', reviewResult);
+                    //   } catch (error) {
+                    //     console.error('❌ Error reviewing emails:', error);
+                    //   }
+                    // }
                   }
                 }, 1000); // Small delay to ensure emails are saved
               } else {
@@ -563,7 +566,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       currentSignature,
       sessionId,
       onInstructionChange,
-      reviewEmails,
+      // reviewEmails, // Email review temporarily disabled
       refetchSession,
       smartEmailGenerationStream,
       setEmailGenerationLoading,
@@ -1069,15 +1072,16 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
                 .map((email: any) => email.id)
                 .filter((id: any) => id !== undefined);
 
-              console.log('🎯 Directly calling review with email IDs:', emailIds);
-              if (emailIds.length > 0) {
-                try {
-                  const reviewResult = await reviewEmails({ emailIds });
-                  console.log('✅ Email review completed successfully:', reviewResult);
-                } catch (error) {
-                  console.error('❌ Error reviewing emails:', error);
-                }
-              }
+              console.log('🎯 Email review temporarily disabled');
+              // Email review temporarily disabled
+              // if (emailIds.length > 0) {
+              //   try {
+              //     const reviewResult = await reviewEmails({ emailIds });
+              //     console.log('✅ Email review completed successfully:', reviewResult);
+              //   } catch (error) {
+              //     console.error('❌ Error reviewing emails:', error);
+              //   }
+              // }
             }
           }, 1000); // Small delay to ensure emails are saved
         }
@@ -1102,7 +1106,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     sessionId,
     previousInstruction,
     selectedDonors,
-    reviewEmails,
+    // reviewEmails, // Email review temporarily disabled
     refetchSession,
     setEmailGenerationLoading,
     smartEmailGeneration,

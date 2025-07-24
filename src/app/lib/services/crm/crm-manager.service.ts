@@ -1,5 +1,7 @@
 import { ICrmProvider } from './base/crm-provider.interface';
+import { OAuthTokens } from './base/types';
 import { BlackbaudService } from './blackbaud/blackbaud.service';
+import { SalesforceService } from './salesforce/salesforce.service';
 import { CrmSyncService } from './base/crm-sync.service';
 import { db } from '@/app/lib/db';
 import { organizationIntegrations } from '@/app/lib/db/schema';
@@ -11,13 +13,24 @@ import { logger } from '@/app/lib/logger';
  */
 export class CrmManagerService {
   private providers: Map<string, ICrmProvider> = new Map();
+  private initialized = false;
 
   constructor() {
+    this.initialize();
+  }
+
+  private initialize() {
+    if (this.initialized) {
+      return;
+    }
+
     // Register all available providers
     this.registerProvider(new BlackbaudService());
+    this.registerProvider(new SalesforceService());
     // Future providers can be registered here
-    // this.registerProvider(new SalesforceService());
     // this.registerProvider(new HubspotService());
+
+    this.initialized = true;
   }
 
   /**
@@ -25,7 +38,10 @@ export class CrmManagerService {
    */
   private registerProvider(provider: ICrmProvider): void {
     this.providers.set(provider.name, provider);
-    logger.info(`Registered CRM provider: ${provider.displayName}`);
+    // Only log in development to avoid spam during build
+    if (process.env.NODE_ENV === 'development') {
+      logger.info(`Registered CRM provider: ${provider.displayName}`);
+    }
   }
 
   /**
@@ -118,7 +134,7 @@ export class CrmManagerService {
     providerName: string,
     code: string,
     redirectUri: string
-  ): Promise<{ accessToken: string; refreshToken: string; expiresAt?: Date }> {
+  ): Promise<OAuthTokens> {
     const provider = this.getProvider(providerName);
     return await provider.exchangeAuthCode(code, redirectUri);
   }

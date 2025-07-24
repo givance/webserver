@@ -11,10 +11,12 @@ import {
   RefreshCw,
   Unlink,
   FlaskConical,
+  Settings,
 } from 'lucide-react';
 import { useIntegrations } from '@/app/hooks/use-integrations';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 interface CrmIntegrationCardProps {
   provider: {
@@ -202,6 +204,18 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
             </>
           )}
         </div>
+
+        {/* Debug link for providers that have debug pages */}
+        {(provider.name === 'blackbaud' || provider.name === 'salesforce') && (
+          <div className="pt-2 border-t">
+            <Link href={`/settings/integrations/${provider.name}-debug`}>
+              <Button variant="ghost" size="sm" className="text-xs w-full">
+                <Settings className="mr-1 h-3 w-3" />
+                Configuration & Setup Guide
+              </Button>
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

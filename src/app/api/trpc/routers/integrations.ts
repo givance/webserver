@@ -11,6 +11,35 @@ import { syncCrmDataTask } from '@/trigger/jobs/syncCrmData';
 
 export const integrationsRouter = router({
   /**
+   * Debug endpoint to check Salesforce configuration
+   */
+  debugSalesforceConfig: protectedProcedure.query(async ({ ctx }) => {
+    // Only allow admins to view this debug info
+    const hasClientId = !!env.SALESFORCE_CLIENT_ID;
+    const hasClientSecret = !!env.SALESFORCE_CLIENT_SECRET;
+
+    return {
+      configured: hasClientId && hasClientSecret,
+      details: {
+        hasClientId,
+        clientIdLength: env.SALESFORCE_CLIENT_ID?.length || 0,
+        clientIdPrefix: env.SALESFORCE_CLIENT_ID
+          ? env.SALESFORCE_CLIENT_ID.substring(0, 10) + '...'
+          : 'Not set',
+        hasClientSecret,
+        clientSecretLength: env.SALESFORCE_CLIENT_SECRET?.length || 0,
+        isSandbox: env.SALESFORCE_USE_SANDBOX,
+        envRedirectUri: env.SALESFORCE_REDIRECT_URI || 'Not set',
+        baseUrl: env.BASE_URL,
+        expectedRedirectUri: `${env.BASE_URL}/settings/integrations/salesforce/callback`,
+      },
+      message:
+        !hasClientId || !hasClientSecret
+          ? 'Missing required Salesforce environment variables. Check server logs for details.'
+          : 'Salesforce configuration appears complete.',
+    };
+  }),
+  /**
    * Debug endpoint to check Blackbaud configuration
    */
   debugBlackbaudConfig: protectedProcedure.query(async ({ ctx }) => {
@@ -54,7 +83,9 @@ export const integrationsRouter = router({
     // Add sandbox information for providers that support it
     return providers.map((provider) => ({
       ...provider,
-      isSandbox: provider.name === 'blackbaud' && env.BLACKBAUD_USE_SANDBOX,
+      isSandbox:
+        (provider.name === 'blackbaud' && env.BLACKBAUD_USE_SANDBOX) ||
+        (provider.name === 'salesforce' && env.SALESFORCE_USE_SANDBOX),
     }));
   }),
 
@@ -125,6 +156,16 @@ export const integrationsRouter = router({
           hasClientSecret: !!env.BLACKBAUD_CLIENT_SECRET,
           hasSubscriptionKey: !!env.BLACKBAUD_SUBSCRIPTION_KEY,
           isSandbox: env.BLACKBAUD_USE_SANDBOX,
+        });
+      } else if (input.provider === 'salesforce' && env.SALESFORCE_REDIRECT_URI) {
+        // Use the exact redirect URI from environment for Salesforce
+        redirectUri = env.SALESFORCE_REDIRECT_URI;
+
+        logger.info('Using Salesforce redirect URI from environment', {
+          redirectUri,
+          hasClientId: !!env.SALESFORCE_CLIENT_ID,
+          hasClientSecret: !!env.SALESFORCE_CLIENT_SECRET,
+          isSandbox: env.SALESFORCE_USE_SANDBOX,
         });
       } else {
         // Generate redirect URI for other providers
@@ -222,6 +263,9 @@ export const integrationsRouter = router({
               accessToken: tokens.accessToken,
               refreshToken: tokens.refreshToken,
               expiresAt: tokens.expiresAt,
+              tokenType: tokens.tokenType || null,
+              scope: tokens.scope || null,
+              metadata: tokens.metadata || existingIntegration.metadata,
               isActive: true,
               syncStatus: 'idle',
               syncError: null,
@@ -236,8 +280,9 @@ export const integrationsRouter = router({
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
             expiresAt: tokens.expiresAt,
-            tokenType: null, // CRM manager doesn't return tokenType
-            scope: null, // CRM manager doesn't return scope
+            tokenType: tokens.tokenType || null,
+            scope: tokens.scope || null,
+            metadata: tokens.metadata || {},
             isActive: true,
             syncStatus: 'idle',
           });

@@ -33,33 +33,39 @@ export class BlackbaudService implements ICrmProvider {
   private readonly clientId = env.BLACKBAUD_CLIENT_ID || '';
   private readonly clientSecret = env.BLACKBAUD_CLIENT_SECRET || '';
   private readonly subscriptionKey = env.BLACKBAUD_SUBSCRIPTION_KEY || '';
+  private static hasLoggedInit = false;
 
   constructor() {
-    // Log configuration status with masked values for security
-    logger.info('Blackbaud service initializing', {
-      isSandbox: this.isSandbox,
-      hasClientId: !!this.clientId,
-      clientIdLength: this.clientId.length,
-      clientIdPrefix: this.clientId.substring(0, 8) + '...',
-      hasClientSecret: !!this.clientSecret,
-      clientSecretLength: this.clientSecret.length,
-      hasSubscriptionKey: !!this.subscriptionKey,
-      subscriptionKeyLength: this.subscriptionKey.length,
-      subscriptionKeyPrefix: this.subscriptionKey.substring(0, 8) + '...',
-      baseUrl: this.baseUrl,
-      authUrl: this.authUrl,
-    });
-
-    if (!this.clientId || !this.clientSecret || !this.subscriptionKey) {
-      logger.error('Blackbaud credentials not configured', {
-        missingClientId: !this.clientId,
-        missingClientSecret: !this.clientSecret,
-        missingSubscriptionKey: !this.subscriptionKey,
+    // Only log initialization once to avoid spam during build
+    if (!BlackbaudService.hasLoggedInit) {
+      // Log configuration status with masked values for security
+      logger.info('Blackbaud service initializing', {
+        isSandbox: this.isSandbox,
+        hasClientId: !!this.clientId,
+        clientIdLength: this.clientId.length,
+        clientIdPrefix: this.clientId.substring(0, 8) + '...',
+        hasClientSecret: !!this.clientSecret,
+        clientSecretLength: this.clientSecret.length,
+        hasSubscriptionKey: !!this.subscriptionKey,
+        subscriptionKeyLength: this.subscriptionKey.length,
+        subscriptionKeyPrefix: this.subscriptionKey.substring(0, 8) + '...',
+        baseUrl: this.baseUrl,
+        authUrl: this.authUrl,
       });
-    }
 
-    if (this.isSandbox) {
-      logger.info('Blackbaud service initialized in SANDBOX mode');
+      if (!this.clientId || !this.clientSecret || !this.subscriptionKey) {
+        logger.warn('Blackbaud credentials not configured', {
+          missingClientId: !this.clientId,
+          missingClientSecret: !this.clientSecret,
+          missingSubscriptionKey: !this.subscriptionKey,
+        });
+      }
+
+      if (this.isSandbox) {
+        logger.info('Blackbaud service initialized in SANDBOX mode');
+      }
+
+      BlackbaudService.hasLoggedInit = true;
     }
   }
 

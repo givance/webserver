@@ -51,6 +51,15 @@ export const env = createEnv({
       .optional()
       .transform((val) => val === 'true')
       .default('false'),
+    // Salesforce integration
+    SALESFORCE_CLIENT_ID: z.string().min(1).optional(),
+    SALESFORCE_CLIENT_SECRET: z.string().min(1).optional(),
+    SALESFORCE_REDIRECT_URI: z.string().url().optional(),
+    SALESFORCE_USE_SANDBOX: z
+      .string()
+      .optional()
+      .transform((val) => val === 'true')
+      .default('false'),
   },
   /*
    * Environment variables available on the client (and server).
@@ -102,6 +111,11 @@ export const env = createEnv({
     BLACKBAUD_REDIRECT_URI: process.env.BLACKBAUD_REDIRECT_URI,
     BLACKBAUD_SUBSCRIPTION_KEY: process.env.BLACKBAUD_SUBSCRIPTION_KEY,
     BLACKBAUD_USE_SANDBOX: process.env.BLACKBAUD_USE_SANDBOX,
+    // Salesforce integration
+    SALESFORCE_CLIENT_ID: process.env.SALESFORCE_CLIENT_ID,
+    SALESFORCE_CLIENT_SECRET: process.env.SALESFORCE_CLIENT_SECRET,
+    SALESFORCE_REDIRECT_URI: process.env.SALESFORCE_REDIRECT_URI,
+    SALESFORCE_USE_SANDBOX: process.env.SALESFORCE_USE_SANDBOX,
     // NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
   },
 });
