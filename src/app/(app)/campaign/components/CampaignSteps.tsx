@@ -260,9 +260,12 @@ function CampaignStepsComponent({
   );
 
   // Create a stable callback for instruction changes
-  const handleInstructionChange = useCallback((newInstruction: string) => {
-    setInstruction(newInstruction);
-  }, []);
+  const handleInstructionChange = useCallback(
+    (newInstruction: string) => {
+      setInstruction(newInstruction);
+    },
+    [setInstruction]
+  );
 
   // Create stable callbacks for navigation
   const handleBackToTemplates = useCallback(() => {

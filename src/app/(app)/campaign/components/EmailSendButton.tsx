@@ -17,9 +17,18 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
   const [isLocalSending, setIsLocalSending] = useState(false);
 
   // Get email status - only query if emailId exists
-  const { data: emailStatus, isLoading: isLoadingStatus } = getEmailStatus(
+  const {
+    data: emailStatus,
+    isLoading: isLoadingStatus,
+    error: statusError,
+  } = getEmailStatus(
     { emailId },
-    { enabled: !!emailId && emailId > 0 }
+    {
+      enabled: !!emailId && emailId > 0,
+      retry: false, // Don't retry if email not found (e.g., after regeneration)
+      staleTime: 0, // Always fetch fresh data
+      refetchOnMount: false, // Don't refetch on mount if data exists
+    }
   );
 
   const handleSendEmail = async () => {
@@ -41,6 +50,7 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
 
   const isSending = isLoadingSendIndividualEmail || isLocalSending;
 
+  // Handle loading state
   if (isLoadingStatus) {
     return (
       <Card className="mt-4">
@@ -48,6 +58,20 @@ export function EmailSendButton({ emailId, donorName, donorEmail }: EmailSendBut
           <div className="flex items-center gap-2">
             <div className="animate-pulse h-4 w-4 bg-muted rounded"></div>
             <span className="text-sm text-muted-foreground">Loading email status...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Handle error state (e.g., email not found after regeneration)
+  if (statusError) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Email status unavailable</span>
           </div>
         </CardContent>
       </Card>

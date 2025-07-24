@@ -257,9 +257,14 @@ export const EmailDisplay = React.memo(function EmailDisplay({
   }, [content]);
 
   // Get email status to check if sent - only query if emailId exists
-  const { data: emailStatus } = getEmailStatus(
+  const { data: emailStatus, error: statusError } = getEmailStatus(
     { emailId: emailId || 0 },
-    { enabled: !!emailId && emailId > 0 }
+    {
+      enabled: !!emailId && emailId > 0,
+      retry: false, // Don't retry if email not found (e.g., after regeneration)
+      staleTime: 0, // Always fetch fresh data
+      refetchOnMount: false, // Don't refetch on mount if data exists
+    }
   );
 
   // Convert new format (type/content) to legacy format (piece/references/addNewlineAfter)

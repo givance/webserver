@@ -128,21 +128,29 @@ export function useWriteInstructionStepStore(
         setReferenceContexts(contexts);
       }
     }
-  }, [editMode, initialGeneratedEmails]); // Re-run when initialGeneratedEmails changes
+  }, [
+    editMode,
+    initialGeneratedEmails,
+    allGeneratedEmails.length,
+    setAllGeneratedEmails,
+    setGeneratedEmails,
+    setReferenceContexts,
+    updateEmailStatus,
+  ]); // Re-run when initialGeneratedEmails changes
 
   // Initialize chat history
   useEffect(() => {
     if (initialChatHistory.length > 0 && chatMessages.length === 0) {
       setChatMessages(initialChatHistory);
     }
-  }, []); // Only run once on mount
+  }, [chatMessages.length, initialChatHistory, setChatMessages]); // Only run once on mount
 
   // Initialize instruction from template
   useEffect(() => {
     if (templatePrompt && !instruction && chatMessages.length === 0) {
       setInstruction(templatePrompt);
     }
-  }, []); // Only run once on mount
+  }, [chatMessages.length, instruction, setInstruction, templatePrompt]); // Only run once on mount
 
   // Calculate remaining donors and canGenerateMore when emails or selectedDonors change
   useEffect(() => {

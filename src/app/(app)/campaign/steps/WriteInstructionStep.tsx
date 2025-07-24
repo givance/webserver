@@ -16,7 +16,6 @@ import '../styles.css';
 import {
   handleEmailStatusChange,
   handleGenerateMore,
-  handleRegenerateEmails,
   handleSubmitInstruction,
 } from './write-instruction-step/handlers';
 import { processEmailResult } from './write-instruction-step/handlers/emailResultHandler';
@@ -567,6 +566,10 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       reviewEmails,
       refetchSession,
       smartEmailGenerationStream,
+      setEmailGenerationLoading,
+      setIsChatCollapsed,
+      setIsEmailListExpanded,
+      smartEmailGeneration,
     ]
   );
 
@@ -608,7 +611,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     }
     onSessionDataChange?.(sessionData);
     setBulkGenerationDialog(true);
-  }, [emailState.generatedEmails, onSessionDataChange, sessionData]);
+  }, [emailState.generatedEmails, onSessionDataChange, sessionData, setBulkGenerationDialog]);
 
   const handlePreviewEditCallback = useCallback(
     (
@@ -632,7 +635,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         toast.success('Email updated successfully');
       }
     },
-    [emailState, toast]
+    [emailState]
   );
 
   const handlePreviewEnhanceCallback = useCallback(
@@ -715,7 +718,6 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       smartEmailGeneration,
       emailState,
       refetchSession,
-      toast,
       setEmailGenerationLoading,
     ]
   );
@@ -742,6 +744,9 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
       // Show loading state
       setEmailGenerationLoading('regenerating', true);
+
+      // Small delay to ensure React unmounts components that query old email IDs
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       try {
         // Call the backend with the full updated chat history
@@ -821,9 +826,7 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
       emailGeneration,
       smartEmailGeneration,
       refetchSession,
-      toast,
       setEmailGenerationLoading,
-      clearEmailStateForRegeneration,
     ]
   );
 
@@ -866,42 +869,94 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
 
   const handleRegenerateEmailsCallback = useCallback(
     async (onlyUnapproved: boolean) => {
-      try {
-        emailGeneration.setIsRegenerating(true);
+      if (!sessionId) {
+        toast.error('Cannot regenerate emails without an active session');
+        return;
+      }
 
-        const response = await handleRegenerateEmails(
-          {
-            emailGeneration: {
-              ...emailGeneration,
-              smartEmailGeneration,
-              saveEmailsToSession: async (emails: any[], sessionId: number) => {
-                console.log('Saving emails to session:', emails.length, sessionId);
-              },
-            },
-            emailState,
-            chatState,
-            sessionId,
-          },
-          onlyUnapproved
-        );
+      // Clear existing emails as they will be regenerated
+      clearEmailStateForRegeneration(emailState, onlyUnapproved);
+
+      // Show loading state
+      setEmailGenerationLoading('regenerating', true);
+
+      // Small delay to ensure React unmounts components that query old email IDs
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      try {
+        // Call the backend with the same chat history (no edits, just regenerate)
+        const response = await smartEmailGeneration({
+          sessionId,
+          mode: 'regenerate_all',
+        });
 
         if (response.success) {
+          console.log('🔧 Regeneration response:', response);
+
+          // After regeneration, refetch the session to get updated emails
+          const sessionResult = await refetchSession();
+          console.log('📦 Post-regeneration session refetch:', {
+            success: sessionResult.isSuccess,
+            hasData: !!sessionResult.data,
+            emailCount: sessionResult.data?.emails?.length || 0,
+          });
+
+          if (sessionResult.data?.emails && sessionResult.data.emails.length > 0) {
+            // Update Zustand store with the regenerated emails
+            const emails = sessionResult.data.emails.map((email: any) => ({
+              ...email,
+              referenceContexts: (email.referenceContexts as Record<string, string>) || {},
+              emailContent: email.emailContent || undefined,
+              reasoning: email.reasoning || undefined,
+              response: email.response || undefined,
+            }));
+
+            console.log('📧 Regeneration: Updating Zustand store with emails:', {
+              emailCount: emails.length,
+              firstEmail: emails[0],
+            });
+
+            emailState.setAllGeneratedEmails(emails);
+            emailState.setGeneratedEmails(emails);
+
+            // Set reference contexts and statuses
+            const referenceContexts: Record<number, Record<string, string>> = {};
+            const emailStatuses: Record<number, 'PENDING_APPROVAL' | 'APPROVED'> = {};
+
+            emails.forEach((email) => {
+              referenceContexts[email.donorId] = email.referenceContexts || {};
+              emailStatuses[email.donorId] = (email as any).status || 'PENDING_APPROVAL';
+            });
+
+            emailState.setReferenceContexts(referenceContexts);
+            emailState.setEmailStatuses(emailStatuses);
+            console.log('📧 Regeneration: Zustand store updated successfully');
+          }
+
           toast.success(
-            `Successfully regenerated ${response.donorIdsToRegenerate.length} emails${
-              response.onlyUnapproved ? ' (unapproved only)' : ''
-            }`
+            onlyUnapproved
+              ? 'Successfully regenerated unapproved emails'
+              : 'Successfully regenerated all emails'
           );
         } else {
-          toast.error(response.error || 'Failed to regenerate emails');
+          toast.error('Failed to regenerate emails');
         }
       } catch (error) {
-        console.error('Error in handleRegenerateEmailsCallback:', error);
+        console.error('Error regenerating emails:', error);
         toast.error('Failed to regenerate emails. Please try again.');
       } finally {
-        emailGeneration.setIsRegenerating(false);
+        setEmailGenerationLoading('regenerating', false);
+        emailGeneration.setStreamingStatus('idle');
       }
     },
-    [emailGeneration, emailState, chatState, sessionId]
+    [
+      sessionId,
+      emailState,
+      emailGeneration,
+      smartEmailGeneration,
+      refetchSession,
+      setEmailGenerationLoading,
+    ]
   );
 
   const handleGenerateMoreCallback = useCallback(async () => {
@@ -1049,6 +1104,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
     selectedDonors,
     reviewEmails,
     refetchSession,
+    setEmailGenerationLoading,
+    smartEmailGeneration,
   ]);
 
   const emailListViewerEmails = useMemo(() => {
@@ -1078,7 +1135,15 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         const nameB = `${donorB.firstName} ${donorB.lastName}`.toLowerCase();
         return nameA.localeCompare(nameB);
       });
-  }, [emailState.allGeneratedEmails, emailState.emailStatuses, donorsData]);
+  }, [
+    emailState.allGeneratedEmails,
+    emailState.emailStatuses,
+    donorsData,
+    props.editMode,
+    props.initialGeneratedEmails?.length,
+    sessionDataForReview?.emails?.length,
+    sessionId,
+  ]);
 
   return (
     <div className="flex flex-col h-full space-y-3">

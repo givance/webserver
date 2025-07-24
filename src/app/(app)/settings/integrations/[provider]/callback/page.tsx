@@ -51,7 +51,7 @@ export default function IntegrationCallbackPage() {
       code,
       state,
     });
-  }, [code, state, provider, errorParam, errorDescription]);
+  }, [code, state, provider, errorParam, errorDescription, handleCallbackMutation]);
 
   return (
     <>
