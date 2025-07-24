@@ -561,4 +561,20 @@ export const emailCampaignsRouter = router({
       });
       return { emailContent: contentWithSignature };
     }),
+
+  /**
+   * Export campaign data to CSV format
+   */
+  exportCampaignData: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return await ctx.services.emailCampaigns.exportCampaignData(
+        input.sessionId,
+        ctx.auth.user.organizationId
+      );
+    }),
 });

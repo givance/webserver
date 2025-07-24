@@ -6,7 +6,7 @@ import { useStaff } from '@/app/hooks/use-staff';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertCircle, AlertTriangle, ArrowLeft, Edit } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, Edit, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { EmailScheduleControlPanel } from '../components/EmailScheduleControlPanel';
@@ -26,9 +26,19 @@ export default function CampaignDetailPage() {
 
   // State for controlling recipients list expansion (initially expanded)
   const [isRecipientsExpanded, setIsRecipientsExpanded] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const { getSession, getEmailSchedule } = useCommunications();
+  const { getSession, getEmailSchedule, exportCampaignData } = useCommunications();
   const { listStaff, getPrimaryStaff } = useStaff();
+
+  // Use the export query with manual fetching
+  const exportQuery = exportCampaignData(
+    { sessionId: campaignId },
+    {
+      enabled: false, // Don't fetch automatically
+      retry: false,
+    }
+  );
 
   // Get campaign data with signatures appended for display
   const {
@@ -187,6 +197,73 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+
+      // Get export data from the API
+      const result = await exportQuery.refetch();
+
+      if (!result.data || result.data.length === 0) {
+        alert('No data to export');
+        return;
+      }
+
+      const data = result.data;
+
+      // Convert data to CSV
+      const headers = [
+        'Donor ID',
+        'External ID',
+        'Email Address',
+        'Assigned Staff Name',
+        'Assigned Staff Email',
+        'Email Subject',
+        'Email Content',
+        'Send Time',
+        'Open Count',
+      ];
+
+      const csvContent = [
+        headers.join(','),
+        ...data.map((row) =>
+          [
+            row.donorId,
+            `"${row.donorExternalId || ''}"`,
+            `"${row.donorEmail || ''}"`,
+            `"${row.assignedStaffName || ''}"`,
+            `"${row.assignedStaffEmail || ''}"`,
+            `"${row.emailSubject.replace(/"/g, '""')}"`,
+            `"${row.emailContent.replace(/"/g, '""')}"`,
+            row.sendTime || '',
+            row.openCount,
+          ].join(',')
+        ),
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      link.setAttribute('href', url);
+      link.setAttribute(
+        'download',
+        `campaign_${campaignId}_export_${new Date().toISOString().split('T')[0]}.csv`
+      );
+      link.style.visibility = 'hidden';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export campaign data');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-8">
       {/* Header */}
@@ -205,14 +282,25 @@ export default function CampaignDetailPage() {
             </Link>
             {getStatusBadge(session.status)}
           </div>
-          {canEdit && (
-            <Link href={`/campaign/edit/${campaignId}`}>
-              <Button variant="outline">
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Campaign
+          <div className="flex items-center gap-2">
+            {(session.status === 'READY_TO_SEND' ||
+              session.status === 'RUNNING' ||
+              session.status === 'PAUSED' ||
+              session.status === 'COMPLETED') && (
+              <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+                <Download className="mr-2 h-4 w-4" />
+                {isExporting ? 'Exporting...' : 'Export CSV'}
               </Button>
-            </Link>
-          )}
+            )}
+            {canEdit && (
+              <Link href={`/campaign/edit/${campaignId}`}>
+                <Button variant="outline">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Campaign
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
         <div className="text-sm text-muted-foreground">
           <p>Created: {new Date(session.createdAt).toLocaleDateString()}</p>

@@ -35,6 +35,7 @@ export function useCommunications() {
   const getEmailStatus = trpc.communications.campaigns.getEmailStatus.useQuery;
   const getEmailSchedule = trpc.communications.campaigns.getEmailSchedule.useQuery;
   const getScheduleConfig = trpc.communications.campaigns.getScheduleConfig.useQuery;
+  const exportCampaignData = trpc.communications.campaigns.exportCampaignData.useQuery;
 
   // Mutation hooks - Communication Threads
   const createThread = trpc.communications.threads.createThread.useMutation({
@@ -487,6 +488,7 @@ export function useCommunications() {
     getEmailStatus,
     getEmailSchedule,
     getScheduleConfig,
+    exportCampaignData,
 
     // Wrapped mutation functions
     createThread: createThreadHandler,

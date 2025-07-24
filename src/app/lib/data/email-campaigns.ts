@@ -5,8 +5,14 @@ import {
   emailSendJobs,
   EmailGenerationSessionStatus,
   type DonorNote,
+  donors,
+  staff,
+  emailTrackers,
+  emailOpens,
+  linkTrackers,
+  linkClicks,
 } from '../db/schema';
-import { eq, sql, and, desc, count, or, inArray } from 'drizzle-orm';
+import { eq, sql, and, desc, count, or, inArray, asc } from 'drizzle-orm';
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 
 export type EmailGenerationSession = InferSelectModel<typeof emailGenerationSessions>;
@@ -907,5 +913,85 @@ export async function getEmailContentWithAuth(
   } catch (error) {
     console.error('Failed to get email content with auth:', error);
     throw new Error('Could not retrieve email content.');
+  }
+}
+
+/**
+ * Get export data for a campaign including donor info, emails, and tracking data
+ * @param sessionId - The session ID
+ * @param organizationId - The organization ID
+ * @returns Array of export data
+ */
+export async function getExportDataForCampaign(sessionId: number, organizationId: string) {
+  try {
+    const results = await db
+      .select({
+        // Donor fields
+        donorId: donors.id,
+        donorExternalId: donors.externalId,
+        donorEmail: donors.email,
+        donorFirstName: donors.firstName,
+        donorLastName: donors.lastName,
+        // Staff fields
+        assignedStaffId: donors.assignedToStaffId,
+        staffFirstName: staff.firstName,
+        staffLastName: staff.lastName,
+        staffEmail: staff.email,
+        // Email fields
+        emailId: generatedEmails.id,
+        emailSubject: generatedEmails.subject,
+        emailContent: generatedEmails.emailContent,
+        scheduledSendTime: generatedEmails.scheduledSendTime,
+        sentAt: generatedEmails.sentAt,
+        sendStatus: generatedEmails.sendStatus,
+        // Tracking fields
+        emailTrackerId: emailTrackers.id,
+        // Aggregated tracking counts (subqueries)
+        openCount: sql<number>`(
+          SELECT COUNT(*)
+          FROM ${emailOpens}
+          WHERE ${emailOpens.emailTrackerId} = ${emailTrackers.id}
+        )`,
+        clickCount: sql<number>`(
+          SELECT COUNT(DISTINCT ${linkClicks.linkTrackerId})
+          FROM ${linkClicks}
+          JOIN ${linkTrackers} ON ${linkClicks.linkTrackerId} = ${linkTrackers.id}
+          WHERE ${linkTrackers.emailTrackerId} = ${emailTrackers.id}
+        )`,
+      })
+      .from(generatedEmails)
+      .innerJoin(emailGenerationSessions, eq(generatedEmails.sessionId, emailGenerationSessions.id))
+      .innerJoin(donors, eq(generatedEmails.donorId, donors.id))
+      .leftJoin(staff, eq(donors.assignedToStaffId, staff.id))
+      .leftJoin(
+        emailTrackers,
+        and(eq(emailTrackers.emailId, generatedEmails.id), eq(emailTrackers.donorId, donors.id))
+      )
+      .where(
+        and(
+          eq(generatedEmails.sessionId, sessionId),
+          eq(emailGenerationSessions.organizationId, organizationId)
+        )
+      )
+      .orderBy(asc(donors.lastName), asc(donors.firstName));
+
+    // Transform the results into the export format
+    return results.map((row) => ({
+      donorId: row.donorId,
+      donorExternalId: row.donorExternalId || '',
+      donorEmail: row.donorEmail || '',
+      assignedStaffName:
+        row.staffFirstName && row.staffLastName
+          ? `${row.staffFirstName} ${row.staffLastName}`
+          : 'Unassigned',
+      assignedStaffEmail: row.staffEmail || '',
+      emailSubject: row.emailSubject,
+      emailContent: row.emailContent || '',
+      sendTime: row.sentAt ? row.sentAt.toISOString() : null,
+      openCount: row.sendStatus === 'sent' ? row.openCount || 0 : 0,
+    }));
+  } catch (error) {
+    console.error('Failed to get export data for campaign:', error);
+    throw new Error('Could not retrieve export data.');
   }
 }

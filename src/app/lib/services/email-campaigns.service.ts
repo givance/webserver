@@ -26,6 +26,7 @@ import {
   updateGeneratedEmail,
   updateGeneratedEmailContent,
   updateSessionsBatch,
+  getExportDataForCampaign,
   type EmailGenerationSession,
 } from '@/app/lib/data/email-campaigns';
 import { EmailGenerationSessionStatus } from '@/app/lib/db/schema';
@@ -2551,5 +2552,51 @@ export class EmailCampaignsService {
 
     // For non-agentic flow or if smart session doesn't exist, use session chat history
     return (session.chatHistory as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+  }
+
+  /**
+   * Export campaign data including donor information, emails, and tracking data
+   * @param sessionId - The campaign session ID
+   * @param organizationId - The organization ID
+   * @returns Array of export data for CSV generation
+   */
+  async exportCampaignData(sessionId: number, organizationId: string) {
+    try {
+      // Verify session belongs to organization
+      const session = await getEmailGenerationSessionById(sessionId, organizationId);
+      if (!session) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign not found' });
+      }
+
+      // Only allow export for campaigns that are ready to send or sending
+      if (
+        session.status !== EmailGenerationSessionStatus.READY_TO_SEND &&
+        session.status !== EmailGenerationSessionStatus.RUNNING &&
+        session.status !== EmailGenerationSessionStatus.PAUSED &&
+        session.status !== EmailGenerationSessionStatus.COMPLETED
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Campaign must be ready to send or in sending status to export',
+        });
+      }
+
+      // Get all generated emails with donor and tracking data
+      const exportData = await getExportDataForCampaign(sessionId, organizationId);
+
+      return exportData;
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+
+      logger.error(
+        `Failed to export campaign data for session ${sessionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to export campaign data',
+      });
+    }
   }
 }
