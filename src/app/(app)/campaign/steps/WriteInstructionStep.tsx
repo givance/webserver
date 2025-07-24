@@ -1319,8 +1319,8 @@ function WriteInstructionStepComponent(props: WriteInstructionStepProps) {
         pendingCount={emailState.pendingCount}
         isRegenerating={emailGeneration.isRegenerating}
         onConfirm={async (onlyUnapproved: boolean) => {
+          setRegenerateDialog(false); // Close dialog immediately
           await handleRegenerateEmailsCallback(onlyUnapproved);
-          setRegenerateDialog(false);
         }}
       />
     </div>
