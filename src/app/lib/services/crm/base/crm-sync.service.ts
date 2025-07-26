@@ -37,7 +37,11 @@ export class CrmSyncService {
         .where(eq(organizationIntegrations.id, integration.id));
 
       // Sync donors first
-      logger.info(`Starting donor sync for organization ${organizationId}`);
+      logger.info(`Starting donor sync for organization ${organizationId}`, {
+        organizationId,
+        provider: this.provider.name,
+        integrationId: integration.id,
+      });
       const donorResult = await this.syncDonors(
         organizationId,
         integration.accessToken,
@@ -46,7 +50,11 @@ export class CrmSyncService {
       result.donors = donorResult;
 
       // Then sync donations
-      logger.info(`Starting donation sync for organization ${organizationId}`);
+      logger.info(`Starting donation sync for organization ${organizationId}`, {
+        organizationId,
+        provider: this.provider.name,
+        integrationId: integration.id,
+      });
       const donationResult = await this.syncDonations(
         organizationId,
         integration.accessToken,
@@ -94,6 +102,7 @@ export class CrmSyncService {
     const result = { created: 0, updated: 0, failed: 0, errors: [] as any[] };
     let hasMore = true;
     let pageToken: string | undefined;
+    let pageNumber = 0;
 
     while (hasMore) {
       try {
@@ -102,6 +111,44 @@ export class CrmSyncService {
           { limit: 100, pageToken },
           metadata
         );
+
+        pageNumber++;
+        logger.info(`Fetched donors page ${pageNumber} from ${this.provider.name}`, {
+          organizationId,
+          provider: this.provider.name,
+          pageNumber,
+          donorsInPage: response.data.length,
+          hasMore: response.hasMore,
+          totalCount: response.totalCount,
+        });
+
+        // Log sample of fetched donors for debugging
+        if (response.data.length > 0) {
+          logger.info(`Sample donors from ${this.provider.name} page ${pageNumber}`, {
+            organizationId,
+            provider: this.provider.name,
+            pageNumber,
+            sampleDonors: response.data.slice(0, 3).map((donor) => ({
+              externalId: donor.externalId,
+              firstName: donor.firstName,
+              lastName: donor.lastName,
+              email: donor.email,
+              phone: donor.phone,
+              isCouple: donor.isCouple,
+              displayName: donor.displayName,
+            })),
+            totalDonorsInPage: response.data.length,
+          });
+        }
+
+        // Log ALL raw donor data to console
+        console.log('\n========== RAW SALESFORCE DONORS DATA ==========');
+        console.log(`Page ${pageNumber} - Total donors: ${response.data.length}`);
+        response.data.forEach((donor, index) => {
+          console.log(`\nDonor ${index + 1}:`);
+          console.log(JSON.stringify(donor, null, 2));
+        });
+        console.log('========== END OF DONORS DATA ==========\n');
 
         for (const crmDonor of response.data) {
           try {
@@ -125,6 +172,13 @@ export class CrmSyncService {
       }
     }
 
+    logger.info(`Completed donor sync from ${this.provider.name}`, {
+      organizationId,
+      provider: this.provider.name,
+      totalPages: pageNumber,
+      result,
+    });
+
     return result;
   }
 
@@ -139,6 +193,7 @@ export class CrmSyncService {
     const result = { created: 0, updated: 0, failed: 0, errors: [] as any[] };
     let hasMore = true;
     let pageToken: string | undefined;
+    let pageNumber = 0;
 
     // Get or create default project for external donations
     const defaultProject = await this.getOrCreateDefaultProject(organizationId);
@@ -150,6 +205,43 @@ export class CrmSyncService {
           { limit: 100, pageToken },
           metadata
         );
+
+        pageNumber++;
+        logger.info(`Fetched donations page ${pageNumber} from ${this.provider.name}`, {
+          organizationId,
+          provider: this.provider.name,
+          pageNumber,
+          donationsInPage: response.data.length,
+          hasMore: response.hasMore,
+          totalCount: response.totalCount,
+        });
+
+        // Log sample of fetched donations for debugging
+        if (response.data.length > 0) {
+          logger.info(`Sample donations from ${this.provider.name} page ${pageNumber}`, {
+            organizationId,
+            provider: this.provider.name,
+            pageNumber,
+            sampleDonations: response.data.slice(0, 3).map((donation) => ({
+              externalId: donation.externalId,
+              donorExternalId: donation.donorExternalId,
+              amount: donation.amount,
+              currency: donation.currency,
+              date: donation.date,
+              designation: donation.designation,
+            })),
+            totalDonationsInPage: response.data.length,
+          });
+        }
+
+        // Log ALL raw donation data to console
+        console.log('\n========== RAW SALESFORCE DONATIONS DATA ==========');
+        console.log(`Page ${pageNumber} - Total donations: ${response.data.length}`);
+        response.data.forEach((donation, index) => {
+          console.log(`\nDonation ${index + 1}:`);
+          console.log(JSON.stringify(donation, null, 2));
+        });
+        console.log('========== END OF DONATIONS DATA ==========\n');
 
         for (const crmDonation of response.data) {
           try {
@@ -172,6 +264,13 @@ export class CrmSyncService {
         throw error;
       }
     }
+
+    logger.info(`Completed donation sync from ${this.provider.name}`, {
+      organizationId,
+      provider: this.provider.name,
+      totalPages: pageNumber,
+      result,
+    });
 
     return result;
   }

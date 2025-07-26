@@ -247,6 +247,13 @@ export class SalesforceService implements ICrmProvider {
 
     const url = `${instanceUrl}/services/data/${this.apiVersion}${endpoint}`;
 
+    logger.debug('Making Salesforce API request', {
+      endpoint,
+      instanceUrl,
+      apiVersion: this.apiVersion,
+      url,
+    });
+
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -260,11 +267,18 @@ export class SalesforceService implements ICrmProvider {
         error,
         status: response.status,
         endpoint,
+        url,
       });
       throw new Error(`Salesforce API error: ${error[0]?.message || response.statusText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    logger.debug('Salesforce API request successful', {
+      endpoint,
+      responseSize: JSON.stringify(data).length,
+    });
+
+    return data;
   }
 
   /**
@@ -280,17 +294,22 @@ export class SalesforceService implements ICrmProvider {
     let nextPageToken: string | undefined;
 
     // Fetch Contacts
-    const contactQuery = params.pageToken
-      ? `/query/${params.pageToken}`
-      : `/query?q=${encodeURIComponent(
-          `SELECT Id, FirstName, LastName, Email, Phone, MobilePhone, 
+    const contactSOQL = `SELECT Id, FirstName, LastName, Email, Phone, MobilePhone, 
            MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry,
            AccountId, Title, Department, Description, CreatedDate, LastModifiedDate, IsDeleted
            FROM Contact 
            WHERE IsDeleted = false 
            ORDER BY LastModifiedDate DESC 
-           LIMIT ${params.limit}`
-        )}`;
+           LIMIT ${params.limit}`;
+
+    const contactQuery = params.pageToken
+      ? `/query/${params.pageToken}`
+      : `/query?q=${encodeURIComponent(contactSOQL)}`;
+
+    logger.info('Fetching Salesforce contacts', {
+      soql: params.pageToken ? `Continuing from page token: ${params.pageToken}` : contactSOQL,
+      limit: params.limit,
+    });
 
     try {
       const contactResponse = await this.makeApiRequest<SalesforceQueryResponse<SalesforceContact>>(
@@ -355,17 +374,22 @@ export class SalesforceService implements ICrmProvider {
     params: PaginationParams,
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmDonation>> {
-    const query = params.pageToken
-      ? `/query/${params.pageToken}`
-      : `/query?q=${encodeURIComponent(
-          `SELECT Id, Name, AccountId, ContactId, Amount, CloseDate, StageName, Type,
+    const opportunitySOQL = `SELECT Id, Name, AccountId, ContactId, Amount, CloseDate, StageName, Type,
            Description, CampaignId, IsClosed, IsWon, Probability, CreatedDate, LastModifiedDate, IsDeleted
            FROM Opportunity 
            WHERE IsDeleted = false 
            AND IsWon = true
            ORDER BY CloseDate DESC 
-           LIMIT ${params.limit}`
-        )}`;
+           LIMIT ${params.limit}`;
+
+    const query = params.pageToken
+      ? `/query/${params.pageToken}`
+      : `/query?q=${encodeURIComponent(opportunitySOQL)}`;
+
+    logger.info('Fetching Salesforce opportunities (donations)', {
+      soql: params.pageToken ? `Continuing from page token: ${params.pageToken}` : opportunitySOQL,
+      limit: params.limit,
+    });
 
     try {
       const response = await this.makeApiRequest<SalesforceQueryResponse<SalesforceOpportunity>>(

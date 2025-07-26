@@ -7,7 +7,6 @@ import { eq, and } from 'drizzle-orm';
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
 import { crmManager } from '@/app/lib/services/crm';
-import { syncCrmDataTask } from '@/trigger/jobs/syncCrmData';
 
 export const integrationsRouter = router({
   /**
@@ -396,14 +395,91 @@ export const integrationsRouter = router({
         });
       }
 
-      // Trigger background job
-      await syncCrmDataTask.trigger({
-        organizationId: ctx.auth.user.organizationId,
-        provider: input.provider,
-        integrationId: integration.id,
-      });
+      try {
+        // Update sync status to 'syncing'
+        await db
+          .update(organizationIntegrations)
+          .set({
+            syncStatus: 'syncing',
+            syncError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(organizationIntegrations.id, integration.id));
 
-      return { success: true, message: 'Sync initiated' };
+        logger.info('Starting CRM sync', {
+          organizationId: ctx.auth.user.organizationId,
+          provider: input.provider,
+          integrationId: integration.id,
+        });
+
+        // Sync data directly using the CRM manager
+        const result = await crmManager.syncData(ctx.auth.user.organizationId, input.provider);
+
+        logger.info('CRM sync completed successfully', {
+          organizationId: ctx.auth.user.organizationId,
+          provider: input.provider,
+          donorsCreated: result.donors.created,
+          donorsUpdated: result.donors.updated,
+          donorsFailed: result.donors.failed,
+          donationsCreated: result.donations.created,
+          donationsUpdated: result.donations.updated,
+          donationsFailed: result.donations.failed,
+          totalTime: result.totalTime,
+        });
+
+        // Log any errors
+        if (result.donors.errors.length > 0) {
+          logger.warn('Donor sync errors', {
+            errors: result.donors.errors.slice(0, 10), // Log first 10 errors
+            totalErrors: result.donors.errors.length,
+          });
+        }
+
+        if (result.donations.errors.length > 0) {
+          logger.warn('Donation sync errors', {
+            errors: result.donations.errors.slice(0, 10), // Log first 10 errors
+            totalErrors: result.donations.errors.length,
+          });
+        }
+
+        // Update sync status to 'idle'
+        await db
+          .update(organizationIntegrations)
+          .set({
+            syncStatus: 'idle',
+            lastSyncAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(organizationIntegrations.id, integration.id));
+
+        return {
+          success: true,
+          message: 'Sync completed successfully',
+          result,
+        };
+      } catch (error) {
+        logger.error('CRM sync failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          organizationId: ctx.auth.user.organizationId,
+          provider: input.provider,
+          integrationId: integration.id,
+        });
+
+        // Update integration status to error
+        await db
+          .update(organizationIntegrations)
+          .set({
+            syncStatus: 'error',
+            syncError: error instanceof Error ? error.message : 'Unknown error',
+            updatedAt: new Date(),
+          })
+          .where(eq(organizationIntegrations.id, integration.id));
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Sync failed',
+        });
+      }
     }),
 
   /**
