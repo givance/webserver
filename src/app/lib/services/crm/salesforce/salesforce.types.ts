@@ -133,3 +133,25 @@ export interface SalesforceGiftTransaction {
   LastModifiedDate: string;
   IsDeleted: boolean;
 }
+
+/**
+ * Salesforce Campaign
+ */
+export interface SalesforceCampaign {
+  Id: string;
+  Name: string;
+  Description?: string;
+  Status?: string;
+  Type?: string;
+  StartDate?: string;
+  EndDate?: string;
+  ExpectedRevenue?: number;
+  ActualCost?: number;
+  BudgetedCost?: number;
+  ExpectedResponse?: number;
+  IsActive?: boolean;
+  ParentId?: string; // Reference to parent campaign
+  CreatedDate: string;
+  LastModifiedDate: string;
+  IsDeleted: boolean;
+}

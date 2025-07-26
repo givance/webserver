@@ -1,6 +1,7 @@
 import {
   CrmDonor,
   CrmDonation,
+  CrmProject,
   OAuthTokens,
   PaginationParams,
   PaginatedResponse,
@@ -58,4 +59,13 @@ export interface ICrmProvider extends CrmProvider {
    * Get donation by external ID (optional - not all CRMs may support this)
    */
   getDonationById?(accessToken: string, externalId: string): Promise<CrmDonation | null>;
+
+  /**
+   * Fetch projects/campaigns from the CRM (optional - not all CRMs may support this)
+   */
+  fetchProjects?(
+    accessToken: string,
+    params: PaginationParams,
+    metadata?: Record<string, any>
+  ): Promise<PaginatedResponse<CrmProject>>;
 }

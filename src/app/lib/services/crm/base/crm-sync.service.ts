@@ -2,7 +2,14 @@ import { db } from '@/app/lib/db';
 import { donors, donations, projects, organizationIntegrations } from '@/app/lib/db/schema';
 import { eq, and, isNull, inArray, sql } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
-import { CrmDonor, CrmDonation, CrmSyncResult, PaginationParams, PaginatedResponse } from './types';
+import {
+  CrmDonor,
+  CrmDonation,
+  CrmProject,
+  CrmSyncResult,
+  PaginationParams,
+  PaginatedResponse,
+} from './types';
 import { ICrmProvider } from './crm-provider.interface';
 
 /**
@@ -23,6 +30,7 @@ export class CrmSyncService {
     const result: CrmSyncResult = {
       donors: { total: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] },
       donations: { total: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] },
+      projects: { total: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] },
       totalTime: 0,
     };
 
@@ -49,6 +57,21 @@ export class CrmSyncService {
           }
         );
 
+        // Sync projects FIRST (before combined donor/donation sync)
+        if (this.provider.fetchProjects) {
+          logger.info(`Starting project sync for organization ${organizationId}`, {
+            organizationId,
+            provider: this.provider.name,
+            integrationId: integration.id,
+          });
+          const projectResult = await this.syncProjects(
+            organizationId,
+            integration.accessToken,
+            integration.metadata as Record<string, any>
+          );
+          result.projects = projectResult;
+        }
+
         const syncResult = await this.syncDonorsWithGiftTransactions(
           organizationId,
           integration.accessToken,
@@ -57,7 +80,7 @@ export class CrmSyncService {
         result.donors = syncResult.donors;
         result.donations = syncResult.donations;
       } else {
-        // Use the original approach: sync donors and donations separately
+        // Use the original approach: sync donors, projects, and donations separately
         // Sync donors first
         logger.info(`Starting donor sync for organization ${organizationId}`, {
           organizationId,
@@ -72,7 +95,22 @@ export class CrmSyncService {
         );
         result.donors = donorResult;
 
-        // Then sync donations
+        // Sync projects BEFORE donations (so donations can reference them)
+        if (this.provider.fetchProjects) {
+          logger.info(`Starting project sync for organization ${organizationId}`, {
+            organizationId,
+            provider: this.provider.name,
+            integrationId: integration.id,
+          });
+          const projectResult = await this.syncProjects(
+            organizationId,
+            integration.accessToken,
+            integration.metadata as Record<string, any>
+          );
+          result.projects = projectResult;
+        }
+
+        // Then sync donations (after projects are synced)
         logger.info(`Starting donation sync for organization ${organizationId}`, {
           organizationId,
           provider: this.provider.name,
@@ -411,6 +449,171 @@ export class CrmSyncService {
   }
 
   /**
+   * Sync projects from CRM
+   */
+  private async syncProjects(
+    organizationId: string,
+    accessToken: string,
+    metadata: Record<string, any>
+  ): Promise<CrmSyncResult['projects']> {
+    const result = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: 0,
+      errors: [] as any[],
+      createdProjects: [] as Array<{ externalId: string; name: string }>,
+      updatedProjects: [] as Array<{ externalId: string; name: string }>,
+      unchangedProjects: [] as Array<{ externalId: string; name: string }>,
+    };
+
+    if (!this.provider.fetchProjects) {
+      return result;
+    }
+
+    let hasMore = true;
+    let pageToken: string | undefined;
+    let pageNumber = 0;
+
+    while (hasMore) {
+      try {
+        const response = await this.provider.fetchProjects(
+          accessToken,
+          { limit: 100, pageToken },
+          metadata
+        );
+
+        pageNumber++;
+        logger.info(
+          `Fetched ${response.data.length} projects from ${this.provider.name} (page ${pageNumber})`,
+          {
+            organizationId,
+            provider: this.provider.name,
+            hasMore: response.hasMore,
+          }
+        );
+
+        result.total += response.data.length;
+
+        // Process projects in the current page
+        for (const crmProject of response.data) {
+          try {
+            const externalId = `${this.provider.name}_${crmProject.externalId}`;
+
+            // Check if project already exists
+            const existingProject = await db.query.projects.findFirst({
+              where: and(
+                eq(projects.organizationId, organizationId),
+                eq(projects.externalId, externalId)
+              ),
+            });
+
+            const projectData = {
+              organizationId,
+              externalId,
+              name: crmProject.name,
+              description: crmProject.description || null,
+              active: crmProject.active,
+              goal: crmProject.goal || null,
+              tags: crmProject.tags || null,
+              external: false,
+              updatedAt: new Date(),
+            };
+
+            if (!existingProject) {
+              // Create new project
+              const [newProject] = await db
+                .insert(projects)
+                .values({
+                  ...projectData,
+                  createdAt: new Date(),
+                })
+                .returning();
+
+              result.created++;
+              result.createdProjects!.push({
+                externalId: crmProject.externalId,
+                name: crmProject.name,
+              });
+
+              logger.debug('Created new project', {
+                id: newProject.id,
+                externalId,
+                name: crmProject.name,
+              });
+            } else {
+              // Check if update is needed
+              const needsUpdate =
+                existingProject.name !== crmProject.name ||
+                existingProject.description !== (crmProject.description || null) ||
+                existingProject.active !== crmProject.active ||
+                existingProject.goal !== (crmProject.goal || null) ||
+                JSON.stringify(existingProject.tags) !== JSON.stringify(crmProject.tags || null);
+
+              if (needsUpdate) {
+                // Update existing project
+                await db
+                  .update(projects)
+                  .set(projectData)
+                  .where(eq(projects.id, existingProject.id));
+
+                result.updated++;
+                result.updatedProjects!.push({
+                  externalId: crmProject.externalId,
+                  name: crmProject.name,
+                });
+
+                logger.debug('Updated project', {
+                  id: existingProject.id,
+                  externalId,
+                  name: crmProject.name,
+                });
+              } else {
+                result.unchanged++;
+                result.unchangedProjects!.push({
+                  externalId: crmProject.externalId,
+                  name: crmProject.name,
+                });
+              }
+            }
+          } catch (error) {
+            result.failed++;
+            result.errors.push({
+              externalId: crmProject.externalId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            logger.error('Failed to sync project', {
+              error,
+              projectExternalId: crmProject.externalId,
+            });
+          }
+        }
+
+        hasMore = response.hasMore;
+        pageToken = response.nextPageToken;
+      } catch (error) {
+        logger.error(`Failed to fetch projects from ${this.provider.name}`, {
+          error,
+          organizationId,
+          provider: this.provider.name,
+          pageNumber,
+        });
+        throw error;
+      }
+    }
+
+    logger.info(`Completed project sync from ${this.provider.name}`, {
+      organizationId,
+      provider: this.provider.name,
+      totalPages: pageNumber,
+      result,
+    });
+
+    return result;
+  }
+
+  /**
    * Batch upsert multiple donors
    * Returns operations for each donor
    */
@@ -609,6 +812,22 @@ export class CrmSyncService {
       ...new Set(crmDonations.map((d) => `${this.provider.name}_${d.donorExternalId}`)),
     ];
 
+    // Collect unique campaign external IDs
+    const campaignExternalIds = [
+      ...new Set(
+        crmDonations
+          .filter((d) => d.campaignExternalId)
+          .map((d) => `${this.provider.name}_${d.campaignExternalId}`)
+      ),
+    ];
+
+    logger.info('📊 Campaign ID collection', {
+      totalDonations: crmDonations.length,
+      donationsWithCampaigns: crmDonations.filter((d) => d.campaignExternalId).length,
+      uniqueCampaignIds: campaignExternalIds.length,
+      sampleCampaignIds: campaignExternalIds.slice(0, 5),
+    });
+
     // Batch fetch all donors
     const donorsMap = new Map(
       (
@@ -620,6 +839,25 @@ export class CrmSyncService {
         })
       ).map((d) => [d.externalId, d])
     );
+
+    // Batch fetch all projects (campaigns)
+    const projectsMap = new Map();
+    if (campaignExternalIds.length > 0) {
+      const projectsList = await db.query.projects.findMany({
+        where: and(
+          eq(projects.organizationId, organizationId),
+          inArray(projects.externalId, campaignExternalIds)
+        ),
+      });
+      projectsList.forEach((p) => projectsMap.set(p.externalId, p));
+
+      logger.info('📁 Projects fetched for campaigns', {
+        requestedCampaigns: campaignExternalIds.length,
+        foundProjects: projectsList.length,
+        projectExternalIds: projectsList.map((p) => p.externalId),
+        projectNames: projectsList.map((p) => ({ externalId: p.externalId, name: p.name })),
+      });
+    }
 
     // Prepare donation data
     const donationDataList = crmDonations
@@ -636,13 +874,42 @@ export class CrmSyncService {
           return null;
         }
 
+        // Look up project ID based on campaign
+        let projectId = defaultProjectId;
+        if (crmDonation.campaignExternalId) {
+          const campaignExternalId = `${this.provider.name}_${crmDonation.campaignExternalId}`;
+          const project = projectsMap.get(campaignExternalId);
+          if (project) {
+            projectId = project.id;
+            logger.info('🎯 Found campaign project for donation', {
+              donationId: crmDonation.externalId,
+              campaignExternalId: crmDonation.campaignExternalId,
+              fullCampaignExternalId: campaignExternalId,
+              projectId: project.id,
+              projectName: project.name,
+            });
+          } else {
+            logger.warn('❌ Campaign not found for donation', {
+              donationId: crmDonation.externalId,
+              campaignExternalId: crmDonation.campaignExternalId,
+              fullCampaignExternalId: campaignExternalId,
+              availableProjects: Array.from(projectsMap.keys()),
+            });
+          }
+        } else {
+          logger.debug('No campaign ID for donation', {
+            donationId: crmDonation.externalId,
+            defaultProjectId,
+          });
+        }
+
         return {
           crmDonation,
           externalId: donationExternalId.substring(0, 255),
           data: {
             externalId: donationExternalId.substring(0, 255),
             donorId: donor.id,
-            projectId: defaultProjectId,
+            projectId,
             amount: crmDonation.amount,
             currency: crmDonation.currency || 'USD',
             date: crmDonation.date,
@@ -825,6 +1092,26 @@ export class CrmSyncService {
       );
     }
 
+    // Look up project ID based on campaign
+    let projectId = defaultProjectId;
+    if (crmDonation.campaignExternalId) {
+      const campaignExternalId = `${this.provider.name}_${crmDonation.campaignExternalId}`;
+      const project = await db.query.projects.findFirst({
+        where: and(
+          eq(projects.organizationId, organizationId),
+          eq(projects.externalId, campaignExternalId)
+        ),
+      });
+      if (project) {
+        projectId = project.id;
+      } else {
+        logger.debug('Campaign not found for donation', {
+          donationId: crmDonation.externalId,
+          campaignExternalId: crmDonation.campaignExternalId,
+        });
+      }
+    }
+
     // Check if donation exists
     const existingDonation = await db.query.donations.findFirst({
       where: eq(donations.externalId, donationExternalId),
@@ -832,7 +1119,7 @@ export class CrmSyncService {
 
     const donationData = {
       donorId: donor.id,
-      projectId: defaultProjectId, // TODO: Map designation to projects
+      projectId,
       externalId: donationExternalId,
       amount: crmDonation.amount,
       currency: crmDonation.currency,

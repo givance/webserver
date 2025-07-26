@@ -2,6 +2,7 @@ import { ICrmProvider } from '../base/crm-provider.interface';
 import {
   CrmDonor,
   CrmDonation,
+  CrmProject,
   OAuthTokens,
   PaginationParams,
   PaginatedResponse,
@@ -10,6 +11,7 @@ import {
   SalesforceContact,
   SalesforceAccount,
   SalesforceGiftTransaction,
+  SalesforceCampaign,
   SalesforceQueryResponse,
   SalesforceTokenResponse,
   SalesforceErrorResponse,
@@ -318,7 +320,7 @@ export class SalesforceService implements ICrmProvider {
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmDonation>> {
     // GiftTransaction - using basic fields until we confirm all field names
-    const giftTransactionSOQL = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate, LastModifiedDate, IsDeleted
+    const giftTransactionSOQL = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CampaignId, CreatedDate, LastModifiedDate, IsDeleted
            FROM GiftTransaction 
            WHERE IsDeleted = false 
            ORDER BY CreatedDate DESC 
@@ -345,6 +347,47 @@ export class SalesforceService implements ICrmProvider {
       };
     } catch (error) {
       logger.error('Failed to fetch donations from Salesforce', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch campaigns from Salesforce
+   */
+  async fetchProjects(
+    accessToken: string,
+    params: PaginationParams,
+    metadata?: Record<string, any>
+  ): Promise<PaginatedResponse<CrmProject>> {
+    const campaignSOQL = `SELECT Id, Name, Description, Status, Type, StartDate, EndDate, 
+           ExpectedRevenue, ActualCost, BudgetedCost, ExpectedResponse, IsActive, ParentId,
+           CreatedDate, LastModifiedDate, IsDeleted
+           FROM Campaign 
+           WHERE IsDeleted = false 
+           ORDER BY LastModifiedDate DESC 
+           LIMIT ${params.limit}`;
+
+    const query = params.pageToken
+      ? `/query/${params.pageToken}`
+      : `/query?q=${encodeURIComponent(campaignSOQL)}`;
+
+    try {
+      const response = await this.makeApiRequest<SalesforceQueryResponse<SalesforceCampaign>>(
+        accessToken,
+        query,
+        metadata
+      );
+
+      const projects = response.records.map((campaign) => SalesforceMapper.mapCampaign(campaign));
+
+      return {
+        data: projects,
+        hasMore: !response.done,
+        nextPageToken: SalesforceMapper.extractPaginationInfo(response.nextRecordsUrl),
+        totalCount: response.totalSize,
+      };
+    } catch (error) {
+      logger.error('Failed to fetch campaigns from Salesforce', { error });
       throw error;
     }
   }
@@ -475,7 +518,7 @@ export class SalesforceService implements ICrmProvider {
 
       // Now run the actual query with filters
       // Query GiftTransaction object - start with basic fields only
-      const soql = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate
+      const soql = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CampaignId, CreatedDate
         FROM GiftTransaction 
         WHERE ${whereClause}
         AND IsDeleted = false 
@@ -598,7 +641,7 @@ export class SalesforceService implements ICrmProvider {
         .map((id) => `'${id}'`)
         .join(',');
       const giftQuery = `/query?q=${encodeURIComponent(
-        `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate FROM GiftTransaction WHERE DonorId IN (${accountIdList}) AND IsDeleted = false ORDER BY CreatedDate DESC`
+        `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CampaignId, CreatedDate FROM GiftTransaction WHERE DonorId IN (${accountIdList}) AND IsDeleted = false ORDER BY CreatedDate DESC`
       )}`;
 
       try {
@@ -616,8 +659,10 @@ export class SalesforceService implements ICrmProvider {
             CurrentAmount: firstGift.CurrentAmount,
             TransactionDate: firstGift.TransactionDate,
             CheckDate: firstGift.CheckDate,
+            CampaignId: firstGift.CampaignId,
             CreatedDate: firstGift.CreatedDate,
             allFields: Object.keys(firstGift),
+            rawRecord: firstGift,
           });
         }
 
@@ -645,6 +690,9 @@ export class SalesforceService implements ICrmProvider {
             currency: 'USD',
             date: donationDate,
             designation: String(giftTransaction.Name || 'Gift Transaction'),
+            campaignExternalId: giftTransaction.CampaignId
+              ? String(giftTransaction.CampaignId)
+              : undefined,
             metadata: {
               source: 'salesforce_gift_transaction',
               raw: giftTransaction,
@@ -667,6 +715,8 @@ export class SalesforceService implements ICrmProvider {
               checkDateParsed: checkDate?.toISOString() || 'null',
               createdDateParsed: createdDate.toISOString(),
               finalDate: donationDate.toISOString(),
+              campaignIdFromRaw: giftTransaction.CampaignId,
+              campaignExternalIdInDonation: donation.campaignExternalId,
             });
             loggedFirst = true;
           }

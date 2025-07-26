@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "external_id" varchar(255);

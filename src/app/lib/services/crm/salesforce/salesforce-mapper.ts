@@ -1,8 +1,9 @@
-import { CrmDonor, CrmDonation } from '../base/types';
+import { CrmDonor, CrmDonation, CrmProject } from '../base/types';
 import {
   SalesforceContact,
   SalesforceAccount,
   SalesforceGiftTransaction,
+  SalesforceCampaign,
 } from './salesforce.types';
 import { logger } from '@/app/lib/logger';
 
@@ -108,6 +109,7 @@ export class SalesforceMapper {
     const giftDate = 'GiftDate' in giftTransaction ? giftTransaction.GiftDate : undefined;
     const checkDate = 'CheckDate' in giftTransaction ? giftTransaction.CheckDate : undefined;
     const createdDate = 'CreatedDate' in giftTransaction ? giftTransaction.CreatedDate : undefined;
+    const campaignId = 'CampaignId' in giftTransaction ? giftTransaction.CampaignId : undefined;
 
     return {
       externalId: id,
@@ -125,9 +127,11 @@ export class SalesforceMapper {
               ? new Date(String(createdDate))
               : new Date(),
       designation: name,
+      campaignExternalId: campaignId ? String(campaignId) : undefined,
       metadata: {
         source: 'salesforce_gift_transaction',
         donorId: donorId,
+        campaignId: campaignId,
         raw: giftTransaction,
       },
     };
@@ -145,5 +149,31 @@ export class SalesforceMapper {
     // Format: /services/data/vXX.X/query/queryLocator
     const match = nextRecordsUrl.match(/\/query\/(.+)$/);
     return match ? match[1] : undefined;
+  }
+
+  /**
+   * Map Salesforce Campaign to CRM Project
+   */
+  static mapCampaign(campaign: SalesforceCampaign): CrmProject {
+    return {
+      externalId: campaign.Id,
+      name: campaign.Name,
+      description: campaign.Description,
+      active: campaign.IsActive !== false, // Default to true if not specified
+      goal: campaign.ExpectedRevenue ? Math.round(campaign.ExpectedRevenue * 100) : undefined, // Convert to cents
+      tags: campaign.Type ? [campaign.Type] : undefined,
+      metadata: {
+        source: 'salesforce_campaign',
+        status: campaign.Status,
+        startDate: campaign.StartDate,
+        endDate: campaign.EndDate,
+        actualCost: campaign.ActualCost,
+        budgetedCost: campaign.BudgetedCost,
+        expectedResponse: campaign.ExpectedResponse,
+        parentId: campaign.ParentId,
+        createdDate: campaign.CreatedDate,
+        lastModifiedDate: campaign.LastModifiedDate,
+      },
+    };
   }
 }

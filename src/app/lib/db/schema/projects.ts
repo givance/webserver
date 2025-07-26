@@ -12,6 +12,7 @@ export const projects = pgTable('projects', {
   organizationId: text('organization_id')
     .references(() => organizations.id, { onDelete: 'cascade' })
     .notNull(),
+  externalId: varchar('external_id', { length: 255 }), // External ID from CRM systems (e.g., 'salesforce_12345')
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   notes: text('notes'), // Additional notes about the project
