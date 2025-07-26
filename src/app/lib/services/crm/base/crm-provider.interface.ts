@@ -14,7 +14,7 @@ export interface ICrmProvider extends CrmProvider {
   /**
    * Exchange authorization code for access tokens
    */
-  exchangeAuthCode(code: string, redirectUri: string): Promise<OAuthTokens>;
+  exchangeAuthCode(code: string, redirectUri: string, state?: string): Promise<OAuthTokens>;
 
   /**
    * Refresh access token using refresh token
@@ -42,7 +42,7 @@ export interface ICrmProvider extends CrmProvider {
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(state: string, redirectUri: string): string;
+  getAuthorizationUrl(state: string, redirectUri: string): string | Promise<string>;
 
   /**
    * Validate if the access token is still valid

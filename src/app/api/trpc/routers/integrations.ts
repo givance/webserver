@@ -157,8 +157,14 @@ export const integrationsRouter = router({
           hasSubscriptionKey: !!env.BLACKBAUD_SUBSCRIPTION_KEY,
           isSandbox: env.BLACKBAUD_USE_SANDBOX,
         });
-      } else if (input.provider === 'salesforce' && env.SALESFORCE_REDIRECT_URI) {
-        // Use the exact redirect URI from environment for Salesforce
+      } else if (input.provider === 'salesforce') {
+        // ALWAYS use SALESFORCE_REDIRECT_URI for Salesforce
+        if (!env.SALESFORCE_REDIRECT_URI) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'SALESFORCE_REDIRECT_URI not configured',
+          });
+        }
         redirectUri = env.SALESFORCE_REDIRECT_URI;
 
         logger.info('Using Salesforce redirect URI from environment', {
@@ -186,7 +192,7 @@ export const integrationsRouter = router({
       });
 
       try {
-        const authUrl = crmManager.getAuthorizationUrl(
+        const authUrl = await crmManager.getAuthorizationUrl(
           input.provider,
           Buffer.from(state).toString('base64'),
           redirectUri
@@ -238,13 +244,37 @@ export const integrationsRouter = router({
         }
 
         const baseUrl = env.BASE_URL;
-        const redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
+        let redirectUri: string;
+
+        // ALWAYS use SALESFORCE_REDIRECT_URI for Salesforce
+        if (input.provider === 'salesforce') {
+          if (!env.SALESFORCE_REDIRECT_URI) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'SALESFORCE_REDIRECT_URI not configured',
+            });
+          }
+          redirectUri = env.SALESFORCE_REDIRECT_URI;
+        } else {
+          redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
+        }
+
+        logger.info('OAuth callback processing', {
+          provider: input.provider,
+          codeLength: input.code.length,
+          codePrefix: input.code.substring(0, 20) + '...',
+          stateLength: input.state.length,
+          statePrefix: input.state.substring(0, 50) + '...',
+          redirectUri,
+          decodedState: stateData,
+        });
 
         // Exchange code for tokens
         const tokens = await crmManager.handleOAuthCallback(
           input.provider,
           input.code,
-          redirectUri
+          redirectUri,
+          input.state
         );
 
         // Check if integration exists

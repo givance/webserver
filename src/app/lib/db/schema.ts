@@ -24,3 +24,4 @@ export * from './schema/todos';
 export * from './schema/signatures';
 export * from './schema/smart-email';
 export * from './schema/posts';
+export * from './schema/oauth';

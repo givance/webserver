@@ -32,18 +32,7 @@ const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
 // Construct redirect URI using the BASE_URL
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI; // e.g., https://app.givance.ai/settings/microsoft/callback
 
-// Log configuration for debugging
-logger.info('Microsoft OAuth Configuration (Organization):', {
-  clientId: MICROSOFT_CLIENT_ID ? 'Set' : 'Missing',
-  clientSecret: MICROSOFT_CLIENT_SECRET ? 'Set' : 'Missing',
-  redirectUri: MICROSOFT_REDIRECT_URI,
-});
-
-if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
-  logger.error(
-    'Missing Microsoft OAuth credentials in environment variables. Microsoft integration will not work.'
-  );
-}
+// No initialization logging needed
 
 /**
  * Helper function to get authenticated Microsoft Graph client for user

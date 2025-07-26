@@ -17,6 +17,12 @@ import {
 import { SalesforceMapper } from './salesforce-mapper';
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
+import {
+  generatePKCEPair,
+  storePKCEVerifier,
+  getPKCEVerifier,
+  deletePKCEVerifier,
+} from '@/app/lib/utils/pkce';
 
 /**
  * Salesforce API provider implementation
@@ -32,46 +38,42 @@ export class SalesforceService implements ICrmProvider {
   private readonly clientId = env.SALESFORCE_CLIENT_ID || '';
   private readonly clientSecret = env.SALESFORCE_CLIENT_SECRET || '';
   private readonly apiVersion = 'v60.0'; // Latest stable API version
-  private static hasLoggedInit = false;
-
   constructor() {
-    // Only log initialization once to avoid spam during build
-    if (!SalesforceService.hasLoggedInit) {
-      logger.info('Salesforce service initializing', {
-        isSandbox: this.isSandbox,
-        hasClientId: !!this.clientId,
-        clientIdLength: this.clientId.length,
-        clientIdPrefix: this.clientId.substring(0, 10) + '...',
-        hasClientSecret: !!this.clientSecret,
-        clientSecretLength: this.clientSecret.length,
-        authUrl: this.authUrl,
-        apiVersion: this.apiVersion,
-      });
-
-      if (!this.clientId || !this.clientSecret) {
-        logger.warn('Salesforce credentials not configured', {
-          missingClientId: !this.clientId,
-          missingClientSecret: !this.clientSecret,
-        });
-      }
-
-      if (this.isSandbox) {
-        logger.info('Salesforce service initialized in SANDBOX mode');
-      }
-
-      SalesforceService.hasLoggedInit = true;
-    }
+    // No initialization logging needed
   }
 
   /**
-   * Generate OAuth authorization URL
+   * Generate OAuth authorization URL with PKCE
    */
-  getAuthorizationUrl(state: string, redirectUri: string): string {
-    logger.info('Generating Salesforce authorization URL', {
+  async getAuthorizationUrl(state: string, redirectUri: string): Promise<string> {
+    logger.debug('Generating Salesforce authorization URL with PKCE', {
       redirectUri,
       stateLength: state.length,
       hasClientId: !!this.clientId,
     });
+
+    // Generate PKCE pair
+    const { codeVerifier, codeChallenge } = generatePKCEPair();
+
+    logger.info('PKCE generated', {
+      verifierLength: codeVerifier.length,
+      challengeLength: codeChallenge.length,
+      verifierPrefix: codeVerifier.substring(0, 20) + '...',
+      challengePrefix: codeChallenge.substring(0, 20) + '...',
+      state: state.substring(0, 50) + '...',
+    });
+
+    // Store the verifier associated with the state
+    try {
+      await storePKCEVerifier(state, codeVerifier);
+      logger.info('PKCE verifier stored with state successfully');
+    } catch (error) {
+      logger.error('Failed to store PKCE verifier', {
+        error,
+        state: state.substring(0, 50) + '...',
+      });
+      throw new Error('Failed to store PKCE verifier');
+    }
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -79,14 +81,16 @@ export class SalesforceService implements ICrmProvider {
       redirect_uri: redirectUri,
       state,
       scope: 'api refresh_token offline_access',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      prompt: 'login consent', // Forces login and approval
     });
 
     const authUrl = `${this.authUrl}/services/oauth2/authorize?${params.toString()}`;
 
-    logger.info('Generated authorization URL', {
-      authUrl,
-      paramsClientId: params.get('client_id'),
-      paramsRedirectUri: params.get('redirect_uri'),
+    logger.debug('Generated authorization URL with PKCE', {
+      authUrlLength: authUrl.length,
+      hasCodeChallenge: !!params.get('code_challenge'),
     });
 
     return authUrl;
@@ -95,19 +99,62 @@ export class SalesforceService implements ICrmProvider {
   /**
    * Exchange authorization code for access tokens
    */
-  async exchangeAuthCode(code: string, redirectUri: string): Promise<OAuthTokens> {
+  async exchangeAuthCode(code: string, redirectUri: string, state?: string): Promise<OAuthTokens> {
+    logger.info('Salesforce token exchange starting', {
+      codeLength: code.length,
+      codePrefix: code.substring(0, 20) + '...',
+      redirectUri,
+      hasState: !!state,
+      stateLength: state?.length,
+      authUrl: this.authUrl,
+      clientIdPrefix: this.clientId.substring(0, 10) + '...',
+    });
+
+    // Get the code verifier from the state
+    let codeVerifier: string | undefined;
+    if (state) {
+      codeVerifier = await getPKCEVerifier(state);
+      logger.info('PKCE verifier lookup', {
+        hasVerifier: !!codeVerifier,
+        verifierLength: codeVerifier?.length,
+        state: state.substring(0, 50) + '...',
+      });
+      // Don't delete the verifier yet - wait until after successful token exchange
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      redirect_uri: redirectUri,
+    });
+
+    // Add code verifier if available (PKCE)
+    if (codeVerifier) {
+      params.append('code_verifier', codeVerifier);
+      logger.info('Added PKCE code_verifier to token request');
+    } else {
+      logger.warn('No PKCE code_verifier found - this will likely fail!');
+    }
+
+    logger.info('Salesforce token exchange request', {
+      tokenUrl: `${this.authUrl}/services/oauth2/token`,
+      params: {
+        grant_type: params.get('grant_type'),
+        client_id: params.get('client_id')?.substring(0, 10) + '...',
+        redirect_uri: params.get('redirect_uri'),
+        has_code_verifier: params.has('code_verifier'),
+        code_length: params.get('code')?.length,
+      },
+    });
+
     const response = await fetch(`${this.authUrl}/services/oauth2/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        redirect_uri: redirectUri,
-      }),
+      body: params,
     });
 
     if (!response.ok) {
@@ -117,6 +164,12 @@ export class SalesforceService implements ICrmProvider {
     }
 
     const data: SalesforceTokenResponse = await response.json();
+
+    // Now that token exchange was successful, clean up the PKCE verifier
+    if (state && codeVerifier) {
+      await deletePKCEVerifier(state);
+      logger.info('PKCE verifier cleaned up after successful token exchange');
+    }
 
     return {
       accessToken: data.access_token,

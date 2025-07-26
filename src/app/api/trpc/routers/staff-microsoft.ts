@@ -16,18 +16,7 @@ const MICROSOFT_CLIENT_SECRET = env.MICROSOFT_CLIENT_SECRET;
 // Use single redirect URI for all Microsoft OAuth (staff only)
 const MICROSOFT_REDIRECT_URI = env.MICROSOFT_REDIRECT_URI; // e.g., https://app.givance.ai/settings/microsoft/callback
 
-// Log configuration for debugging
-logger.info('Microsoft OAuth Configuration (Staff):', {
-  clientId: MICROSOFT_CLIENT_ID ? 'Set' : 'Missing',
-  clientSecret: MICROSOFT_CLIENT_SECRET ? 'Set' : 'Missing',
-  redirectUri: MICROSOFT_REDIRECT_URI,
-});
-
-if (!MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
-  logger.error(
-    'Missing Microsoft OAuth credentials in environment variables. Staff Microsoft integration will not work.'
-  );
-}
+// No initialization logging needed
 
 export const staffMicrosoftRouter = router({
   /**

@@ -5,4 +5,4 @@ export * from './crm-manager.service';
 
 // Singleton instance of CRM manager
 import { CrmManagerService } from './crm-manager.service';
-export const crmManager = new CrmManagerService();
+export const crmManager = CrmManagerService.getInstance();

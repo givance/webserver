@@ -12,11 +12,21 @@ import { logger } from '@/app/lib/logger';
  * CRM Manager service that handles multiple CRM providers
  */
 export class CrmManagerService {
+  private static instance: CrmManagerService;
+  private static blackbaudProvider: BlackbaudService;
+  private static salesforceProvider: SalesforceService;
   private providers: Map<string, ICrmProvider> = new Map();
   private initialized = false;
 
-  constructor() {
+  private constructor() {
     this.initialize();
+  }
+
+  static getInstance(): CrmManagerService {
+    if (!CrmManagerService.instance) {
+      CrmManagerService.instance = new CrmManagerService();
+    }
+    return CrmManagerService.instance;
   }
 
   private initialize() {
@@ -24,9 +34,17 @@ export class CrmManagerService {
       return;
     }
 
+    // Create providers only once using static instances
+    if (!CrmManagerService.blackbaudProvider) {
+      CrmManagerService.blackbaudProvider = new BlackbaudService();
+    }
+    if (!CrmManagerService.salesforceProvider) {
+      CrmManagerService.salesforceProvider = new SalesforceService();
+    }
+
     // Register all available providers
-    this.registerProvider(new BlackbaudService());
-    this.registerProvider(new SalesforceService());
+    this.registerProvider(CrmManagerService.blackbaudProvider);
+    this.registerProvider(CrmManagerService.salesforceProvider);
     // Future providers can be registered here
     // this.registerProvider(new HubspotService());
 
@@ -38,10 +56,6 @@ export class CrmManagerService {
    */
   private registerProvider(provider: ICrmProvider): void {
     this.providers.set(provider.name, provider);
-    // Only log in development to avoid spam during build
-    if (process.env.NODE_ENV === 'development') {
-      logger.info(`Registered CRM provider: ${provider.displayName}`);
-    }
   }
 
   /**
@@ -122,9 +136,14 @@ export class CrmManagerService {
   /**
    * Generate OAuth URL for a provider
    */
-  getAuthorizationUrl(providerName: string, state: string, redirectUri: string): string {
+  async getAuthorizationUrl(
+    providerName: string,
+    state: string,
+    redirectUri: string
+  ): Promise<string> {
     const provider = this.getProvider(providerName);
-    return provider.getAuthorizationUrl(state, redirectUri);
+    const result = await provider.getAuthorizationUrl(state, redirectUri);
+    return result;
   }
 
   /**
@@ -133,9 +152,10 @@ export class CrmManagerService {
   async handleOAuthCallback(
     providerName: string,
     code: string,
-    redirectUri: string
+    redirectUri: string,
+    state?: string
   ): Promise<OAuthTokens> {
     const provider = this.getProvider(providerName);
-    return await provider.exchangeAuthCode(code, redirectUri);
+    return await provider.exchangeAuthCode(code, redirectUri, state);
   }
 }

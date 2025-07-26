@@ -12,6 +12,7 @@ export default function IntegrationCallbackPage() {
   const params = useParams();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasProcessed, setHasProcessed] = useState(false);
 
   const provider = params.provider as string;
   const code = searchParams.get('code');
@@ -32,26 +33,34 @@ export default function IntegrationCallbackPage() {
   });
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (hasProcessed) {
+      return;
+    }
+
     if (errorParam) {
       setError(errorDescription || 'Authorization failed');
       setIsProcessing(false);
       toast.error(errorDescription || 'Authorization failed');
+      setHasProcessed(true);
       return;
     }
 
     if (!code || !state || !provider) {
       setError('Missing required parameters');
       setIsProcessing(false);
+      setHasProcessed(true);
       return;
     }
 
-    // Handle the OAuth callback
+    // Handle the OAuth callback only once
+    setHasProcessed(true);
     handleCallbackMutation.mutate({
       provider,
       code,
       state,
     });
-  }, [code, state, provider, errorParam, errorDescription, handleCallbackMutation]);
+  }, [code, state, provider, errorParam, errorDescription]); // Removed handleCallbackMutation from dependencies
 
   return (
     <>

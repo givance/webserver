@@ -470,6 +470,13 @@
       "when": 1753157240353,
       "tag": "0066_tranquil_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1753551868256,
+      "tag": "0067_uneven_cobalt_man",
+      "breakpoints": true
     }
   ]
 }
