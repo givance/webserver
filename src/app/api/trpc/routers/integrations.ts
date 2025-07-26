@@ -418,11 +418,15 @@ export const integrationsRouter = router({
         logger.info('CRM sync completed successfully', {
           organizationId: ctx.auth.user.organizationId,
           provider: input.provider,
+          donorsTotal: result.donors.total,
           donorsCreated: result.donors.created,
           donorsUpdated: result.donors.updated,
+          donorsUnchanged: result.donors.unchanged,
           donorsFailed: result.donors.failed,
+          donationsTotal: result.donations.total,
           donationsCreated: result.donations.created,
           donationsUpdated: result.donations.updated,
+          donationsUnchanged: result.donations.unchanged,
           donationsFailed: result.donations.failed,
           totalTime: result.totalTime,
         });

@@ -20,8 +20,8 @@ export class CrmSyncService {
   ): Promise<CrmSyncResult> {
     const startTime = Date.now();
     const result: CrmSyncResult = {
-      donors: { created: 0, updated: 0, failed: 0, errors: [] },
-      donations: { created: 0, updated: 0, failed: 0, errors: [] },
+      donors: { total: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] },
+      donations: { total: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] },
       totalTime: 0,
     };
 
@@ -99,7 +99,17 @@ export class CrmSyncService {
     accessToken: string,
     metadata: Record<string, any>
   ): Promise<CrmSyncResult['donors']> {
-    const result = { created: 0, updated: 0, failed: 0, errors: [] as any[] };
+    const result = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: 0,
+      errors: [] as any[],
+      createdDonors: [] as Array<{ externalId: string; displayName: string }>,
+      updatedDonors: [] as Array<{ externalId: string; displayName: string }>,
+      unchangedDonors: [] as Array<{ externalId: string; displayName: string }>,
+    };
     let hasMore = true;
     let pageToken: string | undefined;
     let pageNumber = 0;
@@ -150,17 +160,47 @@ export class CrmSyncService {
         });
         console.log('========== END OF DONORS DATA ==========\n');
 
+        // Track total donors processed
+        result.total += response.data.length;
+
         for (const crmDonor of response.data) {
           try {
-            await this.upsertDonor(organizationId, crmDonor);
-            result.updated++; // We'll count both creates and updates as updates
+            const operation = await this.upsertDonor(organizationId, crmDonor);
+            const donorInfo = {
+              externalId: crmDonor.externalId,
+              displayName: crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`,
+            };
+
+            if (operation === 'created') {
+              result.created++;
+              // Track first 100 created donors
+              if (result.createdDonors.length < 100) {
+                result.createdDonors.push(donorInfo);
+              }
+            } else if (operation === 'updated') {
+              result.updated++;
+              // Track first 100 updated donors
+              if (result.updatedDonors.length < 100) {
+                result.updatedDonors.push(donorInfo);
+              }
+            } else if (operation === 'unchanged') {
+              result.unchanged++;
+              // Track first 100 unchanged donors
+              if (result.unchangedDonors.length < 100) {
+                result.unchangedDonors.push(donorInfo);
+              }
+            }
           } catch (error) {
             result.failed++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
             result.errors.push({
               externalId: crmDonor.externalId,
-              error: error instanceof Error ? error.message : 'Unknown error',
+              error: errorMessage,
             });
-            logger.error('Failed to sync donor', { error, externalId: crmDonor.externalId });
+            logger.error('Failed to sync donor', {
+              error: errorMessage,
+              externalId: crmDonor.externalId,
+            });
           }
         }
 
@@ -190,7 +230,17 @@ export class CrmSyncService {
     accessToken: string,
     metadata: Record<string, any>
   ): Promise<CrmSyncResult['donations']> {
-    const result = { created: 0, updated: 0, failed: 0, errors: [] as any[] };
+    const result = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: 0,
+      errors: [] as any[],
+      createdDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+      updatedDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+      unchangedDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+    };
     let hasMore = true;
     let pageToken: string | undefined;
     let pageNumber = 0;
@@ -243,17 +293,53 @@ export class CrmSyncService {
         });
         console.log('========== END OF DONATIONS DATA ==========\n');
 
+        // Track total donations processed
+        result.total += response.data.length;
+
         for (const crmDonation of response.data) {
           try {
-            await this.upsertDonation(organizationId, crmDonation, defaultProject.id);
-            result.updated++;
+            const operation = await this.upsertDonation(
+              organizationId,
+              crmDonation,
+              defaultProject.id
+            );
+            const donationInfo = {
+              externalId: crmDonation.externalId,
+              amount: crmDonation.amount,
+              date: crmDonation.date,
+            };
+
+            if (operation === 'created') {
+              result.created++;
+              // Track first 100 created donations
+              if (result.createdDonations.length < 100) {
+                result.createdDonations.push(donationInfo);
+              }
+            } else if (operation === 'updated') {
+              result.updated++;
+              // Track first 100 updated donations
+              if (result.updatedDonations.length < 100) {
+                result.updatedDonations.push(donationInfo);
+              }
+            } else if (operation === 'unchanged') {
+              result.unchanged++;
+              // Track first 100 unchanged donations
+              if (result.unchangedDonations.length < 100) {
+                result.unchangedDonations.push(donationInfo);
+              }
+            }
           } catch (error) {
             result.failed++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
             result.errors.push({
               externalId: crmDonation.externalId,
-              error: error instanceof Error ? error.message : 'Unknown error',
+              error: errorMessage,
             });
-            logger.error('Failed to sync donation', { error, externalId: crmDonation.externalId });
+            logger.error('Failed to sync donation', {
+              error: errorMessage,
+              externalId: crmDonation.externalId,
+              donorExternalId: crmDonation.donorExternalId,
+            });
           }
         }
 
@@ -263,6 +349,31 @@ export class CrmSyncService {
         logger.error('Failed to fetch donations page', { error, pageToken });
         throw error;
       }
+    }
+
+    // Extract unique missing donor IDs from errors
+    const missingDonorErrors = result.errors.filter((e) => e.error.includes('Donor not found'));
+    const uniqueMissingDonors = [
+      ...new Set(
+        missingDonorErrors
+          .map((e) => {
+            const match = e.error.match(/Donor not found for external ID: ([^ ]+)/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean)
+      ),
+    ];
+
+    if (uniqueMissingDonors.length > 0) {
+      logger.warn(
+        `Donation sync completed with ${uniqueMissingDonors.length} missing donor references`,
+        {
+          organizationId,
+          provider: this.provider.name,
+          missingDonors: uniqueMissingDonors.slice(0, 10), // Log first 10
+          totalMissingDonors: uniqueMissingDonors.length,
+        }
+      );
     }
 
     logger.info(`Completed donation sync from ${this.provider.name}`, {
@@ -277,47 +388,87 @@ export class CrmSyncService {
 
   /**
    * Upsert a donor record
+   * Returns 'created', 'updated', or 'unchanged'
    */
-  private async upsertDonor(organizationId: string, crmDonor: CrmDonor): Promise<void> {
+  private async upsertDonor(
+    organizationId: string,
+    crmDonor: CrmDonor
+  ): Promise<'created' | 'updated' | 'unchanged'> {
     const externalId = `${this.provider.name}_${crmDonor.externalId}`;
+
+    // Log field lengths for debugging
+    logger.debug('Donor field lengths', {
+      externalId: externalId.length,
+      firstName: crmDonor.firstName?.length,
+      lastName: crmDonor.lastName?.length,
+      displayName: crmDonor.displayName?.length,
+      email: crmDonor.email?.length,
+      phone: crmDonor.phone?.length,
+      addressParts: crmDonor.address,
+    });
 
     // Check if donor exists
     const existingDonor = await db.query.donors.findFirst({
       where: and(eq(donors.organizationId, organizationId), eq(donors.externalId, externalId)),
     });
 
+    // Truncate fields to match database constraints
     const donorData = {
       organizationId,
-      externalId,
-      firstName: crmDonor.firstName,
-      lastName: crmDonor.lastName,
-      displayName: crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`,
-      email: crmDonor.email,
-      phone: crmDonor.phone,
+      externalId: externalId.substring(0, 255),
+      firstName: crmDonor.firstName.substring(0, 255),
+      lastName: crmDonor.lastName.substring(0, 255),
+      displayName: (crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`).substring(
+        0,
+        500
+      ),
+      email: crmDonor.email.substring(0, 255),
+      phone: crmDonor.phone?.substring(0, 20),
       address: this.formatAddress(crmDonor.address),
       isCouple: crmDonor.isCouple || false,
-      hisFirstName: crmDonor.hisFirstName,
-      hisLastName: crmDonor.hisLastName,
-      herFirstName: crmDonor.herFirstName,
-      herLastName: crmDonor.herLastName,
+      hisFirstName: crmDonor.hisFirstName?.substring(0, 255),
+      hisLastName: crmDonor.hisLastName?.substring(0, 255),
+      herFirstName: crmDonor.herFirstName?.substring(0, 255),
+      herLastName: crmDonor.herLastName?.substring(0, 255),
       updatedAt: new Date(),
     };
 
     if (existingDonor) {
-      await db.update(donors).set(donorData).where(eq(donors.id, existingDonor.id));
+      // Check if any data has changed
+      const hasChanges =
+        existingDonor.firstName !== donorData.firstName ||
+        existingDonor.lastName !== donorData.lastName ||
+        existingDonor.displayName !== donorData.displayName ||
+        existingDonor.email !== donorData.email ||
+        existingDonor.phone !== donorData.phone ||
+        existingDonor.address !== donorData.address ||
+        existingDonor.isCouple !== donorData.isCouple ||
+        existingDonor.hisFirstName !== donorData.hisFirstName ||
+        existingDonor.hisLastName !== donorData.hisLastName ||
+        existingDonor.herFirstName !== donorData.herFirstName ||
+        existingDonor.herLastName !== donorData.herLastName;
+
+      if (hasChanges) {
+        await db.update(donors).set(donorData).where(eq(donors.id, existingDonor.id));
+        return 'updated';
+      } else {
+        return 'unchanged';
+      }
     } else {
       await db.insert(donors).values(donorData);
+      return 'created';
     }
   }
 
   /**
    * Upsert a donation record
+   * Returns 'created', 'updated', or 'unchanged'
    */
   private async upsertDonation(
     organizationId: string,
     crmDonation: CrmDonation,
     defaultProjectId: number
-  ): Promise<void> {
+  ): Promise<'created' | 'updated' | 'unchanged'> {
     const donorExternalId = `${this.provider.name}_${crmDonation.donorExternalId}`;
     const donationExternalId = `${this.provider.name}_${crmDonation.externalId}`;
 
@@ -327,7 +478,18 @@ export class CrmSyncService {
     });
 
     if (!donor) {
-      throw new Error(`Donor not found for external ID: ${donorExternalId}`);
+      // Log the missing donor reference but don't throw - this allows the sync to continue
+      logger.warn(
+        `Donation ${crmDonation.externalId} references non-existent donor ${donorExternalId}`,
+        {
+          donationExternalId: crmDonation.externalId,
+          donorExternalId: donorExternalId,
+          organizationId,
+        }
+      );
+      throw new Error(
+        `Donor not found for external ID: ${crmDonation.donorExternalId} (full ID: ${donorExternalId})`
+      );
     }
 
     // Check if donation exists
@@ -346,9 +508,23 @@ export class CrmSyncService {
     };
 
     if (existingDonation) {
-      await db.update(donations).set(donationData).where(eq(donations.id, existingDonation.id));
+      // Check if any data has changed
+      const hasChanges =
+        existingDonation.donorId !== donationData.donorId ||
+        existingDonation.projectId !== donationData.projectId ||
+        existingDonation.amount !== donationData.amount ||
+        existingDonation.currency !== donationData.currency ||
+        existingDonation.date.getTime() !== donationData.date.getTime();
+
+      if (hasChanges) {
+        await db.update(donations).set(donationData).where(eq(donations.id, existingDonation.id));
+        return 'updated';
+      } else {
+        return 'unchanged';
+      }
     } else {
       await db.insert(donations).values(donationData);
+      return 'created';
     }
   }
 

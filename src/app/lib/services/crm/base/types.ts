@@ -36,16 +36,28 @@ export interface CrmDonation {
 
 export interface CrmSyncResult {
   donors: {
-    created: number;
-    updated: number;
+    total: number; // Total fetched from Salesforce
+    created: number; // New records created
+    updated: number; // Existing records updated
+    unchanged: number; // Existing records that had no changes
     failed: number;
     errors: Array<{ externalId: string; error: string }>;
+    // Track actual donors in each category
+    createdDonors?: Array<{ externalId: string; displayName: string }>;
+    updatedDonors?: Array<{ externalId: string; displayName: string }>;
+    unchangedDonors?: Array<{ externalId: string; displayName: string }>;
   };
   donations: {
-    created: number;
-    updated: number;
+    total: number; // Total fetched from Salesforce
+    created: number; // New records created
+    updated: number; // Existing records updated
+    unchanged: number; // Existing records that had no changes
     failed: number;
     errors: Array<{ externalId: string; error: string }>;
+    // Track actual donations in each category
+    createdDonations?: Array<{ externalId: string; amount: number; date: Date }>;
+    updatedDonations?: Array<{ externalId: string; amount: number; date: Date }>;
+    unchangedDonations?: Array<{ externalId: string; amount: number; date: Date }>;
   };
   totalTime: number;
 }
