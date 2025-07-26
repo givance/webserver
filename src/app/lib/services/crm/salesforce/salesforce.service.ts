@@ -318,7 +318,7 @@ export class SalesforceService implements ICrmProvider {
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmDonation>> {
     // GiftTransaction - using basic fields until we confirm all field names
-    const giftTransactionSOQL = `SELECT Id, Name, DonorId, CurrentAmount, CreatedDate, LastModifiedDate, IsDeleted
+    const giftTransactionSOQL = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate, LastModifiedDate, IsDeleted
            FROM GiftTransaction 
            WHERE IsDeleted = false 
            ORDER BY CreatedDate DESC 
@@ -475,7 +475,7 @@ export class SalesforceService implements ICrmProvider {
 
       // Now run the actual query with filters
       // Query GiftTransaction object - start with basic fields only
-      const soql = `SELECT Id, Name, DonorId, CurrentAmount
+      const soql = `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate
         FROM GiftTransaction 
         WHERE ${whereClause}
         AND IsDeleted = false 
@@ -497,7 +497,11 @@ export class SalesforceService implements ICrmProvider {
           donorExternalId: String(giftTransaction.DonorId),
           amount: Math.round((Number(giftTransaction.CurrentAmount) || 0) * 100),
           currency: 'USD',
-          date: new Date(),
+          date: giftTransaction.TransactionDate
+            ? new Date(String(giftTransaction.TransactionDate))
+            : giftTransaction.CheckDate
+              ? new Date(String(giftTransaction.CheckDate))
+              : new Date(String(giftTransaction.CreatedDate)),
           designation: String(giftTransaction.Name || 'Gift Transaction'),
           metadata: {
             source: 'salesforce_gift_transaction',
@@ -594,7 +598,7 @@ export class SalesforceService implements ICrmProvider {
         .map((id) => `'${id}'`)
         .join(',');
       const giftQuery = `/query?q=${encodeURIComponent(
-        `SELECT Id, Name, DonorId, CurrentAmount FROM GiftTransaction WHERE DonorId IN (${accountIdList}) AND IsDeleted = false ORDER BY CreatedDate DESC`
+        `SELECT Id, Name, DonorId, CurrentAmount, TransactionDate, CheckDate, CreatedDate FROM GiftTransaction WHERE DonorId IN (${accountIdList}) AND IsDeleted = false ORDER BY CreatedDate DESC`
       )}`;
 
       try {
@@ -602,25 +606,72 @@ export class SalesforceService implements ICrmProvider {
           SalesforceQueryResponse<Record<string, unknown>>
         >(accessToken, giftQuery, metadata);
 
+        // Log first record to debug date issue
+        if (giftResponse.records.length > 0) {
+          const firstGift = giftResponse.records[0];
+          logger.info('📥 RAW Salesforce GiftTransaction Example', {
+            Id: firstGift.Id,
+            Name: firstGift.Name,
+            DonorId: firstGift.DonorId,
+            CurrentAmount: firstGift.CurrentAmount,
+            TransactionDate: firstGift.TransactionDate,
+            CheckDate: firstGift.CheckDate,
+            CreatedDate: firstGift.CreatedDate,
+            allFields: Object.keys(firstGift),
+          });
+        }
+
         // Group donations by DonorId
+        let loggedFirst = false;
         giftResponse.records.forEach((giftTransaction) => {
           const donorId = String(giftTransaction.DonorId);
           if (!donationsByDonorId[donorId]) {
             donationsByDonorId[donorId] = [];
           }
 
-          donationsByDonorId[donorId].push({
+          const transactionDate = giftTransaction.TransactionDate
+            ? new Date(String(giftTransaction.TransactionDate))
+            : null;
+          const checkDate = giftTransaction.CheckDate
+            ? new Date(String(giftTransaction.CheckDate))
+            : null;
+          const createdDate = new Date(String(giftTransaction.CreatedDate));
+          const donationDate = transactionDate || checkDate || createdDate;
+
+          const donation = {
             externalId: String(giftTransaction.Id),
             donorExternalId: donorId,
             amount: Math.round((Number(giftTransaction.CurrentAmount) || 0) * 100),
             currency: 'USD',
-            date: new Date(),
+            date: donationDate,
             designation: String(giftTransaction.Name || 'Gift Transaction'),
             metadata: {
               source: 'salesforce_gift_transaction',
               raw: giftTransaction,
             },
-          });
+          };
+
+          // Log first donation being created
+          if (!loggedFirst) {
+            logger.info('🔄 PROCESSED Donation Object (for DB)', {
+              externalId: donation.externalId,
+              donorExternalId: donation.donorExternalId,
+              amount: donation.amount,
+              currency: donation.currency,
+              date: donation.date.toISOString(),
+              designation: donation.designation,
+              transactionDateRaw: giftTransaction.TransactionDate,
+              checkDateRaw: giftTransaction.CheckDate,
+              createdDateRaw: giftTransaction.CreatedDate,
+              transactionDateParsed: transactionDate?.toISOString() || 'null',
+              checkDateParsed: checkDate?.toISOString() || 'null',
+              createdDateParsed: createdDate.toISOString(),
+              finalDate: donationDate.toISOString(),
+            });
+            loggedFirst = true;
+          }
+
+          donationsByDonorId[donorId].push(donation);
         });
 
         logger.info('🟢 Batch method: Fetched ALL gift transactions', {

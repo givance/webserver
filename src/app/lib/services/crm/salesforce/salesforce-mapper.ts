@@ -103,7 +103,11 @@ export class SalesforceMapper {
     const currentAmount =
       'CurrentAmount' in giftTransaction ? Number(giftTransaction.CurrentAmount) : 0;
     const name = 'Name' in giftTransaction ? String(giftTransaction.Name) : 'Gift Transaction';
+    const transactionDate =
+      'TransactionDate' in giftTransaction ? giftTransaction.TransactionDate : undefined;
     const giftDate = 'GiftDate' in giftTransaction ? giftTransaction.GiftDate : undefined;
+    const checkDate = 'CheckDate' in giftTransaction ? giftTransaction.CheckDate : undefined;
+    const createdDate = 'CreatedDate' in giftTransaction ? giftTransaction.CreatedDate : undefined;
 
     return {
       externalId: id,
@@ -111,7 +115,15 @@ export class SalesforceMapper {
       donorExternalId: donorId,
       amount: Math.round(currentAmount * 100), // Convert to cents
       currency: 'USD',
-      date: giftDate ? new Date(String(giftDate)) : new Date(),
+      date: transactionDate
+        ? new Date(String(transactionDate))
+        : checkDate
+          ? new Date(String(checkDate))
+          : giftDate
+            ? new Date(String(giftDate))
+            : createdDate
+              ? new Date(String(createdDate))
+              : new Date(),
       designation: name,
       metadata: {
         source: 'salesforce_gift_transaction',

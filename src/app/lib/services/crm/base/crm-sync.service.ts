@@ -678,17 +678,35 @@ export class CrmSyncService {
     const toCreate: (typeof donationDataList)[0]['data'][] = [];
     const toUpdate: { id: number; data: (typeof donationDataList)[0]['data'] }[] = [];
 
+    // Debug logging for first few donations
+    let debugCount = 0;
+
     for (const { crmDonation, externalId, data } of donationDataList) {
       const existingDonation = existingDonationMap.get(externalId);
 
       if (existingDonation) {
         // Check if any data has changed
+        const dateChanged = existingDonation.date.getTime() !== data.date.getTime();
         const hasChanges =
           existingDonation.donorId !== data.donorId ||
           existingDonation.projectId !== data.projectId ||
           existingDonation.amount !== data.amount ||
           existingDonation.currency !== data.currency ||
-          existingDonation.date.getTime() !== data.date.getTime();
+          dateChanged;
+
+        // Debug log first few comparisons
+        if (debugCount < 3) {
+          logger.info('🔍 Donation comparison debug', {
+            externalId: crmDonation.externalId,
+            existingDate: existingDonation.date.toISOString(),
+            existingDateTime: existingDonation.date.getTime(),
+            newDate: data.date.toISOString(),
+            newDateTime: data.date.getTime(),
+            dateChanged,
+            hasChanges,
+          });
+          debugCount++;
+        }
 
         if (hasChanges) {
           toUpdate.push({ id: existingDonation.id, data });
@@ -704,11 +722,34 @@ export class CrmSyncService {
 
     // Batch insert new donations
     if (toCreate.length > 0) {
+      // Log first donation being inserted
+      logger.info('💾 DB INSERT - First Donation Example', {
+        externalId: toCreate[0].externalId,
+        donorId: toCreate[0].donorId,
+        projectId: toCreate[0].projectId,
+        amount: toCreate[0].amount,
+        currency: toCreate[0].currency,
+        date: toCreate[0].date.toISOString(),
+        dateTimestamp: toCreate[0].date.getTime(),
+      });
+
       await db.insert(donations).values(toCreate);
     }
 
     // Batch update existing donations
     if (toUpdate.length > 0) {
+      // Log first donation being updated
+      logger.info('💾 DB UPDATE - First Donation Example', {
+        id: toUpdate[0].id,
+        externalId: toUpdate[0].data.externalId,
+        donorId: toUpdate[0].data.donorId,
+        projectId: toUpdate[0].data.projectId,
+        amount: toUpdate[0].data.amount,
+        currency: toUpdate[0].data.currency,
+        date: toUpdate[0].data.date.toISOString(),
+        dateTimestamp: toUpdate[0].data.date.getTime(),
+      });
+
       // For better performance with large updates, use raw SQL with CASE statements
       const CHUNK_SIZE = 500;
 
