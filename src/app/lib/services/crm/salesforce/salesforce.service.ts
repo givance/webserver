@@ -47,12 +47,6 @@ export class SalesforceService implements ICrmProvider {
    * Generate OAuth authorization URL with PKCE
    */
   async getAuthorizationUrl(state: string, redirectUri: string): Promise<string> {
-    logger.debug('Generating Salesforce authorization URL with PKCE', {
-      redirectUri,
-      stateLength: state.length,
-      hasClientId: !!this.clientId,
-    });
-
     // Generate PKCE pair
     const { codeVerifier, codeChallenge } = generatePKCEPair();
 
@@ -79,11 +73,6 @@ export class SalesforceService implements ICrmProvider {
     });
 
     const authUrl = `${this.authUrl}/services/oauth2/authorize?${params.toString()}`;
-
-    logger.debug('Generated authorization URL with PKCE', {
-      authUrlLength: authUrl.length,
-      hasCodeChallenge: !!params.get('code_challenge'),
-    });
 
     return authUrl;
   }
@@ -211,11 +200,10 @@ export class SalesforceService implements ICrmProvider {
 
     const url = `${instanceUrl}/services/data/${this.apiVersion}${endpoint}`;
 
-    logger.debug('Making Salesforce API request', {
+    logger.info('🔵 Salesforce API Request', {
       endpoint,
-      instanceUrl,
-      apiVersion: this.apiVersion,
-      url,
+      method: 'GET',
+      timestamp: new Date().toISOString(),
     });
 
     const response = await fetch(url, {
@@ -237,10 +225,6 @@ export class SalesforceService implements ICrmProvider {
     }
 
     const data = await response.json();
-    logger.debug('Salesforce API request successful', {
-      endpoint,
-      responseSize: JSON.stringify(data).length,
-    });
 
     return data;
   }
@@ -429,6 +413,10 @@ export class SalesforceService implements ICrmProvider {
     donorType: 'Contact' | 'Account',
     metadata?: Record<string, any>
   ): Promise<CrmDonation[]> {
+    logger.warn('🔴 INDIVIDUAL fetchDonorGiftTransactions called - This should NOT be used!', {
+      donorId,
+      donorType,
+    });
     try {
       // First, let's describe the GiftTransaction object to see what fields are available
       const describeQuery = `/sobjects/GiftTransaction/describe`;
@@ -496,13 +484,6 @@ export class SalesforceService implements ICrmProvider {
 
       const query = `/query?q=${encodeURIComponent(soql)}`;
 
-      logger.debug('Gift transactions query', {
-        donorId,
-        donorType,
-        whereClause,
-        soql,
-      });
-
       const response = await this.makeApiRequest<SalesforceQueryResponse<Record<string, unknown>>>(
         accessToken,
         query,
@@ -536,36 +517,150 @@ export class SalesforceService implements ICrmProvider {
 
   /**
    * Enhanced fetch donors with gift transactions
-   * Fetches donors and their associated gift transactions in a more efficient way
+   * Fetches donors and their associated gift transactions using batch queries
    */
   async fetchDonorsWithGiftTransactions(
     accessToken: string,
     params: PaginationParams,
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmDonor & { donations?: CrmDonation[] }>> {
+    logger.info('🟢 Starting BATCH fetchDonorsWithGiftTransactions', {
+      limit: params.limit,
+      pageToken: params.pageToken,
+    });
+
     // First fetch donors as usual
     const donorsResponse = await this.fetchDonors(accessToken, params, metadata);
 
-    // Then for each donor, fetch their gift transactions
+    if (donorsResponse.data.length === 0) {
+      return donorsResponse;
+    }
 
-    const donorsWithDonations = await Promise.all(
-      donorsResponse.data.map(async (donor, index) => {
-        // Determine if this is a Contact or Account based on metadata
-        const donorType = donor.metadata?.source === 'salesforce_contact' ? 'Contact' : 'Account';
+    logger.info('🟢 Batch method: Fetched donors', {
+      donorCount: donorsResponse.data.length,
+      apiCallCount: 1,
+    });
 
-        const donations = await this.fetchDonorGiftTransactions(
-          accessToken,
-          donor.externalId,
-          donorType,
-          metadata
-        );
+    // Separate contacts and accounts
+    const contacts = donorsResponse.data.filter((d) => d.metadata?.source === 'salesforce_contact');
+    const accounts = donorsResponse.data.filter((d) => d.metadata?.source === 'salesforce_account');
 
-        return {
-          ...donor,
-          donations,
-        };
-      })
-    );
+    // For contacts, we need to fetch their AccountIds first
+    const contactAccountMap: Record<string, string> = {};
+    if (contacts.length > 0) {
+      logger.info('🟢 Batch method: Fetching AccountIds for contacts', {
+        contactCount: contacts.length,
+      });
+
+      const contactIds = contacts.map((c) => `'${c.externalId}'`).join(',');
+      const contactQuery = `/query?q=${encodeURIComponent(
+        `SELECT Id, AccountId FROM Contact WHERE Id IN (${contactIds})`
+      )}`;
+
+      try {
+        const contactResponse = await this.makeApiRequest<
+          SalesforceQueryResponse<{ Id: string; AccountId?: string }>
+        >(accessToken, contactQuery, metadata);
+
+        contactResponse.records.forEach((record) => {
+          if (record.AccountId) {
+            contactAccountMap[record.Id] = record.AccountId;
+          }
+        });
+
+        logger.info('🟢 Batch method: Fetched AccountIds', {
+          apiCallCount: 2,
+          accountsFound: Object.keys(contactAccountMap).length,
+        });
+      } catch (error) {
+        logger.error('Failed to fetch contact AccountIds', { error });
+      }
+    }
+
+    // Collect all account IDs (from both direct accounts and contacts with accounts)
+    const accountIds = new Set<string>();
+    accounts.forEach((a) => accountIds.add(a.externalId));
+    Object.values(contactAccountMap).forEach((accountId) => accountIds.add(accountId));
+
+    // Batch fetch all gift transactions for these accounts
+    const donationsByDonorId: Record<string, CrmDonation[]> = {};
+
+    if (accountIds.size > 0) {
+      logger.info('🟢 Batch method: Fetching ALL gift transactions in one query', {
+        accountCount: accountIds.size,
+      });
+
+      const accountIdList = Array.from(accountIds)
+        .map((id) => `'${id}'`)
+        .join(',');
+      const giftQuery = `/query?q=${encodeURIComponent(
+        `SELECT Id, Name, DonorId, CurrentAmount FROM GiftTransaction WHERE DonorId IN (${accountIdList}) AND IsDeleted = false ORDER BY CreatedDate DESC`
+      )}`;
+
+      try {
+        const giftResponse = await this.makeApiRequest<
+          SalesforceQueryResponse<Record<string, unknown>>
+        >(accessToken, giftQuery, metadata);
+
+        // Group donations by DonorId
+        giftResponse.records.forEach((giftTransaction) => {
+          const donorId = String(giftTransaction.DonorId);
+          if (!donationsByDonorId[donorId]) {
+            donationsByDonorId[donorId] = [];
+          }
+
+          donationsByDonorId[donorId].push({
+            externalId: String(giftTransaction.Id),
+            donorExternalId: donorId,
+            amount: Math.round((Number(giftTransaction.CurrentAmount) || 0) * 100),
+            currency: 'USD',
+            date: new Date(),
+            designation: String(giftTransaction.Name || 'Gift Transaction'),
+            metadata: {
+              source: 'salesforce_gift_transaction',
+              raw: giftTransaction,
+            },
+          });
+        });
+
+        logger.info('🟢 Batch method: Fetched ALL gift transactions', {
+          totalApiCalls: contacts.length > 0 ? 3 : 2,
+          giftTransactionCount: giftResponse.records.length,
+          uniqueDonorsWithGifts: Object.keys(donationsByDonorId).length,
+        });
+      } catch (error) {
+        logger.error('Failed to batch fetch gift transactions', { error });
+      }
+    }
+
+    // Map donations back to donors
+    const donorsWithDonations = donorsResponse.data.map((donor) => {
+      let donations: CrmDonation[] = [];
+
+      if (donor.metadata?.source === 'salesforce_contact') {
+        // For contacts, use their AccountId to find donations
+        const accountId = contactAccountMap[donor.externalId];
+        if (accountId && donationsByDonorId[accountId]) {
+          donations = donationsByDonorId[accountId];
+        }
+      } else {
+        // For accounts, use their ID directly
+        if (donationsByDonorId[donor.externalId]) {
+          donations = donationsByDonorId[donor.externalId];
+        }
+      }
+
+      return {
+        ...donor,
+        donations,
+      };
+    });
+
+    logger.info('🟢 BATCH fetchDonorsWithGiftTransactions COMPLETED', {
+      totalDonors: donorsWithDonations.length,
+      totalApiCalls: contacts.length > 0 ? 3 : 2,
+      method: 'BATCH',
+    });
 
     return {
       ...donorsResponse,

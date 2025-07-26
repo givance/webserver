@@ -1,6 +1,6 @@
 import { db } from '@/app/lib/db';
 import { donors, donations, projects, organizationIntegrations } from '@/app/lib/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
 import { CrmDonor, CrmDonation, CrmSyncResult, PaginationParams, PaginatedResponse } from './types';
 import { ICrmProvider } from './crm-provider.interface';
@@ -411,6 +411,119 @@ export class CrmSyncService {
   }
 
   /**
+   * Batch upsert multiple donors
+   * Returns operations for each donor
+   */
+  private async batchUpsertDonors(
+    organizationId: string,
+    crmDonors: CrmDonor[]
+  ): Promise<Map<string, 'created' | 'updated' | 'unchanged'>> {
+    const startTime = Date.now();
+    const results = new Map<string, 'created' | 'updated' | 'unchanged'>();
+
+    if (crmDonors.length === 0) return results;
+
+    // Prepare all donor data
+    const donorDataList = crmDonors.map((crmDonor) => {
+      const externalId = `${this.provider.name}_${crmDonor.externalId}`;
+      return {
+        crmDonor,
+        externalId: externalId.substring(0, 255),
+        data: {
+          organizationId,
+          externalId: externalId.substring(0, 255),
+          firstName: crmDonor.firstName.substring(0, 255),
+          lastName: crmDonor.lastName.substring(0, 255),
+          displayName: (
+            crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`
+          ).substring(0, 500),
+          email: crmDonor.email.substring(0, 255),
+          phone: crmDonor.phone?.substring(0, 20),
+          address: this.formatAddress(crmDonor.address),
+          isCouple: crmDonor.isCouple || false,
+          hisFirstName: crmDonor.hisFirstName?.substring(0, 255),
+          hisLastName: crmDonor.hisLastName?.substring(0, 255),
+          herFirstName: crmDonor.herFirstName?.substring(0, 255),
+          herLastName: crmDonor.herLastName?.substring(0, 255),
+          updatedAt: new Date(),
+        },
+      };
+    });
+
+    // Batch fetch existing donors
+    const externalIds = donorDataList.map((d) => d.externalId);
+    const existingDonors = await db.query.donors.findMany({
+      where: and(
+        eq(donors.organizationId, organizationId),
+        inArray(donors.externalId, externalIds)
+      ),
+    });
+
+    // Create maps for quick lookup
+    const existingDonorMap = new Map(existingDonors.map((d) => [d.externalId, d]));
+
+    // Separate donors into create, update, and unchanged
+    const toCreate: (typeof donorDataList)[0]['data'][] = [];
+    const toUpdate: { id: number; data: (typeof donorDataList)[0]['data'] }[] = [];
+
+    for (const { crmDonor, externalId, data } of donorDataList) {
+      const existingDonor = existingDonorMap.get(externalId);
+
+      if (existingDonor) {
+        // Check if any data has changed
+        const hasChanges =
+          existingDonor.firstName !== data.firstName ||
+          existingDonor.lastName !== data.lastName ||
+          existingDonor.displayName !== data.displayName ||
+          existingDonor.email !== data.email ||
+          existingDonor.phone !== data.phone ||
+          existingDonor.address !== data.address ||
+          existingDonor.isCouple !== data.isCouple ||
+          existingDonor.hisFirstName !== data.hisFirstName ||
+          existingDonor.hisLastName !== data.hisLastName ||
+          existingDonor.herFirstName !== data.herFirstName ||
+          existingDonor.herLastName !== data.herLastName;
+
+        if (hasChanges) {
+          toUpdate.push({ id: existingDonor.id, data });
+          results.set(crmDonor.externalId, 'updated');
+        } else {
+          results.set(crmDonor.externalId, 'unchanged');
+        }
+      } else {
+        toCreate.push(data);
+        results.set(crmDonor.externalId, 'created');
+      }
+    }
+
+    // Batch insert new donors
+    if (toCreate.length > 0) {
+      await db.insert(donors).values(toCreate);
+    }
+
+    // Batch update existing donors
+    if (toUpdate.length > 0) {
+      // Drizzle doesn't have a bulk update, so we'll use a transaction
+      await db.transaction(async (tx) => {
+        await Promise.all(
+          toUpdate.map(({ id, data }) => tx.update(donors).set(data).where(eq(donors.id, id)))
+        );
+      });
+    }
+
+    const elapsed = Date.now() - startTime;
+    logger.info('Batch upserted donors', {
+      total: crmDonors.length,
+      created: toCreate.length,
+      updated: toUpdate.length,
+      unchanged: crmDonors.length - toCreate.length - toUpdate.length,
+      timeMs: elapsed,
+    });
+
+    return results;
+  }
+
+  /**
    * Upsert a donor record
    * Returns 'created', 'updated', or 'unchanged'
    */
@@ -419,17 +532,6 @@ export class CrmSyncService {
     crmDonor: CrmDonor
   ): Promise<'created' | 'updated' | 'unchanged'> {
     const externalId = `${this.provider.name}_${crmDonor.externalId}`;
-
-    // Log field lengths for debugging
-    logger.debug('Donor field lengths', {
-      externalId: externalId.length,
-      firstName: crmDonor.firstName?.length,
-      lastName: crmDonor.lastName?.length,
-      displayName: crmDonor.displayName?.length,
-      email: crmDonor.email?.length,
-      phone: crmDonor.phone?.length,
-      addressParts: crmDonor.address,
-    });
 
     // Check if donor exists
     const existingDonor = await db.query.donors.findFirst({
@@ -482,6 +584,146 @@ export class CrmSyncService {
       await db.insert(donors).values(donorData);
       return 'created';
     }
+  }
+
+  /**
+   * Batch upsert multiple donations
+   * Returns operations for each donation
+   */
+  private async batchUpsertDonations(
+    organizationId: string,
+    crmDonations: Array<CrmDonation & { donorExternalId: string }>,
+    defaultProjectId: number
+  ): Promise<Map<string, 'created' | 'updated' | 'unchanged' | 'failed'>> {
+    const startTime = Date.now();
+    const results = new Map<string, 'created' | 'updated' | 'unchanged' | 'failed'>();
+
+    if (crmDonations.length === 0) return results;
+
+    // Prepare all donation data and collect unique donor external IDs
+    const donorExternalIds = [
+      ...new Set(crmDonations.map((d) => `${this.provider.name}_${d.donorExternalId}`)),
+    ];
+
+    // Batch fetch all donors
+    const donorsMap = new Map(
+      (
+        await db.query.donors.findMany({
+          where: and(
+            eq(donors.organizationId, organizationId),
+            inArray(donors.externalId, donorExternalIds)
+          ),
+        })
+      ).map((d) => [d.externalId, d])
+    );
+
+    // Prepare donation data
+    const donationDataList = crmDonations
+      .map((crmDonation) => {
+        const donorExternalId = `${this.provider.name}_${crmDonation.donorExternalId}`;
+        const donationExternalId = `${this.provider.name}_${crmDonation.externalId}`;
+        const donor = donorsMap.get(donorExternalId);
+
+        if (!donor) {
+          logger.warn(
+            `Donation ${crmDonation.externalId} references non-existent donor ${donorExternalId}`
+          );
+          results.set(crmDonation.externalId, 'failed');
+          return null;
+        }
+
+        return {
+          crmDonation,
+          externalId: donationExternalId.substring(0, 255),
+          data: {
+            externalId: donationExternalId.substring(0, 255),
+            donorId: donor.id,
+            projectId: defaultProjectId,
+            amount: crmDonation.amount,
+            currency: crmDonation.currency || 'USD',
+            date: crmDonation.date,
+            updatedAt: new Date(),
+          },
+        };
+      })
+      .filter((d) => d !== null) as Array<{
+      crmDonation: CrmDonation;
+      externalId: string;
+      data: any;
+    }>;
+
+    if (donationDataList.length === 0) return results;
+
+    // Batch fetch existing donations
+    const donationExternalIds = donationDataList.map((d) => d.externalId);
+    const existingDonations = await db.query.donations.findMany({
+      where: inArray(donations.externalId, donationExternalIds),
+      with: {
+        donor: true,
+      },
+    });
+
+    // Create map for quick lookup (filter by organization)
+    const existingDonationMap = new Map(
+      existingDonations
+        .filter((d) => d.donor && d.donor.organizationId === organizationId)
+        .map((d) => [d.externalId, d])
+    );
+
+    // Separate donations into create, update, and unchanged
+    const toCreate: (typeof donationDataList)[0]['data'][] = [];
+    const toUpdate: { id: number; data: (typeof donationDataList)[0]['data'] }[] = [];
+
+    for (const { crmDonation, externalId, data } of donationDataList) {
+      const existingDonation = existingDonationMap.get(externalId);
+
+      if (existingDonation) {
+        // Check if any data has changed
+        const hasChanges =
+          existingDonation.donorId !== data.donorId ||
+          existingDonation.projectId !== data.projectId ||
+          existingDonation.amount !== data.amount ||
+          existingDonation.currency !== data.currency ||
+          existingDonation.date.getTime() !== data.date.getTime();
+
+        if (hasChanges) {
+          toUpdate.push({ id: existingDonation.id, data });
+          results.set(crmDonation.externalId, 'updated');
+        } else {
+          results.set(crmDonation.externalId, 'unchanged');
+        }
+      } else {
+        toCreate.push(data);
+        results.set(crmDonation.externalId, 'created');
+      }
+    }
+
+    // Batch insert new donations
+    if (toCreate.length > 0) {
+      await db.insert(donations).values(toCreate);
+    }
+
+    // Batch update existing donations
+    if (toUpdate.length > 0) {
+      // Drizzle doesn't have a bulk update, so we'll use a transaction
+      await db.transaction(async (tx) => {
+        await Promise.all(
+          toUpdate.map(({ id, data }) => tx.update(donations).set(data).where(eq(donations.id, id)))
+        );
+      });
+    }
+
+    const elapsed = Date.now() - startTime;
+    logger.info('Batch upserted donations', {
+      total: crmDonations.length,
+      created: toCreate.length,
+      updated: toUpdate.length,
+      unchanged: results.size - toCreate.length - toUpdate.length,
+      failed: crmDonations.length - results.size,
+      timeMs: elapsed,
+    });
+
+    return results;
   }
 
   /**
@@ -670,111 +912,98 @@ export class CrmSyncService {
 
         donorResult.total += response.data.length;
 
-        // Process each donor and their donations
-        for (const donorWithDonations of response.data) {
-          const { donations, ...crmDonor } = donorWithDonations;
+        // Process all donors and donations in batches
+        const batchStartTime = Date.now();
 
-          // First, upsert the donor
-          try {
-            const operation = await this.upsertDonor(organizationId, crmDonor);
-            const donorInfo = {
-              externalId: crmDonor.externalId,
-              displayName: crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`,
+        // Extract donors and all donations
+        const donorsToProcess = response.data.map(({ donations, ...donor }) => donor);
+        const allDonations: Array<CrmDonation & { donorExternalId: string }> = [];
+
+        for (const donorWithDonations of response.data) {
+          if (donorWithDonations.donations) {
+            for (const donation of donorWithDonations.donations) {
+              allDonations.push({
+                ...donation,
+                donorExternalId: donorWithDonations.externalId,
+              });
+            }
+          }
+        }
+
+        // Batch upsert all donors
+        const donorOperations = await this.batchUpsertDonors(organizationId, donorsToProcess);
+
+        // Process donor results
+        for (const donor of donorsToProcess) {
+          const operation = donorOperations.get(donor.externalId);
+          const donorInfo = {
+            externalId: donor.externalId,
+            displayName: donor.displayName || `${donor.firstName} ${donor.lastName}`,
+          };
+
+          if (operation === 'created') {
+            donorResult.created++;
+            if (donorResult.createdDonors.length < 100) {
+              donorResult.createdDonors.push(donorInfo);
+            }
+          } else if (operation === 'updated') {
+            donorResult.updated++;
+            if (donorResult.updatedDonors.length < 100) {
+              donorResult.updatedDonors.push(donorInfo);
+            }
+          } else if (operation === 'unchanged') {
+            donorResult.unchanged++;
+            if (donorResult.unchangedDonors.length < 100) {
+              donorResult.unchangedDonors.push(donorInfo);
+            }
+          }
+        }
+
+        // Batch upsert all donations
+        if (allDonations.length > 0) {
+          donationResult.total += allDonations.length;
+          const donationOperations = await this.batchUpsertDonations(
+            organizationId,
+            allDonations,
+            defaultProject.id
+          );
+
+          // Process donation results
+          for (const donation of allDonations) {
+            const operation = donationOperations.get(donation.externalId);
+            const donationInfo = {
+              externalId: donation.externalId,
+              amount: donation.amount,
+              date: donation.date,
             };
 
             if (operation === 'created') {
-              donorResult.created++;
-              if (donorResult.createdDonors.length < 100) {
-                donorResult.createdDonors.push(donorInfo);
+              donationResult.created++;
+              if (donationResult.createdDonations.length < 100) {
+                donationResult.createdDonations.push(donationInfo);
               }
             } else if (operation === 'updated') {
-              donorResult.updated++;
-              if (donorResult.updatedDonors.length < 100) {
-                donorResult.updatedDonors.push(donorInfo);
+              donationResult.updated++;
+              if (donationResult.updatedDonations.length < 100) {
+                donationResult.updatedDonations.push(donationInfo);
               }
             } else if (operation === 'unchanged') {
-              donorResult.unchanged++;
-              if (donorResult.unchangedDonors.length < 100) {
-                donorResult.unchangedDonors.push(donorInfo);
+              donationResult.unchanged++;
+              if (donationResult.unchangedDonations.length < 100) {
+                donationResult.unchangedDonations.push(donationInfo);
               }
+            } else if (operation === 'failed') {
+              donationResult.failed++;
             }
-
-            // Then, process their donations if any
-            if (donations && donations.length > 0) {
-              donationResult.total += donations.length;
-
-              logger.info(`Processing ${donations.length} gift transactions for donor`, {
-                donorExternalId: crmDonor.externalId,
-                donorName: donorInfo.displayName,
-                totalAmount: donations.reduce((sum, d) => sum + d.amount, 0),
-              });
-
-              for (const donation of donations) {
-                try {
-                  // Ensure the donation references the correct donor
-                  const donationWithCorrectDonor = {
-                    ...donation,
-                    donorExternalId: crmDonor.externalId,
-                  };
-
-                  const donationOperation = await this.upsertDonation(
-                    organizationId,
-                    donationWithCorrectDonor,
-                    defaultProject.id
-                  );
-
-                  const donationInfo = {
-                    externalId: donation.externalId,
-                    amount: donation.amount,
-                    date: donation.date,
-                  };
-
-                  if (donationOperation === 'created') {
-                    donationResult.created++;
-                    if (donationResult.createdDonations.length < 100) {
-                      donationResult.createdDonations.push(donationInfo);
-                    }
-                  } else if (donationOperation === 'updated') {
-                    donationResult.updated++;
-                    if (donationResult.updatedDonations.length < 100) {
-                      donationResult.updatedDonations.push(donationInfo);
-                    }
-                  } else if (donationOperation === 'unchanged') {
-                    donationResult.unchanged++;
-                    if (donationResult.unchangedDonations.length < 100) {
-                      donationResult.unchangedDonations.push(donationInfo);
-                    }
-                  }
-                } catch (error) {
-                  donationResult.failed++;
-                  const errorMessage = error instanceof Error ? error.message : String(error);
-                  donationResult.errors.push({
-                    externalId: donation.externalId,
-                    error: errorMessage,
-                  });
-                  logger.error('Failed to sync donation', {
-                    error: errorMessage,
-                    donationExternalId: donation.externalId,
-                    donorExternalId: crmDonor.externalId,
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            donorResult.failed++;
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            donorResult.errors.push({
-              externalId: crmDonor.externalId,
-              error: errorMessage,
-            });
-            logger.error('Failed to sync donor', {
-              error: errorMessage,
-              externalId: crmDonor.externalId,
-              firstName: crmDonor.firstName,
-              lastName: crmDonor.lastName,
-            });
           }
         }
+
+        const batchElapsed = Date.now() - batchStartTime;
+        logger.info('Processed batch of donors and donations', {
+          donors: donorsToProcess.length,
+          donations: allDonations.length,
+          timeMs: batchElapsed,
+        });
 
         hasMore = response.hasMore;
         pageToken = response.nextPageToken;
