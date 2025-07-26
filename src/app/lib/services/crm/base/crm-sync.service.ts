@@ -1,6 +1,6 @@
 import { db } from '@/app/lib/db';
 import { donors, donations, projects, organizationIntegrations } from '@/app/lib/db/schema';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, isNull, inArray, sql } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
 import { CrmDonor, CrmDonation, CrmSyncResult, PaginationParams, PaginatedResponse } from './types';
 import { ICrmProvider } from './crm-provider.interface';
@@ -503,12 +503,16 @@ export class CrmSyncService {
 
     // Batch update existing donors
     if (toUpdate.length > 0) {
-      // Drizzle doesn't have a bulk update, so we'll use a transaction
-      await db.transaction(async (tx) => {
-        await Promise.all(
-          toUpdate.map(({ id, data }) => tx.update(donors).set(data).where(eq(donors.id, id)))
-        );
-      });
+      // For better performance, update in chunks
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+        const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+        await db.transaction(async (tx) => {
+          await Promise.all(
+            chunk.map(({ id, data }) => tx.update(donors).set(data).where(eq(donors.id, id)))
+          );
+        });
+      }
     }
 
     const elapsed = Date.now() - startTime;
@@ -705,12 +709,34 @@ export class CrmSyncService {
 
     // Batch update existing donations
     if (toUpdate.length > 0) {
-      // Drizzle doesn't have a bulk update, so we'll use a transaction
-      await db.transaction(async (tx) => {
-        await Promise.all(
-          toUpdate.map(({ id, data }) => tx.update(donations).set(data).where(eq(donations.id, id)))
+      // For better performance with large updates, use raw SQL with CASE statements
+      const CHUNK_SIZE = 500;
+
+      for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+        const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+        const ids = chunk.map((u) => u.id);
+
+        // Build SQL CASE statements for each field
+        const donorIdCase = chunk.map((u) => `WHEN ${u.id} THEN ${u.data.donorId}`).join(' ');
+        const projectIdCase = chunk.map((u) => `WHEN ${u.id} THEN ${u.data.projectId}`).join(' ');
+        const amountCase = chunk.map((u) => `WHEN ${u.id} THEN ${u.data.amount}`).join(' ');
+        const currencyCase = chunk.map((u) => `WHEN ${u.id} THEN '${u.data.currency}'`).join(' ');
+        const dateCase = chunk
+          .map((u) => `WHEN ${u.id} THEN '${u.data.date.toISOString()}'::timestamp`)
+          .join(' ');
+
+        // Execute batch update
+        await db.execute(
+          sql`UPDATE donations SET
+            donor_id = CASE id ${sql.raw(donorIdCase)} END,
+            project_id = CASE id ${sql.raw(projectIdCase)} END,
+            amount = CASE id ${sql.raw(amountCase)} END,
+            currency = CASE id ${sql.raw(currencyCase)} END,
+            date = CASE id ${sql.raw(dateCase)} END,
+            updated_at = NOW()
+          WHERE id IN (${sql.raw(ids.join(','))})`
         );
-      });
+      }
     }
 
     const elapsed = Date.now() - startTime;
