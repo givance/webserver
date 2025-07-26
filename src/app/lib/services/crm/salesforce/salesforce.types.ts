@@ -73,28 +73,6 @@ export interface SalesforceAccount {
 }
 
 /**
- * Salesforce Opportunity (Donation)
- */
-export interface SalesforceOpportunity {
-  Id: string;
-  Name: string;
-  AccountId: string;
-  ContactId?: string;
-  Amount: number;
-  CloseDate: string;
-  StageName: string;
-  Type?: string;
-  Description?: string;
-  CampaignId?: string;
-  IsClosed: boolean;
-  IsWon: boolean;
-  Probability: number;
-  CreatedDate: string;
-  LastModifiedDate: string;
-  IsDeleted: boolean;
-}
-
-/**
  * Salesforce error response
  */
 export interface SalesforceError {
@@ -107,3 +85,51 @@ export interface SalesforceError {
  * Salesforce API error array
  */
 export type SalesforceErrorResponse = SalesforceError[];
+
+/**
+ * Salesforce describe field response
+ */
+export interface SalesforceFieldDescription {
+  name: string;
+  type: string;
+  label: string;
+  length?: number;
+  precision?: number;
+  scale?: number;
+  referenceTo?: string[];
+  nillable?: boolean;
+  createable?: boolean;
+  updateable?: boolean;
+}
+
+/**
+ * Salesforce describe object response
+ */
+export interface SalesforceDescribeResponse {
+  name: string;
+  label: string;
+  fields: SalesforceFieldDescription[];
+  createable: boolean;
+  updateable: boolean;
+  deletable: boolean;
+  queryable: boolean;
+}
+
+/**
+ * Salesforce Gift Transaction (Nonprofit Cloud Object)
+ */
+export interface SalesforceGiftTransaction {
+  Id: string;
+  Name: string;
+  DonorId: string; // Reference to Account (the donor)
+  CurrentAmount?: number; // Using CurrentAmount instead of Amount
+  GiftDate?: string; // Using GiftDate instead of TransactionDate
+  Status?: string;
+  GiftType?: string; // Using GiftType instead of Type
+  Description?: string;
+  CampaignId?: string;
+  PaymentMethod?: string;
+  CreatedDate: string;
+  LastModifiedDate: string;
+  IsDeleted: boolean;
+}

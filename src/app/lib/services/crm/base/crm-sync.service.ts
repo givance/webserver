@@ -2,7 +2,7 @@ import { db } from '@/app/lib/db';
 import { donors, donations, projects, organizationIntegrations } from '@/app/lib/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
-import { CrmDonor, CrmDonation, CrmSyncResult } from './types';
+import { CrmDonor, CrmDonation, CrmSyncResult, PaginationParams, PaginatedResponse } from './types';
 import { ICrmProvider } from './crm-provider.interface';
 
 /**
@@ -16,7 +16,8 @@ export class CrmSyncService {
    */
   async syncOrganizationData(
     organizationId: string,
-    integration: typeof organizationIntegrations.$inferSelect
+    integration: typeof organizationIntegrations.$inferSelect,
+    usePerDonorGiftTransactions = false
   ): Promise<CrmSyncResult> {
     const startTime = Date.now();
     const result: CrmSyncResult = {
@@ -36,31 +37,54 @@ export class CrmSyncService {
         })
         .where(eq(organizationIntegrations.id, integration.id));
 
-      // Sync donors first
-      logger.info(`Starting donor sync for organization ${organizationId}`, {
-        organizationId,
-        provider: this.provider.name,
-        integrationId: integration.id,
-      });
-      const donorResult = await this.syncDonors(
-        organizationId,
-        integration.accessToken,
-        integration.metadata as Record<string, any>
-      );
-      result.donors = donorResult;
+      if (usePerDonorGiftTransactions && this.provider.name === 'salesforce') {
+        // Use the new approach: fetch donors with their gift transactions
+        logger.info(
+          `Starting combined donor and gift transaction sync for organization ${organizationId}`,
+          {
+            organizationId,
+            provider: this.provider.name,
+            integrationId: integration.id,
+            approach: 'per-donor-gift-transactions',
+          }
+        );
 
-      // Then sync donations
-      logger.info(`Starting donation sync for organization ${organizationId}`, {
-        organizationId,
-        provider: this.provider.name,
-        integrationId: integration.id,
-      });
-      const donationResult = await this.syncDonations(
-        organizationId,
-        integration.accessToken,
-        integration.metadata as Record<string, any>
-      );
-      result.donations = donationResult;
+        const syncResult = await this.syncDonorsWithGiftTransactions(
+          organizationId,
+          integration.accessToken,
+          integration.metadata as Record<string, any>
+        );
+        result.donors = syncResult.donors;
+        result.donations = syncResult.donations;
+      } else {
+        // Use the original approach: sync donors and donations separately
+        // Sync donors first
+        logger.info(`Starting donor sync for organization ${organizationId}`, {
+          organizationId,
+          provider: this.provider.name,
+          integrationId: integration.id,
+          approach: 'traditional',
+        });
+        const donorResult = await this.syncDonors(
+          organizationId,
+          integration.accessToken,
+          integration.metadata as Record<string, any>
+        );
+        result.donors = donorResult;
+
+        // Then sync donations
+        logger.info(`Starting donation sync for organization ${organizationId}`, {
+          organizationId,
+          provider: this.provider.name,
+          integrationId: integration.id,
+        });
+        const donationResult = await this.syncDonations(
+          organizationId,
+          integration.accessToken,
+          integration.metadata as Record<string, any>
+        );
+        result.donations = donationResult;
+      }
 
       // Update sync status to 'idle' and last sync time
       await db
@@ -571,5 +595,206 @@ export class CrmSyncService {
     ].filter(Boolean);
 
     return parts.length > 0 ? parts.join(', ') : undefined;
+  }
+
+  /**
+   * Sync donors with their gift transactions in a single pass
+   * This approach fetches donors and their donations together
+   */
+  private async syncDonorsWithGiftTransactions(
+    organizationId: string,
+    accessToken: string,
+    metadata: Record<string, any>
+  ): Promise<{ donors: CrmSyncResult['donors']; donations: CrmSyncResult['donations'] }> {
+    const donorResult = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: 0,
+      errors: [] as any[],
+      createdDonors: [] as Array<{ externalId: string; displayName: string }>,
+      updatedDonors: [] as Array<{ externalId: string; displayName: string }>,
+      unchangedDonors: [] as Array<{ externalId: string; displayName: string }>,
+    };
+
+    const donationResult = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      failed: 0,
+      errors: [] as any[],
+      createdDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+      updatedDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+      unchangedDonations: [] as Array<{ externalId: string; amount: number; date: Date }>,
+    };
+
+    // Get or create default project for donations
+    const defaultProject = await this.getOrCreateDefaultProject(organizationId);
+
+    let hasMore = true;
+    let pageToken: string | undefined;
+    let pageNumber = 0;
+
+    // Type guard to check if provider has the new method
+    const providerWithGiftTransactions = this.provider as ICrmProvider & {
+      fetchDonorsWithGiftTransactions: (
+        accessToken: string,
+        params: PaginationParams,
+        metadata?: Record<string, any>
+      ) => Promise<PaginatedResponse<CrmDonor & { donations?: CrmDonation[] }>>;
+    };
+    if (!('fetchDonorsWithGiftTransactions' in this.provider)) {
+      throw new Error(
+        `Provider ${this.provider.name} does not support fetchDonorsWithGiftTransactions`
+      );
+    }
+
+    while (hasMore) {
+      try {
+        const response = await providerWithGiftTransactions.fetchDonorsWithGiftTransactions(
+          accessToken,
+          { limit: 100, pageToken },
+          metadata
+        );
+
+        pageNumber++;
+        logger.info(`Fetched donors with gift transactions page ${pageNumber}`, {
+          organizationId,
+          provider: this.provider.name,
+          pageNumber,
+          donorsInPage: response.data.length,
+          hasMore: response.hasMore,
+        });
+
+        donorResult.total += response.data.length;
+
+        // Process each donor and their donations
+        for (const donorWithDonations of response.data) {
+          const { donations, ...crmDonor } = donorWithDonations;
+
+          // First, upsert the donor
+          try {
+            const operation = await this.upsertDonor(organizationId, crmDonor);
+            const donorInfo = {
+              externalId: crmDonor.externalId,
+              displayName: crmDonor.displayName || `${crmDonor.firstName} ${crmDonor.lastName}`,
+            };
+
+            if (operation === 'created') {
+              donorResult.created++;
+              if (donorResult.createdDonors.length < 100) {
+                donorResult.createdDonors.push(donorInfo);
+              }
+            } else if (operation === 'updated') {
+              donorResult.updated++;
+              if (donorResult.updatedDonors.length < 100) {
+                donorResult.updatedDonors.push(donorInfo);
+              }
+            } else if (operation === 'unchanged') {
+              donorResult.unchanged++;
+              if (donorResult.unchangedDonors.length < 100) {
+                donorResult.unchangedDonors.push(donorInfo);
+              }
+            }
+
+            // Then, process their donations if any
+            if (donations && donations.length > 0) {
+              donationResult.total += donations.length;
+
+              logger.info(`Processing ${donations.length} gift transactions for donor`, {
+                donorExternalId: crmDonor.externalId,
+                donorName: donorInfo.displayName,
+                totalAmount: donations.reduce((sum, d) => sum + d.amount, 0),
+              });
+
+              for (const donation of donations) {
+                try {
+                  // Ensure the donation references the correct donor
+                  const donationWithCorrectDonor = {
+                    ...donation,
+                    donorExternalId: crmDonor.externalId,
+                  };
+
+                  const donationOperation = await this.upsertDonation(
+                    organizationId,
+                    donationWithCorrectDonor,
+                    defaultProject.id
+                  );
+
+                  const donationInfo = {
+                    externalId: donation.externalId,
+                    amount: donation.amount,
+                    date: donation.date,
+                  };
+
+                  if (donationOperation === 'created') {
+                    donationResult.created++;
+                    if (donationResult.createdDonations.length < 100) {
+                      donationResult.createdDonations.push(donationInfo);
+                    }
+                  } else if (donationOperation === 'updated') {
+                    donationResult.updated++;
+                    if (donationResult.updatedDonations.length < 100) {
+                      donationResult.updatedDonations.push(donationInfo);
+                    }
+                  } else if (donationOperation === 'unchanged') {
+                    donationResult.unchanged++;
+                    if (donationResult.unchangedDonations.length < 100) {
+                      donationResult.unchangedDonations.push(donationInfo);
+                    }
+                  }
+                } catch (error) {
+                  donationResult.failed++;
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  donationResult.errors.push({
+                    externalId: donation.externalId,
+                    error: errorMessage,
+                  });
+                  logger.error('Failed to sync donation', {
+                    error: errorMessage,
+                    donationExternalId: donation.externalId,
+                    donorExternalId: crmDonor.externalId,
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            donorResult.failed++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            donorResult.errors.push({
+              externalId: crmDonor.externalId,
+              error: errorMessage,
+            });
+            logger.error('Failed to sync donor', {
+              error: errorMessage,
+              externalId: crmDonor.externalId,
+              firstName: crmDonor.firstName,
+              lastName: crmDonor.lastName,
+            });
+          }
+        }
+
+        hasMore = response.hasMore;
+        pageToken = response.nextPageToken;
+      } catch (error) {
+        logger.error('Failed to fetch donors with gift transactions page', { error, pageToken });
+        throw error;
+      }
+    }
+
+    logger.info('Completed sync with gift transactions approach', {
+      organizationId,
+      provider: this.provider.name,
+      totalPages: pageNumber,
+      donorResult,
+      donationResult,
+    });
+
+    return {
+      donors: donorResult,
+      donations: donationResult,
+    };
   }
 }

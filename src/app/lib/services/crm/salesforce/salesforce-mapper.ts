@@ -1,5 +1,9 @@
 import { CrmDonor, CrmDonation } from '../base/types';
-import { SalesforceContact, SalesforceAccount, SalesforceOpportunity } from './salesforce.types';
+import {
+  SalesforceContact,
+  SalesforceAccount,
+  SalesforceGiftTransaction,
+} from './salesforce.types';
 import { logger } from '@/app/lib/logger';
 
 /**
@@ -88,36 +92,31 @@ export class SalesforceMapper {
   }
 
   /**
-   * Map Salesforce Opportunity to CRM Donation
+   * Map Salesforce Gift Transaction to CRM Donation
    */
-  static mapOpportunity(opportunity: SalesforceOpportunity): CrmDonation {
-    // Only map closed-won opportunities as actual donations
-    if (!opportunity.IsWon) {
-      logger.debug('Skipping non-won opportunity', {
-        id: opportunity.Id,
-        stageName: opportunity.StageName,
-      });
-    }
+  static mapGiftTransaction(
+    giftTransaction: SalesforceGiftTransaction | Record<string, unknown>
+  ): CrmDonation {
+    // Handle both typed and untyped gift transaction data
+    const id = 'Id' in giftTransaction ? String(giftTransaction.Id) : '';
+    const donorId = 'DonorId' in giftTransaction ? String(giftTransaction.DonorId) : '';
+    const currentAmount =
+      'CurrentAmount' in giftTransaction ? Number(giftTransaction.CurrentAmount) : 0;
+    const name = 'Name' in giftTransaction ? String(giftTransaction.Name) : 'Gift Transaction';
+    const giftDate = 'GiftDate' in giftTransaction ? giftTransaction.GiftDate : undefined;
 
     return {
-      externalId: opportunity.Id,
-      // Use either ContactId or AccountId as the donor reference
-      donorExternalId: opportunity.ContactId || opportunity.AccountId,
-      amount: Math.round(opportunity.Amount * 100), // Convert to cents
-      currency: 'USD', // Salesforce doesn't provide currency in standard opportunity
-      date: new Date(opportunity.CloseDate),
-      designation: opportunity.Name, // Use opportunity name as designation
+      externalId: id,
+      // GiftTransaction only has DonorId (Account reference)
+      donorExternalId: donorId,
+      amount: Math.round(currentAmount * 100), // Convert to cents
+      currency: 'USD',
+      date: giftDate ? new Date(String(giftDate)) : new Date(),
+      designation: name,
       metadata: {
-        source: 'salesforce_opportunity',
-        accountId: opportunity.AccountId,
-        contactId: opportunity.ContactId,
-        stageName: opportunity.StageName,
-        type: opportunity.Type,
-        campaignId: opportunity.CampaignId,
-        probability: opportunity.Probability,
-        isWon: opportunity.IsWon,
-        createdDate: opportunity.CreatedDate,
-        lastModifiedDate: opportunity.LastModifiedDate,
+        source: 'salesforce_gift_transaction',
+        donorId: donorId,
+        raw: giftTransaction,
       },
     };
   }

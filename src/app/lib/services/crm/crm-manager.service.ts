@@ -95,7 +95,11 @@ export class CrmManagerService {
   /**
    * Sync data for a specific organization and provider
    */
-  async syncData(organizationId: string, providerName: string) {
+  async syncData(
+    organizationId: string,
+    providerName: string,
+    usePerDonorGiftTransactions = false
+  ) {
     const provider = this.getProvider(providerName);
     const integration = await this.getIntegration(organizationId, providerName);
 
@@ -130,7 +134,11 @@ export class CrmManagerService {
     }
 
     const syncService = new CrmSyncService(provider);
-    return await syncService.syncOrganizationData(organizationId, integration);
+    return await syncService.syncOrganizationData(
+      organizationId,
+      integration,
+      usePerDonorGiftTransactions
+    );
   }
 
   /**

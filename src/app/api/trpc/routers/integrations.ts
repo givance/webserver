@@ -370,6 +370,7 @@ export const integrationsRouter = router({
     .input(
       z.object({
         provider: z.string(),
+        usePerDonorGiftTransactions: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -413,7 +414,11 @@ export const integrationsRouter = router({
         });
 
         // Sync data directly using the CRM manager
-        const result = await crmManager.syncData(ctx.auth.user.organizationId, input.provider);
+        const result = await crmManager.syncData(
+          ctx.auth.user.organizationId,
+          input.provider,
+          input.usePerDonorGiftTransactions
+        );
 
         logger.info('CRM sync completed successfully', {
           organizationId: ctx.auth.user.organizationId,

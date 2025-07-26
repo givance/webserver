@@ -73,7 +73,10 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
 
   const handleSync = () => {
     syncMutation.mutate(
-      { provider: provider.name },
+      {
+        provider: provider.name,
+        usePerDonorGiftTransactions: provider.name === 'salesforce', // Always use for Salesforce
+      },
       {
         onSuccess: (data) => {
           if (data.result) {

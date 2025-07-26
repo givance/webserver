@@ -9,10 +9,11 @@ import {
 import {
   SalesforceContact,
   SalesforceAccount,
-  SalesforceOpportunity,
+  SalesforceGiftTransaction,
   SalesforceQueryResponse,
   SalesforceTokenResponse,
   SalesforceErrorResponse,
+  SalesforceDescribeResponse,
 } from './salesforce.types';
 import { SalesforceMapper } from './salesforce-mapper';
 import { env } from '@/app/lib/env';
@@ -55,18 +56,9 @@ export class SalesforceService implements ICrmProvider {
     // Generate PKCE pair
     const { codeVerifier, codeChallenge } = generatePKCEPair();
 
-    logger.info('PKCE generated', {
-      verifierLength: codeVerifier.length,
-      challengeLength: codeChallenge.length,
-      verifierPrefix: codeVerifier.substring(0, 20) + '...',
-      challengePrefix: codeChallenge.substring(0, 20) + '...',
-      state: state.substring(0, 50) + '...',
-    });
-
     // Store the verifier associated with the state
     try {
       await storePKCEVerifier(state, codeVerifier);
-      logger.info('PKCE verifier stored with state successfully');
     } catch (error) {
       logger.error('Failed to store PKCE verifier', {
         error,
@@ -100,25 +92,10 @@ export class SalesforceService implements ICrmProvider {
    * Exchange authorization code for access tokens
    */
   async exchangeAuthCode(code: string, redirectUri: string, state?: string): Promise<OAuthTokens> {
-    logger.info('Salesforce token exchange starting', {
-      codeLength: code.length,
-      codePrefix: code.substring(0, 20) + '...',
-      redirectUri,
-      hasState: !!state,
-      stateLength: state?.length,
-      authUrl: this.authUrl,
-      clientIdPrefix: this.clientId.substring(0, 10) + '...',
-    });
-
     // Get the code verifier from the state
     let codeVerifier: string | undefined;
     if (state) {
       codeVerifier = await getPKCEVerifier(state);
-      logger.info('PKCE verifier lookup', {
-        hasVerifier: !!codeVerifier,
-        verifierLength: codeVerifier?.length,
-        state: state.substring(0, 50) + '...',
-      });
       // Don't delete the verifier yet - wait until after successful token exchange
     }
 
@@ -133,21 +110,9 @@ export class SalesforceService implements ICrmProvider {
     // Add code verifier if available (PKCE)
     if (codeVerifier) {
       params.append('code_verifier', codeVerifier);
-      logger.info('Added PKCE code_verifier to token request');
     } else {
       logger.warn('No PKCE code_verifier found - this will likely fail!');
     }
-
-    logger.info('Salesforce token exchange request', {
-      tokenUrl: `${this.authUrl}/services/oauth2/token`,
-      params: {
-        grant_type: params.get('grant_type'),
-        client_id: params.get('client_id')?.substring(0, 10) + '...',
-        redirect_uri: params.get('redirect_uri'),
-        has_code_verifier: params.has('code_verifier'),
-        code_length: params.get('code')?.length,
-      },
-    });
 
     const response = await fetch(`${this.authUrl}/services/oauth2/token`, {
       method: 'POST',
@@ -168,7 +133,6 @@ export class SalesforceService implements ICrmProvider {
     // Now that token exchange was successful, clean up the PKCE verifier
     if (state && codeVerifier) {
       await deletePKCEVerifier(state);
-      logger.info('PKCE verifier cleaned up after successful token exchange');
     }
 
     return {
@@ -306,11 +270,6 @@ export class SalesforceService implements ICrmProvider {
       ? `/query/${params.pageToken}`
       : `/query?q=${encodeURIComponent(contactSOQL)}`;
 
-    logger.info('Fetching Salesforce contacts', {
-      soql: params.pageToken ? `Continuing from page token: ${params.pageToken}` : contactSOQL,
-      limit: params.limit,
-    });
-
     try {
       const contactResponse = await this.makeApiRequest<SalesforceQueryResponse<SalesforceContact>>(
         accessToken,
@@ -367,39 +326,31 @@ export class SalesforceService implements ICrmProvider {
   }
 
   /**
-   * Fetch donations (Opportunities) from Salesforce
+   * Fetch donations (GiftTransactions) from Salesforce
    */
   async fetchDonations(
     accessToken: string,
     params: PaginationParams,
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmDonation>> {
-    const opportunitySOQL = `SELECT Id, Name, AccountId, ContactId, Amount, CloseDate, StageName, Type,
-           Description, CampaignId, IsClosed, IsWon, Probability, CreatedDate, LastModifiedDate, IsDeleted
-           FROM Opportunity 
+    // GiftTransaction - using basic fields until we confirm all field names
+    const giftTransactionSOQL = `SELECT Id, Name, DonorId, CurrentAmount, CreatedDate, LastModifiedDate, IsDeleted
+           FROM GiftTransaction 
            WHERE IsDeleted = false 
-           AND IsWon = true
-           ORDER BY CloseDate DESC 
+           ORDER BY CreatedDate DESC 
            LIMIT ${params.limit}`;
 
     const query = params.pageToken
       ? `/query/${params.pageToken}`
-      : `/query?q=${encodeURIComponent(opportunitySOQL)}`;
-
-    logger.info('Fetching Salesforce opportunities (donations)', {
-      soql: params.pageToken ? `Continuing from page token: ${params.pageToken}` : opportunitySOQL,
-      limit: params.limit,
-    });
+      : `/query?q=${encodeURIComponent(giftTransactionSOQL)}`;
 
     try {
-      const response = await this.makeApiRequest<SalesforceQueryResponse<SalesforceOpportunity>>(
-        accessToken,
-        query,
-        metadata
-      );
+      const response = await this.makeApiRequest<
+        SalesforceQueryResponse<SalesforceGiftTransaction>
+      >(accessToken, query, metadata);
 
-      const donations = response.records.map((opportunity) =>
-        SalesforceMapper.mapOpportunity(opportunity)
+      const donations = response.records.map((giftTransaction) =>
+        SalesforceMapper.mapGiftTransaction(giftTransaction)
       );
 
       return {
@@ -456,15 +407,169 @@ export class SalesforceService implements ICrmProvider {
     metadata?: Record<string, any>
   ): Promise<CrmDonation | null> {
     try {
-      const opportunity = await this.makeApiRequest<SalesforceOpportunity>(
+      const giftTransaction = await this.makeApiRequest<SalesforceGiftTransaction>(
         accessToken,
-        `/sobjects/Opportunity/${externalId}`,
+        `/sobjects/GiftTransaction/${externalId}`,
         metadata
       );
-      return SalesforceMapper.mapOpportunity(opportunity);
+      return SalesforceMapper.mapGiftTransaction(giftTransaction);
     } catch (error) {
       logger.error('Failed to fetch donation by ID from Salesforce', { error, externalId });
       return null;
     }
+  }
+
+  /**
+   * Fetch gift transactions (donations) for a specific donor
+   * This looks for GiftTransactions associated with either a Contact ID or Account ID (DonorId)
+   */
+  async fetchDonorGiftTransactions(
+    accessToken: string,
+    donorId: string,
+    donorType: 'Contact' | 'Account',
+    metadata?: Record<string, any>
+  ): Promise<CrmDonation[]> {
+    try {
+      // First, let's describe the GiftTransaction object to see what fields are available
+      const describeQuery = `/sobjects/GiftTransaction/describe`;
+
+      try {
+        const describeResponse = await this.makeApiRequest<SalesforceDescribeResponse>(
+          accessToken,
+          describeQuery,
+          metadata
+        );
+      } catch (describeError) {
+        logger.error('Failed to describe GiftTransaction object', { describeError });
+      }
+
+      // Build SOQL query based on donor type
+      // For Contacts, we check both ContactId and their associated AccountId
+      // For Accounts, we check AccountId
+      let whereClause: string;
+      let contactAccountId: string | undefined;
+
+      if (donorType === 'Contact') {
+        // For Contacts, we need to get their AccountId since GiftTransaction only has DonorId (Account reference)
+        const contactQuery = `/sobjects/Contact/${donorId}`;
+
+        try {
+          const contact = await this.makeApiRequest<{
+            AccountId?: string;
+            FirstName?: string;
+            LastName?: string;
+          }>(accessToken, contactQuery, metadata);
+
+          contactAccountId = contact.AccountId;
+
+          if (contact.AccountId) {
+            // GiftTransaction only has DonorId field which references Account
+            whereClause = `DonorId = '${contact.AccountId}'`;
+          } else {
+            // Contact has no account - no gift transactions will be found
+            logger.warn('Contact has no AccountId, cannot find gift transactions', {
+              contactId: donorId,
+            });
+            return [];
+          }
+        } catch (e) {
+          // If we can't fetch the contact, no gift transactions can be found
+          logger.error('Failed to fetch contact for gift transactions', {
+            contactId: donorId,
+            error: e,
+          });
+          return [];
+        }
+      } else {
+        // For Account donors, look for all gift transactions on that Account
+        whereClause = `DonorId = '${donorId}'`;
+      }
+
+      // Now run the actual query with filters
+      // Query GiftTransaction object - start with basic fields only
+      const soql = `SELECT Id, Name, DonorId, CurrentAmount
+        FROM GiftTransaction 
+        WHERE ${whereClause}
+        AND IsDeleted = false 
+        ORDER BY CreatedDate DESC
+        LIMIT 10`;
+
+      const query = `/query?q=${encodeURIComponent(soql)}`;
+
+      logger.debug('Gift transactions query', {
+        donorId,
+        donorType,
+        whereClause,
+        soql,
+      });
+
+      const response = await this.makeApiRequest<SalesforceQueryResponse<Record<string, unknown>>>(
+        accessToken,
+        query,
+        metadata
+      );
+
+      // For now, map with minimal fields until we know all field names
+      return response.records.map(
+        (giftTransaction): CrmDonation => ({
+          externalId: String(giftTransaction.Id),
+          donorExternalId: String(giftTransaction.DonorId),
+          amount: Math.round((Number(giftTransaction.CurrentAmount) || 0) * 100),
+          currency: 'USD',
+          date: new Date(),
+          designation: String(giftTransaction.Name || 'Gift Transaction'),
+          metadata: {
+            source: 'salesforce_gift_transaction',
+            raw: giftTransaction,
+          },
+        })
+      );
+    } catch (error) {
+      logger.error('Failed to fetch gift transactions for donor', {
+        error,
+        donorId,
+        donorType,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Enhanced fetch donors with gift transactions
+   * Fetches donors and their associated gift transactions in a more efficient way
+   */
+  async fetchDonorsWithGiftTransactions(
+    accessToken: string,
+    params: PaginationParams,
+    metadata?: Record<string, any>
+  ): Promise<PaginatedResponse<CrmDonor & { donations?: CrmDonation[] }>> {
+    // First fetch donors as usual
+    const donorsResponse = await this.fetchDonors(accessToken, params, metadata);
+
+    // Then for each donor, fetch their gift transactions
+
+    const donorsWithDonations = await Promise.all(
+      donorsResponse.data.map(async (donor, index) => {
+        // Determine if this is a Contact or Account based on metadata
+        const donorType = donor.metadata?.source === 'salesforce_contact' ? 'Contact' : 'Account';
+
+        const donations = await this.fetchDonorGiftTransactions(
+          accessToken,
+          donor.externalId,
+          donorType,
+          metadata
+        );
+
+        return {
+          ...donor,
+          donations,
+        };
+      })
+    );
+
+    return {
+      ...donorsResponse,
+      data: donorsWithDonations,
+    };
   }
 }
