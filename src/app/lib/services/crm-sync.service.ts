@@ -316,10 +316,65 @@ export class CrmSyncService {
       }
 
       // Extract provider-specific external IDs
-      const donorExternalId = donation.donorExternalId.replace(`${integration.provider}_`, '');
+      let donorExternalId = donation.donorExternalId.replace(`${integration.provider}_`, '');
       const projectExternalId = donation.projectExternalId
         ? donation.projectExternalId.replace(`${integration.provider}_`, '')
         : undefined;
+
+      // Special handling for Salesforce: If donor ID is a Contact ID (starts with 003),
+      // we need to get the associated Account ID for donations
+      if (integration.provider === 'salesforce' && donorExternalId.startsWith('003')) {
+        console.log(
+          `[CrmSyncService.syncDonation] Detected Salesforce Contact ID, need Account ID for donations`
+        );
+
+        // First check if we have a cached mapping in the integration metadata
+        const contactToAccountMap = (integration.metadata as any)?.contactToAccountMap || {};
+
+        if (contactToAccountMap[donorExternalId]) {
+          console.log(
+            `[CrmSyncService.syncDonation] Found cached AccountId: ${contactToAccountMap[donorExternalId]}`
+          );
+          donorExternalId = contactToAccountMap[donorExternalId];
+        } else {
+          // Fetch from Salesforce API
+          try {
+            const salesforceProvider = provider as any; // Type assertion to access Salesforce-specific methods
+            const accessToken = integration.accessToken;
+            const metadata = integration.metadata as Record<string, any>;
+
+            // Fetch the contact to get its AccountId
+            const contactQuery = `/sobjects/Contact/${donorExternalId}`;
+            const contact = await salesforceProvider.makeApiRequest(
+              accessToken,
+              contactQuery,
+              metadata
+            );
+
+            if (contact && contact.AccountId) {
+              console.log(
+                `[CrmSyncService.syncDonation] Found AccountId for Contact: ${contact.AccountId}`
+              );
+              donorExternalId = contact.AccountId;
+
+              // Cache this mapping for future use
+              // Note: In production, you might want to persist this to the database
+              contactToAccountMap[donorExternalId] = contact.AccountId;
+            } else {
+              console.error(
+                `[CrmSyncService.syncDonation] Contact has no AccountId, cannot create donation`
+              );
+              throw new Error('Contact has no associated Account in Salesforce');
+            }
+          } catch (error) {
+            console.error(
+              `[CrmSyncService.syncDonation] Failed to fetch AccountId for Contact:`,
+              error
+            );
+            throw new Error('Failed to resolve Contact to Account for Salesforce donation');
+          }
+        }
+      }
 
       // Convert to CRM donation format
       const crmDonation: CrmDonation = {

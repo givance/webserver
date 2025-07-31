@@ -122,13 +122,17 @@ export interface SalesforceGiftTransaction {
   Id: string;
   Name: string;
   DonorId: string; // Reference to Account (the donor)
-  CurrentAmount?: number; // Using CurrentAmount instead of Amount
+  Amount?: number; // Writable amount field for insert/update
+  CurrentAmount?: number; // Read-only calculated field
+  OriginalAmount?: number; // Original donation amount
+  TransactionDate?: string; // Date of the transaction
   GiftDate?: string; // Using GiftDate instead of TransactionDate
-  Status?: string;
-  GiftType?: string; // Using GiftType instead of Type
+  CheckDate?: string; // Alternative date field
+  Status?: string; // Payment status (e.g., 'Paid', 'Pending')
+  GiftType?: string; // Type of gift (e.g., 'Individual', 'Corporate')
   Description?: string;
   CampaignId?: string;
-  PaymentMethod?: string;
+  PaymentMethod?: string; // e.g., 'Check', 'Credit Card', 'Unknown'
   CreatedDate: string;
   LastModifiedDate: string;
   IsDeleted: boolean;

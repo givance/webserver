@@ -30,12 +30,12 @@ export const percentageSchema = z.number().min(0).max(100);
 
 // Pagination schemas
 export const paginationSchema = z.object({
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().min(1).optional(),
   offset: z.number().min(0).optional(),
 });
 
 export const cursorPaginationSchema = z.object({
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().min(1).optional(),
   cursor: z.string().optional(),
 });
 
@@ -95,7 +95,7 @@ export const paginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
 
 // Batch operation schemas
 export const batchOperationSchema = z.object({
-  ids: z.array(idSchema).min(1).max(100),
+  ids: z.array(idSchema).min(1),
 });
 
 export const batchResultSchema = <T extends z.ZodType>(itemSchema: T) =>
@@ -577,7 +577,7 @@ export const donorListCriteriaSchemas = {
 
   previewByCriteria: z.object({
     criteria: donorListCriteriaSchema,
-    limit: z.number().min(1).max(100).optional(),
+    limit: z.number().min(1).optional(),
     offset: z.number().min(0).optional(),
   }),
 } as const;

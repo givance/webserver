@@ -771,8 +771,194 @@ export class SalesforceService implements ICrmProvider {
 
   /**
    * Upload donors to Salesforce (create or update)
+   * For each donor, we create both an Account and a Contact, then link them
    */
   async uploadDonors(
+    accessToken: string,
+    donors: CrmDonor[],
+    metadata?: Record<string, any>
+  ): Promise<CrmDonor[]> {
+    console.log(`[SalesforceService.uploadDonors] Starting upload of ${donors.length} donors`);
+
+    if (donors.length === 0) {
+      return [];
+    }
+
+    try {
+      const results: CrmDonor[] = [];
+      const instanceUrl = metadata?.instanceUrl;
+      if (!instanceUrl) {
+        throw new Error('Instance URL not found in metadata');
+      }
+
+      // Map to track Account IDs for each donor
+      const donorAccountMap: Map<number, string> = new Map();
+
+      // Step 1: Create/Update Accounts for all donors
+      console.log(`[SalesforceService.uploadDonors] Step 1: Creating/updating Accounts`);
+      const accountBatches = this.createBatches(donors, 200);
+
+      for (const batch of accountBatches) {
+        const compositeRequest = {
+          allOrNone: false,
+          compositeRequest: batch.map((donor, index) => {
+            // For accounts, we check if the donor already has an external ID that's an Account ID
+            const hasAccountId = donor.externalId && donor.externalId.startsWith('001');
+            const isUpdate = hasAccountId;
+
+            return {
+              method: isUpdate ? 'PATCH' : 'POST',
+              url: isUpdate
+                ? `/services/data/${this.apiVersion}/sobjects/Account/${donor.externalId}`
+                : `/services/data/${this.apiVersion}/sobjects/Account`,
+              referenceId: `account_${index}`,
+              body: {
+                Name: donor.isCouple
+                  ? `${donor.hisFirstName || donor.firstName} and ${donor.herFirstName || 'Spouse'} ${donor.lastName} Household`
+                  : `${donor.firstName} ${donor.lastName} Household`,
+                Type: donor.isCouple ? 'Household' : 'Individual',
+                Phone: donor.phone,
+                BillingStreet: donor.address?.street,
+                BillingCity: donor.address?.city,
+                BillingState: donor.address?.state,
+                BillingPostalCode: donor.address?.postalCode,
+                BillingCountry: donor.address?.country,
+              },
+            };
+          }),
+        };
+
+        const response = await fetch(`${instanceUrl}/services/data/${this.apiVersion}/composite`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(compositeRequest),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[SalesforceService.uploadDonors] Account creation failed: ${error}`);
+          throw new Error(`Salesforce API error: ${error}`);
+        }
+
+        const responseData = await response.json();
+
+        // Process Account responses and store Account IDs
+        responseData.compositeResponse.forEach((resp: any, index: number) => {
+          if (resp.httpStatusCode === 200 || resp.httpStatusCode === 201) {
+            const accountId = resp.body?.id || batch[index].externalId;
+            donorAccountMap.set(donors.indexOf(batch[index]), accountId);
+            console.log(`[SalesforceService.uploadDonors] Account created/updated: ${accountId}`);
+          } else {
+            console.error(
+              `[SalesforceService.uploadDonors] Account failed: ${JSON.stringify(resp.body)}`
+            );
+          }
+        });
+      }
+
+      // Step 2: Create/Update Contacts for all donors and link to their Accounts
+      console.log(`[SalesforceService.uploadDonors] Step 2: Creating/updating Contacts`);
+      const contactBatches = this.createBatches(donors, 200);
+
+      for (const batch of contactBatches) {
+        const compositeRequest = {
+          allOrNone: false,
+          compositeRequest: batch.map((donor, batchIndex) => {
+            const donorIndex = donors.indexOf(donor);
+            const accountId = donorAccountMap.get(donorIndex);
+
+            // Check if donor already has a Contact ID
+            const hasContactId = donor.externalId && donor.externalId.startsWith('003');
+            const isUpdate = hasContactId;
+
+            return {
+              method: isUpdate ? 'PATCH' : 'POST',
+              url: isUpdate
+                ? `/services/data/${this.apiVersion}/sobjects/Contact/${donor.externalId}`
+                : `/services/data/${this.apiVersion}/sobjects/Contact`,
+              referenceId: `contact_${batchIndex}`,
+              body: {
+                FirstName: donor.firstName,
+                LastName: donor.lastName,
+                Email: donor.email,
+                Phone: donor.phone,
+                AccountId: accountId, // Link to the Account we just created
+                MailingStreet: donor.address?.street,
+                MailingCity: donor.address?.city,
+                MailingState: donor.address?.state,
+                MailingPostalCode: donor.address?.postalCode,
+                MailingCountry: donor.address?.country,
+              },
+            };
+          }),
+        };
+
+        const response = await fetch(`${instanceUrl}/services/data/${this.apiVersion}/composite`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(compositeRequest),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[SalesforceService.uploadDonors] Contact creation failed: ${error}`);
+          throw new Error(`Salesforce API error: ${error}`);
+        }
+
+        const responseData = await response.json();
+
+        // Process Contact responses
+        responseData.compositeResponse.forEach((resp: any, index: number) => {
+          const donor = batch[index];
+          const donorIndex = donors.indexOf(donor);
+
+          if (resp.httpStatusCode === 200 || resp.httpStatusCode === 201) {
+            const contactId = resp.body?.id || donor.externalId;
+            const accountId = donorAccountMap.get(donorIndex);
+
+            // Return the Contact ID as the primary external ID
+            // But store the Account ID in metadata for donations
+            results.push({
+              ...donor,
+              externalId: contactId,
+              metadata: {
+                ...donor.metadata,
+                salesforceAccountId: accountId,
+                salesforceContactId: contactId,
+              },
+            });
+
+            console.log(
+              `[SalesforceService.uploadDonors] Contact created/updated: ${contactId}, linked to Account: ${accountId}`
+            );
+          } else {
+            console.error(
+              `[SalesforceService.uploadDonors] Contact failed: ${JSON.stringify(resp.body)}`
+            );
+          }
+        });
+      }
+
+      console.log(
+        `[SalesforceService.uploadDonors] Successfully uploaded ${results.length} donors with both Account and Contact records`
+      );
+      return results;
+    } catch (error) {
+      console.error('[SalesforceService.uploadDonors] Failed to upload donors:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Original uploadDonors method - renamed for backup
+   */
+  async uploadDonorsOld(
     accessToken: string,
     donors: CrmDonor[],
     metadata?: Record<string, any>
@@ -1060,11 +1246,13 @@ export class SalesforceService implements ICrmProvider {
                 Name:
                   donation.designation ||
                   `Donation ${new Date(donation.date).toLocaleDateString()}`,
-                DonorId: donation.donorExternalId,
-                CurrentAmount: donation.amount / 100, // Convert cents to dollars
-                GiftDate: donation.date.toISOString().split('T')[0],
-                GiftType: 'Cash',
-                CampaignId: donation.campaignExternalId || undefined,
+                DonorId: donation.donorExternalId, // Reference to Account (required)
+                OriginalAmount: donation.amount / 100, // Required field - original amount in dollars
+                TransactionDate: donation.date.toISOString().split('T')[0], // Required when Status is 'Paid'
+                GiftType: 'Individual', // Required picklist: 'Individual' or 'Organizational'
+                Status: 'Paid', // Required picklist: 'Paid', 'Unpaid', 'Canceled', 'Failed', 'Fully Refunded', 'Pending', 'Written-Off'
+                PaymentMethod: 'Unknown', // Required picklist: 'ACH', 'Asset', 'Cash', 'Check', 'Credit Card', 'Cryptocurrency', 'In-Kind', 'PayPal', 'Stock', 'Unknown', 'Venmo'
+                CampaignId: donation.campaignExternalId || undefined, // Optional campaign reference
               },
             };
           }),

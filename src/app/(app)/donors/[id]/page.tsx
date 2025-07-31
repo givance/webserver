@@ -37,6 +37,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { InlineTextEdit, InlineSelectEdit, InlineToggleEdit } from '@/components/ui/inline-edit';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -54,6 +63,8 @@ import {
   MapPin,
   Plus,
   Trash2,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -146,8 +157,7 @@ export default function DonorProfilePage() {
   // Fetch projects for donation form
   const { listProjects } = useProjects();
   const { data: projectsResponse } = listProjects({
-    active: true,
-    limit: 100, // Get all active projects
+    limit: 1000, // Get more projects, adjust if needed
   });
 
   // Donation form schema
@@ -163,6 +173,8 @@ export default function DonorProfilePage() {
 
   // Donation form state
   const [donationDialogOpen, setDonationDialogOpen] = useState(false);
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
+  const [projectSearchValue, setProjectSearchValue] = useState('');
   const donationForm = useForm<DonationFormData>({
     resolver: zodResolver(donationFormSchema),
     defaultValues: {
@@ -178,6 +190,7 @@ export default function DonorProfilePage() {
       toast.success('Donation added successfully');
       setDonationDialogOpen(false);
       donationForm.reset();
+      setProjectSearchValue('');
       // Invalidate and refetch donations to update the table
       utils.donations.list.invalidate();
       utils.donations.getDonorStats.invalidate();
@@ -859,7 +872,16 @@ export default function DonorProfilePage() {
               <div className="flex items-center justify-between">
                 <CardTitle>Donation History</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Dialog open={donationDialogOpen} onOpenChange={setDonationDialogOpen}>
+                  <Dialog
+                    open={donationDialogOpen}
+                    onOpenChange={(open) => {
+                      setDonationDialogOpen(open);
+                      if (!open) {
+                        setProjectSearchValue('');
+                        setProjectSearchOpen(false);
+                      }
+                    }}
+                  >
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm">
                         <Plus className="h-4 w-4 mr-2" />
@@ -880,25 +902,72 @@ export default function DonorProfilePage() {
                             control={donationForm.control}
                             name="projectId"
                             render={({ field }) => (
-                              <FormItem>
+                              <FormItem className="flex flex-col">
                                 <FormLabel>Project</FormLabel>
-                                <Select
-                                  onValueChange={(value) => field.onChange(Number(value))}
-                                  value={field.value?.toString()}
+                                <Popover
+                                  open={projectSearchOpen}
+                                  onOpenChange={setProjectSearchOpen}
                                 >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select a project" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {projectsResponse?.projects?.map((project) => (
-                                      <SelectItem key={project.id} value={project.id.toString()}>
-                                        {project.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={projectSearchOpen}
+                                        className="w-full justify-between"
+                                      >
+                                        {field.value
+                                          ? projectsResponse?.projects?.find(
+                                              (project) => project.id === field.value
+                                            )?.name
+                                          : 'Select a project...'}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-full p-0" align="start">
+                                    <Command>
+                                      <CommandInput
+                                        placeholder="Search projects..."
+                                        value={projectSearchValue}
+                                        onValueChange={setProjectSearchValue}
+                                      />
+                                      <CommandList>
+                                        <CommandEmpty>No project found.</CommandEmpty>
+                                        <CommandGroup
+                                          heading={`${projectsResponse?.projects?.length || 0} projects`}
+                                        >
+                                          {projectsResponse?.projects?.map((project) => (
+                                            <CommandItem
+                                              key={project.id}
+                                              value={project.name}
+                                              onSelect={() => {
+                                                field.onChange(project.id);
+                                                setProjectSearchOpen(false);
+                                                setProjectSearchValue('');
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  'mr-2 h-4 w-4',
+                                                  field.value === project.id
+                                                    ? 'opacity-100'
+                                                    : 'opacity-0'
+                                                )}
+                                              />
+                                              {project.name}
+                                              {!project.active && (
+                                                <Badge variant="secondary" className="ml-2">
+                                                  Inactive
+                                                </Badge>
+                                              )}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                                 <FormMessage />
                               </FormItem>
                             )}
