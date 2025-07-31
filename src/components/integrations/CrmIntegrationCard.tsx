@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Loader2,
   CheckCircle2,
@@ -45,6 +46,16 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
 
   const isIntegrationActive =
     integrations?.some((i) => i.provider === provider.name && i.isActive) || false;
+
+  // Check if another CRM is already connected
+  const crmProviders = ['salesforce', 'blackbaud'];
+  const hasAnotherCrmConnected =
+    integrations?.some(
+      (i) => crmProviders.includes(i.provider) && i.provider !== provider.name && i.isActive
+    ) || false;
+  const connectedCrmName = integrations?.find(
+    (i) => crmProviders.includes(i.provider) && i.provider !== provider.name && i.isActive
+  )?.provider;
 
   const { data: syncStatus, isLoading: statusLoading } = getIntegrationSyncStatus(provider.name, {
     enabled: isIntegrationActive,
@@ -187,6 +198,21 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!isConnected && hasAnotherCrmConnected && (
+            <div className="rounded-md bg-muted p-3 text-sm">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="font-medium">CRM already connected</p>
+                  <p className="text-muted-foreground">
+                    Your organization is connected to {connectedCrmName}. Only one CRM connection is
+                    allowed at a time.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isConnected && (
             <div className="text-sm text-muted-foreground">
               {getSyncStatusText()}
@@ -198,20 +224,34 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
 
           <div className="flex gap-2">
             {!isConnected ? (
-              <Button
-                onClick={handleConnect}
-                disabled={connectMutation.isPending}
-                className="w-full"
-              >
-                {connectMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  'Connect'
-                )}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full">
+                      <Button
+                        onClick={handleConnect}
+                        disabled={connectMutation.isPending || hasAnotherCrmConnected}
+                        className="w-full"
+                      >
+                        {connectMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          'Connect'
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {hasAnotherCrmConnected && (
+                    <TooltipContent>
+                      <p>Your organization is already connected to {connectedCrmName}.</p>
+                      <p>Disconnect it first to connect {provider.displayName}.</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             ) : (
               <>
                 <Button

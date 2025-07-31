@@ -134,6 +134,28 @@ export const integrationsRouter = router({
         });
       }
 
+      // Check if any other CRM is already connected
+      const activeCrmIntegrations = await db.query.organizationIntegrations.findMany({
+        where: and(
+          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
+          eq(organizationIntegrations.isActive, true)
+        ),
+      });
+
+      // Filter for CRM providers (Salesforce and Blackbaud)
+      const crmProviders = ['salesforce', 'blackbaud'];
+      const activeCrm = activeCrmIntegrations.find(
+        (integration) =>
+          crmProviders.includes(integration.provider) && integration.provider !== input.provider
+      );
+
+      if (activeCrm) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Your organization is already connected to ${activeCrm.provider}. Please disconnect it before connecting to ${input.provider}.`,
+        });
+      }
+
       // Generate state with user and organization info
       const state = JSON.stringify({
         provider: input.provider,
