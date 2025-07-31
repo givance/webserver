@@ -6,6 +6,7 @@ import type { Donor } from './donors';
 import type { Project } from './projects';
 import type { PgSelect } from 'drizzle-orm/pg-core';
 import { validateNotNullish, ERROR_MESSAGES } from '../../api/trpc/trpc';
+import { crmSyncService } from '../services/crm-sync.service';
 
 export type Donation = InferSelectModel<typeof donations>;
 export type NewDonation = InferInsertModel<typeof donations>;
@@ -51,8 +52,58 @@ export async function createDonation(
   donationData: Omit<NewDonation, 'id' | 'createdAt' | 'updatedAt' | 'date'>
 ): Promise<Donation> {
   try {
+    console.log(
+      `[createDonation] Starting donation creation: donorId=${donationData.donorId}, amount=${donationData.amount}`
+    );
+
+    // If donation doesn't have external ID, sync to CRM first
+    const finalDonationData = { ...donationData } as NewDonation;
+
+    if (!finalDonationData.externalId) {
+      // Get donor and project details to extract organization and external IDs
+      const donor = await db.query.donors.findFirst({
+        where: eq(donors.id, finalDonationData.donorId),
+      });
+
+      const project = finalDonationData.projectId
+        ? await db.query.projects.findFirst({
+            where: eq(projects.id, finalDonationData.projectId),
+          })
+        : null;
+
+      if (donor && donor.externalId && donor.organizationId) {
+        console.log(
+          `[createDonation] Syncing new donation to CRM: donorExternalId=${donor.externalId}`
+        );
+
+        const externalId = await crmSyncService.syncDonation(donor.organizationId, {
+          donorExternalId: donor.externalId,
+          projectExternalId: project?.externalId || null,
+          amount: Number(finalDonationData.amount),
+          currency: finalDonationData.currency || 'USD',
+          date: finalDonationData.date || new Date(),
+        });
+
+        if (externalId) {
+          console.log(`[createDonation] CRM sync successful, externalId=${externalId}`);
+          finalDonationData.externalId = externalId;
+        } else {
+          console.log(`[createDonation] CRM sync returned no external ID`);
+        }
+      } else {
+        console.log(`[createDonation] Skipping CRM sync: donor not synced to CRM`);
+      }
+    }
+
+    console.log(
+      `[createDonation] Inserting donation into database: donorId=${finalDonationData.donorId}`
+    );
     // date is set to defaultNow() in schema, createdAt and updatedAt also
-    const result = await db.insert(donations).values(donationData).returning();
+    const result = await db.insert(donations).values(finalDonationData).returning();
+
+    console.log(
+      `[createDonation] Database insert successful: id=${result[0].id}, externalId=${result[0].externalId || 'none'}`
+    );
     return result[0];
   } catch (error) {
     console.error('Failed to create donation:', error);
@@ -72,11 +123,60 @@ export async function updateDonation(
   donationData: Partial<Omit<NewDonation, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<Donation | undefined> {
   try {
+    // Always sync to CRM for updates
+    const existingDonation = await getDonationById(id, {
+      includeDonor: true,
+      includeProject: true,
+    });
+
+    if (!existingDonation) {
+      console.log(`[updateDonation] Donation not found: id=${id}`);
+      return undefined;
+    }
+
+    console.log(
+      `[updateDonation] Starting update for donation: id=${id}, hasExternalId=${!!existingDonation.externalId}`
+    );
+
+    // Sync to CRM if donor has external ID (donations require donor to be synced first)
+    if (existingDonation.donor?.externalId && existingDonation.donor?.organizationId) {
+      console.log(
+        `[updateDonation] Syncing donation to CRM: id=${id}, externalId=${existingDonation.externalId || 'none'}`
+      );
+
+      const externalId = await crmSyncService.syncDonation(existingDonation.donor.organizationId, {
+        id,
+        externalId: existingDonation.externalId || undefined,
+        donorExternalId: existingDonation.donor.externalId,
+        projectExternalId: existingDonation.project?.externalId || null,
+        amount:
+          donationData.amount !== undefined
+            ? Number(donationData.amount)
+            : Number(existingDonation.amount),
+        currency: donationData.currency || existingDonation.currency,
+        date: donationData.date || existingDonation.date,
+      });
+
+      if (externalId) {
+        console.log(`[updateDonation] CRM sync successful, externalId=${externalId}`);
+        donationData.externalId = externalId;
+      } else {
+        console.log(`[updateDonation] CRM sync returned no external ID`);
+      }
+    } else {
+      console.log(`[updateDonation] Skipping CRM sync: donor not synced to CRM`);
+    }
+
+    console.log(`[updateDonation] Updating donation in database: id=${id}`);
     const result = await db
       .update(donations)
       .set({ ...donationData, updatedAt: sql`now()` })
       .where(eq(donations.id, id))
       .returning();
+
+    console.log(
+      `[updateDonation] Database update successful: id=${id}, externalId=${result[0]?.externalId || 'none'}`
+    );
     return result[0];
   } catch (error) {
     console.error('Failed to update donation:', error);

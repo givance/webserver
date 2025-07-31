@@ -68,4 +68,31 @@ export interface ICrmProvider extends CrmProvider {
     params: PaginationParams,
     metadata?: Record<string, any>
   ): Promise<PaginatedResponse<CrmProject>>;
+
+  /**
+   * Upload donors to the CRM (optional - not all CRMs may support this)
+   */
+  uploadDonors?(
+    accessToken: string,
+    donors: CrmDonor[],
+    metadata?: Record<string, any>
+  ): Promise<CrmDonor[]>;
+
+  /**
+   * Upload donations to the CRM (optional - not all CRMs may support this)
+   */
+  uploadDonations?(
+    accessToken: string,
+    donations: CrmDonation[],
+    metadata?: Record<string, any>
+  ): Promise<CrmDonation[]>;
+
+  /**
+   * Upload projects/campaigns to the CRM (optional - not all CRMs may support this)
+   */
+  uploadProjects?(
+    accessToken: string,
+    projects: CrmProject[],
+    metadata?: Record<string, any>
+  ): Promise<CrmProject[]>;
 }

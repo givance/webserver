@@ -1,7 +1,8 @@
-import { db } from "../db";
-import { projects } from "../db/schema";
-import { eq, sql, desc, asc, SQL, AnyColumn, and, count, like, or, inArray } from "drizzle-orm";
-import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import { db } from '../db';
+import { projects } from '../db/schema';
+import { eq, sql, desc, asc, SQL, AnyColumn, and, count, like, or, inArray } from 'drizzle-orm';
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import { crmSyncService } from '../services/crm-sync.service';
 
 export type Project = InferSelectModel<typeof projects>;
 export type NewProject = InferInsertModel<typeof projects>;
@@ -16,8 +17,8 @@ export async function getProjectById(id: number): Promise<Project | undefined> {
     const result = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     return result[0];
   } catch (error) {
-    console.error("Failed to retrieve project by ID:", error);
-    throw new Error("Could not retrieve project.");
+    console.error('Failed to retrieve project by ID:', error);
+    throw new Error('Could not retrieve project.');
   }
 }
 
@@ -39,8 +40,8 @@ export async function getProjectsByIds(ids: number[], organizationId: string): P
       .where(and(inArray(projects.id, ids), eq(projects.organizationId, organizationId)));
     return result;
   } catch (error) {
-    console.error("Failed to retrieve projects by IDs:", error);
-    throw new Error("Could not retrieve projects by IDs.");
+    console.error('Failed to retrieve projects by IDs:', error);
+    throw new Error('Could not retrieve projects by IDs.');
   }
 }
 
@@ -49,13 +50,46 @@ export async function getProjectsByIds(ids: number[], organizationId: string): P
  * @param projectData - The data for the new project.
  * @returns The newly created project object.
  */
-export async function createProject(projectData: Omit<NewProject, "id" | "createdAt" | "updatedAt">): Promise<Project> {
+export async function createProject(
+  projectData: Omit<NewProject, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<Project> {
   try {
-    const result = await db.insert(projects).values(projectData).returning();
+    console.log(
+      `[createProject] Starting project creation: name=${projectData.name}, organizationId=${projectData.organizationId}`
+    );
+
+    // If project doesn't have external ID, sync to CRM first
+    const finalProjectData = { ...projectData } as NewProject;
+
+    if (!finalProjectData.externalId && finalProjectData.organizationId) {
+      console.log(`[createProject] Syncing new project to CRM: name=${finalProjectData.name}`);
+
+      const externalId = await crmSyncService.syncProject(finalProjectData.organizationId, {
+        name: finalProjectData.name,
+        description: finalProjectData.description,
+        active: finalProjectData.active ?? true,
+        goal: finalProjectData.goal,
+        tags: finalProjectData.tags,
+      });
+
+      if (externalId) {
+        console.log(`[createProject] CRM sync successful, externalId=${externalId}`);
+        finalProjectData.externalId = externalId;
+      } else {
+        console.log(`[createProject] CRM sync returned no external ID`);
+      }
+    }
+
+    console.log(`[createProject] Inserting project into database: name=${finalProjectData.name}`);
+    const result = await db.insert(projects).values(finalProjectData).returning();
+
+    console.log(
+      `[createProject] Database insert successful: id=${result[0].id}, externalId=${result[0].externalId || 'none'}`
+    );
     return result[0];
   } catch (error) {
-    console.error("Failed to create project:", error);
-    throw new Error("Could not create project.");
+    console.error('Failed to create project:', error);
+    throw new Error('Could not create project.');
   }
 }
 
@@ -67,18 +101,63 @@ export async function createProject(projectData: Omit<NewProject, "id" | "create
  */
 export async function updateProject(
   id: number,
-  projectData: Partial<Omit<NewProject, "id" | "createdAt" | "updatedAt">>
+  projectData: Partial<Omit<NewProject, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<Project | undefined> {
   try {
+    // Always sync to CRM for updates
+    const existingProject = await getProjectById(id);
+
+    if (!existingProject) {
+      console.log(`[updateProject] Project not found: id=${id}`);
+      return undefined;
+    }
+
+    console.log(
+      `[updateProject] Starting update for project: id=${id}, hasExternalId=${!!existingProject.externalId}`
+    );
+
+    // Sync to CRM (create external ID if needed, or update existing)
+    if (existingProject.organizationId) {
+      console.log(
+        `[updateProject] Syncing project to CRM: id=${id}, externalId=${existingProject.externalId || 'none'}`
+      );
+
+      const externalId = await crmSyncService.syncProject(existingProject.organizationId, {
+        id,
+        externalId: existingProject.externalId || undefined,
+        name: projectData.name || existingProject.name,
+        description:
+          projectData.description !== undefined
+            ? projectData.description
+            : existingProject.description,
+        active:
+          projectData.active !== undefined ? projectData.active : (existingProject.active ?? true),
+        goal: projectData.goal !== undefined ? projectData.goal : existingProject.goal,
+        tags: projectData.tags !== undefined ? projectData.tags : existingProject.tags,
+      });
+
+      if (externalId) {
+        console.log(`[updateProject] CRM sync successful, externalId=${externalId}`);
+        projectData.externalId = externalId;
+      } else {
+        console.log(`[updateProject] CRM sync returned no external ID`);
+      }
+    }
+
+    console.log(`[updateProject] Updating project in database: id=${id}`);
     const result = await db
       .update(projects)
       .set({ ...projectData, updatedAt: sql`now()` })
       .where(eq(projects.id, id))
       .returning();
+
+    console.log(
+      `[updateProject] Database update successful: id=${id}, externalId=${result[0]?.externalId || 'none'}`
+    );
     return result[0];
   } catch (error) {
-    console.error("Failed to update project:", error);
-    throw new Error("Could not update project.");
+    console.error('Failed to update project:', error);
+    throw new Error('Could not update project.');
   }
 }
 
@@ -91,8 +170,8 @@ export async function deleteProject(id: number): Promise<void> {
     await db.delete(projects).where(eq(projects.id, id));
   } catch (error) {
     // Consider handling foreign key constraint errors if projects are linked elsewhere
-    console.error("Failed to delete project:", error);
-    throw new Error("Could not delete project.");
+    console.error('Failed to delete project:', error);
+    throw new Error('Could not delete project.');
   }
 }
 
@@ -108,13 +187,13 @@ export async function listProjects(
     searchTerm?: string;
     limit?: number;
     offset?: number;
-    orderBy?: keyof Pick<Project, "name" | "createdAt">;
-    orderDirection?: "asc" | "desc";
+    orderBy?: keyof Pick<Project, 'name' | 'createdAt'>;
+    orderDirection?: 'asc' | 'desc';
   } = {},
   organizationId: string
 ): Promise<{ projects: Project[]; totalCount: number }> {
   try {
-    const { active, searchTerm, limit = 10, offset = 0, orderBy, orderDirection = "asc" } = options;
+    const { active, searchTerm, limit = 10, offset = 0, orderBy, orderDirection = 'asc' } = options;
 
     const conditions: SQL[] = [eq(projects.organizationId, organizationId)];
     if (active !== undefined) {
@@ -147,18 +226,23 @@ export async function listProjects(
       };
       const selectedColumn = columnMap[orderBy];
       if (selectedColumn) {
-        const direction = orderDirection === "asc" ? asc : desc;
-        dataQueryBuilder = dataQueryBuilder.orderBy(direction(selectedColumn)) as typeof dataQueryBuilder;
+        const direction = orderDirection === 'asc' ? asc : desc;
+        dataQueryBuilder = dataQueryBuilder.orderBy(
+          direction(selectedColumn)
+        ) as typeof dataQueryBuilder;
       }
     }
 
-    const [totalResult, projectData] = await Promise.all([countQuery, dataQueryBuilder.limit(limit).offset(offset)]);
+    const [totalResult, projectData] = await Promise.all([
+      countQuery,
+      dataQueryBuilder.limit(limit).offset(offset),
+    ]);
 
     const totalCount = totalResult[0]?.value || 0;
 
     return { projects: projectData, totalCount };
   } catch (error) {
-    console.error("Failed to list projects:", error);
-    throw new Error("Could not list projects.");
+    console.error('Failed to list projects:', error);
+    throw new Error('Could not list projects.');
   }
 }

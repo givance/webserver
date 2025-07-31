@@ -1,24 +1,25 @@
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus } from "lucide-react";
-import Link from "next/link";
-import { DataTable } from "@/components/ui/data-table/DataTable";
-import { columns, type Project } from "./columns";
-import { useProjects } from "@/app/hooks/use-projects";
-import { usePagination } from "@/app/hooks/use-pagination";
-import { useSearch } from "@/app/hooks/use-search";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
-import { ErrorDisplay } from "@/app/components/ErrorDisplay";
-import { CampaignButton } from "@/components/campaign/CampaignButton";
+import React, { useMemo } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { DataTable } from '@/components/ui/data-table/DataTable';
+import { columns, type Project } from './columns';
+import { useProjects } from '@/app/hooks/use-projects';
+import { usePagination } from '@/app/hooks/use-pagination';
+import { useSearch } from '@/app/hooks/use-search';
+import { LoadingSkeleton } from '@/app/components/LoadingSkeleton';
+import { ErrorDisplay } from '@/app/components/ErrorDisplay';
+import { CampaignButton } from '@/components/campaign/CampaignButton';
 
 export default function ProjectListPage() {
   const { searchTerm, debouncedSearchTerm, setSearchTerm } = useSearch();
-  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } = usePagination({
-    resetOnDependency: debouncedSearchTerm,
-  });
+  const { currentPage, pageSize, setCurrentPage, setPageSize, getOffset, getPageCount } =
+    usePagination({
+      resetOnDependency: debouncedSearchTerm,
+    });
 
   const { listProjects } = useProjects();
 
@@ -31,8 +32,8 @@ export default function ProjectListPage() {
     limit: pageSize,
     offset: getOffset(),
     searchTerm: debouncedSearchTerm,
-    orderBy: "name",
-    orderDirection: "asc",
+    orderBy: 'name',
+    orderDirection: 'asc',
   });
 
   // Use useMemo to avoid re-calculating on every render unless dependencies change
@@ -41,19 +42,22 @@ export default function ProjectListPage() {
       listProjectsResponse?.projects?.map((apiProject) => ({
         id: apiProject.id.toString(),
         name: apiProject.name,
-        description: apiProject.description || "",
-        status: apiProject.active ? "active" : "completed",
+        description: apiProject.description || '',
+        status: apiProject.active ? 'active' : 'completed',
         goalAmount: 0, // Placeholder - ensure this is handled if real data is available
         raisedAmount: 0, // Placeholder - ensure this is handled if real data is available
-        startDate: apiProject.createdAt ? new Date(apiProject.createdAt).toISOString() : new Date().toISOString(),
+        startDate: apiProject.createdAt
+          ? new Date(apiProject.createdAt).toISOString()
+          : new Date().toISOString(),
         endDate: new Date().toISOString(), // Placeholder - should be replaced with actual end date if available
         external: apiProject.external || false,
+        externalId: apiProject.externalId,
       })) || [];
     return { projects: projectItems, totalCount: listProjectsResponse?.totalCount || 0 };
   }, [listProjectsResponse]);
 
   if (error) {
-    return <ErrorDisplay error={error.message || "Unknown error"} title="Error loading projects" />;
+    return <ErrorDisplay error={error.message || 'Unknown error'} title="Error loading projects" />;
   }
 
   const pageCount = getPageCount(totalCount);

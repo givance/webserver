@@ -1,7 +1,7 @@
-import { ColumnDef, Column, Row } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { ColumnDef, Column, Row } from '@tanstack/react-table';
+import { Button } from '@/components/ui/button';
+import { ArrowUpDown, MoreHorizontal, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,23 +12,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useState } from "react";
-import { useProjects } from "@/app/hooks/use-projects";
-import { formatCurrency } from "@/app/lib/utils/format";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
+} from '@/components/ui/alert-dialog';
+import { useState } from 'react';
+import { useProjects } from '@/app/hooks/use-projects';
+import { formatCurrency } from '@/app/lib/utils/format';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 export type Project = {
   id: string;
   name: string;
   description: string;
-  status: "active" | "completed" | "on_hold";
+  status: 'active' | 'completed' | 'on_hold';
   goalAmount: number;
   raisedAmount: number;
   startDate: string;
   endDate: string;
   external: boolean;
+  externalId?: string | null;
 };
 
 // ExternalToggleButton component to handle external state changes
@@ -44,24 +45,18 @@ function ExternalToggleButton({ project }: { project: Project }) {
         external: checked,
       });
       if (result) {
-        toast.success(`Project marked as ${checked ? "external" : "internal"}`);
+        toast.success(`Project marked as ${checked ? 'external' : 'internal'}`);
       } else {
-        toast.error("Failed to update project status");
+        toast.error('Failed to update project status');
       }
     } catch (error) {
-      toast.error("An error occurred while updating the project");
+      toast.error('An error occurred while updating the project');
     } finally {
       setIsUpdating(false);
     }
   };
 
-  return (
-    <Switch
-      checked={project.external}
-      onCheckedChange={handleToggle}
-      disabled={isUpdating}
-    />
-  );
+  return <Switch checked={project.external} onCheckedChange={handleToggle} disabled={isUpdating} />;
 }
 
 // DeleteProjectButton component to handle delete with confirmation dialog
@@ -77,7 +72,11 @@ function DeleteProjectButton({ projectId }: { projectId: string }) {
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>
@@ -85,7 +84,8 @@ function DeleteProjectButton({ projectId }: { projectId: string }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the project and all associated records.
+            This action cannot be undone. This will permanently delete the project and all
+            associated records.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -95,7 +95,7 @@ function DeleteProjectButton({ projectId }: { projectId: string }) {
             className="bg-red-500 hover:bg-red-700 focus:ring-red-500"
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -105,10 +105,13 @@ function DeleteProjectButton({ projectId }: { projectId: string }) {
 
 export const columns: ColumnDef<Project>[] = [
   {
-    accessorKey: "name",
+    accessorKey: 'name',
     header: ({ column }: { column: Column<Project> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
@@ -116,15 +119,30 @@ export const columns: ColumnDef<Project>[] = [
     },
     cell: ({ row }: { row: Row<Project> }) => (
       <Link href={`/projects/${row.original.id}`} className="font-medium">
-        {row.getValue("name")}
+        {row.getValue('name')}
       </Link>
     ),
   },
   {
-    accessorKey: "description",
-    header: "Description",
+    accessorKey: 'externalId',
+    header: 'External ID',
     cell: ({ row }: { row: Row<Project> }) => {
-      const description: string = row.getValue("description");
+      const externalId = row.getValue('externalId') as string | null;
+      return externalId ? (
+        <span className="text-sm text-muted-foreground">{externalId}</span>
+      ) : (
+        <span className="text-sm text-muted-foreground/50">—</span>
+      );
+    },
+    meta: {
+      enableHiding: true,
+    },
+  },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+    cell: ({ row }: { row: Row<Project> }) => {
+      const description: string = row.getValue('description');
       return (
         <div className="max-w-[300px] truncate" title={description}>
           {description}
@@ -136,16 +154,16 @@ export const columns: ColumnDef<Project>[] = [
     },
   },
   {
-    accessorKey: "status",
-    header: "Status",
+    accessorKey: 'status',
+    header: 'Status',
     cell: ({ row }: { row: Row<Project> }) => {
-      const status: string = row.getValue("status");
+      const status: string = row.getValue('status');
       const statusStyles = {
-        active: "bg-green-100 text-green-800",
-        completed: "bg-blue-100 text-blue-800",
-        on_hold: "bg-yellow-100 text-yellow-800",
+        active: 'bg-green-100 text-green-800',
+        completed: 'bg-blue-100 text-blue-800',
+        on_hold: 'bg-yellow-100 text-yellow-800',
       };
-      const displayStatus = status.replace("_", " ").toUpperCase();
+      const displayStatus = status.replace('_', ' ').toUpperCase();
       return (
         <div
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -158,17 +176,20 @@ export const columns: ColumnDef<Project>[] = [
     },
   },
   {
-    accessorKey: "goalAmount",
+    accessorKey: 'goalAmount',
     header: ({ column }: { column: Column<Project> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Goal
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }: { row: Row<Project> }) => {
-      const amount = parseFloat(row.getValue("goalAmount"));
+      const amount = parseFloat(row.getValue('goalAmount'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
     meta: {
@@ -176,34 +197,40 @@ export const columns: ColumnDef<Project>[] = [
     },
   },
   {
-    accessorKey: "raisedAmount",
+    accessorKey: 'raisedAmount',
     header: ({ column }: { column: Column<Project> }) => {
       return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
           Raised
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }: { row: Row<Project> }) => {
-      const raised = parseFloat(row.getValue("raisedAmount"));
-      const goal = parseFloat(row.getValue("goalAmount"));
+      const raised = parseFloat(row.getValue('raisedAmount'));
+      const goal = parseFloat(row.getValue('goalAmount'));
       const percentage = goal > 0 ? (raised / goal) * 100 : 0;
       return (
         <div className="space-y-1">
           <div className="text-right font-medium">{formatCurrency(raised)}</div>
           <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(percentage, 100)}%` }} />
+            <div
+              className="bg-blue-600 h-1.5 rounded-full"
+              style={{ width: `${Math.min(percentage, 100)}%` }}
+            />
           </div>
         </div>
       );
     },
   },
   {
-    accessorKey: "startDate",
-    header: "Start Date",
+    accessorKey: 'startDate',
+    header: 'Start Date',
     cell: ({ row }: { row: Row<Project> }) => {
-      const date = new Date(row.getValue("startDate"));
+      const date = new Date(row.getValue('startDate'));
       return date.toLocaleDateString();
     },
     meta: {
@@ -211,10 +238,10 @@ export const columns: ColumnDef<Project>[] = [
     },
   },
   {
-    accessorKey: "endDate",
-    header: "End Date",
+    accessorKey: 'endDate',
+    header: 'End Date',
     cell: ({ row }: { row: Row<Project> }) => {
-      const date = new Date(row.getValue("endDate"));
+      const date = new Date(row.getValue('endDate'));
       return date.toLocaleDateString();
     },
     meta: {
@@ -222,8 +249,8 @@ export const columns: ColumnDef<Project>[] = [
     },
   },
   {
-    accessorKey: "external",
-    header: "External",
+    accessorKey: 'external',
+    header: 'External',
     cell: ({ row }: { row: Row<Project> }) => (
       <div className="flex items-center justify-center">
         <ExternalToggleButton project={row.original} />
@@ -231,7 +258,7 @@ export const columns: ColumnDef<Project>[] = [
     ),
   },
   {
-    id: "actions",
+    id: 'actions',
     cell: ({ row }: { row: Row<Project> }) => (
       <div className="flex items-center justify-end gap-2">
         <Link href={`/projects/${row.original.id}/donations`}>

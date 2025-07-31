@@ -16,7 +16,6 @@ pnpm run db:migrate      # Run migrations
 pnpm run db:studio       # Open Drizzle Studio
 
 # Build & Quality
-pnpm run build           # Production build
 pnpm run lint            # ESLint check
 pnpm run start           # Start production server
 pnpm run prepare         # Install Husky git hooks
@@ -415,7 +414,6 @@ src/__tests__/
 - This project uses **pnpm** for most commands but **pnpm** for specific operations:
   - Trigger.dev commands use `pnpm dlx` (configured in package.json)
   - Git pre-commit hooks use `pnpm lint-staged` (via Husky)
-- Always use `pnpm run` for development, build, and test commands
 - Husky automatically sets Node 22.4.0 and runs Prettier on staged files
 
 ## Code Formatting & Git Hooks

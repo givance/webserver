@@ -768,4 +768,521 @@ export class SalesforceService implements ICrmProvider {
       data: donorsWithDonations,
     };
   }
+
+  /**
+   * Upload donors to Salesforce (create or update)
+   */
+  async uploadDonors(
+    accessToken: string,
+    donors: CrmDonor[],
+    metadata?: Record<string, any>
+  ): Promise<CrmDonor[]> {
+    console.log(`[SalesforceService.uploadDonors] Starting upload of ${donors.length} donors`);
+
+    if (donors.length === 0) {
+      return [];
+    }
+
+    try {
+      // Separate donors into contacts and accounts based on their metadata
+      const contacts: CrmDonor[] = [];
+      const accounts: CrmDonor[] = [];
+
+      donors.forEach((donor) => {
+        if (donor.isCouple || donor.metadata?.isOrganization) {
+          accounts.push(donor);
+        } else {
+          contacts.push(donor);
+        }
+      });
+
+      const results: CrmDonor[] = [];
+      const retryDonors: CrmDonor[] = [];
+
+      // Process accounts
+      if (accounts.length > 0) {
+        console.log(`[SalesforceService.uploadDonors] Processing ${accounts.length} accounts`);
+        const accountBatches = this.createBatches(accounts, 200);
+
+        for (const batch of accountBatches) {
+          const compositeRequest = {
+            allOrNone: false, // Continue processing even if some records fail
+            compositeRequest: batch.map((donor, index) => {
+              const isUpdate = !!donor.externalId;
+              console.log(
+                `[SalesforceService.uploadDonors] Account ${index}: ${isUpdate ? 'UPDATE' : 'CREATE'} - externalId=${donor.externalId || 'none'}, name=${donor.displayName || `${donor.firstName} ${donor.lastName}`}`
+              );
+
+              return {
+                method: isUpdate ? 'PATCH' : 'POST',
+                url: isUpdate
+                  ? `/services/data/${this.apiVersion}/sobjects/Account/${donor.externalId}`
+                  : `/services/data/${this.apiVersion}/sobjects/Account`,
+                referenceId: `account_${index}`,
+                body: {
+                  Name: donor.displayName || `${donor.firstName} ${donor.lastName}`,
+                  Phone: donor.phone,
+                  BillingStreet: donor.address?.street,
+                  BillingCity: donor.address?.city,
+                  BillingState: donor.address?.state,
+                  BillingPostalCode: donor.address?.postalCode,
+                  BillingCountry: donor.address?.country,
+                },
+              };
+            }),
+          };
+
+          console.log(`[SalesforceService.uploadDonors] Sending batch of ${batch.length} accounts`);
+          console.log(
+            `[SalesforceService.uploadDonors] Composite request:`,
+            JSON.stringify(compositeRequest, null, 2)
+          );
+
+          const instanceUrl = metadata?.instanceUrl;
+          if (!instanceUrl) {
+            throw new Error('Instance URL not found in metadata');
+          }
+
+          const response = await fetch(
+            `${instanceUrl}/services/data/${this.apiVersion}/composite`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(compositeRequest),
+            }
+          );
+
+          if (!response.ok) {
+            const error = await response.text();
+            console.error(
+              `[SalesforceService.uploadDonors] API request failed: status=${response.status}, error=${error}`
+            );
+            throw new Error(`Salesforce API error: ${error}`);
+          }
+
+          const responseData = await response.json();
+
+          // Process responses
+          responseData.compositeResponse.forEach((resp: any, index: number) => {
+            const donor = batch[index];
+            if (
+              resp.httpStatusCode === 200 ||
+              resp.httpStatusCode === 201 ||
+              resp.httpStatusCode === 204
+            ) {
+              const newExternalId = resp.body?.id || donor.externalId;
+              console.log(
+                `[SalesforceService.uploadDonors] Account ${index} success (${resp.httpStatusCode}): externalId=${newExternalId}`
+              );
+              results.push({
+                ...donor,
+                externalId: newExternalId,
+              });
+            } else if (resp.httpStatusCode === 404 && donor.externalId) {
+              // Record not found - try to create a new one
+              console.warn(
+                `[SalesforceService.uploadDonors] Account ${index} not found (404), will retry as CREATE: externalId=${donor.externalId}`
+              );
+
+              // Add to retry list as a new record without externalId
+              const retryDonor = { ...donor, externalId: '' };
+              retryDonors.push(retryDonor);
+            } else {
+              console.error(
+                `[SalesforceService.uploadDonors] Account ${index} failed: status=${resp.httpStatusCode}, error=${JSON.stringify(resp.body)}`
+              );
+            }
+          });
+        }
+      }
+
+      // Process contacts
+      if (contacts.length > 0) {
+        console.log(`[SalesforceService.uploadDonors] Processing ${contacts.length} contacts`);
+        const contactBatches = this.createBatches(contacts, 200);
+
+        for (const batch of contactBatches) {
+          const compositeRequest = {
+            allOrNone: false, // Continue processing even if some records fail
+            compositeRequest: batch.map((donor, index) => {
+              const isUpdate = !!donor.externalId;
+              console.log(
+                `[SalesforceService.uploadDonors] Contact ${index}: ${isUpdate ? 'UPDATE' : 'CREATE'} - externalId=${donor.externalId || 'none'}, email=${donor.email}`
+              );
+
+              return {
+                method: isUpdate ? 'PATCH' : 'POST',
+                url: isUpdate
+                  ? `/services/data/${this.apiVersion}/sobjects/Contact/${donor.externalId}`
+                  : `/services/data/${this.apiVersion}/sobjects/Contact`,
+                referenceId: `contact_${index}`,
+                body: {
+                  FirstName: donor.firstName,
+                  LastName: donor.lastName,
+                  Email: donor.email,
+                  Phone: donor.phone,
+                  MailingStreet: donor.address?.street,
+                  MailingCity: donor.address?.city,
+                  MailingState: donor.address?.state,
+                  MailingPostalCode: donor.address?.postalCode,
+                  MailingCountry: donor.address?.country,
+                },
+              };
+            }),
+          };
+
+          console.log(`[SalesforceService.uploadDonors] Sending batch of ${batch.length} contacts`);
+          console.log(
+            `[SalesforceService.uploadDonors] Composite request:`,
+            JSON.stringify(compositeRequest, null, 2)
+          );
+
+          const instanceUrl = metadata?.instanceUrl;
+          if (!instanceUrl) {
+            throw new Error('Instance URL not found in metadata');
+          }
+
+          const response = await fetch(
+            `${instanceUrl}/services/data/${this.apiVersion}/composite`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(compositeRequest),
+            }
+          );
+
+          if (!response.ok) {
+            const error = await response.text();
+            console.error(
+              `[SalesforceService.uploadDonors] API request failed: status=${response.status}, error=${error}`
+            );
+            throw new Error(`Salesforce API error: ${error}`);
+          }
+
+          const responseData = await response.json();
+
+          // Process responses
+          responseData.compositeResponse.forEach((resp: any, index: number) => {
+            const donor = batch[index];
+            if (
+              resp.httpStatusCode === 200 ||
+              resp.httpStatusCode === 201 ||
+              resp.httpStatusCode === 204
+            ) {
+              const newExternalId = resp.body?.id || donor.externalId;
+              console.log(
+                `[SalesforceService.uploadDonors] Contact ${index} success (${resp.httpStatusCode}): externalId=${newExternalId}`
+              );
+              results.push({
+                ...donor,
+                externalId: newExternalId,
+              });
+            } else if (resp.httpStatusCode === 404 && donor.externalId) {
+              // Record not found - try to create a new one
+              console.warn(
+                `[SalesforceService.uploadDonors] Contact ${index} not found (404), will retry as CREATE: externalId=${donor.externalId}`
+              );
+
+              // Add to retry list as a new record without externalId
+              const retryDonor = { ...donor, externalId: '' };
+              retryDonors.push(retryDonor);
+            } else {
+              console.error(
+                `[SalesforceService.uploadDonors] Contact ${index} failed: status=${resp.httpStatusCode}, error=${JSON.stringify(resp.body)}`
+              );
+            }
+          });
+        }
+
+        // Retry failed updates as creates
+        if (retryDonors.length > 0) {
+          console.log(
+            `[SalesforceService.uploadDonors] Retrying ${retryDonors.length} contacts as CREATE operations`
+          );
+          const retryResults = await this.uploadDonors(accessToken, retryDonors, metadata);
+          results.push(...retryResults);
+        }
+      }
+
+      console.log(
+        `[SalesforceService.uploadDonors] Successfully uploaded ${results.length} donors`
+      );
+      return results;
+    } catch (error) {
+      console.error('[SalesforceService.uploadDonors] Failed to upload donors:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload donations to Salesforce
+   */
+  async uploadDonations(
+    accessToken: string,
+    donations: CrmDonation[],
+    metadata?: Record<string, any>
+  ): Promise<CrmDonation[]> {
+    console.log(
+      `[SalesforceService.uploadDonations] Starting upload of ${donations.length} donations`
+    );
+
+    if (donations.length === 0) {
+      return [];
+    }
+
+    try {
+      const batches = this.createBatches(donations, 200);
+      const results: CrmDonation[] = [];
+      const retryDonations: CrmDonation[] = [];
+
+      for (const batch of batches) {
+        const compositeRequest = {
+          allOrNone: false, // Continue processing even if some records fail
+          compositeRequest: batch.map((donation, index) => {
+            const isUpdate = !!donation.externalId;
+            console.log(
+              `[SalesforceService.uploadDonations] Donation ${index}: ${isUpdate ? 'UPDATE' : 'CREATE'} - externalId=${donation.externalId || 'none'}, amount=${donation.amount}, donorExternalId=${donation.donorExternalId}`
+            );
+
+            return {
+              method: isUpdate ? 'PATCH' : 'POST',
+              url: isUpdate
+                ? `/services/data/${this.apiVersion}/sobjects/GiftTransaction/${donation.externalId}`
+                : `/services/data/${this.apiVersion}/sobjects/GiftTransaction`,
+              referenceId: `donation_${index}`,
+              body: {
+                Name:
+                  donation.designation ||
+                  `Donation ${new Date(donation.date).toLocaleDateString()}`,
+                DonorId: donation.donorExternalId,
+                CurrentAmount: donation.amount / 100, // Convert cents to dollars
+                GiftDate: donation.date.toISOString().split('T')[0],
+                GiftType: 'Cash',
+                CampaignId: donation.campaignExternalId || undefined,
+              },
+            };
+          }),
+        };
+
+        console.log(
+          `[SalesforceService.uploadDonations] Sending batch of ${batch.length} donations`
+        );
+
+        const instanceUrl = metadata?.instanceUrl;
+        if (!instanceUrl) {
+          throw new Error('Instance URL not found in metadata');
+        }
+
+        const response = await fetch(`${instanceUrl}/services/data/${this.apiVersion}/composite`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(compositeRequest),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(
+            `[SalesforceService.uploadDonations] API request failed: status=${response.status}, error=${error}`
+          );
+          throw new Error(`Salesforce API error: ${error}`);
+        }
+
+        const responseData = await response.json();
+
+        // Process responses
+        responseData.compositeResponse.forEach((resp: any, index: number) => {
+          const donation = batch[index];
+          if (
+            resp.httpStatusCode === 200 ||
+            resp.httpStatusCode === 201 ||
+            resp.httpStatusCode === 204
+          ) {
+            const newExternalId = resp.body?.id || donation.externalId;
+            console.log(
+              `[SalesforceService.uploadDonations] Donation ${index} success (${resp.httpStatusCode}): externalId=${newExternalId}`
+            );
+            results.push({
+              ...donation,
+              externalId: newExternalId,
+            });
+          } else if (resp.httpStatusCode === 404 && donation.externalId) {
+            // Record not found - try to create a new one
+            console.warn(
+              `[SalesforceService.uploadDonations] Donation ${index} not found (404), will retry as CREATE: externalId=${donation.externalId}`
+            );
+
+            // Add to retry list as a new record without externalId
+            const retryDonation = { ...donation, externalId: '' };
+            retryDonations.push(retryDonation);
+          } else {
+            console.error(
+              `[SalesforceService.uploadDonations] Donation ${index} failed: status=${resp.httpStatusCode}, error=${JSON.stringify(resp.body)}`
+            );
+          }
+        });
+      }
+
+      // Retry failed updates as creates
+      if (retryDonations.length > 0) {
+        console.log(
+          `[SalesforceService.uploadDonations] Retrying ${retryDonations.length} donations as CREATE operations`
+        );
+        const retryResults = await this.uploadDonations(accessToken, retryDonations, metadata);
+        results.push(...retryResults);
+      }
+
+      console.log(
+        `[SalesforceService.uploadDonations] Successfully uploaded ${results.length} donations`
+      );
+      return results;
+    } catch (error) {
+      console.error('[SalesforceService.uploadDonations] Failed to upload donations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload projects/campaigns to Salesforce
+   */
+  async uploadProjects(
+    accessToken: string,
+    projects: CrmProject[],
+    metadata?: Record<string, any>
+  ): Promise<CrmProject[]> {
+    console.log(
+      `[SalesforceService.uploadProjects] Starting upload of ${projects.length} projects`
+    );
+
+    if (projects.length === 0) {
+      return [];
+    }
+
+    try {
+      const batches = this.createBatches(projects, 200);
+      const results: CrmProject[] = [];
+      const retryProjects: CrmProject[] = [];
+
+      for (const batch of batches) {
+        const compositeRequest = {
+          allOrNone: false, // Continue processing even if some records fail
+          compositeRequest: batch.map((project, index) => {
+            const isUpdate = !!project.externalId;
+            console.log(
+              `[SalesforceService.uploadProjects] Project ${index}: ${isUpdate ? 'UPDATE' : 'CREATE'} - externalId=${project.externalId || 'none'}, name=${project.name}`
+            );
+
+            return {
+              method: isUpdate ? 'PATCH' : 'POST',
+              url: isUpdate
+                ? `/services/data/${this.apiVersion}/sobjects/Campaign/${project.externalId}`
+                : `/services/data/${this.apiVersion}/sobjects/Campaign`,
+              referenceId: `project_${index}`,
+              body: {
+                Name: project.name,
+                Description: project.description,
+                IsActive: project.active,
+                ExpectedRevenue: project.goal ? project.goal / 100 : undefined, // Convert cents to dollars
+                Status: project.active ? 'In Progress' : 'Completed',
+              },
+            };
+          }),
+        };
+
+        console.log(`[SalesforceService.uploadProjects] Sending batch of ${batch.length} projects`);
+
+        const instanceUrl = metadata?.instanceUrl;
+        if (!instanceUrl) {
+          throw new Error('Instance URL not found in metadata');
+        }
+
+        const response = await fetch(`${instanceUrl}/services/data/${this.apiVersion}/composite`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(compositeRequest),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(
+            `[SalesforceService.uploadProjects] API request failed: status=${response.status}, error=${error}`
+          );
+          throw new Error(`Salesforce API error: ${error}`);
+        }
+
+        const responseData = await response.json();
+
+        // Process responses
+        responseData.compositeResponse.forEach((resp: any, index: number) => {
+          const project = batch[index];
+          if (
+            resp.httpStatusCode === 200 ||
+            resp.httpStatusCode === 201 ||
+            resp.httpStatusCode === 204
+          ) {
+            const newExternalId = resp.body?.id || project.externalId;
+            console.log(
+              `[SalesforceService.uploadProjects] Project ${index} success (${resp.httpStatusCode}): externalId=${newExternalId}`
+            );
+            results.push({
+              ...project,
+              externalId: newExternalId,
+            });
+          } else if (resp.httpStatusCode === 404 && project.externalId) {
+            // Record not found - try to create a new one
+            console.warn(
+              `[SalesforceService.uploadProjects] Project ${index} not found (404), will retry as CREATE: externalId=${project.externalId}`
+            );
+
+            // Add to retry list as a new record without externalId
+            const retryProject = { ...project, externalId: '' };
+            retryProjects.push(retryProject);
+          } else {
+            console.error(
+              `[SalesforceService.uploadProjects] Project ${index} failed: status=${resp.httpStatusCode}, error=${JSON.stringify(resp.body)}`
+            );
+          }
+        });
+      }
+
+      // Retry failed updates as creates
+      if (retryProjects.length > 0) {
+        console.log(
+          `[SalesforceService.uploadProjects] Retrying ${retryProjects.length} projects as CREATE operations`
+        );
+        const retryResults = await this.uploadProjects(accessToken, retryProjects, metadata);
+        results.push(...retryResults);
+      }
+
+      console.log(
+        `[SalesforceService.uploadProjects] Successfully uploaded ${results.length} projects`
+      );
+      return results;
+    } catch (error) {
+      console.error('[SalesforceService.uploadProjects] Failed to upload projects:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to create batches of items
+   */
+  private createBatches<T>(items: T[], batchSize: number): T[][] {
+    const batches: T[][] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      batches.push(items.slice(i, i + batchSize));
+    }
+    return batches;
+  }
 }

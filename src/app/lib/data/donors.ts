@@ -31,6 +31,7 @@ import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 import { clerkClient } from '@clerk/nextjs/server';
 import type { DonorJourney } from './organizations';
 import { removeFromAllLists } from './donor-lists';
+import { crmSyncService } from '../services/crm-sync.service';
 
 export type Donor = InferSelectModel<typeof donors>;
 export type NewDonor = InferInsertModel<typeof donors>;
@@ -166,7 +167,44 @@ export async function createDonor(
   donorData: Omit<NewDonor, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<Donor> {
   try {
-    const result = await db.insert(donors).values(donorData).returning();
+    console.log(
+      `[createDonor] Starting donor creation: email=${donorData.email}, organizationId=${donorData.organizationId}`
+    );
+
+    // If donor doesn't have external ID, sync to CRM first
+    const finalDonorData = { ...donorData } as NewDonor;
+
+    if (!finalDonorData.externalId && finalDonorData.organizationId) {
+      console.log(`[createDonor] Syncing new donor to CRM: email=${finalDonorData.email}`);
+
+      const externalId = await crmSyncService.syncDonor(finalDonorData.organizationId, {
+        firstName: finalDonorData.firstName,
+        lastName: finalDonorData.lastName,
+        displayName: finalDonorData.displayName,
+        email: finalDonorData.email,
+        phone: finalDonorData.phone,
+        address: finalDonorData.address,
+        isCouple: finalDonorData.isCouple,
+        hisFirstName: finalDonorData.hisFirstName,
+        hisLastName: finalDonorData.hisLastName,
+        herFirstName: finalDonorData.herFirstName,
+        herLastName: finalDonorData.herLastName,
+      });
+
+      if (externalId) {
+        console.log(`[createDonor] CRM sync successful, externalId=${externalId}`);
+        finalDonorData.externalId = externalId;
+      } else {
+        console.log(`[createDonor] CRM sync returned no external ID`);
+      }
+    }
+
+    console.log(`[createDonor] Inserting donor into database: email=${finalDonorData.email}`);
+    const result = await db.insert(donors).values(finalDonorData).returning();
+
+    console.log(
+      `[createDonor] Database insert successful: id=${result[0].id}, externalId=${result[0].externalId || 'none'}`
+    );
     return normalizeDonorNotes(result[0]);
   } catch (error) {
     console.error('Failed to create donor:', error);
@@ -193,11 +231,66 @@ export async function updateDonor(
   organizationId: string
 ): Promise<Donor | undefined> {
   try {
+    // Always sync to CRM for updates
+    const existingDonor = await getDonorById(id, organizationId);
+
+    if (!existingDonor) {
+      console.log(`[updateDonor] Donor not found: id=${id}, organizationId=${organizationId}`);
+      return undefined;
+    }
+
+    console.log(
+      `[updateDonor] Starting update for donor: id=${id}, hasExternalId=${!!existingDonor.externalId}`
+    );
+
+    // Sync to CRM (create external ID if needed, or update existing)
+    if (organizationId) {
+      console.log(
+        `[updateDonor] Syncing donor to CRM: id=${id}, externalId=${existingDonor.externalId || 'none'}`
+      );
+
+      const externalId = await crmSyncService.syncDonor(organizationId, {
+        id,
+        externalId: existingDonor.externalId || undefined,
+        firstName: donorData.firstName || existingDonor.firstName,
+        lastName: donorData.lastName || existingDonor.lastName,
+        displayName: donorData.displayName || existingDonor.displayName,
+        email: donorData.email || existingDonor.email,
+        phone: donorData.phone !== undefined ? donorData.phone : existingDonor.phone,
+        address: donorData.address !== undefined ? donorData.address : existingDonor.address,
+        isCouple: donorData.isCouple !== undefined ? donorData.isCouple : existingDonor.isCouple,
+        hisFirstName:
+          donorData.hisFirstName !== undefined
+            ? donorData.hisFirstName
+            : existingDonor.hisFirstName,
+        hisLastName:
+          donorData.hisLastName !== undefined ? donorData.hisLastName : existingDonor.hisLastName,
+        herFirstName:
+          donorData.herFirstName !== undefined
+            ? donorData.herFirstName
+            : existingDonor.herFirstName,
+        herLastName:
+          donorData.herLastName !== undefined ? donorData.herLastName : existingDonor.herLastName,
+      });
+
+      if (externalId) {
+        console.log(`[updateDonor] CRM sync successful, externalId=${externalId}`);
+        donorData.externalId = externalId;
+      } else {
+        console.log(`[updateDonor] CRM sync returned no external ID`);
+      }
+    }
+
+    console.log(`[updateDonor] Updating donor in database: id=${id}`);
     const result = await db
       .update(donors)
       .set({ ...donorData, updatedAt: sql`now()` })
       .where(and(eq(donors.id, id), eq(donors.organizationId, organizationId)))
       .returning();
+
+    console.log(
+      `[updateDonor] Database update successful: id=${id}, externalId=${result[0]?.externalId || 'none'}`
+    );
     return normalizeDonorNotes(result[0]);
   } catch (error) {
     console.error('Failed to update donor:', error);
