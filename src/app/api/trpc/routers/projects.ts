@@ -25,6 +25,7 @@ import {
 const projectResponseSchema = z.object({
   id: idSchema,
   organizationId: z.string(),
+  externalId: z.string().nullable(),
   name: z.string(),
   description: z.string().nullable(),
   notes: z.string().nullable(), // Add notes field

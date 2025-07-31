@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useProjects } from "@/app/hooks/use-projects";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Container } from "@/components/ui/container";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import { ProjectForm } from "../_components/project-form";
-import { ProjectDonations } from "../_components/project-donations";
-import type { ProjectFormValues } from "../_components/project-form";
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useProjects } from '@/app/hooks/use-projects';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Container } from '@/components/ui/container';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
+import { ProjectForm } from '../_components/project-form';
+import { ProjectDonations } from '../_components/project-donations';
+import type { ProjectFormValues } from '../_components/project-form';
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -24,21 +24,21 @@ export default function ProjectDetailsPage() {
 
   useEffect(() => {
     if (error) {
-      toast.error("Failed to load project");
+      toast.error('Failed to load project');
     }
   }, [error]);
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this project?")) {
+    if (!window.confirm('Are you sure you want to delete this project?')) {
       return;
     }
 
     const success = await deleteProject(projectId);
     if (success) {
-      toast.success("Project deleted successfully");
-      router.push("/projects");
+      toast.success('Project deleted successfully');
+      router.push('/projects');
     } else {
-      toast.error("Failed to delete project");
+      toast.error('Failed to delete project');
     }
   };
 
@@ -50,16 +50,16 @@ export default function ProjectDetailsPage() {
       });
 
       if (result) {
-        toast.success("Project updated successfully");
+        toast.success('Project updated successfully');
         setIsEditing(false);
         // Refetch project data to ensure UI is in sync
         await refetch();
       } else {
-        toast.error("Failed to update project");
+        toast.error('Failed to update project');
       }
     } catch (err) {
-      console.error("Error updating project:", err);
-      toast.error("An unexpected error occurred");
+      console.error('Error updating project:', err);
+      toast.error('An unexpected error occurred');
     }
   };
 
@@ -88,9 +88,10 @@ export default function ProjectDetailsPage() {
       <div className="text-center">
         <h2 className="text-2xl font-bold">Project not found</h2>
         <p className="mt-2 text-muted-foreground">
-          The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it.
+          The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission
+          to view it.
         </p>
-        <Button className="mt-4" onClick={() => router.push("/projects")}>
+        <Button className="mt-4" onClick={() => router.push('/projects')}>
           Back to Projects
         </Button>
       </div>
@@ -101,10 +102,15 @@ export default function ProjectDetailsPage() {
     <Container>
       <div className="py-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{project.name}</h1>
+          <div>
+            <h1 className="text-2xl font-bold">{project.name}</h1>
+            {project.externalId && (
+              <p className="text-sm text-muted-foreground">External ID: {project.externalId}</p>
+            )}
+          </div>
           <div className="space-x-2">
             <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-              {isEditing ? "Cancel" : "Edit"}
+              {isEditing ? 'Cancel' : 'Edit'}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
@@ -112,65 +118,76 @@ export default function ProjectDetailsPage() {
           </div>
         </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{isEditing ? "Edit Project" : "Project Details"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEditing ? (
-            <ProjectForm
-              defaultValues={{
-                name: project.name,
-                description: project.description || undefined,
-                notes: project.notes || undefined,
-                active: project.active,
-                goal: project.goal || undefined,
-                tags: project.tags || [],
-                external: project.external || false,
-              }}
-              onSubmit={handleUpdate}
-              submitLabel="Update Project"
-            />
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium">Description</h3>
-                <p className="text-muted-foreground">{project.description || "No description provided"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Notes</h3>
-                <p className="text-muted-foreground">{project.notes || "No notes provided"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Status</h3>
-                <p className="text-muted-foreground">{project.active ? "Active" : "Inactive"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">External Donations</h3>
-                <p className="text-muted-foreground">{project.external ? "Yes (excluded from AI emails)" : "No"}</p>
-              </div>
-              {project.goal && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{isEditing ? 'Edit Project' : 'Project Details'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isEditing ? (
+              <ProjectForm
+                defaultValues={{
+                  name: project.name,
+                  description: project.description || undefined,
+                  notes: project.notes || undefined,
+                  active: project.active,
+                  goal: project.goal || undefined,
+                  tags: project.tags || [],
+                  external: project.external || false,
+                }}
+                onSubmit={handleUpdate}
+                submitLabel="Update Project"
+              />
+            ) : (
+              <div className="space-y-4">
                 <div>
-                  <h3 className="font-medium">Goal</h3>
-                  <p className="text-muted-foreground">${project.goal.toLocaleString()}</p>
+                  <h3 className="font-medium">Description</h3>
+                  <p className="text-muted-foreground">
+                    {project.description || 'No description provided'}
+                  </p>
                 </div>
-              )}
-              {project.tags && project.tags.length > 0 && (
                 <div>
-                  <h3 className="font-medium">Tags</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {project.tags.map((tag) => (
-                      <span key={tag} className="rounded-full bg-primary/10 px-2 py-1 text-sm text-primary">
-                        {tag}
-                      </span>
-                    ))}
+                  <h3 className="font-medium">Notes</h3>
+                  <p className="text-muted-foreground">{project.notes || 'No notes provided'}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium">Status</h3>
+                  <p className="text-muted-foreground">{project.active ? 'Active' : 'Inactive'}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium">External ID</h3>
+                  <p className="text-muted-foreground">{project.externalId || '—'}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium">External Donations</h3>
+                  <p className="text-muted-foreground">
+                    {project.external ? 'Yes (excluded from AI emails)' : 'No'}
+                  </p>
+                </div>
+                {project.goal && (
+                  <div>
+                    <h3 className="font-medium">Goal</h3>
+                    <p className="text-muted-foreground">${project.goal.toLocaleString()}</p>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                )}
+                {project.tags && project.tags.length > 0 && (
+                  <div>
+                    <h3 className="font-medium">Tags</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {project.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-primary/10 px-2 py-1 text-sm text-primary"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {!isEditing && <ProjectDonations projectId={projectId} />}
       </div>
