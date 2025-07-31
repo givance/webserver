@@ -2,6 +2,7 @@ import { ICrmProvider } from '../base/crm-provider.interface';
 import {
   CrmDonor,
   CrmDonation,
+  CrmProject,
   OAuthTokens,
   PaginationParams,
   PaginatedResponse,
@@ -9,6 +10,7 @@ import {
 import {
   BlackbaudConstituent,
   BlackbaudGift,
+  BlackbaudCampaign,
   BlackbaudListResponse,
   BlackbaudTokenResponse,
 } from './blackbaud.types';
@@ -204,6 +206,32 @@ export class BlackbaudService implements ICrmProvider {
   }
 
   /**
+   * Fetch projects/campaigns from Blackbaud
+   */
+  async fetchProjects(
+    accessToken: string,
+    params: PaginationParams,
+    metadata?: Record<string, any>
+  ): Promise<PaginatedResponse<CrmProject>> {
+    const url = params.pageToken || `/fundraising/v1/campaigns?limit=${params.limit}`;
+
+    const response = await this.makeApiRequest(url, accessToken);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch campaigns: ${response.status}`);
+    }
+
+    const data: BlackbaudListResponse<BlackbaudCampaign> = await response.json();
+
+    return {
+      data: data.value.map((campaign) => BlackbaudMapper.mapCampaign(campaign)),
+      hasMore: !!data.next_link,
+      nextPageToken: data.next_link,
+      totalCount: data.count,
+    };
+  }
+
+  /**
    * Get donor by external ID
    */
   async getDonorById(accessToken: string, externalId: string): Promise<CrmDonor | null> {
@@ -224,6 +252,32 @@ export class BlackbaudService implements ICrmProvider {
       return BlackbaudMapper.mapConstituent(constituent);
     } catch (error) {
       logger.error('Failed to get donor by ID', { error, externalId });
+      return null;
+    }
+  }
+
+  /**
+   * Get donation by external ID
+   */
+  async getDonationById(
+    accessToken: string,
+    externalId: string,
+    metadata?: Record<string, any>
+  ): Promise<CrmDonation | null> {
+    try {
+      const response = await this.makeApiRequest(`/gift/v1/gifts/${externalId}`, accessToken);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`Failed to fetch gift: ${response.status}`);
+      }
+
+      const gift: BlackbaudGift = await response.json();
+      return BlackbaudMapper.mapGift(gift);
+    } catch (error) {
+      logger.error('Failed to get donation by ID', { error, externalId });
       return null;
     }
   }

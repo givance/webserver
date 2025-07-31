@@ -74,6 +74,18 @@ export interface BlackbaudListResponse<T> {
   value: T[];
 }
 
+export interface BlackbaudCampaign {
+  id: string;
+  description: string;
+  lookup_id?: string;
+  start_date?: string;
+  end_date?: string;
+  goal?: number;
+  inactive?: boolean;
+  date_added?: string;
+  date_modified?: string;
+}
+
 export interface BlackbaudTokenResponse {
   access_token: string;
   token_type: string;

@@ -245,7 +245,7 @@ export const integrationsRouter = router({
         const baseUrl = env.BASE_URL;
         let redirectUri: string;
 
-        // ALWAYS use SALESFORCE_REDIRECT_URI for Salesforce
+        // Use provider-specific redirect URIs when available
         if (input.provider === 'salesforce') {
           if (!env.SALESFORCE_REDIRECT_URI) {
             throw new TRPCError({
@@ -254,6 +254,8 @@ export const integrationsRouter = router({
             });
           }
           redirectUri = env.SALESFORCE_REDIRECT_URI;
+        } else if (input.provider === 'blackbaud' && env.BLACKBAUD_REDIRECT_URI) {
+          redirectUri = env.BLACKBAUD_REDIRECT_URI;
         } else {
           redirectUri = `${baseUrl}/settings/integrations/${input.provider}/callback`;
         }

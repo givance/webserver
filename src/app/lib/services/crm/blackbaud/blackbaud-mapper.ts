@@ -1,5 +1,5 @@
-import { CrmDonor, CrmDonation } from '../base/types';
-import { BlackbaudConstituent, BlackbaudGift } from './blackbaud.types';
+import { CrmDonor, CrmDonation, CrmProject } from '../base/types';
+import { BlackbaudConstituent, BlackbaudGift, BlackbaudCampaign } from './blackbaud.types';
 
 /**
  * Maps Blackbaud data to our CRM data model
@@ -108,6 +108,31 @@ export class BlackbaudMapper {
       dateModified: gift.date_modified,
     };
 
+    // Map campaign external ID if present
+    if (gift.campaign?.id) {
+      donation.campaignExternalId = gift.campaign.id;
+    }
+
     return donation;
+  }
+
+  /**
+   * Map Blackbaud campaign to CRM project
+   */
+  static mapCampaign(campaign: BlackbaudCampaign): CrmProject {
+    return {
+      externalId: campaign.id,
+      name: campaign.description || campaign.id,
+      description: campaign.description,
+      active: !campaign.inactive,
+      goal: campaign.goal ? Math.round(campaign.goal * 100) : undefined, // Convert to cents
+      metadata: {
+        lookupId: campaign.lookup_id,
+        startDate: campaign.start_date,
+        endDate: campaign.end_date,
+        dateAdded: campaign.date_added,
+        dateModified: campaign.date_modified,
+      },
+    };
   }
 }
