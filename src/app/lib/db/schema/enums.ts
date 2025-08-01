@@ -49,6 +49,7 @@ export const staffWhatsappActivityTypeEnum = pgEnum('staff_whatsapp_activity_typ
   'voice_transcribed',
   'error_occurred',
   'donor_analysis_executed',
+  'donor_note_added',
 ]);
 
 /**

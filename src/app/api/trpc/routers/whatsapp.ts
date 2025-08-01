@@ -460,7 +460,7 @@ export const whatsappRouter = router({
       if (!staff) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: ERROR_MESSAGES.NOT_FOUND,
+          message: ERROR_MESSAGES.NOT_FOUND('Staff member'),
         });
       }
 

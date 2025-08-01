@@ -10,7 +10,7 @@ import { SQL_TOOL_DESCRIPTION } from './prompts';
 import { SQLError } from './types';
 import { createDonorAnalysisTool } from './donor-analysis-tool';
 import { createDonorActionInsightsTool } from './donor-action-insights-tool';
-import { createSalesforceQueryTool } from './salesforce-query-tool';
+import { createAddDonorNoteTool } from './add-donor-note-tool';
 
 const FORBIDDEN_SQL_OPERATIONS = [
   'DELETE FROM',
@@ -102,7 +102,7 @@ export function createAITools(
     staffId,
     fromPhoneNumber
   );
-  const salesforceQueryTool = createSalesforceQueryTool(
+  const addDonorNoteTool = createAddDonorNoteTool(
     organizationId,
     loggingService,
     staffId,
@@ -249,6 +249,6 @@ export function createAITools(
     },
     ...donorAnalysisTool,
     ...donorActionInsightsTool,
-    ...salesforceQueryTool,
+    ...addDonorNoteTool,
   };
 }

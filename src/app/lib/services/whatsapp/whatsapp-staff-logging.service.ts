@@ -1,17 +1,18 @@
-import { db } from "@/app/lib/db";
-import { staffWhatsappActivityLog } from "@/app/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { logger } from "@/app/lib/logger";
+import { db } from '@/app/lib/db';
+import { staffWhatsappActivityLog } from '@/app/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { logger } from '@/app/lib/logger';
 
 export type WhatsAppActivityType =
-  | "message_received"
-  | "message_sent"
-  | "permission_denied"
-  | "db_query_executed"
-  | "ai_response_generated"
-  | "voice_transcribed"
-  | "error_occurred"
-  | "donor_analysis_executed";
+  | 'message_received'
+  | 'message_sent'
+  | 'permission_denied'
+  | 'db_query_executed'
+  | 'ai_response_generated'
+  | 'voice_transcribed'
+  | 'error_occurred'
+  | 'donor_analysis_executed'
+  | 'donor_note_added';
 
 export interface LogActivityParams {
   staffId: number;
@@ -46,7 +47,8 @@ export class WhatsAppStaffLoggingService {
    */
   async logActivity(params: LogActivityParams): Promise<boolean> {
     try {
-      const { staffId, organizationId, activityType, phoneNumber, summary, data, metadata } = params;
+      const { staffId, organizationId, activityType, phoneNumber, summary, data, metadata } =
+        params;
 
       await db.insert(staffWhatsappActivityLog).values({
         staffId,
@@ -58,7 +60,9 @@ export class WhatsAppStaffLoggingService {
         metadata: metadata || null,
       });
 
-      logger.info(`[WhatsApp Staff Logging] Logged activity "${activityType}" for staff ID: ${staffId} - ${summary}`);
+      logger.info(
+        `[WhatsApp Staff Logging] Logged activity "${activityType}" for staff ID: ${staffId} - ${summary}`
+      );
       return true;
     } catch (error) {
       logger.error(
@@ -76,13 +80,13 @@ export class WhatsAppStaffLoggingService {
     organizationId: string,
     phoneNumber: string,
     messageContent: string,
-    messageType: "text" | "audio" = "text",
+    messageType: 'text' | 'audio' = 'text',
     messageId?: string
   ): Promise<boolean> {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "message_received",
+      activityType: 'message_received',
       phoneNumber,
       summary: `Received ${messageType} message: "${messageContent}"`,
       data: {
@@ -93,7 +97,7 @@ export class WhatsAppStaffLoggingService {
       },
       metadata: {
         contentLength: messageContent.length,
-        messageSource: "whatsapp_webhook",
+        messageSource: 'whatsapp_webhook',
       },
     });
   }
@@ -111,7 +115,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "message_sent",
+      activityType: 'message_sent',
       phoneNumber,
       summary: `Sent AI response: "${responseContent}"`,
       data: {
@@ -121,7 +125,7 @@ export class WhatsAppStaffLoggingService {
       metadata: {
         contentLength: responseContent.length,
         tokensUsed,
-        responseSource: "ai_generated",
+        responseSource: 'ai_generated',
       },
     });
   }
@@ -142,7 +146,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "ai_response_generated",
+      activityType: 'ai_response_generated',
       phoneNumber,
       summary: `Generated AI response using ${tokensUsed.totalTokens} tokens`,
       data: {
@@ -165,12 +169,16 @@ export class WhatsAppStaffLoggingService {
   /**
    * Log a permission denied event
    */
-  async logPermissionDenied(phoneNumber: string, reason: string, attemptedMessage?: string): Promise<boolean> {
+  async logPermissionDenied(
+    phoneNumber: string,
+    reason: string,
+    attemptedMessage?: string
+  ): Promise<boolean> {
     // For permission denied, we don't have staff/org info, so we'll use placeholder values
     return this.logActivity({
       staffId: -1, // Special ID for permission denied cases
-      organizationId: "unknown",
-      activityType: "permission_denied",
+      organizationId: 'unknown',
+      activityType: 'permission_denied',
       phoneNumber,
       summary: `Permission denied: ${reason}`,
       data: {
@@ -198,7 +206,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "db_query_executed",
+      activityType: 'db_query_executed',
       phoneNumber,
       summary: `Executed DB query: ${query}`,
       data: {
@@ -228,7 +236,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "voice_transcribed",
+      activityType: 'voice_transcribed',
       phoneNumber,
       summary: `Transcribed voice message: "${transcription}"`,
       data: {
@@ -239,7 +247,7 @@ export class WhatsAppStaffLoggingService {
       metadata: {
         transcriptionLength: transcription.length,
         processingTimeMs,
-        audioSource: "whatsapp_voice",
+        audioSource: 'whatsapp_voice',
       },
     });
   }
@@ -261,7 +269,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "donor_analysis_executed",
+      activityType: 'donor_analysis_executed',
       phoneNumber,
       summary: `Analyzed ${donorsAnalyzed} donors: "${question}"`,
       data: {
@@ -298,7 +306,7 @@ export class WhatsAppStaffLoggingService {
     return this.logActivity({
       staffId,
       organizationId,
-      activityType: "error_occurred",
+      activityType: 'error_occurred',
       phoneNumber,
       summary: `Error occurred: ${errorMessage}`,
       data: {
@@ -308,8 +316,8 @@ export class WhatsAppStaffLoggingService {
         timestamp: new Date(),
       },
       metadata: {
-        errorType: "processing_error",
-        severity: "error",
+        errorType: 'processing_error',
+        severity: 'error',
       },
     });
   }
@@ -363,7 +371,10 @@ export class WhatsAppStaffLoggingService {
         .select()
         .from(staffWhatsappActivityLog)
         .where(
-          and(eq(staffWhatsappActivityLog.staffId, staffId), eq(staffWhatsappActivityLog.phoneNumber, phoneNumber))
+          and(
+            eq(staffWhatsappActivityLog.staffId, staffId),
+            eq(staffWhatsappActivityLog.phoneNumber, phoneNumber)
+          )
         )
         .orderBy(desc(staffWhatsappActivityLog.createdAt))
         .limit(limit);
@@ -426,19 +437,19 @@ export class WhatsAppStaffLoggingService {
         stats.uniquePhoneNumbers.add(activity.phoneNumber);
 
         switch (activity.activityType) {
-          case "message_sent":
+          case 'message_sent':
             stats.messagesSent++;
             break;
-          case "message_received":
+          case 'message_received':
             stats.messagesReceived++;
             break;
-          case "db_query_executed":
+          case 'db_query_executed':
             stats.dbQueriesExecuted++;
             break;
-          case "error_occurred":
+          case 'error_occurred':
             stats.errorsOccurred++;
             break;
-          case "voice_transcribed":
+          case 'voice_transcribed':
             stats.voiceTranscribed++;
             break;
         }
