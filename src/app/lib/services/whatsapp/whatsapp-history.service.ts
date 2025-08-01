@@ -1,11 +1,11 @@
-import { db } from "@/app/lib/db";
-import { whatsappChatHistory } from "@/app/lib/db/schema";
-import { desc, eq, and } from "drizzle-orm";
-import { logger } from "@/app/lib/logger";
+import { db } from '@/app/lib/db';
+import { whatsappChatHistory } from '@/app/lib/db/schema';
+import { desc, eq, and } from 'drizzle-orm';
+import { logger } from '@/app/lib/logger';
 
 export interface WhatsAppMessage {
   id: number;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   createdAt: Date;
   toolCalls?: any;
@@ -18,7 +18,7 @@ export interface SaveMessageParams {
   staffId?: number; // Made optional for backward compatibility
   fromPhoneNumber: string;
   messageId?: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   toolCalls?: any;
   toolResults?: any;
@@ -33,8 +33,17 @@ export class WhatsAppHistoryService {
    * Save a message to the chat history
    */
   async saveMessage(params: SaveMessageParams): Promise<void> {
-    const { organizationId, staffId, fromPhoneNumber, messageId, role, content, toolCalls, toolResults, tokensUsed } =
-      params;
+    const {
+      organizationId,
+      staffId,
+      fromPhoneNumber,
+      messageId,
+      role,
+      content,
+      toolCalls,
+      toolResults,
+      tokensUsed,
+    } = params;
 
     try {
       await db.insert(whatsappChatHistory).values({
@@ -93,7 +102,9 @@ export class WhatsAppHistoryService {
       // Reverse to get chronological order (oldest first)
       const chronologicalMessages = messages.reverse();
 
-      logger.info(`[WhatsApp History] Retrieved ${chronologicalMessages.length} messages for ${fromPhoneNumber}`);
+      logger.info(
+        `[WhatsApp History] Retrieved ${chronologicalMessages.length} messages for ${fromPhoneNumber}`
+      );
 
       return chronologicalMessages.map((msg) => ({
         id: msg.id,
@@ -118,15 +129,43 @@ export class WhatsAppHistoryService {
    */
   formatHistoryForAI(messages: WhatsAppMessage[]): string {
     if (messages.length === 0) {
-      return "";
+      return '';
     }
 
     const formattedMessages = messages.map((msg) => {
-      const role = msg.role === "user" ? "User" : "Assistant";
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
       return `${role}: ${msg.content}`;
     });
 
-    return formattedMessages.join("\n\n");
+    return formattedMessages.join('\n\n');
+  }
+
+  /**
+   * Clear all conversation history for a specific phone number
+   */
+  async clearConversationHistory(
+    organizationId: string,
+    staffId: number,
+    fromPhoneNumber: string
+  ): Promise<void> {
+    try {
+      await db
+        .delete(whatsappChatHistory)
+        .where(
+          and(
+            eq(whatsappChatHistory.organizationId, organizationId),
+            eq(whatsappChatHistory.staffId, staffId),
+            eq(whatsappChatHistory.fromPhoneNumber, fromPhoneNumber)
+          )
+        );
+
+      logger.info(`[WhatsApp History] Cleared conversation history for phone ${fromPhoneNumber}`);
+    } catch (error) {
+      logger.error(
+        `[WhatsApp History] Failed to clear conversation history: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw error;
+    }
   }
 
   /**
@@ -173,7 +212,9 @@ export class WhatsAppHistoryService {
               )
             );
 
-            logger.info(`[WhatsApp History] Cleaned up ${idsToDelete.length} old messages for ${fromPhoneNumber}`);
+            logger.info(
+              `[WhatsApp History] Cleaned up ${idsToDelete.length} old messages for ${fromPhoneNumber}`
+            );
           }
         }
       }

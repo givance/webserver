@@ -50,26 +50,42 @@ export default function StaffListPage() {
 
   const { staffMembers, totalCount } = useMemo(() => {
     const items: Staff[] =
-      listStaffResponse?.staff?.map((apiStaff) => ({
-        id: apiStaff.id.toString(),
-        firstName: apiStaff.firstName,
-        lastName: apiStaff.lastName,
-        email: apiStaff.email,
-        isRealPerson: apiStaff.isRealPerson,
-        isPrimary: apiStaff.isPrimary,
-        signature: apiStaff.signature || null,
-        writingInstructions: apiStaff.writingInstructions || null,
-        gmailToken: apiStaff.gmailToken || null,
-        microsoftToken: apiStaff.microsoftToken || null,
-        createdAt: apiStaff.createdAt
-          ? new Date(apiStaff.createdAt).toISOString()
-          : new Date().toISOString(),
-        updatedAt: apiStaff.updatedAt
-          ? new Date(apiStaff.updatedAt).toISOString()
-          : new Date().toISOString(),
-        organizationId: apiStaff.organizationId,
-        integrations: apiStaff.integrations || [],
-      })) || [];
+      listStaffResponse?.staff?.map((apiStaff) => {
+        const staff: Staff = {
+          id: apiStaff.id.toString(),
+          firstName: apiStaff.firstName,
+          lastName: apiStaff.lastName,
+          email: apiStaff.email,
+          isRealPerson: apiStaff.isRealPerson,
+          isPrimary: apiStaff.isPrimary,
+          signature: apiStaff.signature || null,
+          writingInstructions: apiStaff.writingInstructions || null,
+          createdAt: apiStaff.createdAt
+            ? new Date(apiStaff.createdAt).toISOString()
+            : new Date().toISOString(),
+          updatedAt: apiStaff.updatedAt
+            ? new Date(apiStaff.updatedAt).toISOString()
+            : new Date().toISOString(),
+          organizationId: apiStaff.organizationId,
+        };
+
+        // Add optional fields if they exist
+        if ('gmailToken' in apiStaff && apiStaff.gmailToken) {
+          staff.gmailToken = apiStaff.gmailToken as { id: number; email: string };
+        }
+        if ('microsoftToken' in apiStaff && apiStaff.microsoftToken) {
+          staff.microsoftToken = apiStaff.microsoftToken as { id: number; email: string };
+        }
+        if ('integrations' in apiStaff && apiStaff.integrations) {
+          staff.integrations = apiStaff.integrations as Array<{
+            id: number;
+            provider: string;
+            isActive: boolean;
+          }>;
+        }
+
+        return staff;
+      }) || [];
     return { staffMembers: items, totalCount: listStaffResponse?.totalCount || 0 };
   }, [listStaffResponse]);
 

@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import React, { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { WhatsAppChatMessage } from "./WhatsAppChatMessage";
-import { WhatsAppChatInput } from "./WhatsAppChatInput";
-import { useWhatsAppChat } from "./useWhatsAppChat";
-import { Phone, RefreshCw } from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { WhatsAppChatMessage } from './WhatsAppChatMessage';
+import { WhatsAppChatInput } from './WhatsAppChatInput';
+import { useWhatsAppChat } from './useWhatsAppChat';
+import { RefreshCw } from 'lucide-react';
 
 export default function WhatsAppTestingPage() {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [isPhoneSet, setIsPhoneSet] = useState(false);
+  const DEFAULT_PHONE_NUMBER = '9173481586';
+  const [phoneNumber] = useState(DEFAULT_PHONE_NUMBER);
+  const [isPhoneSet] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const { messages, isLoading, sendMessage, clearMessages, isAllowed, staffName } = useWhatsAppChat(phoneNumber);
+  const { messages, isLoading, sendMessage, clearMessages, isAllowed, staffName } =
+    useWhatsAppChat(phoneNumber);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -26,56 +26,9 @@ export default function WhatsAppTestingPage() {
     }
   }, [messages]);
 
-  const handleSetPhone = () => {
-    if (phoneNumber.trim() && phoneNumber.length >= 10) {
-      setIsPhoneSet(true);
-    }
-  };
-
   const handleReset = () => {
-    setPhoneNumber("");
-    setIsPhoneSet(false);
     clearMessages();
   };
-
-  if (!isPhoneSet) {
-    return (
-      <div className="container mx-auto max-w-2xl py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>WhatsApp Testing Interface</CardTitle>
-            <CardDescription>
-              Test the WhatsApp AI assistant without sending actual WhatsApp messages
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+1234567890"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    handleSetPhone();
-                  }
-                }}
-              />
-              <p className="text-sm text-muted-foreground">
-                Enter the phone number associated with a staff member to test the WhatsApp feature
-              </p>
-            </div>
-            <Button onClick={handleSetPhone} disabled={!phoneNumber.trim() || phoneNumber.length < 10}>
-              <Phone className="mr-2 h-4 w-4" />
-              Start Chat
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto max-w-4xl py-8">
@@ -86,7 +39,7 @@ export default function WhatsAppTestingPage() {
             <CardDescription>
               Phone: {phoneNumber}
               {isAllowed && staffName && ` • Staff: ${staffName}`}
-              {!isAllowed && " • No permission"}
+              {!isAllowed && ' • No permission'}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={handleReset}>
@@ -101,7 +54,7 @@ export default function WhatsAppTestingPage() {
               {messages.length === 0 && (
                 <div className="text-center text-muted-foreground">
                   {isAllowed
-                    ? "Send a message to start the conversation"
+                    ? 'Send a message to start the conversation'
                     : "This phone number doesn't have permission to use WhatsApp"}
                 </div>
               )}
@@ -124,7 +77,7 @@ export default function WhatsAppTestingPage() {
           <WhatsAppChatInput
             onSendMessage={sendMessage}
             isLoading={isLoading}
-            placeholder={isAllowed ? "Type a message..." : "No permission to send messages"}
+            placeholder={isAllowed ? 'Type a message...' : 'No permission to send messages'}
           />
         </CardContent>
       </Card>

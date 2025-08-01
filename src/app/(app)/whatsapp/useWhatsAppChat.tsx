@@ -20,7 +20,12 @@ export function useWhatsAppChat(phoneNumber: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { processTestMessage, checkPhonePermission, getConversationHistory } = useWhatsApp();
+  const {
+    processTestMessage,
+    checkPhonePermission,
+    getConversationHistory,
+    clearConversationHistory,
+  } = useWhatsApp();
 
   // Check phone permission to get staff ID
   const { data: permissionData } = checkPhonePermission(phoneNumber);
@@ -112,9 +117,20 @@ export function useWhatsAppChat(phoneNumber: string) {
     [phoneNumber, processTestMessage]
   );
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = useCallback(async () => {
+    // Clear local state immediately
     setMessages([]);
-  }, []);
+
+    // Clear database history if we have permission data
+    if (permissionData?.isAllowed && 'staffId' in permissionData && permissionData.staffId) {
+      try {
+        await clearConversationHistory(permissionData.staffId, phoneNumber);
+      } catch (error) {
+        console.error('Failed to clear database history:', error);
+        // Don't show error to user - local state is already cleared
+      }
+    }
+  }, [clearConversationHistory, permissionData, phoneNumber]);
 
   return {
     messages,

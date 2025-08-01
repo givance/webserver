@@ -37,15 +37,32 @@ export class IntegrationsService {
    * Get integration tokens with type safety
    */
   getIntegrationTokens(integration: any): IntegrationTokens | null {
-    if (!integration?.tokens) {
+    logger.debug('[IntegrationsService] Getting integration tokens', {
+      integrationId: integration?.id,
+      hasAccessToken: !!integration?.accessToken,
+      hasRefreshToken: !!integration?.refreshToken,
+      hasMetadata: !!integration?.metadata,
+      provider: integration?.provider,
+    });
+
+    if (!integration?.accessToken) {
+      logger.debug('[IntegrationsService] No access token found in integration');
       return null;
     }
 
-    const tokens = integration.tokens as IntegrationTokens;
+    // Build tokens object from database columns
+    const tokens: IntegrationTokens = {
+      accessToken: integration.accessToken,
+      refreshToken: integration.refreshToken,
+      metadata: integration.metadata as any,
+    };
 
-    if (!tokens.accessToken) {
-      return null;
-    }
+    logger.debug('[IntegrationsService] Tokens retrieved successfully', {
+      hasAccessToken: !!tokens.accessToken,
+      hasRefreshToken: !!tokens.refreshToken,
+      hasMetadata: !!tokens.metadata,
+      metadataKeys: tokens.metadata ? Object.keys(tokens.metadata) : [],
+    });
 
     return tokens;
   }

@@ -440,4 +440,34 @@ export const whatsappRouter = router({
         });
       }
     }),
+
+  /**
+   * Clear conversation history for a specific phone number
+   */
+  clearConversationHistory: protectedProcedure
+    .input(
+      z.object({
+        staffId: z.number(),
+        phoneNumber: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { organizationId } = ctx.auth.user;
+      const { staffId, phoneNumber } = input;
+
+      // Verify the staff member belongs to the organization
+      const staff = await getStaffById(staffId, organizationId);
+      if (!staff) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: ERROR_MESSAGES.NOT_FOUND,
+        });
+      }
+
+      // Clear the conversation history
+      const historyService = ctx.services.whatsappHistory;
+      await historyService.clearConversationHistory(organizationId, staffId, phoneNumber);
+
+      return { success: true };
+    }),
 });

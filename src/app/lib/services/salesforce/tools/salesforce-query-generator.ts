@@ -60,6 +60,7 @@ Key guidelines:
 6. Consider query governor limits
 7. Explain the query in simple terms
 8. Warn about potential issues or performance concerns
+9. For COUNT() queries, do NOT include the 'fields' property in the response (it's optional)
 
 Common Salesforce objects:
 - Account: Organizations/Companies

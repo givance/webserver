@@ -38,6 +38,18 @@ export function useWhatsApp() {
     },
   });
 
+  // Clear conversation history mutation
+  const clearConversationHistoryMutation = trpc.whatsapp.clearConversationHistory.useMutation({
+    onSuccess: () => {
+      toast.success('Conversation history cleared');
+      // Invalidate conversation history query to refetch
+      utils.whatsapp.getConversationHistory.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to clear conversation history');
+    },
+  });
+
   // Functions to expose
   const addPhoneNumber = async (staffId: number, phoneNumber: string) => {
     try {
@@ -106,11 +118,21 @@ export function useWhatsApp() {
     );
   };
 
+  const clearConversationHistory = async (staffId: number, phoneNumber: string) => {
+    try {
+      return await clearConversationHistoryMutation.mutateAsync({ staffId, phoneNumber });
+    } catch (error) {
+      console.error('Failed to clear conversation history:', error);
+      throw error;
+    }
+  };
+
   return {
     // Mutations
     addPhoneNumber,
     removePhoneNumber,
     processTestMessage,
+    clearConversationHistory,
     isAddingPhone: addPhoneNumberMutation.isPending,
     isRemovingPhone: removePhoneNumberMutation.isPending,
     isProcessingMessage: processTestMessageMutation.isPending,

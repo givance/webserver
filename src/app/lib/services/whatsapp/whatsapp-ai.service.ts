@@ -1,17 +1,18 @@
-import { env } from "@/app/lib/env";
-import { logger } from "@/app/lib/logger";
-import { createAzure } from "@ai-sdk/azure";
-import { generateText } from "ai";
-import { WhatsAppSQLEngineService } from "./whatsapp-sql-engine.service";
-import { WhatsAppHistoryService } from "./whatsapp-history.service";
-import { WhatsAppStaffLoggingService } from "./whatsapp-staff-logging.service";
-import { checkAndMarkMessage } from "./message-deduplication";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts";
-import { createAITools } from "./ai-tools";
-import { WhatsAppAIRequest, WhatsAppAIResponse } from "./types";
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { generateText } from 'ai';
+import { WhatsAppSQLEngineService } from './whatsapp-sql-engine.service';
+import { WhatsAppHistoryService } from './whatsapp-history.service';
+import { WhatsAppStaffLoggingService } from './whatsapp-staff-logging.service';
+import { checkAndMarkMessage } from './message-deduplication';
+import { buildSystemPrompt, buildUserPrompt } from './prompts';
+import { createAITools } from './ai-tools';
+import { WhatsAppAIRequest, WhatsAppAIResponse } from './types';
+import { integrationsService } from '../integrations.service';
 
 // Re-export types for external use
-export type { WhatsAppAIRequest, WhatsAppAIResponse } from "./types";
+export type { WhatsAppAIRequest, WhatsAppAIResponse } from './types';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -58,7 +59,9 @@ export class WhatsAppAIService {
         message: message,
       });
     } else {
-      logger.debug(`[WhatsApp AI] Processing retry message from ${fromPhoneNumber} (already processed recently)`);
+      logger.debug(
+        `[WhatsApp AI] Processing retry message from ${fromPhoneNumber} (already processed recently)`
+      );
     }
 
     try {
@@ -67,15 +70,23 @@ export class WhatsAppAIService {
         organizationId,
         staffId,
         fromPhoneNumber,
-        role: "user",
+        role: 'user',
         content: message,
       });
 
       // Get chat history for context
-      const chatHistory = await this.historyService.getChatHistory(organizationId, staffId, fromPhoneNumber, 10);
+      const chatHistory = await this.historyService.getChatHistory(
+        organizationId,
+        staffId,
+        fromPhoneNumber,
+        10
+      );
       const historyContext = this.historyService.formatHistoryForAI(chatHistory);
 
-      const systemPrompt = this.getSystemPrompt(organizationId);
+      // Check if staff has Salesforce integration
+      const hasSalesforceIntegration = await this.checkSalesforceIntegration(staffId);
+
+      const systemPrompt = this.getSystemPrompt(organizationId, hasSalesforceIntegration);
       const userPrompt = buildUserPrompt(message, isTranscribed, historyContext);
 
       logger.info(`[WhatsApp AI] Sending request to Azure OpenAI`, {
@@ -83,6 +94,7 @@ export class WhatsAppAIService {
         systemPromptLength: systemPrompt.length,
         userPromptLength: userPrompt.length,
         deployment: env.AZURE_OPENAI_DEPLOYMENT_NAME,
+        hasSalesforceIntegration,
       });
 
       const aiStartTime = Date.now();
@@ -90,10 +102,16 @@ export class WhatsAppAIService {
         model: azure(env.AZURE_OPENAI_DEPLOYMENT_NAME),
         system: systemPrompt,
         prompt: userPrompt,
-        tools: createAITools(this.sqlEngine, this.loggingService, organizationId, staffId, fromPhoneNumber),
+        tools: createAITools(
+          this.sqlEngine,
+          this.loggingService,
+          organizationId,
+          staffId,
+          fromPhoneNumber
+        ),
         temperature: 0.7,
         maxTokens: 2000,
-        toolChoice: "auto",
+        toolChoice: 'auto',
         maxSteps: 10,
       });
       const aiProcessingTime = Date.now() - aiStartTime;
@@ -128,7 +146,7 @@ export class WhatsAppAIService {
             result.toolCalls?.length || 0
           }, tool results: ${result.toolResults?.length || 0}`
         );
-        throw new Error("AI failed to generate a response - please try your question again");
+        throw new Error('AI failed to generate a response - please try your question again');
       }
 
       // Save the assistant response to history
@@ -136,7 +154,7 @@ export class WhatsAppAIService {
         organizationId,
         staffId,
         fromPhoneNumber,
-        role: "assistant",
+        role: 'assistant',
         content: responseText,
         toolCalls: result.toolCalls,
         toolResults: result.toolResults,
@@ -149,7 +167,7 @@ export class WhatsAppAIService {
         fromPhoneNumber,
         organizationId,
         totalProcessingTimeMs: totalProcessingTime,
-        responsePreview: responseText.substring(0, 100) + (responseText.length > 100 ? "..." : ""),
+        responsePreview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
         tokensUsed,
       });
 
@@ -175,17 +193,64 @@ export class WhatsAppAIService {
   }
 
   /**
+   * Check if staff has active Salesforce integration
+   */
+  private async checkSalesforceIntegration(staffId: number): Promise<boolean> {
+    try {
+      logger.info('[WhatsApp AI] Checking Salesforce integration for staff', { staffId });
+
+      const integration = await integrationsService.getActiveStaffIntegration(
+        staffId,
+        'salesforce'
+      );
+      if (!integration) {
+        logger.info('[WhatsApp AI] No Salesforce integration found for staff', { staffId });
+        return false;
+      }
+
+      logger.info('[WhatsApp AI] Found Salesforce integration', {
+        staffId,
+        integrationId: integration.id,
+        isActive: integration.isActive,
+        hasTokens: !!integration.tokens,
+        tokenKeys: integration.tokens ? Object.keys(integration.tokens) : [],
+      });
+
+      const tokens = integrationsService.getIntegrationTokens(integration);
+      const isValid = integrationsService.isSalesforceIntegrationValid(tokens);
+
+      logger.info('[WhatsApp AI] Salesforce integration validation result', {
+        staffId,
+        isValid,
+        hasTokens: !!tokens,
+        hasAccessToken: !!tokens?.accessToken,
+        hasInstanceUrl: !!tokens?.metadata?.instanceUrl,
+        instanceUrl: tokens?.metadata?.instanceUrl,
+      });
+
+      return isValid;
+    } catch (error) {
+      logger.error('[WhatsApp AI] Error checking Salesforce integration', { error, staffId });
+      return false;
+    }
+  }
+
+  /**
    * Get the system prompt for the AI assistant (cached for performance)
    */
-  private getSystemPrompt(organizationId: string): string {
-    // Check cache first
-    const cacheKey = `system-prompt-${organizationId}`;
+  private getSystemPrompt(organizationId: string, hasSalesforceIntegration: boolean): string {
+    // Check cache first - include Salesforce flag in cache key
+    const cacheKey = `system-prompt-${organizationId}-sf-${hasSalesforceIntegration}`;
     if (systemPromptCache.has(cacheKey)) {
       return systemPromptCache.get(cacheKey)!;
     }
 
     const schemaDescription = this.sqlEngine.getSchemaDescription();
-    const systemPrompt = buildSystemPrompt(organizationId, schemaDescription);
+    const systemPrompt = buildSystemPrompt(
+      organizationId,
+      schemaDescription,
+      hasSalesforceIntegration
+    );
 
     // Cache the system prompt
     systemPromptCache.set(cacheKey, systemPrompt);
