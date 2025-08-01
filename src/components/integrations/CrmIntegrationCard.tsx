@@ -125,9 +125,14 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
   };
 
   const handleDisconnect = () => {
+    if (!integration?.id) {
+      toast.error('No integration found to disconnect');
+      return;
+    }
+
     if (confirm(`Are you sure you want to disconnect ${provider.displayName}?`)) {
       disconnectMutation.mutate(
-        { provider: provider.name },
+        { integrationId: integration.id },
         {
           onSuccess: () => {
             toast.success(`${provider.displayName} disconnected successfully`);

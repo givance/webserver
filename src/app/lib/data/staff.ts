@@ -293,7 +293,7 @@ export async function listStaff(
       }
     }
 
-    // Query for the paginated data with gmailToken and microsoftToken relations
+    // Query for the paginated data with gmailToken, microsoftToken, and integrations relations
     const staffDataQuery = db.query.staff.findMany({
       where: and(...conditions),
       with: {
@@ -307,6 +307,13 @@ export async function listStaff(
           columns: {
             id: true,
             email: true,
+          },
+        },
+        integrations: {
+          columns: {
+            id: true,
+            provider: true,
+            isActive: true,
           },
         },
       },

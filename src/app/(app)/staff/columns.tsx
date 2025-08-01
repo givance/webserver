@@ -46,10 +46,15 @@ import {
   Trash2,
   User,
   X,
+  Database,
+  Link as LinkIcon,
+  Unlink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useIntegrations } from '@/app/hooks/use-integrations';
+import { trpc } from '@/app/lib/trpc/client';
 
 export type Staff = {
   id: string | number;
@@ -68,6 +73,11 @@ export type Staff = {
     id: number;
     email: string;
   } | null;
+  integrations?: Array<{
+    id: number;
+    provider: string;
+    isActive: boolean;
+  }> | null;
   createdAt: string;
   updatedAt: string;
   organizationId: string;
@@ -447,6 +457,134 @@ function EmailEditCell({
   );
 }
 
+// CrmIntegrationDisplay component for inline CRM display
+function CrmIntegrationDisplay({
+  staffId,
+  integrations,
+  onConnectionChange,
+}: {
+  staffId: string | number;
+  integrations?: Array<{ id: number; provider: string; isActive: boolean }> | null;
+  onConnectionChange?: () => void;
+}) {
+  const { getIntegrationAuthUrl, disconnectIntegration } = useIntegrations();
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const salesforceIntegration = integrations?.find(
+    (i) => i.provider === 'salesforce' && i.isActive
+  );
+  const blackbaudIntegration = integrations?.find((i) => i.provider === 'blackbaud' && i.isActive);
+  const hasAnyIntegration = !!(salesforceIntegration || blackbaudIntegration);
+
+  const handleConnect = async (provider: string) => {
+    try {
+      setIsConnecting(true);
+      const result = await getIntegrationAuthUrl.mutateAsync({
+        provider,
+        staffId: Number(staffId),
+      });
+      window.location.href = result.authUrl;
+    } catch (error) {
+      toast.error('Failed to initiate CRM connection');
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async (integrationId: number, provider: string) => {
+    if (confirm(`Are you sure you want to disconnect ${provider}?`)) {
+      try {
+        await disconnectIntegration.mutateAsync({ integrationId });
+        toast.success(`${provider} disconnected successfully`);
+        onConnectionChange?.();
+      } catch (error) {
+        toast.error(`Failed to disconnect ${provider}`);
+      }
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Icon indicator */}
+      <div
+        className={`flex items-center justify-center w-6 h-6 rounded-full ${
+          hasAnyIntegration ? 'bg-green-100' : 'bg-gray-100'
+        }`}
+      >
+        <Database className={`h-3 w-3 ${hasAnyIntegration ? 'text-green-600' : 'text-gray-400'}`} />
+      </div>
+
+      {/* Connected CRMs */}
+      <div className="flex flex-col gap-1">
+        {salesforceIntegration && (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+              Salesforce
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 hover:bg-red-50"
+              onClick={() => handleDisconnect(salesforceIntegration.id, 'Salesforce')}
+              disabled={disconnectIntegration.isPending}
+            >
+              <X className="h-3 w-3 text-red-500" />
+            </Button>
+          </div>
+        )}
+        {blackbaudIntegration && (
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+            >
+              Blackbaud
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 hover:bg-red-50"
+              onClick={() => handleDisconnect(blackbaudIntegration.id, 'Blackbaud')}
+              disabled={disconnectIntegration.isPending}
+            >
+              <X className="h-3 w-3 text-red-500" />
+            </Button>
+          </div>
+        )}
+
+        {/* Connect buttons if not connected */}
+        {!hasAnyIntegration && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Not connected</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  disabled={isConnecting}
+                >
+                  <LinkIcon className="h-3 w-3 mr-1" />
+                  Connect
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleConnect('salesforce')}>
+                  <Database className="h-4 w-4 mr-2" />
+                  Connect Salesforce
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleConnect('blackbaud')}>
+                  <Database className="h-4 w-4 mr-2" />
+                  Connect Blackbaud
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // SignatureDisplay component to show HTML signatures
 function SignatureDisplay({ signature }: { signature: string }) {
   const [sanitizedHtml, setSanitizedHtml] = useState('');
@@ -624,6 +762,27 @@ export const getColumns = (staffHooks?: {
     accessorFn: (row: Staff) => {
       if (row.gmailToken) return 'Gmail connected';
       if (row.microsoftToken) return 'Microsoft connected';
+      return 'Not connected';
+    },
+  },
+  {
+    id: 'crmIntegration',
+    header: 'CRM',
+    cell: ({ row }: { row: Row<Staff> }) => {
+      return (
+        <CrmIntegrationDisplay
+          staffId={row.original.id}
+          integrations={row.original.integrations}
+          onConnectionChange={staffHooks?.refreshStaff}
+        />
+      );
+    },
+    accessorFn: (row: Staff) => {
+      const salesforce = row.integrations?.find((i) => i.provider === 'salesforce' && i.isActive);
+      const blackbaud = row.integrations?.find((i) => i.provider === 'blackbaud' && i.isActive);
+      if (salesforce && blackbaud) return 'Salesforce, Blackbaud';
+      if (salesforce) return 'Salesforce';
+      if (blackbaud) return 'Blackbaud';
       return 'Not connected';
     },
   },

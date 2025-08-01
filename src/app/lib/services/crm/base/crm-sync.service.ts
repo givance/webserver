@@ -1,5 +1,5 @@
 import { db } from '@/app/lib/db';
-import { donors, donations, projects, organizationIntegrations } from '@/app/lib/db/schema';
+import { donors, donations, projects, staffIntegrations } from '@/app/lib/db/schema';
 import { eq, and, isNull, inArray, sql } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
 import {
@@ -23,7 +23,7 @@ export class CrmSyncService {
    */
   async syncOrganizationData(
     organizationId: string,
-    integration: typeof organizationIntegrations.$inferSelect,
+    integration: typeof staffIntegrations.$inferSelect,
     usePerDonorGiftTransactions = false
   ): Promise<CrmSyncResult> {
     const startTime = Date.now();
@@ -37,13 +37,13 @@ export class CrmSyncService {
     try {
       // Update sync status to 'syncing'
       await db
-        .update(organizationIntegrations)
+        .update(staffIntegrations)
         .set({
           syncStatus: 'syncing',
           syncError: null,
           updatedAt: new Date(),
         })
-        .where(eq(organizationIntegrations.id, integration.id));
+        .where(eq(staffIntegrations.id, integration.id));
 
       if (usePerDonorGiftTransactions && this.provider.name === 'salesforce') {
         // Use the new approach: fetch donors with their gift transactions

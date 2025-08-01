@@ -61,6 +61,7 @@ export default function StaffListPage() {
         writingInstructions: apiStaff.writingInstructions || null,
         gmailToken: null,
         microsoftToken: null,
+        integrations: apiStaff.integrations || null,
         createdAt: apiStaff.createdAt
           ? new Date(apiStaff.createdAt).toISOString()
           : new Date().toISOString(),

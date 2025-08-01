@@ -3,11 +3,13 @@ import { trpc } from '@/app/lib/trpc/client';
 export function useIntegrations() {
   const utils = trpc.useUtils();
 
-  const getOrganizationIntegrations = trpc.integrations.getOrganizationIntegrations.useQuery();
+  const getStaffIntegrations = (staffId?: number) => {
+    return trpc.integrations.getStaffIntegrations.useQuery({ staffId });
+  };
 
-  const getIntegrationSyncStatus = (provider: string, options?: { enabled?: boolean }) => {
+  const getIntegrationSyncStatus = (integrationId: number, options?: { enabled?: boolean }) => {
     return trpc.integrations.getIntegrationSyncStatus.useQuery(
-      { provider },
+      { integrationId },
       {
         enabled: options?.enabled ?? true,
         refetchInterval: 5000, // Check status every 5 seconds
@@ -25,13 +27,13 @@ export function useIntegrations() {
   const disconnectIntegration = trpc.integrations.disconnectIntegration.useMutation({
     onSuccess: () => {
       // Invalidate queries after disconnecting
-      utils.integrations.getOrganizationIntegrations.invalidate();
+      utils.integrations.getStaffIntegrations.invalidate();
       utils.integrations.getIntegrationSyncStatus.invalidate();
     },
   });
 
   return {
-    getOrganizationIntegrations,
+    getStaffIntegrations,
     getIntegrationSyncStatus,
     getIntegrationAuthUrl,
     handleIntegrationCallback,

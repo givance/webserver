@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
   serial,
@@ -8,6 +8,7 @@ import {
   boolean,
   integer,
   unique,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 
 import { organizations } from './organizations';
@@ -83,6 +84,37 @@ export const staffMicrosoftTokens = pgTable('staff_microsoft_tokens', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+/**
+ * Staff integrations table for storing CRM and other external system connections.
+ * Supports multiple providers (Blackbaud, Salesforce, HubSpot, etc.) per staff member.
+ */
+export const staffIntegrations = pgTable(
+  'staff_integrations',
+  {
+    id: serial('id').primaryKey(),
+    staffId: integer('staff_id')
+      .notNull()
+      .references(() => staff.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 50 }).notNull(), // 'blackbaud', 'salesforce', 'hubspot', etc.
+    accessToken: text('access_token').notNull(), // Should be encrypted in production
+    refreshToken: text('refresh_token').notNull(), // Should be encrypted in production
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    scope: text('scope'), // OAuth scopes granted
+    tokenType: varchar('token_type', { length: 50 }), // e.g., 'Bearer'
+    metadata: jsonb('metadata').default(sql`'{}'::jsonb`), // Provider-specific data (environmentId, instanceUrl, etc.)
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    syncStatus: varchar('sync_status', { length: 20 }).default('idle'), // 'idle', 'syncing', 'error'
+    syncError: text('sync_error'), // Last sync error message
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    // Only one integration per provider per staff member
+    uniqueProviderPerStaff: unique('staff_provider_unique').on(table.staffId, table.provider),
+  })
+);
+
 export const staffRelations = relations(staff, ({ many, one }) => ({
   communicationThreads: many(communicationThreadStaff),
   sentMessages: many(communicationContent, { relationName: 'fromStaff' }),
@@ -104,6 +136,7 @@ export const staffRelations = relations(staff, ({ many, one }) => ({
   whatsappChatHistory: many(whatsappChatHistory),
   whatsappActivityLog: many(staffWhatsappActivityLog),
   emailExamples: many(staffEmailExamples),
+  integrations: many(staffIntegrations),
 }));
 
 export const staffGmailTokensRelations = relations(staffGmailTokens, ({ one }) => ({
@@ -116,6 +149,13 @@ export const staffGmailTokensRelations = relations(staffGmailTokens, ({ one }) =
 export const staffMicrosoftTokensRelations = relations(staffMicrosoftTokens, ({ one }) => ({
   staff: one(staff, {
     fields: [staffMicrosoftTokens.staffId],
+    references: [staff.id],
+  }),
+}));
+
+export const staffIntegrationsRelations = relations(staffIntegrations, ({ one }) => ({
+  staff: one(staff, {
+    fields: [staffIntegrations.staffId],
     references: [staff.id],
   }),
 }));

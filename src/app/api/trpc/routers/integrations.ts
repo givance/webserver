@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, protectedProcedure, validateNotNullish, createTRPCError } from '../trpc';
 import { db } from '@/app/lib/db';
-import { organizationIntegrations } from '@/app/lib/db/schema';
+import { staffIntegrations, staff } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { env } from '@/app/lib/env';
 import { logger } from '@/app/lib/logger';
@@ -89,25 +89,72 @@ export const integrationsRouter = router({
   }),
 
   /**
-   * Get all integrations for the current organization
+   * Get all integrations for staff in the current organization
    */
-  getOrganizationIntegrations: protectedProcedure.query(async ({ ctx }) => {
-    const integrations = await db.query.organizationIntegrations.findMany({
-      where: eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-    });
+  getStaffIntegrations: protectedProcedure
+    .input(
+      z.object({
+        staffId: z.number().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // If staffId is provided, verify it belongs to the organization
+      if (input.staffId) {
+        const staffMember = await db.query.staff.findFirst({
+          where: and(
+            eq(staff.id, input.staffId),
+            eq(staff.organizationId, ctx.auth.user.organizationId)
+          ),
+        });
 
-    // Don't expose sensitive tokens to the client
-    return integrations.map((integration) => ({
-      id: integration.id,
-      provider: integration.provider,
-      isActive: integration.isActive,
-      lastSyncAt: integration.lastSyncAt,
-      syncStatus: integration.syncStatus,
-      syncError: integration.syncError,
-      createdAt: integration.createdAt,
-      metadata: integration.metadata,
-    }));
-  }),
+        if (!staffMember) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Staff member not found',
+          });
+        }
+
+        const integrations = await db.query.staffIntegrations.findMany({
+          where: eq(staffIntegrations.staffId, input.staffId),
+        });
+
+        return integrations.map((integration) => ({
+          id: integration.id,
+          staffId: integration.staffId,
+          provider: integration.provider,
+          isActive: integration.isActive,
+          lastSyncAt: integration.lastSyncAt,
+          syncStatus: integration.syncStatus,
+          syncError: integration.syncError,
+          createdAt: integration.createdAt,
+          metadata: integration.metadata,
+        }));
+      }
+
+      // Get all staff integrations for the organization
+      const staffMembers = await db.query.staff.findMany({
+        where: eq(staff.organizationId, ctx.auth.user.organizationId),
+        with: {
+          integrations: true,
+        },
+      });
+
+      return staffMembers.flatMap((staffMember) =>
+        staffMember.integrations.map((integration) => ({
+          id: integration.id,
+          staffId: integration.staffId,
+          staffName: `${staffMember.firstName} ${staffMember.lastName}`,
+          staffEmail: staffMember.email,
+          provider: integration.provider,
+          isActive: integration.isActive,
+          lastSyncAt: integration.lastSyncAt,
+          syncStatus: integration.syncStatus,
+          syncError: integration.syncError,
+          createdAt: integration.createdAt,
+          metadata: integration.metadata,
+        }))
+      );
+    }),
 
   /**
    * Get OAuth authorization URL for a provider
@@ -116,29 +163,45 @@ export const integrationsRouter = router({
     .input(
       z.object({
         provider: z.string(),
+        staffId: z.number(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check if integration already exists
-      const existingIntegration = await db.query.organizationIntegrations.findFirst({
+      // Verify staff belongs to organization
+      const staffMember = await db.query.staff.findFirst({
         where: and(
-          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-          eq(organizationIntegrations.provider, input.provider)
+          eq(staff.id, input.staffId),
+          eq(staff.organizationId, ctx.auth.user.organizationId)
+        ),
+      });
+
+      if (!staffMember) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Staff member not found',
+        });
+      }
+
+      // Check if integration already exists for this staff member
+      const existingIntegration = await db.query.staffIntegrations.findFirst({
+        where: and(
+          eq(staffIntegrations.staffId, input.staffId),
+          eq(staffIntegrations.provider, input.provider)
         ),
       });
 
       if (existingIntegration && existingIntegration.isActive) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: `${input.provider} integration already exists`,
+          message: `${input.provider} integration already exists for this staff member`,
         });
       }
 
-      // Check if any other CRM is already connected
-      const activeCrmIntegrations = await db.query.organizationIntegrations.findMany({
+      // Check if staff member already has another CRM connected
+      const activeCrmIntegrations = await db.query.staffIntegrations.findMany({
         where: and(
-          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-          eq(organizationIntegrations.isActive, true)
+          eq(staffIntegrations.staffId, input.staffId),
+          eq(staffIntegrations.isActive, true)
         ),
       });
 
@@ -152,15 +215,16 @@ export const integrationsRouter = router({
       if (activeCrm) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: `Your organization is already connected to ${activeCrm.provider}. Please disconnect it before connecting to ${input.provider}.`,
+          message: `This staff member is already connected to ${activeCrm.provider}. Please disconnect it before connecting to ${input.provider}.`,
         });
       }
 
-      // Generate state with user and organization info
+      // Generate state with user, organization, and staff info
       const state = JSON.stringify({
         provider: input.provider,
         organizationId: ctx.auth.user.organizationId,
         userId: ctx.auth.user.id,
+        staffId: input.staffId,
       });
 
       // Get the redirect URI based on provider
@@ -300,18 +364,40 @@ export const integrationsRouter = router({
           input.state
         );
 
-        // Check if integration exists
-        const existingIntegration = await db.query.organizationIntegrations.findFirst({
+        // Verify staff member from state
+        if (!stateData.staffId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Missing staff ID in state',
+          });
+        }
+
+        const staffMember = await db.query.staff.findFirst({
           where: and(
-            eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-            eq(organizationIntegrations.provider, input.provider)
+            eq(staff.id, stateData.staffId),
+            eq(staff.organizationId, ctx.auth.user.organizationId)
+          ),
+        });
+
+        if (!staffMember) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Staff member not found',
+          });
+        }
+
+        // Check if integration exists
+        const existingIntegration = await db.query.staffIntegrations.findFirst({
+          where: and(
+            eq(staffIntegrations.staffId, stateData.staffId),
+            eq(staffIntegrations.provider, input.provider)
           ),
         });
 
         if (existingIntegration) {
           // Update existing integration
           await db
-            .update(organizationIntegrations)
+            .update(staffIntegrations)
             .set({
               accessToken: tokens.accessToken,
               refreshToken: tokens.refreshToken,
@@ -324,11 +410,11 @@ export const integrationsRouter = router({
               syncError: null,
               updatedAt: new Date(),
             })
-            .where(eq(organizationIntegrations.id, existingIntegration.id));
+            .where(eq(staffIntegrations.id, existingIntegration.id));
         } else {
           // Create new integration
-          await db.insert(organizationIntegrations).values({
-            organizationId: ctx.auth.user.organizationId,
+          await db.insert(staffIntegrations).values({
+            staffId: stateData.staffId,
             provider: input.provider,
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
@@ -357,18 +443,19 @@ export const integrationsRouter = router({
   disconnectIntegration: protectedProcedure
     .input(
       z.object({
-        provider: z.string(),
+        integrationId: z.number(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const integration = await db.query.organizationIntegrations.findFirst({
-        where: and(
-          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-          eq(organizationIntegrations.provider, input.provider)
-        ),
+      // Find the integration and verify it belongs to a staff member in the organization
+      const integration = await db.query.staffIntegrations.findFirst({
+        where: eq(staffIntegrations.id, input.integrationId),
+        with: {
+          staff: true,
+        },
       });
 
-      if (!integration) {
+      if (!integration || integration.staff.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Integration not found',
@@ -377,12 +464,12 @@ export const integrationsRouter = router({
 
       // Soft delete - mark as inactive
       await db
-        .update(organizationIntegrations)
+        .update(staffIntegrations)
         .set({
           isActive: false,
           updatedAt: new Date(),
         })
-        .where(eq(organizationIntegrations.id, integration.id));
+        .where(eq(staffIntegrations.id, integration.id));
 
       return { success: true };
     }),
@@ -393,20 +480,23 @@ export const integrationsRouter = router({
   syncIntegrationData: protectedProcedure
     .input(
       z.object({
-        provider: z.string(),
+        integrationId: z.number(),
         usePerDonorGiftTransactions: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const integration = await db.query.organizationIntegrations.findFirst({
+      // Find the integration and verify it belongs to a staff member in the organization
+      const integration = await db.query.staffIntegrations.findFirst({
         where: and(
-          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-          eq(organizationIntegrations.provider, input.provider),
-          eq(organizationIntegrations.isActive, true)
+          eq(staffIntegrations.id, input.integrationId),
+          eq(staffIntegrations.isActive, true)
         ),
+        with: {
+          staff: true,
+        },
       });
 
-      if (!integration) {
+      if (!integration || integration.staff.organizationId !== ctx.auth.user.organizationId) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Active integration not found',
@@ -423,30 +513,33 @@ export const integrationsRouter = router({
       try {
         // Update sync status to 'syncing'
         await db
-          .update(organizationIntegrations)
+          .update(staffIntegrations)
           .set({
             syncStatus: 'syncing',
             syncError: null,
             updatedAt: new Date(),
           })
-          .where(eq(organizationIntegrations.id, integration.id));
+          .where(eq(staffIntegrations.id, integration.id));
 
         logger.info('Starting CRM sync', {
           organizationId: ctx.auth.user.organizationId,
-          provider: input.provider,
+          staffId: integration.staffId,
+          provider: integration.provider,
           integrationId: integration.id,
         });
 
         // Sync data directly using the CRM manager
         const result = await crmManager.syncData(
           ctx.auth.user.organizationId,
-          input.provider,
+          integration.staffId,
+          integration.provider,
           input.usePerDonorGiftTransactions
         );
 
         logger.info('CRM sync completed successfully', {
           organizationId: ctx.auth.user.organizationId,
-          provider: input.provider,
+          staffId: integration.staffId,
+          provider: integration.provider,
           donorsTotal: result.donors.total,
           donorsCreated: result.donors.created,
           donorsUpdated: result.donors.updated,
@@ -477,13 +570,13 @@ export const integrationsRouter = router({
 
         // Update sync status to 'idle'
         await db
-          .update(organizationIntegrations)
+          .update(staffIntegrations)
           .set({
             syncStatus: 'idle',
             lastSyncAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(organizationIntegrations.id, integration.id));
+          .where(eq(staffIntegrations.id, integration.id));
 
         return {
           success: true,
@@ -494,19 +587,20 @@ export const integrationsRouter = router({
         logger.error('CRM sync failed', {
           error: error instanceof Error ? error.message : 'Unknown error',
           organizationId: ctx.auth.user.organizationId,
-          provider: input.provider,
+          staffId: integration.staffId,
+          provider: integration.provider,
           integrationId: integration.id,
         });
 
         // Update integration status to error
         await db
-          .update(organizationIntegrations)
+          .update(staffIntegrations)
           .set({
             syncStatus: 'error',
             syncError: error instanceof Error ? error.message : 'Unknown error',
             updatedAt: new Date(),
           })
-          .where(eq(organizationIntegrations.id, integration.id));
+          .where(eq(staffIntegrations.id, integration.id));
 
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
@@ -521,18 +615,18 @@ export const integrationsRouter = router({
   getIntegrationSyncStatus: protectedProcedure
     .input(
       z.object({
-        provider: z.string(),
+        integrationId: z.number(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const integration = await db.query.organizationIntegrations.findFirst({
-        where: and(
-          eq(organizationIntegrations.organizationId, ctx.auth.user.organizationId),
-          eq(organizationIntegrations.provider, input.provider)
-        ),
+      const integration = await db.query.staffIntegrations.findFirst({
+        where: eq(staffIntegrations.id, input.integrationId),
+        with: {
+          staff: true,
+        },
       });
 
-      if (!integration) {
+      if (!integration || integration.staff.organizationId !== ctx.auth.user.organizationId) {
         return null;
       }
 

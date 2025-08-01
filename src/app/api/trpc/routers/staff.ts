@@ -57,6 +57,16 @@ const staffResponseSchema = z.object({
     })
     .nullable()
     .optional(),
+  integrations: z
+    .array(
+      z.object({
+        id: idSchema,
+        provider: z.string(),
+        isActive: z.boolean(),
+      })
+    )
+    .nullable()
+    .optional(),
 });
 
 const staffIdsSchema = z.object({

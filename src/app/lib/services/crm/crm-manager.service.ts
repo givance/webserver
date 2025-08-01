@@ -4,7 +4,7 @@ import { BlackbaudService } from './blackbaud/blackbaud.service';
 import { SalesforceService } from './salesforce/salesforce.service';
 import { CrmSyncService } from './base/crm-sync.service';
 import { db } from '@/app/lib/db';
-import { organizationIntegrations } from '@/app/lib/db/schema';
+import { staffIntegrations } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
 
@@ -80,14 +80,14 @@ export class CrmManagerService {
   }
 
   /**
-   * Get integration for an organization and provider
+   * Get integration for a staff member and provider
    */
-  async getIntegration(organizationId: string, providerName: string) {
-    return await db.query.organizationIntegrations.findFirst({
+  async getIntegration(staffId: number, providerName: string) {
+    return await db.query.staffIntegrations.findFirst({
       where: and(
-        eq(organizationIntegrations.organizationId, organizationId),
-        eq(organizationIntegrations.provider, providerName),
-        eq(organizationIntegrations.isActive, true)
+        eq(staffIntegrations.staffId, staffId),
+        eq(staffIntegrations.provider, providerName),
+        eq(staffIntegrations.isActive, true)
       ),
     });
   }
@@ -97,11 +97,12 @@ export class CrmManagerService {
    */
   async syncData(
     organizationId: string,
+    staffId: number,
     providerName: string,
     usePerDonorGiftTransactions = false
   ) {
     const provider = this.getProvider(providerName);
-    const integration = await this.getIntegration(organizationId, providerName);
+    const integration = await this.getIntegration(staffId, providerName);
 
     if (!integration) {
       throw new Error(`No active integration found for ${providerName}`);
@@ -114,14 +115,14 @@ export class CrmManagerService {
         const newTokens = await provider.refreshAccessToken(integration.refreshToken);
 
         await db
-          .update(organizationIntegrations)
+          .update(staffIntegrations)
           .set({
             accessToken: newTokens.accessToken,
             refreshToken: newTokens.refreshToken,
             expiresAt: newTokens.expiresAt,
             updatedAt: new Date(),
           })
-          .where(eq(organizationIntegrations.id, integration.id));
+          .where(eq(staffIntegrations.id, integration.id));
 
         // Update the integration object with new tokens
         integration.accessToken = newTokens.accessToken;

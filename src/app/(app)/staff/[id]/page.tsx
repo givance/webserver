@@ -50,6 +50,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePagination } from '@/app/hooks/use-pagination';
 import { EmailExampleDialog } from './components/EmailExampleDialog';
+import { CrmIntegrationCard } from '@/components/integrations/CrmIntegrationCard';
 
 /**
  * Form schema for staff editing
@@ -597,6 +598,7 @@ export default function StaffDetailPage() {
             Email Examples {emailExamplesData?.count ? `(${emailExamplesData.count})` : ''}
           </TabsTrigger>
           <TabsTrigger value="email">Email Account</TabsTrigger>
+          <TabsTrigger value="crm">CRM Integration</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="donors">Assigned Donors ({donorCount})</TabsTrigger>
         </TabsList>
@@ -891,6 +893,34 @@ export default function StaffDetailPage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* CRM Integration Tab */}
+        <TabsContent value="crm">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>CRM Integration</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Connect this staff member to a CRM system to sync donor data and manage
+                  relationships. Each staff member can have their own CRM connection, allowing for
+                  different access levels and permissions across your team.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <CrmIntegrationCard
+                    provider={{ name: 'salesforce', displayName: 'Salesforce' }}
+                    staffId={staffId}
+                  />
+                  <CrmIntegrationCard
+                    provider={{ name: 'blackbaud', displayName: 'Blackbaud' }}
+                    staffId={staffId}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* WhatsApp Tab */}

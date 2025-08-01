@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Database } from 'lucide-react';
+import { Mail, Database, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { trpc } from '@/app/lib/trpc/client';
@@ -9,6 +9,7 @@ import React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { GmailConnect as GmailConnectComponent } from '@/components/ui/GmailConnect';
 import { CrmIntegrationCard } from '@/components/integrations/CrmIntegrationCard';
+import Link from 'next/link';
 
 function GmailConnect() {
   return <GmailConnectComponent context="settings" />;
@@ -93,12 +94,22 @@ export default function IntegrationsPage() {
               <Database className="h-5 w-5" />
               CRM Integrations
             </h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              {!isLoading &&
-                providers?.map((provider) => (
-                  <CrmIntegrationCard key={provider.name} provider={provider} />
-                ))}
-            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> CRM integrations are now managed at the staff level. To
+                  connect a CRM, go to a staff member&apos;s profile and navigate to the CRM
+                  Integration tab. This allows different staff members to have their own CRM
+                  connections with appropriate access levels.
+                </p>
+                <Button asChild className="mt-4" variant="outline">
+                  <Link href="/staff">
+                    <Users className="h-4 w-4 mr-2" />
+                    Go to Staff Management
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
