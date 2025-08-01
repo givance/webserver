@@ -129,6 +129,22 @@ export class WhatsAppAIService {
           args: call.args,
         })) || [];
 
+      // Log Salesforce query results if any
+      if (result.toolResults && result.toolResults.length > 0) {
+        result.toolResults.forEach((toolResult: any, index: number) => {
+          if (result.toolCalls && result.toolCalls[index]?.toolName === 'querySalesforce') {
+            logger.info('[WhatsApp AI] Salesforce query completed', {
+              toolCall: result.toolCalls[index],
+              result: toolResult.result,
+              success: toolResult.result?.success,
+              recordCount: toolResult.result?.totalRecords,
+              query: toolResult.result?.query,
+              explanation: toolResult.result?.explanation,
+            });
+          }
+        });
+      }
+
       logger.info(`[WhatsApp AI] Response generated successfully`, {
         tokensUsed,
         toolCallCount: result.toolCalls?.length || 0,

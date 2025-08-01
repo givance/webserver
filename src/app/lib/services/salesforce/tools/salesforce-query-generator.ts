@@ -61,55 +61,9 @@ Key guidelines:
 7. Explain the query in simple terms
 8. Warn about potential issues or performance concerns
 9. For COUNT() queries, do NOT include the 'fields' property in the response (it's optional)
-
-Common Salesforce objects:
-- Account: Organizations/Companies
-- Contact: Individual people (donors)
-- Opportunity: Sales deals
-- Lead: Potential customers
-- Task: Activities/To-dos
-- Event: Calendar events
-- Case: Customer service cases
-- Campaign: Marketing campaigns
-- User: System users
-- GiftTransaction: Completed donations/gifts (API v59.0+)
-
-Common field patterns:
-- Id: Unique identifier
-- Name: Display name
-- CreatedDate, LastModifiedDate: Timestamps
-- OwnerId: Record owner
-- RecordTypeId: Record type
-- Custom fields: Typically end with __c
-
-GiftTransaction specific fields:
-- DonorId: References Account (person, household, or organization)
-- OriginalAmount: Original donation amount (currency, required)
-- CurrentAmount: Amount after refunds (currency, calculated)
-- TransactionDate: When donor completed gift (date, required for Paid status)
-- Status: Transaction status - Paid, Pending, Unpaid, Fully Refunded, etc. (picklist, required)
-- PaymentMethod: ACH, Cash, Check, Credit Card, etc. (picklist, required)
-- CampaignId: Associated campaign (reference)
-- AcknowledgementStatus: Don't Send, Sent, To Be Sent (picklist)
-- AcknowledgementDate: When gift was acknowledged (date)
-- RefundedAmount: Amount refunded (currency, calculated)
-- GiftType: Individual or Organizational (picklist)
-- Description: Gift description (textarea)
-
-Donation queries examples:
-- All donations: SELECT Id, Name, DonorId, OriginalAmount, TransactionDate, Status FROM GiftTransaction
-- Donations by donor: SELECT Id, OriginalAmount, TransactionDate FROM GiftTransaction WHERE DonorId = 'ACCOUNT_ID'
-- Recent donations: SELECT Id, DonorId, OriginalAmount FROM GiftTransaction WHERE TransactionDate >= LAST_N_DAYS:30
-- Total donations: SELECT COUNT(), SUM(OriginalAmount) FROM GiftTransaction WHERE Status = 'Paid'
-- Donations by campaign: SELECT Id, DonorId, OriginalAmount FROM GiftTransaction WHERE CampaignId = 'CAMPAIGN_ID'
-
-Relationship queries:
-- Parent to child: SELECT Id, (SELECT Id FROM Contacts) FROM Account
-- Child to parent: SELECT Id, Account.Name FROM Contact
-- Donation with donor info: SELECT Id, OriginalAmount, Donor.Name FROM GiftTransaction
-
-IMPORTANT: GiftTransaction Object Details (for donations/gifts):
-GiftTransaction represents completed donations from donors. Available in API v59.0+.
+10. CRITICAL: Only use fields that are explicitly listed below. Do NOT assume fields exist.
+11. CRITICAL: For GiftTransaction, the donor relationship is accessed via DonorId field, but the relationship name in SOQL might be different. Do NOT use Donor.Name or Donor.Email unless confirmed to exist.
+12. The amounts are stored in dollars.
 
 Key GiftTransaction fields:
 - AcknowledgementDate: Date when gift was acknowledged
@@ -156,13 +110,16 @@ Key GiftTransaction fields:
 - TransactionDate: When donor completed gift (required for Paid/Fully Refunded)
 - TransactionDueDate: Expected date for scheduled gift
 
-Common GiftTransaction queries:
+Common GiftTransaction queries (ONLY use these exact field names):
 - Count all donations: SELECT COUNT() FROM GiftTransaction
 - Sum of all paid donations: SELECT SUM(OriginalAmount) FROM GiftTransaction WHERE Status = 'Paid'
 - Recent donations: SELECT Id, Name, DonorId, OriginalAmount, TransactionDate FROM GiftTransaction WHERE TransactionDate >= LAST_N_DAYS:30
 - Donations by status: SELECT COUNT(), SUM(OriginalAmount) FROM GiftTransaction GROUP BY Status
 - Major gifts: SELECT Id, Name, DonorId, OriginalAmount FROM GiftTransaction WHERE OriginalAmount > 10000 AND Status = 'Paid'
-- Donations with donor info: SELECT Id, Name, OriginalAmount, Donor.Name, Donor.Email FROM GiftTransaction WHERE Status = 'Paid'`;
+- Donations by donor: SELECT DonorId, SUM(OriginalAmount) FROM GiftTransaction WHERE Status = 'Paid' GROUP BY DonorId
+- Top donors: SELECT DonorId, SUM(OriginalAmount) totalAmount FROM GiftTransaction WHERE Status = 'Paid' GROUP BY DonorId ORDER BY totalAmount DESC LIMIT 10
+
+IMPORTANT: To get donor details (name, email), you need a separate query on the Account object using the DonorId values, or check if the relationship name exists in the Salesforce org.`;
   }
 
   private buildUserPrompt(input: SalesforceQueryInput): string {
@@ -323,30 +280,78 @@ Common GiftTransaction queries:
 
   async generateAndExecuteQuery(input: SalesforceQueryInput): Promise<SalesforceQueryResult> {
     const startTime = Date.now();
+    const maxRetries = 2;
+    let lastError: string | null = null;
+    let lastQuery: SalesforceQueryOutput | null = null;
 
-    // Generate the query
-    const queryOutput = await this.generateQuery(input);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Modify input if this is a retry
+      let modifiedInput = input;
+      if (attempt > 0 && lastError && lastQuery) {
+        modifiedInput = {
+          ...input,
+          request: `${input.request}\n\nPREVIOUS ATTEMPT FAILED:\nQuery: ${lastQuery.soql}\nError: ${lastError}\n\nPlease fix the query based on the error message.`,
+        };
+        logger.info(
+          `[Salesforce Query Generator] Retrying query generation (attempt ${attempt + 1})`,
+          {
+            previousError: lastError,
+            previousQuery: lastQuery.soql,
+          }
+        );
+      }
 
-    // Validate the query
-    const validation = await this.validateQuery(queryOutput.soql);
-    if (!validation.valid) {
-      return {
-        query: queryOutput,
-        executionResult: {
-          success: false,
-          error: `Query validation failed: ${validation.errors.join(', ')}`,
-          errorCode: 'VALIDATION_ERROR',
-        },
-        executionTime: Date.now() - startTime,
-      };
+      // Generate the query
+      const queryOutput = await this.generateQuery(modifiedInput);
+
+      // Validate the query
+      const validation = await this.validateQuery(queryOutput.soql);
+      if (!validation.valid) {
+        return {
+          query: queryOutput,
+          executionResult: {
+            success: false,
+            error: `Query validation failed: ${validation.errors.join(', ')}`,
+            errorCode: 'VALIDATION_ERROR',
+          },
+          executionTime: Date.now() - startTime,
+        };
+      }
+
+      // Execute the query
+      const executionResult = await this.executeQuery(queryOutput.soql);
+
+      // If successful, return the result
+      if (executionResult.success) {
+        return {
+          query: queryOutput,
+          executionResult,
+          executionTime: Date.now() - startTime,
+        };
+      }
+
+      // If failed and we have retries left, save the error for next attempt
+      lastError = executionResult.error || 'Unknown error';
+      lastQuery = queryOutput;
+
+      // If this is the last attempt, return the error
+      if (attempt === maxRetries - 1) {
+        return {
+          query: queryOutput,
+          executionResult,
+          executionTime: Date.now() - startTime,
+        };
+      }
     }
 
-    // Execute the query
-    const executionResult = await this.executeQuery(queryOutput.soql);
-
+    // This should never be reached, but just in case
     return {
-      query: queryOutput,
-      executionResult,
+      query: lastQuery!,
+      executionResult: {
+        success: false,
+        error: lastError || 'Query generation failed',
+        errorCode: 'MAX_RETRIES_EXCEEDED',
+      },
       executionTime: Date.now() - startTime,
     };
   }

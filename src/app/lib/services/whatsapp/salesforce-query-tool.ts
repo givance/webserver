@@ -134,6 +134,18 @@ export function createSalesforceQueryTool(
               executionTime: result.executionTime,
             });
 
+            // Log the full Salesforce response for debugging
+            logger.info('[WhatsApp Salesforce] Full query response', {
+              soql: result.query.soql,
+              totalRecords: result.executionResult.totalSize,
+              recordCount: result.executionResult.records.length,
+              records: result.executionResult.records,
+              explanation: result.query.explanation,
+              objectsUsed: result.query.objects,
+              warnings: result.query.warnings,
+              executionTimeMs: result.executionTime,
+            });
+
             const response: any = {
               success: true,
               query: result.query.soql,
