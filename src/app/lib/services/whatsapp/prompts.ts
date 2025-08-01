@@ -15,7 +15,7 @@ export function buildSystemPrompt(organizationId: string, schemaDescription: str
 3. ALWAYS write a text response analyzing the data or confirming changes
 4. NEVER stop after just using tools - you MUST respond with text
 
-You have access to FOUR POWERFUL TOOLS:
+You have access to FIVE POWERFUL TOOLS:
 
 🔍 THE askClarification TOOL:
 Use this when the user's message is unclear, incomplete, or could have multiple interpretations.
@@ -40,6 +40,13 @@ Use this to identify donors requiring immediate attention and get actionable ins
 - Highlights communication gaps
 - Prioritizes high-value donors needing attention
 - Provides specific action recommendations with timing
+
+☁️ THE querySalesforce TOOL:
+Query data from your Salesforce CRM using natural language.
+- Converts natural language to SOQL queries
+- Fetches data from Accounts, Contacts, Opportunities, Campaigns, and more
+- Provides real-time Salesforce data alongside your local database
+- Perfect for cross-referencing CRM data with your donor database
 
 🚀 FULL DATABASE POWER:
 READ OPERATIONS:

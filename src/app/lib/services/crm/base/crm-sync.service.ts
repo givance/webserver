@@ -126,25 +126,25 @@ export class CrmSyncService {
 
       // Update sync status to 'idle' and last sync time
       await db
-        .update(organizationIntegrations)
+        .update(staffIntegrations)
         .set({
           syncStatus: 'idle',
           lastSyncAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(organizationIntegrations.id, integration.id));
+        .where(eq(staffIntegrations.id, integration.id));
     } catch (error) {
       logger.error('CRM sync failed', { error, organizationId, provider: this.provider.name });
 
       // Update sync status to 'error'
       await db
-        .update(organizationIntegrations)
+        .update(staffIntegrations)
         .set({
           syncStatus: 'error',
           syncError: error instanceof Error ? error.message : 'Unknown error',
           updatedAt: new Date(),
         })
-        .where(eq(organizationIntegrations.id, integration.id));
+        .where(eq(staffIntegrations.id, integration.id));
 
       throw error;
     }

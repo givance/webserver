@@ -1,7 +1,8 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { getAzureOpenAIModel } from '~/app/lib/utils/ai/get-model';
-import { logger } from '~/app/lib/logger';
+import { createAzure } from '@ai-sdk/azure';
+import { env } from '@/app/lib/env';
+import { logger } from '@/app/lib/logger';
 import {
   SalesforceQueryInput,
   SalesforceQueryInputSchema,
@@ -10,6 +11,12 @@ import {
   SalesforceQueryResult,
   SalesforceToolContext,
 } from './types';
+
+// Create Azure OpenAI client
+const azure = createAzure({
+  resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+  apiKey: env.AZURE_OPENAI_API_KEY,
+});
 
 export class SalesforceQueryGenerator {
   private context: SalesforceToolContext;
@@ -25,7 +32,7 @@ export class SalesforceQueryGenerator {
     const userPrompt = this.buildUserPrompt(validatedInput);
 
     try {
-      const model = getAzureOpenAIModel('gpt-4.1');
+      const model = azure(env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o');
 
       const { object: result } = await generateObject({
         model,

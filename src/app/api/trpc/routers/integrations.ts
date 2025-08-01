@@ -10,6 +10,31 @@ import { crmManager } from '@/app/lib/services/crm';
 
 export const integrationsRouter = router({
   /**
+   * Debug endpoint to check all integrations for a staff member
+   */
+  debugStaffIntegrations: protectedProcedure
+    .input(z.object({ staffId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const allIntegrations = await db.query.staffIntegrations.findMany({
+        where: eq(staffIntegrations.staffId, input.staffId),
+      });
+
+      return {
+        total: allIntegrations.length,
+        integrations: allIntegrations.map((i) => ({
+          id: i.id,
+          provider: i.provider,
+          isActive: i.isActive,
+          createdAt: i.createdAt,
+          updatedAt: i.updatedAt,
+          syncStatus: i.syncStatus,
+          hasAccessToken: !!i.accessToken,
+          hasRefreshToken: !!i.refreshToken,
+        })),
+      };
+    }),
+
+  /**
    * Debug endpoint to check Salesforce configuration
    */
   debugSalesforceConfig: protectedProcedure.query(async ({ ctx }) => {
@@ -118,6 +143,16 @@ export const integrationsRouter = router({
           where: eq(staffIntegrations.staffId, input.staffId),
         });
 
+        logger.info('getStaffIntegrations - found integrations', {
+          staffId: input.staffId,
+          count: integrations.length,
+          integrations: integrations.map((i) => ({
+            id: i.id,
+            provider: i.provider,
+            isActive: i.isActive,
+          })),
+        });
+
         return integrations.map((integration) => ({
           id: integration.id,
           staffId: integration.staffId,
@@ -186,11 +221,24 @@ export const integrationsRouter = router({
       const existingIntegration = await db.query.staffIntegrations.findFirst({
         where: and(
           eq(staffIntegrations.staffId, input.staffId),
-          eq(staffIntegrations.provider, input.provider)
+          eq(staffIntegrations.provider, input.provider),
+          eq(staffIntegrations.isActive, true)
         ),
       });
 
-      if (existingIntegration && existingIntegration.isActive) {
+      logger.info('getIntegrationAuthUrl - checking existing integration', {
+        staffId: input.staffId,
+        provider: input.provider,
+        found: !!existingIntegration,
+        existingIntegration: existingIntegration
+          ? {
+              id: existingIntegration.id,
+              isActive: existingIntegration.isActive,
+            }
+          : null,
+      });
+
+      if (existingIntegration) {
         throw new TRPCError({
           code: 'CONFLICT',
           message: `${input.provider} integration already exists for this staff member`,
@@ -271,9 +319,11 @@ export const integrationsRouter = router({
 
       logger.info('Generating integration auth URL', {
         provider: input.provider,
+        staffId: input.staffId,
         redirectUri,
         organizationId: ctx.auth.user.organizationId,
         userId: ctx.auth.user.id,
+        existingIntegration: !!existingIntegration,
       });
 
       try {

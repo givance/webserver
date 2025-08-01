@@ -31,6 +31,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import {
   Activity,
   ArrowLeft,
+  Database,
   Edit2,
   FileText,
   Mail,
@@ -43,14 +44,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { usePagination } from '@/app/hooks/use-pagination';
 import { EmailExampleDialog } from './components/EmailExampleDialog';
-import { CrmIntegrationCard } from '@/components/integrations/CrmIntegrationCard';
+import { StaffIntegrationCard } from '@/components/integrations/StaffIntegrationCard';
+import { useIntegrations } from '@/app/hooks/use-integrations';
 
 /**
  * Form schema for staff editing
@@ -99,7 +101,9 @@ type AssignedDonor = {
 export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const staffId = Number(params.id);
+  const defaultTab = searchParams.get('tab') || 'info';
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [isAddingPhone, setIsAddingPhone] = useState(false);
   const [showCodeView, setShowCodeView] = useState(false);
@@ -191,6 +195,16 @@ export default function StaffDetailPage() {
   const { data: activityStats, isLoading: isStatsLoading } = getActivityStats(staffId, 30);
 
   const { data: activityLog, isLoading: isActivityLoading } = getActivityLog(staffId, 20, 0);
+
+  // Fetch integrations data for CRM badge
+  const { getStaffIntegrations } = useIntegrations();
+  const { data: staffIntegrations } = getStaffIntegrations(staffId);
+
+  // Check if any CRM is connected
+  const hasActiveCrmIntegration = staffIntegrations?.some(
+    (integration) =>
+      integration.isActive && ['salesforce', 'blackbaud'].includes(integration.provider)
+  );
 
   // Helper functions for inline editing
   const handleUpdateStaffField = async (field: string, value: any) => {
@@ -529,7 +543,7 @@ export default function StaffDetailPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Assigned Donors</CardTitle>
@@ -587,10 +601,24 @@ export default function StaffDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">CRM</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              <Badge variant={hasActiveCrmIntegration ? 'default' : 'secondary'}>
+                {hasActiveCrmIntegration ? 'Connected' : 'Not Connected'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="info" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="info">Staff Information</TabsTrigger>
           <TabsTrigger value="signature">Email Signature</TabsTrigger>
@@ -598,7 +626,14 @@ export default function StaffDetailPage() {
             Email Examples {emailExamplesData?.count ? `(${emailExamplesData.count})` : ''}
           </TabsTrigger>
           <TabsTrigger value="email">Email Account</TabsTrigger>
-          <TabsTrigger value="crm">CRM Integration</TabsTrigger>
+          <TabsTrigger value="crm" className="flex items-center gap-2">
+            CRM Integration
+            {hasActiveCrmIntegration && (
+              <Badge variant="default" className="ml-1 h-5 px-1.5 text-xs">
+                Connected
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="donors">Assigned Donors ({donorCount})</TabsTrigger>
         </TabsList>
@@ -909,11 +944,11 @@ export default function StaffDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <CrmIntegrationCard
+                  <StaffIntegrationCard
                     provider={{ name: 'salesforce', displayName: 'Salesforce' }}
                     staffId={staffId}
                   />
-                  <CrmIntegrationCard
+                  <StaffIntegrationCard
                     provider={{ name: 'blackbaud', displayName: 'Blackbaud' }}
                     staffId={staffId}
                   />

@@ -1,5 +1,5 @@
 import { db } from '@/app/lib/db';
-import { organizationIntegrations } from '@/app/lib/db/schema';
+import { staffIntegrations, staff } from '@/app/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { logger } from '@/app/lib/logger';
 import { crmManager } from './crm';
@@ -23,18 +23,26 @@ export class CrmSyncService {
 
   /**
    * Get active CRM integration for an organization
+   * TODO: This needs to be updated to handle staff-specific integrations
+   * For now, we'll get the first active integration from any staff member
    */
   private async getActiveIntegration(organizationId: string) {
-    const integrations = await db.query.organizationIntegrations.findMany({
-      where: and(
-        eq(organizationIntegrations.organizationId, organizationId),
-        eq(organizationIntegrations.isActive, true)
-      ),
+    // Find the first staff member with an active CRM integration
+    const staffWithIntegration = await db.query.staff.findFirst({
+      where: eq(staff.organizationId, organizationId),
+      with: {
+        integrations: {
+          where: eq(staffIntegrations.isActive, true),
+        },
+      },
     });
 
-    // For now, return the first active integration
-    // In the future, we might want to handle multiple integrations
-    return integrations[0];
+    if (!staffWithIntegration || staffWithIntegration.integrations.length === 0) {
+      return null;
+    }
+
+    // Return the first active integration
+    return staffWithIntegration.integrations[0];
   }
 
   /**

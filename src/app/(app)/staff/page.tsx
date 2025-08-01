@@ -59,9 +59,8 @@ export default function StaffListPage() {
         isPrimary: apiStaff.isPrimary,
         signature: apiStaff.signature || null,
         writingInstructions: apiStaff.writingInstructions || null,
-        gmailToken: null,
-        microsoftToken: null,
-        integrations: apiStaff.integrations || null,
+        gmailToken: apiStaff.gmailToken || null,
+        microsoftToken: apiStaff.microsoftToken || null,
         createdAt: apiStaff.createdAt
           ? new Date(apiStaff.createdAt).toISOString()
           : new Date().toISOString(),
@@ -69,6 +68,7 @@ export default function StaffListPage() {
           ? new Date(apiStaff.updatedAt).toISOString()
           : new Date().toISOString(),
         organizationId: apiStaff.organizationId,
+        integrations: apiStaff.integrations || [],
       })) || [];
     return { staffMembers: items, totalCount: listStaffResponse?.totalCount || 0 };
   }, [listStaffResponse]);

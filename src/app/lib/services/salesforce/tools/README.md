@@ -87,6 +87,29 @@ console.log('Optimization suggestions:', suggestions);
 - Error handling with Salesforce-specific error codes
 - Execution time tracking
 
+## WhatsApp Integration
+
+The Salesforce query generator is integrated with the WhatsApp AI assistant, allowing users to query Salesforce data via WhatsApp messages:
+
+```typescript
+// In WhatsApp conversation:
+// User: "Show me all high-value opportunities from this quarter"
+// AI Assistant uses querySalesforce tool to:
+// 1. Generate SOQL: SELECT Id, Name, Amount, StageName FROM Opportunity WHERE Amount > 50000 AND CreatedDate = THIS_QUARTER
+// 2. Execute against Salesforce
+// 3. Format and return results
+
+// The tool is available in WhatsApp AI tools:
+import { createSalesforceQueryTool } from '~/app/lib/services/whatsapp/salesforce-query-tool';
+
+const salesforceTool = createSalesforceQueryTool(
+  organizationId,
+  loggingService,
+  staffId,
+  fromPhoneNumber
+);
+```
+
 ## Adding New Tools
 
 To add new Salesforce AI tools:

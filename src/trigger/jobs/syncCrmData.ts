@@ -1,7 +1,7 @@
 import { task, logger } from '@trigger.dev/sdk/v3';
 import { crmManager } from '@/app/lib/services/crm';
 import { db } from '@/app/lib/db';
-import { organizationIntegrations } from '@/app/lib/db/schema';
+import { staffIntegrations } from '@/app/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export const syncCrmDataTask = task({
@@ -17,15 +17,17 @@ export const syncCrmDataTask = task({
   run: async (
     payload: {
       organizationId: string;
+      staffId: number;
       provider: string;
       integrationId: number;
     },
     { ctx }
   ) => {
-    const { organizationId, provider, integrationId } = payload;
+    const { organizationId, staffId, provider, integrationId } = payload;
 
     logger.info('Starting CRM sync', {
       organizationId,
+      staffId,
       provider,
       integrationId,
       runId: ctx.run.id,
@@ -33,7 +35,7 @@ export const syncCrmDataTask = task({
 
     try {
       // Sync data using the CRM manager
-      const result = await crmManager.syncData(organizationId, provider);
+      const result = await crmManager.syncData(organizationId, staffId, provider);
 
       logger.info('CRM sync completed successfully', {
         organizationId,
@@ -70,19 +72,20 @@ export const syncCrmDataTask = task({
       logger.error('CRM sync failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         organizationId,
+        staffId,
         provider,
         integrationId,
       });
 
       // Update integration status to error
       await db
-        .update(organizationIntegrations)
+        .update(staffIntegrations)
         .set({
           syncStatus: 'error',
           syncError: error instanceof Error ? error.message : 'Unknown error',
           updatedAt: new Date(),
         })
-        .where(eq(organizationIntegrations.id, integrationId));
+        .where(eq(staffIntegrations.id, integrationId));
 
       throw error;
     }

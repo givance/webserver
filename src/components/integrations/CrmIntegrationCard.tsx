@@ -28,24 +28,25 @@ interface CrmIntegrationCardProps {
     displayName: string;
     isSandbox?: boolean;
   };
+  staffId?: number;
 }
 
-export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
+export function CrmIntegrationCard({ provider, staffId }: CrmIntegrationCardProps) {
   const [syncResults, setSyncResults] = useState<CrmSyncResult | null>(null);
   const [showSyncResults, setShowSyncResults] = useState(false);
 
   const {
-    getOrganizationIntegrations,
+    getStaffIntegrations,
     getIntegrationSyncStatus,
     getIntegrationAuthUrl,
     syncIntegrationData,
     disconnectIntegration,
   } = useIntegrations();
 
-  const { data: integrations, isLoading: integrationsLoading } = getOrganizationIntegrations;
+  const { data: integrations, isLoading: integrationsLoading } = getStaffIntegrations(staffId);
 
-  const isIntegrationActive =
-    integrations?.some((i) => i.provider === provider.name && i.isActive) || false;
+  const integration = integrations?.find((i) => i.provider === provider.name);
+  const isIntegrationActive = integration?.isActive || false;
 
   // Check if another CRM is already connected
   const crmProviders = ['salesforce', 'blackbaud'];
@@ -57,9 +58,10 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
     (i) => crmProviders.includes(i.provider) && i.provider !== provider.name && i.isActive
   )?.provider;
 
-  const { data: syncStatus, isLoading: statusLoading } = getIntegrationSyncStatus(provider.name, {
-    enabled: isIntegrationActive,
-  });
+  const { data: syncStatus, isLoading: statusLoading } = getIntegrationSyncStatus(
+    integration?.id || 0,
+    { enabled: !!integration?.id && isIntegrationActive }
+  );
 
   const connectMutation = getIntegrationAuthUrl;
   const syncMutation = syncIntegrationData;
@@ -69,8 +71,12 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
   const isSyncing = syncStatus?.syncStatus === 'syncing';
 
   const handleConnect = () => {
+    if (!staffId) {
+      toast.error('Staff ID is required to connect integration');
+      return;
+    }
     connectMutation.mutate(
-      { provider: provider.name },
+      { provider: provider.name, staffId },
       {
         onSuccess: (data) => {
           window.location.href = data.authUrl;
@@ -83,9 +89,13 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
   };
 
   const handleSync = () => {
+    if (!integration?.id) {
+      toast.error('No integration found to sync');
+      return;
+    }
     syncMutation.mutate(
       {
-        provider: provider.name,
+        integrationId: integration.id,
         usePerDonorGiftTransactions: provider.name === 'salesforce', // Always use for Salesforce
       },
       {
@@ -210,7 +220,7 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
                 <div>
                   <p className="font-medium">CRM already connected</p>
                   <p className="text-muted-foreground">
-                    Your organization is connected to {connectedCrmName}. Only one CRM connection is
+                    This staff member is connected to {connectedCrmName}. Only one CRM connection is
                     allowed at a time.
                   </p>
                 </div>
@@ -251,7 +261,7 @@ export function CrmIntegrationCard({ provider }: CrmIntegrationCardProps) {
                   </TooltipTrigger>
                   {hasAnotherCrmConnected && (
                     <TooltipContent>
-                      <p>Your organization is already connected to {connectedCrmName}.</p>
+                      <p>This staff member is already connected to {connectedCrmName}.</p>
                       <p>Disconnect it first to connect {provider.displayName}.</p>
                     </TooltipContent>
                   )}

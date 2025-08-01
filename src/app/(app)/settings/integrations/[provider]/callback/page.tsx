@@ -23,7 +23,18 @@ export default function IntegrationCallbackPage() {
   const handleCallbackMutation = trpc.integrations.handleIntegrationCallback.useMutation({
     onSuccess: () => {
       toast.success(`${provider} integration connected successfully`);
-      router.push('/settings/integrations');
+
+      // Try to parse state to get staffId for redirect
+      try {
+        const stateData = JSON.parse(Buffer.from(state || '', 'base64').toString());
+        if (stateData.staffId) {
+          router.push(`/staff/${stateData.staffId}?tab=crm`);
+        } else {
+          router.push('/settings/integrations');
+        }
+      } catch {
+        router.push('/settings/integrations');
+      }
     },
     onError: (error) => {
       setError(error.message || 'Failed to connect integration');
@@ -60,7 +71,7 @@ export default function IntegrationCallbackPage() {
       code,
       state,
     });
-  }, [code, state, provider, errorParam, errorDescription]); // Removed handleCallbackMutation from dependencies
+  }, [code, state, provider, errorParam, errorDescription, hasProcessed, handleCallbackMutation]);
 
   return (
     <>

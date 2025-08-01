@@ -3,8 +3,17 @@ import { trpc } from '@/app/lib/trpc/client';
 export function useIntegrations() {
   const utils = trpc.useUtils();
 
-  const getStaffIntegrations = (staffId?: number) => {
-    return trpc.integrations.getStaffIntegrations.useQuery({ staffId });
+  const getStaffIntegrations = (
+    staffId?: number,
+    options?: { refetchInterval?: number | false }
+  ) => {
+    return trpc.integrations.getStaffIntegrations.useQuery(
+      { staffId },
+      {
+        refetchInterval: options?.refetchInterval ?? false,
+        refetchOnWindowFocus: true,
+      }
+    );
   };
 
   const getIntegrationSyncStatus = (integrationId: number, options?: { enabled?: boolean }) => {
@@ -20,7 +29,13 @@ export function useIntegrations() {
 
   const getIntegrationAuthUrl = trpc.integrations.getIntegrationAuthUrl.useMutation();
 
-  const handleIntegrationCallback = trpc.integrations.handleIntegrationCallback.useMutation();
+  const handleIntegrationCallback = trpc.integrations.handleIntegrationCallback.useMutation({
+    onSuccess: () => {
+      // Invalidate queries after successful connection
+      utils.integrations.getStaffIntegrations.invalidate();
+      utils.integrations.getIntegrationSyncStatus.invalidate();
+    },
+  });
 
   const syncIntegrationData = trpc.integrations.syncIntegrationData.useMutation();
 
