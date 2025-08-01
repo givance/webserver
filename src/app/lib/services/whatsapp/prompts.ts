@@ -140,6 +140,9 @@ SALESFORCE INTEGRATION EXAMPLES:
 - User: "How many donors in the database?" → Use querySalesforce with "Count all Contacts"
 - User: "Show me John Smith's info" → Use querySalesforce with "Find Contact named John Smith"
 - User: "List major donors" → Use querySalesforce with "Find Contacts with high donation amounts"
+- User: "How many donations this month?" → Use querySalesforce with "Count GiftTransactions for this month"
+- User: "Total donations amount?" → Use querySalesforce with "Sum all paid GiftTransaction amounts"
+- User: "Show recent donations" → Use querySalesforce with "List recent GiftTransactions with donor info"
 - User: "Add a note to John" → Use executeSQL (notes are local-only)
 - User: "Show recent communications" → Use executeSQL (communications are local-only)
 `

@@ -64,7 +64,7 @@ Key guidelines:
 
 Common Salesforce objects:
 - Account: Organizations/Companies
-- Contact: Individual people
+- Contact: Individual people (donors)
 - Opportunity: Sales deals
 - Lead: Potential customers
 - Task: Activities/To-dos
@@ -72,6 +72,7 @@ Common Salesforce objects:
 - Case: Customer service cases
 - Campaign: Marketing campaigns
 - User: System users
+- GiftTransaction: Completed donations/gifts (API v59.0+)
 
 Common field patterns:
 - Id: Unique identifier
@@ -81,9 +82,87 @@ Common field patterns:
 - RecordTypeId: Record type
 - Custom fields: Typically end with __c
 
+GiftTransaction specific fields:
+- DonorId: References Account (person, household, or organization)
+- OriginalAmount: Original donation amount (currency, required)
+- CurrentAmount: Amount after refunds (currency, calculated)
+- TransactionDate: When donor completed gift (date, required for Paid status)
+- Status: Transaction status - Paid, Pending, Unpaid, Fully Refunded, etc. (picklist, required)
+- PaymentMethod: ACH, Cash, Check, Credit Card, etc. (picklist, required)
+- CampaignId: Associated campaign (reference)
+- AcknowledgementStatus: Don't Send, Sent, To Be Sent (picklist)
+- AcknowledgementDate: When gift was acknowledged (date)
+- RefundedAmount: Amount refunded (currency, calculated)
+- GiftType: Individual or Organizational (picklist)
+- Description: Gift description (textarea)
+
+Donation queries examples:
+- All donations: SELECT Id, Name, DonorId, OriginalAmount, TransactionDate, Status FROM GiftTransaction
+- Donations by donor: SELECT Id, OriginalAmount, TransactionDate FROM GiftTransaction WHERE DonorId = 'ACCOUNT_ID'
+- Recent donations: SELECT Id, DonorId, OriginalAmount FROM GiftTransaction WHERE TransactionDate >= LAST_N_DAYS:30
+- Total donations: SELECT COUNT(), SUM(OriginalAmount) FROM GiftTransaction WHERE Status = 'Paid'
+- Donations by campaign: SELECT Id, DonorId, OriginalAmount FROM GiftTransaction WHERE CampaignId = 'CAMPAIGN_ID'
+
 Relationship queries:
 - Parent to child: SELECT Id, (SELECT Id FROM Contacts) FROM Account
-- Child to parent: SELECT Id, Account.Name FROM Contact`;
+- Child to parent: SELECT Id, Account.Name FROM Contact
+- Donation with donor info: SELECT Id, OriginalAmount, Donor.Name FROM GiftTransaction
+
+IMPORTANT: GiftTransaction Object Details (for donations/gifts):
+GiftTransaction represents completed donations from donors. Available in API v59.0+.
+
+Key GiftTransaction fields:
+- AcknowledgementDate: Date when gift was acknowledged
+- AcknowledgementStatus: Status of acknowledgement (Don't Send, Sent, To Be Sent)
+- CampaignId: Campaign associated with the gift (references Campaign)
+- CheckDate: Date on the check
+- CurrentAmount: Gift amount after refunds (calculated field)
+- CurrencyIsoCode: Currency used (USD) - API v61.0+
+- Description: Gift description
+- DonorCoverAmount: Amount donor added to cover fees - API v61.0+
+- DonorId: Person, household, or organization account (references Account)
+- DonorGiftConceptId: Gift concept associated (references DonorGiftConcept)
+- GatewayReference: Gateway transaction reference - API v60.0+
+- GatewayTransactionFee: Fee charged by payment gateway - API v60.0+
+- GiftAgreementId: Gift agreement associated (references GiftAgreement)
+- GiftCommitmentId: Gift commitment associated (references GiftCommitment)
+- GiftCommitmentScheduleId: Gift commitment schedule (references GiftCommitmentSchedule)
+- GiftType: Type of gift (Individual, Organizational)
+- IsFullyRefunded: True when Status equals Fully Refunded
+- IsPaid: True when Status equals Paid and Current Amount equals 0
+- IsPartiallyRefunded: True when Status equals Paid and Current Amount > 0
+- IsWrittenOff: True when Status equals Written-Off
+- LastGatewayErrorMessage: Most recent gateway error - API v60.0+
+- LastGatewayProcessedDate: Last gateway processing attempt - API v60.0+
+- LastGatewayResponseCode: Most recent gateway response code - API v60.0+
+- LastReferencedDate: When user last accessed record indirectly
+- LastViewedDate: When user last viewed record
+- MatchingEmployerTransactionId: Employer matching gift (references GiftTransaction)
+- Name: Name of the gift transaction
+- NonTaxDeductibleAmount: Non-deductible portion - API v61.0+
+- OriginalAmount: Original amount (required)
+- OutreachSourceCodeId: Outreach source code (references OutreachSourceCode)
+- OwnerId: Owner of this object (references Group, User)
+- PartyPhilanthropicRsrchPrflId: Research profile (references PartyPhilanthropicRsrchPrfl)
+- PaymentIdentifier: Payment reference number
+- PaymentInstrumentId: Payment Instrument used - API v60.0+ (references PaymentInstrument)
+- PaymentMethod: Payment method (required) - ACH, Cash, Check, Credit Card, etc.
+- ProcessorReference: Payment processor reference - API v60.0+
+- ProcessorTransactionFee: Fee charged by processor - API v60.0+
+- RefundedAmount: Amount refunded (calculated)
+- Status: Transaction status (required) - Paid, Pending, Unpaid, etc.
+- TaxReceiptStatus: Tax receipt status - API v62.0+
+- TotalTransactionFee: Total fees (calculated) - API v60.0+
+- TransactionDate: When donor completed gift (required for Paid/Fully Refunded)
+- TransactionDueDate: Expected date for scheduled gift
+
+Common GiftTransaction queries:
+- Count all donations: SELECT COUNT() FROM GiftTransaction
+- Sum of all paid donations: SELECT SUM(OriginalAmount) FROM GiftTransaction WHERE Status = 'Paid'
+- Recent donations: SELECT Id, Name, DonorId, OriginalAmount, TransactionDate FROM GiftTransaction WHERE TransactionDate >= LAST_N_DAYS:30
+- Donations by status: SELECT COUNT(), SUM(OriginalAmount) FROM GiftTransaction GROUP BY Status
+- Major gifts: SELECT Id, Name, DonorId, OriginalAmount FROM GiftTransaction WHERE OriginalAmount > 10000 AND Status = 'Paid'
+- Donations with donor info: SELECT Id, Name, OriginalAmount, Donor.Name, Donor.Email FROM GiftTransaction WHERE Status = 'Paid'`;
   }
 
   private buildUserPrompt(input: SalesforceQueryInput): string {
