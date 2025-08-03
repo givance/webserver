@@ -11,9 +11,10 @@ import { z } from 'zod';
 import { WhatsAppHistoryService } from './whatsapp-history.service';
 import { WhatsAppStaffLoggingService } from './whatsapp-staff-logging.service';
 import { createSalesforceQueryTool } from './salesforce-query-tool';
-import { createAddDonorNoteTool } from './add-donor-note-tool';
+import { createSalesforceAddNoteTool } from './salesforce-add-note-tool';
 import { buildUserPrompt } from './prompts';
 import { WhatsAppAIRequest, WhatsAppAIResponse } from './types';
+import { integrationsService } from '../integrations.service';
 
 // Create Azure OpenAI client
 const azure = createAzure({
@@ -29,7 +30,7 @@ Your organization uses Salesforce as the primary CRM system.
 
 Available tools:
 1. querySalesforce - Query any Salesforce data (Accounts, Contacts, GiftTransactions, Opportunities, etc.)
-2. addDonorNote - Add notes to donor records in the local system
+2. addInteractionSummary - Create InteractionSummary records in Salesforce (linked to Accounts)
 3. askClarification - Ask for clarification when requests are unclear
 
 KEY RULES:
@@ -38,7 +39,11 @@ KEY RULES:
   - Listing donors/contacts
   - Donation totals and reports
   - Any CRM data queries
-- Use addDonorNote to add notes to donor records
+- Use addInteractionSummary to add notes:
+  - For Accounts: Pass the Account ID and recordType "Account"
+  - For Contacts: Pass the Contact ID and recordType "Contact" (will find their Account and create InteractionSummary there)
+  - If a Contact has no Account, inform the user they need to create an Account first
+  - This creates a new InteractionSummary record in Salesforce
 - ALWAYS provide a complete, conversational response after using tools
 - Format responses clearly for WhatsApp with appropriate line breaks
 - Be friendly and helpful
@@ -48,7 +53,7 @@ Common queries and how to handle them:
 - "List top donors" → querySalesforce: "List top 10 donors by total GiftTransaction amount"
 - "Total donations?" → querySalesforce: "Sum all GiftTransaction amounts with status Paid"
 - "Find John Smith" → querySalesforce: "Find Contact named John Smith"
-- "Add note to donor X" → First find donor with querySalesforce, then use addDonorNote
+- "Add note to John Smith" → First find Contact with querySalesforce, then use addInteractionSummary with Contact ID and recordType "Contact"
 
 Remember: Salesforce is your ONLY source for donor and donation data.`;
 
@@ -96,8 +101,29 @@ export class WhatsAppSalesforceAIService {
       const historyContext = this.historyService.formatHistoryForAI(chatHistory);
       const userPrompt = buildUserPrompt(message, isTranscribed, historyContext);
 
+      // Get Salesforce integration tokens
+      const integration = await integrationsService.getActiveStaffIntegration(
+        staffId,
+        'salesforce'
+      );
+
+      if (!integration) {
+        throw new Error('No active Salesforce integration found');
+      }
+
+      const tokens = integrationsService.getIntegrationTokens(integration);
+      if (!tokens || !tokens.metadata?.instanceUrl) {
+        throw new Error('Invalid Salesforce integration tokens');
+      }
+
       // Create Salesforce-specific tools
-      const tools = this.createSalesforceTools(organizationId, staffId, fromPhoneNumber);
+      const tools = this.createSalesforceTools(
+        organizationId,
+        staffId,
+        fromPhoneNumber,
+        tokens.accessToken,
+        tokens.metadata.instanceUrl
+      );
 
       logger.info(`[WhatsApp Salesforce AI] Sending to Azure OpenAI`, {
         deployment: env.AZURE_OPENAI_DEPLOYMENT_NAME,
@@ -180,7 +206,13 @@ export class WhatsAppSalesforceAIService {
   /**
    * Create Salesforce-specific tools
    */
-  private createSalesforceTools(organizationId: string, staffId: number, fromPhoneNumber: string) {
+  private createSalesforceTools(
+    organizationId: string,
+    staffId: number,
+    fromPhoneNumber: string,
+    accessToken: string,
+    instanceUrl: string
+  ) {
     return {
       querySalesforce: createSalesforceQueryTool(
         organizationId,
@@ -189,12 +221,14 @@ export class WhatsAppSalesforceAIService {
         fromPhoneNumber
       ).querySalesforce,
 
-      addDonorNote: createAddDonorNoteTool(
+      addInteractionSummary: createSalesforceAddNoteTool(
         organizationId,
         this.loggingService,
         staffId,
-        fromPhoneNumber
-      ).addDonorNote,
+        fromPhoneNumber,
+        accessToken,
+        instanceUrl
+      ).addInteractionSummary,
 
       askClarification: {
         description: 'Ask the user for clarification when the request is unclear',

@@ -44,6 +44,7 @@ export const SalesforceQueryResultSchema = z.object({
       success: z.literal(false),
       error: z.string(),
       errorCode: z.string().optional(),
+      needsTokenRefresh: z.boolean().optional(),
     }),
   ]),
   executionTime: z.number().describe('Query execution time in milliseconds'),

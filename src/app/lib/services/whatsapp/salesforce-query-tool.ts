@@ -7,6 +7,10 @@ import { logger } from '@/app/lib/logger';
 import { WhatsAppStaffLoggingService } from './whatsapp-staff-logging.service';
 import { createSalesforceQueryGenerator } from '../salesforce/tools';
 import { integrationsService } from '../integrations.service';
+import { db } from '@/app/lib/db';
+import { staffIntegrations } from '@/app/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { SalesforceService } from '../crm/salesforce/salesforce.service';
 
 const SALESFORCE_QUERY_DESCRIPTION = `Query Salesforce data using natural language. This tool converts your request into SOQL (Salesforce Object Query Language) and executes it against the organization's Salesforce instance.
 
@@ -111,9 +115,84 @@ export function createSalesforceQueryTool(
           });
 
           // Generate and execute the query
-          const result = await queryGenerator.generateAndExecuteQuery({
+          let result = await queryGenerator.generateAndExecuteQuery({
             request: params.request,
           });
+
+          // Check if we need to refresh the token
+          if (
+            !result.executionResult.success &&
+            result.executionResult.needsTokenRefresh &&
+            tokens!.refreshToken
+          ) {
+            logger.info('[WhatsApp Salesforce] Token expired, attempting refresh', {
+              staffId,
+              organizationId,
+            });
+
+            try {
+              // Create Salesforce service instance
+              const salesforceService = new SalesforceService();
+
+              // Refresh the token
+              const newTokens = await salesforceService.refreshAccessToken(tokens!.refreshToken);
+
+              // Update the integration with new tokens
+              await db
+                .update(staffIntegrations)
+                .set({
+                  accessToken: newTokens.accessToken,
+                  refreshToken: newTokens.refreshToken || tokens!.refreshToken,
+                  expiresAt: newTokens.expiresAt,
+                  metadata: {
+                    ...((integration.metadata as Record<string, any>) || {}),
+                    ...newTokens.metadata,
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(staffIntegrations.id, integration.id));
+
+              logger.info('[WhatsApp Salesforce] Token refreshed successfully', {
+                staffId,
+                organizationId,
+              });
+
+              // Retry the query with new token
+              const refreshedQueryGenerator = createSalesforceQueryGenerator({
+                organizationId,
+                userId: staffId.toString(),
+                accessToken: newTokens.accessToken,
+                metadata: {
+                  instanceUrl: newTokens.metadata?.instanceUrl || tokens!.metadata!.instanceUrl,
+                },
+              });
+
+              result = await refreshedQueryGenerator.generateAndExecuteQuery({
+                request: params.request,
+              });
+            } catch (refreshError) {
+              logger.error('[WhatsApp Salesforce] Token refresh failed', {
+                error: refreshError,
+                staffId,
+                organizationId,
+              });
+
+              await loggingService.logError(
+                staffId,
+                organizationId,
+                fromPhoneNumber,
+                'Failed to refresh Salesforce authentication. Please reconnect Salesforce in your staff settings.',
+                { error: refreshError },
+                'salesforce_token_refresh_failed'
+              );
+
+              return {
+                success: false,
+                error:
+                  'Your Salesforce session has expired and could not be refreshed. Please reconnect Salesforce in your staff settings.',
+              };
+            }
+          }
 
           const processingTime = Date.now() - startTime;
 

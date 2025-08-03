@@ -174,6 +174,12 @@ export class SalesforceService implements ICrmProvider {
       scope: data.scope,
       tokenType: data.token_type,
       expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      // Include metadata with instance URL for API calls
+      metadata: {
+        instanceUrl: data.instance_url,
+        id: data.id,
+        issuedAt: data.issued_at,
+      },
     };
   }
 

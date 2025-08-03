@@ -242,6 +242,16 @@ IMPORTANT: To get donor details (name, email), you need a separate query on the 
           soql,
         });
 
+        // Check if it's an invalid session error that needs token refresh
+        if (response.status === 401 && errorData[0]?.errorCode === 'INVALID_SESSION_ID') {
+          return {
+            success: false,
+            error: errorData[0]?.message || 'Session expired or invalid',
+            errorCode: errorData[0]?.errorCode,
+            needsTokenRefresh: true,
+          };
+        }
+
         return {
           success: false,
           error: errorData[0]?.message || response.statusText,
@@ -323,6 +333,15 @@ IMPORTANT: To get donor details (name, email), you need a separate query on the 
 
       // If successful, return the result
       if (executionResult.success) {
+        return {
+          query: queryOutput,
+          executionResult,
+          executionTime: Date.now() - startTime,
+        };
+      }
+
+      // If token refresh is needed, return immediately without retrying
+      if (executionResult.needsTokenRefresh) {
         return {
           query: queryOutput,
           executionResult,
